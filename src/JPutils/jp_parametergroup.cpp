@@ -2,7 +2,7 @@
 
 void JPParameter::setup(float _var, string _name)
 
-{	
+{
 	name = _name;
 	floatValue = _var;
 	floatLerpValue = _var;
@@ -12,7 +12,7 @@ void JPParameter::setup(float _var, string _name)
 	min = 0.0;
 	max = 1.0;
 	speed = 0.2;
-	seed = ofRandom(10000); 
+	seed = ofRandom(10000);
 	needsUpdate = false;
 }
 void JPParameter::setup(bool _var, string _name)
@@ -25,40 +25,50 @@ void JPParameter::setup(bool _var, string _name)
 	max = 1.0;
 	speed = 1.0;
 }
-void JPParameter::update(){
-	//ACA DEBERIA ACTUALIARSE SI ES TIPO UN FLOAT : 
-	if (variabletype == FLOAT) {
+void JPParameter::update()
+{
+	//ACA DEBERIA ACTUALIARSE SI ES TIPO UN FLOAT :
+	if (variabletype == FLOAT)
+	{
 		float absolutespeed = .015;
-		if (movtype == OSC) {
+		if (movtype == OSC)
+		{
 			//floatValue += speed;
-			(dir) ? floatLerpValue += speed* absolutespeed : floatLerpValue -= speed* absolutespeed;
-			if (floatLerpValue > max ) {
+			(dir) ? floatLerpValue += speed *absolutespeed : floatLerpValue -= speed * absolutespeed;
+			if (floatLerpValue > max)
+			{
 				floatLerpValue = max;
 				dir = !dir;
 			}
-			if (floatLerpValue < min) {
+			if (floatLerpValue < min)
+			{
 				floatLerpValue = min;
 				dir = !dir;
 			}
 		}
-		if (movtype == GODER) {
+		if (movtype == GODER)
+		{
 			dir = true;
-			(dir) ? floatLerpValue += speed * absolutespeed : floatLerpValue -= speed * absolutespeed;
-			if (floatLerpValue > max) {
+			(dir) ? floatLerpValue += speed *absolutespeed : floatLerpValue -= speed * absolutespeed;
+			if (floatLerpValue > max)
+			{
 				floatLerpValue = min;
 			}
 		}
-		if (movtype == GOIZQ) {
+		if (movtype == GOIZQ)
+		{
 			//cout << "FUNCIONA" << endl;
 			dir = false;
-			(dir) ? floatLerpValue += speed * absolutespeed : floatLerpValue -= speed * absolutespeed;
-			if (floatLerpValue < min) {
+			(dir) ? floatLerpValue += speed *absolutespeed : floatLerpValue -= speed * absolutespeed;
+			if (floatLerpValue < min)
+			{
 				floatLerpValue = max;
 			}
 		}
-		if (movtype == RANDOM) {
-			float n = ofMap(ofNoise(ofGetElapsedTimeMillis() * speed  *absolutespeed + seed),
-				0.0, 1.0, min, max);
+		if (movtype == RANDOM)
+		{
+			float n = ofMap(ofNoise(ofGetElapsedTimeMillis() * speed * absolutespeed + seed),
+							0.0, 1.0, min, max);
 			floatValue = n;
 			floatLerpValue = n;
 		}
@@ -72,143 +82,181 @@ void JPParameter::update(){
 /*****************************************************************************/
 void JPParameterGroup::addFloatValue(float _var, string _name)
 {
-	JPParameter * param = new JPParameter();
+	JPParameter *param = new JPParameter();
 	param->setup(_var, _name);
 	parameters.push_back(param);
 }
 void JPParameterGroup::addBoolValue(bool _var, string _name)
 {
-	JPParameter * param = new JPParameter();
+	JPParameter *param = new JPParameter();
 	param->setup(_var, _name);
 	parameters.push_back(param);
 }
-void JPParameterGroup::clear() {
+void JPParameterGroup::clear()
+{
 	parameters.clear();
 }
-void JPParameterGroup::coutData() {
+void JPParameterGroup::coutData()
+{
 	cout << "*******************************************" << endl;
 	cout << "PARAMETER DATA : " << endl;
-	for (int i = 0; i < parameters.size(); i++) {
+	for (int i = 0; i < parameters.size(); i++)
+	{
 		cout << "NAME : " << parameters[i]->name << endl;
-		if (parameters[i]->variabletype == FLOAT) {
+		if (parameters[i]->variabletype == FLOAT)
+		{
 			cout << "TYPE : FLOAT" << endl;
 			cout << "VALUE : " << parameters[i]->floatValue << endl;
 		}
-		else if (parameters[i]->variabletype == BOOL) {
+		else if (parameters[i]->variabletype == BOOL)
+		{
 			cout << "TYPE : BOOL" << endl;
 			cout << "VALUE : " << parameters[i]->boolValue << endl;
 		}
 	}
 	cout << "*******************************************" << endl;
 }
-void JPParameterGroup::update(){
-	for (int i = 0; i < size(parameters); i++) {
-		if(parameters[i]->movtype != 0 || parameters[i]->needsUpdate){
+void JPParameterGroup::update()
+{
+	for (int i = 0; i < parameters.size(); i++)
+	{
+		if (parameters[i]->movtype != 0 || parameters[i]->needsUpdate)
+		{
 			parameters[i]->update();
 		}
 	}
 }
-void JPParameterGroup::setmovetype(int _movetype, int _index){
-	if (parameters[_index]->variabletype == parameters[_index]->FLOAT) {
+void JPParameterGroup::setmovetype(int _movetype, int _index)
+{
+	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
+	{
 		parameters[_index]->movtype = _movetype;
 	}
 }
 //SETTERS
-void JPParameterGroup::setFloatValue(float _val, int _index) {
-	if (parameters[_index]->variabletype == parameters[_index]->FLOAT) {
+void JPParameterGroup::setFloatValue(float _val, int _index)
+{
+	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
+	{
 		parameters[_index]->floatValue = _val;
 	}
 }
-void JPParameterGroup::setFloatLerpValue(float _val, int _index) {
-	if (parameters[_index]->variabletype == parameters[_index]->FLOAT) {
+void JPParameterGroup::setFloatLerpValue(float _val, int _index)
+{
+	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
+	{
 		parameters[_index]->floatLerpValue = _val;
 	}
 }
-void JPParameterGroup::setName(string _name) {
+void JPParameterGroup::setName(string _name)
+{
 	name = _name;
 }
 void JPParameterGroup::setSpeed(float _val, int _index)
 {
-	if (parameters[_index]->variabletype == parameters[_index]->FLOAT) {
+	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
+	{
 		parameters[_index]->speed = _val;
 	}
 }
-void JPParameterGroup::setBoolValue(bool _val, int _index) {
+void JPParameterGroup::setBoolValue(bool _val, int _index)
+{
 	//if (parameters[_index].variabletype == parameters[_index].BOOL) {
 	parameters[_index]->boolValue = _val;
 	//}
 }
-void JPParameterGroup::setMin(float _val, int _index) {
+void JPParameterGroup::setMin(float _val, int _index)
+{
 
-	if (parameters[_index]->variabletype == parameters[_index]->FLOAT) {
+	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
+	{
 		parameters[_index]->min = _val;
 	}
 }
-void JPParameterGroup::setMax(float _val, int _index) {
-	if (parameters[_index]->variabletype == parameters[_index]->FLOAT) {
+void JPParameterGroup::setMax(float _val, int _index)
+{
+	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
+	{
 		parameters[_index]->max = _val;
 	}
 }
-//GETTERS : 
-int JPParameterGroup::getSize() {
+//GETTERS :
+int JPParameterGroup::getSize()
+{
 	return parameters.size();
 }
-int JPParameterGroup::getType(int _index) {
-	if (parameters[_index]->variabletype == parameters[_index]->FLOAT) {
+int JPParameterGroup::getType(int _index)
+{
+	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
+	{
 		return parameters[_index]->FLOAT;
 	}
-	else {
+	else
+	{
 		return parameters[_index]->BOOL;
 	}
-
 }
-float JPParameterGroup::getSpeed(int _index){
+float JPParameterGroup::getSpeed(int _index)
+{
 	return parameters[_index]->speed;
 }
-float JPParameterGroup::getFloatValue(int _index) {
-	if (parameters[_index]->variabletype == parameters[_index]->FLOAT) {
+float JPParameterGroup::getFloatValue(int _index)
+{
+	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
+	{
 		return parameters[_index]->floatValue;
 	}
-	else {
+	else
+	{
 		return -10;
 	}
 }
 float JPParameterGroup::getLerpValue(int _index)
 {
-	if (parameters[_index]->variabletype == parameters[_index]->FLOAT) {
+	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
+	{
 		return parameters[_index]->floatLerpValue;
 	}
-	else {
+	else
+	{
 		return -10;
 	}
 }
-float JPParameterGroup::getMin (int _index)
+float JPParameterGroup::getMin(int _index)
 {
-	if (parameters[_index]->variabletype == parameters[_index]->FLOAT) {
+	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
+	{
 		return parameters[_index]->min;
 	}
-	else {
+	else
+	{
 		return 0.0;
 	}
 }
 float JPParameterGroup::getMax(int _index)
 {
-	if (parameters[_index]->variabletype == parameters[_index]->FLOAT) {
+	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
+	{
 		return parameters[_index]->max;
 	}
-	else {
+	else
+	{
 		return 1.0;
 	}
 }
-bool JPParameterGroup::getBoolValue(int _index) {
-	if (parameters[_index]->variabletype == parameters[_index]->BOOL) {
+bool JPParameterGroup::getBoolValue(int _index)
+{
+	if (parameters[_index]->variabletype == parameters[_index]->BOOL)
+	{
 		return parameters[_index]->boolValue;
 	}
-	else {
+	else
+	{
 		return false;
 	}
 }
-int JPParameterGroup::getMovType(int _index) {
+int JPParameterGroup::getMovType(int _index)
+{
 	//cout << endl << "MOVTYPE" << parameters[_index]->movtype << endl;
 	return parameters[_index]->movtype;
 }
@@ -216,11 +264,14 @@ JPParameter JPParameterGroup::getJParameter(int _index)
 {
 	return *parameters.at(_index);
 }
-string  JPParameterGroup::getName(int _index) {
-	if (getSize() >= _index) {
+string JPParameterGroup::getName(int _index)
+{
+	if (getSize() >= _index)
+	{
 		return parameters[_index]->name;
 	}
-	else {
+	else
+	{
 		return "ERROR IN GETTING NAME VALUE";
 	}
 }

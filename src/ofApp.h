@@ -1,16 +1,15 @@
 /*
 	Made by JPUPPER vieja
-	Ultima modificación : 10/5/2019
+	Ultima modificaciï¿½n : 10/5/2019
 
 	Cambios a hacer : 
 	
 
 */
 
-
 #pragma once
 
-//ADDONS : 
+//ADDONS :
 //OTHERS:
 #include "ofMain.h"
 #include "JPbox/jp_box.h"
@@ -25,7 +24,8 @@
 
 #define PORT 5000
 
-class ofApp : public ofBaseApp {
+class ofApp : public ofBaseApp
+{
 
 public:
 	void setup();
@@ -38,14 +38,12 @@ public:
 
 	void draw_opciones();
 
-
-
 	void drawRender();
 
 	void keyPressed(int key);
 	void openRenderWindow();
-	void keycodePressed(ofKeyEventArgs& e);
-	void exit(ofEventArgs& e); //LISTENER FOR EXIT APP .
+	void keycodePressed(ofKeyEventArgs &e);
+	void exit(ofEventArgs &e); //LISTENER FOR EXIT APP .
 
 	void keyReleased(int key);
 	void mouseMoved(int x, int y);
@@ -58,9 +56,9 @@ public:
 	void dragEvent(ofDragInfo dragInfo);
 	void gotMessage(ofMessage msg);
 
-	//ofxKFW2::Device kinect; 
+	//ofxKFW2::Device kinect;
 
-	ofTrueTypeFont font_p; //Titulo de compo 
+	ofTrueTypeFont font_p; //Titulo de compo
 	//JPGui gui;
 
 	JPboxgroup boxes;
@@ -70,50 +68,39 @@ public:
 	bool isDebug = false;
 	bool isRecording = false;
 
-
 	int prevKey = 0;
-
 
 	string savedirectory; //directorio en donde se guarda. Cambia si haces un save as.
 
+	bool InitGLtexture(GLuint &texID, unsigned int width, unsigned int height);
 
+	char sendername[256]; // Window name (Spout uses it as sender name)
 
-	//SPOUT SENDER : 
+#ifdef SPOUT
+	// SPOUT SENDER:
 	SpoutSender spoutsender; // A sender object
-	char sendername[256];     // Sender name
-	GLuint sendertexture;     // Local OpenGL texture used for sharing
-	bool bInitialized;        // Initialization result
-	ofImage myTextureImage;   // Texture image for the 3D demo
+	GLuint sendertexture;	 // Local OpenGL texture used for sharing
+	bool bInitialized;		 // Initialization result
+	ofImage myTextureImage;	 // Texture image for the 3D demo
 	float rotX, rotY;
 	void drawSpout();
-	bool InitGLtexture(GLuint &texID, unsigned int width, unsigned int height);
 	bool spoutActive = false;
+#endif
 
-	//NDI SENDER: 
-	ofxNDIsender ndiSender;    // NDI sender
-	ofFbo ndiFbo;              // Fbo used for graphics and sending
+#ifdef NDI
+	// NDI SENDER:
+	ofxNDIsender ndiSender; // NDI sender
+	ofFbo ndiFbo;			// Fbo used for graphics and sending
+#endif
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-	//WINDOW MANAGMENT: 
-	std::vector<shared_ptr<ofAppBaseWindow> > windows; //Esto es para las ventanas de los renders.
+	//WINDOW MANAGMENT:
+	std::vector<shared_ptr<ofAppBaseWindow>> windows; //Esto es para las ventanas de los renders.
 	std::shared_ptr<ofAppBaseWindow> mainWindow;
 	bool isRenderWindowOpen = false;
 	void window_drawRender(ofEventArgs &args);
 	void window_resized(ofResizeEventArgs &args);
-	void window_mouseMove(ofMouseEventArgs & e);
-	void window_keyPressed(ofKeyEventArgs& e);
+	void window_mouseMove(ofMouseEventArgs &e);
+	void window_keyPressed(ofKeyEventArgs &e);
 
 	void setInitialValues();
 
@@ -123,28 +110,26 @@ public:
 
 	//OSC MANAGMENT
 	ofxOscSender sender;
-	ofxOscReceiver	receiver;
-	int				current_msg_string;
-	int				mouseX, mouseY;
-	char			mouseButtonState[128];
+	ofxOscReceiver receiver;
+	int current_msg_string;
+	int mouseX, mouseY;
+	char mouseButtonState[128];
 	void updateOSC();
 
-	//Esto sería mejor en uno tal vez ? por ahora lo dejamos con 2.
+	//Esto serï¿½a mejor en uno tal vez ? por ahora lo dejamos con 2.
 	OpenLoader openloader;
 	//OpenSaveFileLoader opensavefile_loader;
 	SaveAsSaver saveas_saver;
 	ofImage outletimg;
 
-
-	enum MENUACTIVO {
+	enum MENUACTIVO
+	{
 		NODOS,
 		OPCIONES,
 		TUTORIAL
 	};
 	int pantallaActiva;
 	bool loadAspreset; //ESTO ES PARA QUE TODO EL TIEMPO ME DIGA SI TENGO APRETADO EL BOTON DE LA IZQ O NO .
-
-
 
 	bool oscout_mode1;
 	bool oscout_mode2;

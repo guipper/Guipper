@@ -88,7 +88,7 @@ OF_ROOT = /opt/of_v0.11.2_osx_release
 #
 #   Note: Leave a leading space when adding list items with the += operator
 ################################################################################
-# PROJECT_DEFINES = 
+PROJECT_DEFINES = NDI
 
 ################################################################################
 # PROJECT CFLAGS
