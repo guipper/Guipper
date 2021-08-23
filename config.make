@@ -37,7 +37,8 @@ OF_ROOT = /opt/of_v0.11.2_osx_release
 #
 #   Note: Leave a leading space when adding list items with the += operator
 ################################################################################
-# PROJECT_EXTERNAL_SOURCE_PATHS = 
+# Uncomment to enable Spout SDK compiling (only Windows)
+#PROJECT_EXTERNAL_SOURCE_PATHS = $(PROJECT_ROOT)/vendor/SpoutSDK
 
 ################################################################################
 # PROJECT EXCLUSIONS
@@ -61,7 +62,7 @@ OF_ROOT = /opt/of_v0.11.2_osx_release
 #
 #   Note: Leave a leading space when adding list items with the += operator
 ################################################################################
-# PROJECT_EXCLUSIONS =
+#PROJECT_EXCLUSIONS = 
 
 ################################################################################
 # PROJECT LINKER FLAGS
@@ -88,6 +89,7 @@ OF_ROOT = /opt/of_v0.11.2_osx_release
 #
 #   Note: Leave a leading space when adding list items with the += operator
 ################################################################################
+# Possible defines: NDI (requires ofxNDI addon), SPOUT (only Windows)
 PROJECT_DEFINES = NDI
 
 ################################################################################
