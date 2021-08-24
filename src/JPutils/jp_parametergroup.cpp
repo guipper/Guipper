@@ -260,9 +260,9 @@ int JPParameterGroup::getMovType(int _index)
 	//cout << endl << "MOVTYPE" << parameters[_index]->movtype << endl;
 	return parameters[_index]->movtype;
 }
-JPParameter JPParameterGroup::getJParameter(int _index)
+JPParameter *JPParameterGroup::getJParameter(int _index)
 {
-	return *parameters.at(_index);
+	return parameters.at(_index);
 }
 string JPParameterGroup::getName(int _index)
 {

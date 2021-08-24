@@ -20,8 +20,9 @@ public:
 	string name;
 	ofTrueTypeFont * font_p;
 	JPParameter* parameters;
-	void setParametersPointer(JPParameter& _parameters) {
-		parameters = &_parameters;
+	void setParametersPointer(JPParameter *_parameters)
+	{
+		parameters = _parameters;
 	}
 
 	//ESTO ES PARA PODER CAZARLO DESPUES : 

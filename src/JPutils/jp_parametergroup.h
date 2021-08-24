@@ -62,7 +62,7 @@ public:
 	float getMax(int _index);
 	bool getBoolValue(int _index);
 	int getMovType(int _index);
-	JPParameter getJParameter(int _index);
+	JPParameter *getJParameter(int _index);
 	//SETTERS: 
 	void setFloatValue(float _val, int _index);
 	void setFloatLerpValue(float _val, int _index);

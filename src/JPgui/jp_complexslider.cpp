@@ -99,12 +99,12 @@ void JPComplexSlider::setup(float _x, float _y, float _width, float _height, JPP
 	//cout << "CORRE ESTA MIERDA" << endl;
 	//_parameters.saludar();
 
-	boton_collapse.setParametersPointer(*parameters);
-	boton_direccion.setParametersPointer(*parameters);
-	slider_value.setParametersPointer(*parameters);
-	boton_idayvuelta.setParametersPointer(*parameters);
-	boton_random.setParametersPointer(*parameters);
-	slider_speed.setParametersPointer(*parameters);
+	boton_collapse.setParametersPointer(parameters);
+	boton_direccion.setParametersPointer(parameters);
+	slider_value.setParametersPointer(parameters);
+	boton_idayvuelta.setParametersPointer(parameters);
+	boton_random.setParametersPointer(parameters);
+	slider_speed.setParametersPointer(parameters);
 
 	activable2 = true;
 	controllertype = COMPLEXSLIDER;
