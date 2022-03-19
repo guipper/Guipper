@@ -7,22 +7,23 @@
 //#include "Shaderrender.h"
 
 //#include "JPbox/JPboxgroup.h"
-//Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
+// Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
 
-class JPbox_video : public JPbox {
+class JPbox_video : public JPbox
+{
 public:
-	JPbox_video();// constructor declared
+	JPbox_video(); // constructor declared
 	~JPbox_video();
 
 	ofVideoPlayer movie;
-	//string dir;
-	//JPFbohandlerGroup fbohandlergroup;
+	// string dir;
+	// JPFbohandlerGroup fbohandlergroup;
 
-	//METODOS HEREDADOS : 
-	//void reload();
-	void setup(ofTrueTypeFont & _font,
-		string _dir,
-		string _nombre);
+	// METODOS HEREDADOS :
+	// void reload();
+	void setup(ofTrueTypeFont &_font,
+			   string _dir,
+			   string _nombre);
 	void setup(string _dir, string _nombre);
 	void update();
 	void updateFBO();
@@ -33,4 +34,3 @@ public:
 		//setfbohandler_nodepos();
 	}*/
 };
-

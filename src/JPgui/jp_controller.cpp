@@ -1,20 +1,24 @@
 #include "jp_controller.h"
 
-JPcontroller::JPcontroller(){
+JPcontroller::JPcontroller()
+{
 	paleta = 0;
 	useTexture = false;
-//	cout << " ASLDDASD " << endl;
+	//	cout << " ASLDDASD " << endl;
 }
-JPcontroller::~JPcontroller(){
+JPcontroller::~JPcontroller()
+{
 }
-void JPcontroller::draw(){
-	//isGrabbed2;
+void JPcontroller::draw()
+{
+	// isGrabbed2;
 }
-void JPcontroller::update(){
-
+void JPcontroller::update()
+{
 }
-//ACA NO IMPORTA PORQUE TOTAL ES LO QUE USAMOS EN LOS SLIDERS
-float JPcontroller::getValue(){
+// ACA NO IMPORTA PORQUE TOTAL ES LO QUE USAMOS EN LOS SLIDERS
+float JPcontroller::getValue()
+{
 	return 1;
 }
 

@@ -9,7 +9,7 @@ void JPbox_spout::setup(string _dir, string _name)
 {
 
 	JPbox::setup(_dir, _name);
-	//parameters.coutData();
+	// parameters.coutData();
 	name = "SPOUT";
 	dir = "spoutReceiver";
 	myTexture.allocate(int(jp_constants::renderWidth), int(jp_constants::renderHeight), GL_RGBA);
@@ -48,8 +48,8 @@ void JPbox_spout::update_spout()
 	// "CreateReceiver" will update the passed name, and dimensions.
 	if (!bInitialized)
 	{
-		//spoutreceiver.
-		// Create the receiver and specify true to attempt to connect to the active sender
+		// spoutreceiver.
+		//  Create the receiver and specify true to attempt to connect to the active sender
 		if (spoutreceiver.CreateReceiver(SenderName, width, height))
 		{
 			// Is the size of the detected sender different ?
@@ -61,7 +61,7 @@ void JPbox_spout::update_spout()
 				// Update the local texture to receive the new dimensions
 
 				// reset render window
-				//ofSetWindowShape(g_Width, g_Height);
+				// ofSetWindowShape(g_Width, g_Height);
 			}
 			myTexture.allocate(g_Width, g_Height, GL_RGBA);
 			name = SenderName;
@@ -103,8 +103,8 @@ void JPbox_spout::update_spout()
 				ofSetWindowShape(g_Width, g_Height);
 				return; // quit for next round
 			}
-			//name = SenderName;
-			// Otherwise draw the texture
+			// name = SenderName;
+			//  Otherwise draw the texture
 			myTexture.draw(0, 0, jp_constants::renderWidth, jp_constants::renderHeight);
 
 			// Show what it is receiving
@@ -134,10 +134,10 @@ void JPbox_spout::update_spout()
 			char *name = new char[256];
 			spoutreceiver.GetSenderName(i, name);
 			cout << "Spout sender " << i << ":" << name << endl;
-			//si detecta que cambio y que el sender que elegimos es ese:
+			// si detecta que cambio y que el sender que elegimos es ese:
 			if (i == activesender)
 			{
-				//SenderName = name;
+				// SenderName = name;
 				spoutreceiver.ReleaseReceiver();
 				strcpy(SenderName, name);
 				bInitialized = false;
@@ -148,8 +148,8 @@ void JPbox_spout::update_spout()
 		cout << "Name active sender :" << SenderName << endl;
 	}
 
-	//cout << "SENDER COUNT" << spoutreceiver.GetSenderCount() << endl;
-	//spoutreceiver.GetSenderCount();
+	// cout << "SENDER COUNT" << spoutreceiver.GetSenderCount() << endl;
+	// spoutreceiver.GetSenderCount();
 }
 
 void JPbox_spout::update()
@@ -157,7 +157,7 @@ void JPbox_spout::update()
 	JPbox::update();
 	update_spout();
 	updateFBO();
-	//movie.update();
+	// movie.update();
 }
 void JPbox_spout::updateFBO()
 {
@@ -203,8 +203,8 @@ void JPbox_spout::updateFBO()
 
 			myTexture.draw(pos, jp_constants::renderWidth, jp_constants::renderHeight);
 		}
-		//ofSetColor(255, 0, 0);
-		//ofDrawEllipse(fbo.getWidth() / 2, fbo.getHeight() / 2, 200, 200);
+		// ofSetColor(255, 0, 0);
+		// ofDrawEllipse(fbo.getWidth() / 2, fbo.getHeight() / 2, 200, 200);
 		fbo.end();
 	}
 	else

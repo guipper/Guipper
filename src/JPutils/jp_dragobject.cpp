@@ -1,7 +1,7 @@
 #include "jp_dragobject.h"
 
-JPdragobject::JPdragobject(){}
-JPdragobject::~JPdragobject(){}
+JPdragobject::JPdragobject() {}
+JPdragobject::~JPdragobject() {}
 void JPdragobject::setup(float _x, float _y, float _width, float _height)
 {
 	x = _x;
@@ -11,23 +11,24 @@ void JPdragobject::setup(float _x, float _y, float _width, float _height)
 }
 bool JPdragobject::mouseOver()
 {
-	if (ofGetMouseX() > x - width / 2
-		&& ofGetMouseX() < x + width / 2
-		&& ofGetMouseY() > y - height / 2
-		&& ofGetMouseY() < y + height / 2) {
-		//cout << "MOUSEOVER" << endl;
+	if (ofGetMouseX() > x - width / 2 && ofGetMouseX() < x + width / 2 && ofGetMouseY() > y - height / 2 && ofGetMouseY() < y + height / 2)
+	{
+		// cout << "MOUSEOVER" << endl;
 		return true;
 	}
-	else {
+	else
+	{
 		return false;
 	}
 }
 bool JPdragobject::mouseGrab()
 {
-	if (mouseOver() && ofGetMousePressed()) {
+	if (mouseOver() && ofGetMousePressed())
+	{
 		return true;
 	}
-	else {
+	else
+	{
 		return false;
 	}
 }

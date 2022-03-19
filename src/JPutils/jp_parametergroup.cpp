@@ -27,13 +27,13 @@ void JPParameter::setup(bool _var, string _name)
 }
 void JPParameter::update()
 {
-	//ACA DEBERIA ACTUALIARSE SI ES TIPO UN FLOAT :
+	// ACA DEBERIA ACTUALIARSE SI ES TIPO UN FLOAT :
 	if (variabletype == FLOAT)
 	{
 		float absolutespeed = .015;
 		if (movtype == OSC)
 		{
-			//floatValue += speed;
+			// floatValue += speed;
 			(dir) ? floatLerpValue += speed *absolutespeed : floatLerpValue -= speed * absolutespeed;
 			if (floatLerpValue > max)
 			{
@@ -57,7 +57,7 @@ void JPParameter::update()
 		}
 		if (movtype == GOIZQ)
 		{
-			//cout << "FUNCIONA" << endl;
+			// cout << "FUNCIONA" << endl;
 			dir = false;
 			(dir) ? floatLerpValue += speed *absolutespeed : floatLerpValue -= speed * absolutespeed;
 			if (floatLerpValue < min)
@@ -75,8 +75,8 @@ void JPParameter::update()
 	}
 
 	floatValue = floatLerpValue;
-	//floatLerpValue = ofRandom(1);
-	//floatValue = ofRandom(1);
+	// floatLerpValue = ofRandom(1);
+	// floatValue = ofRandom(1);
 }
 
 /*****************************************************************************/
@@ -133,7 +133,7 @@ void JPParameterGroup::setmovetype(int _movetype, int _index)
 		parameters[_index]->movtype = _movetype;
 	}
 }
-//SETTERS
+// SETTERS
 void JPParameterGroup::setFloatValue(float _val, int _index)
 {
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
@@ -161,7 +161,7 @@ void JPParameterGroup::setSpeed(float _val, int _index)
 }
 void JPParameterGroup::setBoolValue(bool _val, int _index)
 {
-	//if (parameters[_index].variabletype == parameters[_index].BOOL) {
+	// if (parameters[_index].variabletype == parameters[_index].BOOL) {
 	parameters[_index]->boolValue = _val;
 	//}
 }
@@ -180,7 +180,7 @@ void JPParameterGroup::setMax(float _val, int _index)
 		parameters[_index]->max = _val;
 	}
 }
-//GETTERS :
+// GETTERS :
 int JPParameterGroup::getSize()
 {
 	return parameters.size();
@@ -257,7 +257,7 @@ bool JPParameterGroup::getBoolValue(int _index)
 }
 int JPParameterGroup::getMovType(int _index)
 {
-	//cout << endl << "MOVTYPE" << parameters[_index]->movtype << endl;
+	// cout << endl << "MOVTYPE" << parameters[_index]->movtype << endl;
 	return parameters[_index]->movtype;
 }
 JPParameter *JPParameterGroup::getJParameter(int _index)

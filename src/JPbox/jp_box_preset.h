@@ -20,7 +20,7 @@
 //#include "Shaderrender.h"
 
 //#include "JPbox/JPboxgroup.h"
-//Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
+// Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
 
 class JPbox_preset : public JPbox
 {
@@ -30,17 +30,17 @@ public:
 
 	void setup(string _directory, string _name);
 
-	//void setup(float _x, float _y, string _dirinput);
-	//void setup(string _dir);
+	// void setup(float _x, float _y, string _dirinput);
+	// void setup(string _dir);
 
-	vector<JPbox *> boxes; //ESTO SERIA UNA RELACION FRACTAL O QUE CARAJO ?
-						   //string dir;
-	//JPFbohandlerGroup fbohandlergroup;
+	vector<JPbox *> boxes; // ESTO SERIA UNA RELACION FRACTAL O QUE CARAJO ?
+						   // string dir;
+	// JPFbohandlerGroup fbohandlergroup;
 
-	//METODOS HEREDADOS :
-	//void reload();
+	// METODOS HEREDADOS :
+	// void reload();
 
-	//void setup();
+	// void setup();
 	void update();
 	void updateFBO();
 	void draw();

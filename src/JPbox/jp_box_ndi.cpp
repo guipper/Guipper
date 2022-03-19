@@ -8,11 +8,11 @@ void JPbox_ndi::setup(string _dir, string _name)
 {
 
 	JPbox::setup(_dir, _name);
-	//parameters.coutData();
+	// parameters.coutData();
 	name = "NDI";
 	dir = "ndiReceiver";
 	myTexture.allocate(int(jp_constants::renderWidth), int(jp_constants::renderHeight), GL_RGBA);
-	//Limpiamos el buffer de la textura ?
+	// Limpiamos el buffer de la textura ?
 	glClearTexImage(myTexture.getTextureData().textureID, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 
 	parameters.addFloatValue(0.5, "scalex");
@@ -35,10 +35,10 @@ void JPbox_ndi::setup(string _dir, string _name)
 void JPbox_ndi::update()
 {
 	JPbox::update();
-	//update_spout();
+	// update_spout();
 	ndiReceiver.ReceiveImage(myTexture);
 
-	//ESTO ES PARA HACER EL CALCULO DE LOS COSITOS.
+	// ESTO ES PARA HACER EL CALCULO DE LOS COSITOS.
 	int activesender_prev = activesender;
 	activesender = int(ofMap(parameters.getFloatValue(5), 0.0, 1.0, 0.0, ndiReceiver.GetSenderCount()));
 	if (activesender_prev != activesender)
@@ -49,12 +49,12 @@ void JPbox_ndi::update()
 			char *name = new char[256];
 
 			ndiReceiver.GetSenderName(name, i);
-			//ndiReceiver.GetSenderName(i, name);
+			// ndiReceiver.GetSenderName(i, name);
 			cout << "NDI sender " << i << ":" << name << endl;
-			//si detecta que cambio y que el sender que elegimos es ese:
+			// si detecta que cambio y que el sender que elegimos es ese:
 			if (i == activesender)
 			{
-				//SenderName = name;
+				// SenderName = name;
 				ndiReceiver.ReleaseReceiver();
 				strcpy(SenderName, name);
 				bInitialized = false;
@@ -76,7 +76,7 @@ void JPbox_ndi::update()
 
 	updateFBO();
 
-	//movie.update();
+	// movie.update();
 }
 void JPbox_ndi::updateFBO()
 {
@@ -111,8 +111,8 @@ void JPbox_ndi::updateFBO()
 		{
 			myTexture.draw(0, 0, jp_constants::renderWidth, jp_constants::renderHeight);
 		}
-		//ofSetColor(255, 0, 0);
-		//ofDrawEllipse(fbo.getWidth() / 2, fbo.getHeight() / 2, 200, 200);
+		// ofSetColor(255, 0, 0);
+		// ofDrawEllipse(fbo.getWidth() / 2, fbo.getHeight() / 2, 200, 200);
 		fbo.end();
 	}
 	else
@@ -140,8 +140,8 @@ void JPbox_ndi::draw()
 void JPbox_ndi::clear()
 {
 	JPbox::clear();
-	//spoutreceiver.ReleaseReceiver();
-	//spoutreceiver.UnBindSharedTexture();
+	// spoutreceiver.ReleaseReceiver();
+	// spoutreceiver.UnBindSharedTexture();
 	ndiReceiver.ReleaseReceiver();
 	cout << "CORRE CLEAR NDI " << endl;
 	fbo.clear();

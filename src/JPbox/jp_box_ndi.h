@@ -9,29 +9,29 @@
 //#include "Shaderrender.h"
 
 //#include "JPbox/JPboxgroup.h"
-//Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
+// Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
 
-class JPbox_ndi : public JPbox {
+class JPbox_ndi : public JPbox
+{
 public:
-	JPbox_ndi();// constructor declared
+	JPbox_ndi(); // constructor declared
 	~JPbox_ndi();
 
-	//ofxSpout2::Receiver spoutReceiver;
+	// ofxSpout2::Receiver spoutReceiver;
 
 	ofxNDIreceiver ndiReceiver; // NDI receiver
-	ofTexture myTexture;	     // Texture used for texture share transfers
+	ofTexture myTexture;		// Texture used for texture share transfers
 
-	char SenderName[256];	     // Sender name used by a receiver
-	int g_Width, g_Height;       // Used for checking sender size change
-	bool bInitialized;        // Initialization result
+	char SenderName[256];  // Sender name used by a receiver
+	int g_Width, g_Height; // Used for checking sender size change
+	bool bInitialized;	   // Initialization result
 
+	int activesender; // ESTA ES MI VARIABLE QUE USO PARA ELEGIR EL COSO.
+	// string dir;
+	// JPFbohandlerGroup fbohandlergroup;
 
-	int activesender; //ESTA ES MI VARIABLE QUE USO PARA ELEGIR EL COSO.
-	//string dir;
-	//JPFbohandlerGroup fbohandlergroup;
-
-	//METODOS HEREDADOS : 
-	//void reload();
+	// METODOS HEREDADOS :
+	// void reload();
 
 	void setup(string _dir, string _name);
 	void update();
@@ -43,9 +43,5 @@ public:
 	//setfbohandler_nodepos();
 	}*/
 
-
-
-
 	//	char* pointer1 = "null";
 };
-

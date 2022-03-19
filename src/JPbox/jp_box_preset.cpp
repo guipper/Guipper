@@ -11,14 +11,14 @@ JPbox_preset::~JPbox_preset()
 void JPbox_preset::setup(string _directory, string _name)
 {
 
-	//JPbox::setup(jp_constants::p_font);
+	// JPbox::setup(jp_constants::p_font);
 	JPbox::setup(_directory, _name);
 	tipo = PRESETBOX;
 
 	clear();
 	ofXml xml;
 	xml.load(_directory);
-	//Carga inicial de las cajitas :
+	// Carga inicial de las cajitas :
 	auto boxloader = xml.find("/box");
 
 	cout << "******************************************************************" << endl;
@@ -30,10 +30,10 @@ void JPbox_preset::setup(string _directory, string _name)
 		auto y = box.getChild("y");
 		auto directory = box.getChild("directory");
 
-		//cout << "Nombre : " << nombre.getValue() << endl;
-		//cout << "y : " << x.getValue() << endl;
-		//cout << "x : " << y.getValue() << endl;
-		//cout << "Directory : " << directory.getValue() << endl;
+		// cout << "Nombre : " << nombre.getValue() << endl;
+		// cout << "y : " << x.getValue() << endl;
+		// cout << "x : " << y.getValue() << endl;
+		// cout << "Directory : " << directory.getValue() << endl;
 
 		JPbox *bx;
 		if (directory.getValue().find(".frag") != std::string::npos)
@@ -78,7 +78,7 @@ void JPbox_preset::setup(string _directory, string _name)
 
 		int index = 0;
 		auto parameters = box.getChild("parameters").getChildren();
-		//cout << "PARAMETER SIZE SB " << sb->parameters.getSize() << endl;
+		// cout << "PARAMETER SIZE SB " << sb->parameters.getSize() << endl;
 		for (auto &param : parameters)
 		{
 			/*cout << "............" << endl;
@@ -87,7 +87,7 @@ void JPbox_preset::setup(string _directory, string _name)
 			cout << "max parametro:" << param.getChild("max").getFloatValue() << endl;
 			cout << "value parametro:" << param.getChild("value").getValue() << endl;
 			cout << "
-			
+
 			parametro:" << param.getChild("movtype").getIntValue() << endl;
 			cout << "speed parametro:" << param.getChild("speed").getFloatValue() << endl;*/
 
@@ -111,8 +111,8 @@ void JPbox_preset::setup(string _directory, string _name)
 		}
 		boxes.push_back(bx);
 	}
-	//Una vez que cargo todas las cajitas les cargamos los links :
-	//Mira lo que esta este algoritmo para levantar los links entre cajitas papa !!!
+	// Una vez que cargo todas las cajitas les cargamos los links :
+	// Mira lo que esta este algoritmo para levantar los links entre cajitas papa !!!
 	int index1 = 0;
 	int index2 = 0;
 	for (auto &box : boxloader)
@@ -145,7 +145,7 @@ void JPbox_preset::update()
 
 void JPbox_preset::updateFBO()
 {
-	//onoff.boolValue = true;
+	// onoff.boolValue = true;
 	if (onoff.boolValue)
 	{
 		for (int i = boxes.size() - 1; i >= 0; i--)
@@ -168,8 +168,8 @@ void JPbox_preset::draw()
 {
 	//	cout << "DRAW " << endl;
 	ofSetRectMode(OF_RECTMODE_CORNER);
-	//PARA QUE EL FBO FUNCIONE BIEN NECESITA OFRECTMODE CORNER CUANDO LEVANTA EL SHADER, AS� QUE LO PONEMOS ASI
-	//shaderrender.fbo.draw(x- width/2, y-height/2, width, height);
+	// PARA QUE EL FBO FUNCIONE BIEN NECESITA OFRECTMODE CORNER CUANDO LEVANTA EL SHADER, AS� QUE LO PONEMOS ASI
+	// shaderrender.fbo.draw(x- width/2, y-height/2, width, height);
 	ofSetColor(255);
 	JPbox::draw();
 	fbo.draw(x, y + padding_top / 2 - 3, fbowidth, fboheight);

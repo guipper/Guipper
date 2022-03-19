@@ -2,9 +2,10 @@
 
 #include "ofMain.h"
 
-class JPParameter {
+class JPParameter
+{
 public:
-	void setup(float _var,string name);
+	void setup(float _var, string name);
 	void setup(bool _var, string name);
 	void update();
 	int variabletype;
@@ -13,19 +14,20 @@ public:
 		BOOL,
 		FLOAT
 	};
-	enum MovType {
+	enum MovType
+	{
 		STANDART,
 		OSC,
 		GODER,
 		GOIZQ,
-		RANDOM ,
+		RANDOM,
 	};
 	int movtype;
 
 	string name;
 	float floatValue;
-	float floatLerpValue;//ESTO ES PARA QUE ME CALCULE EL LERP. VAMOS A PROBARLO.
-	
+	float floatLerpValue; // ESTO ES PARA QUE ME CALCULE EL LERP. VAMOS A PROBARLO.
+
 	float speed;
 	bool boolValue;
 
@@ -33,13 +35,14 @@ public:
 	float max;
 
 	bool needsUpdate;
-	//float speed;
-private :
+	// float speed;
+private:
 	bool dir;
 	float seed;
 };
 
-class JPParameterGroup {
+class JPParameterGroup
+{
 public:
 	enum VariableType
 	{
@@ -52,7 +55,7 @@ public:
 	void clear();
 	void coutData();
 	string getName(int _index);
-	//GETTERS : 
+	// GETTERS :
 	int getSize();
 	int getType(int _index);
 	float getSpeed(int _index);
@@ -63,7 +66,7 @@ public:
 	bool getBoolValue(int _index);
 	int getMovType(int _index);
 	JPParameter *getJParameter(int _index);
-	//SETTERS: 
+	// SETTERS:
 	void setFloatValue(float _val, int _index);
 	void setFloatLerpValue(float _val, int _index);
 	void setBoolValue(bool _val, int _index);
@@ -73,8 +76,7 @@ public:
 	void setSpeed(float _val, int _index);
 	void update();
 	void setmovetype(int _movetype, int _index);
-	vector <JPParameter*> parameters;
-private : 
-	
-	
+	vector<JPParameter *> parameters;
+
+private:
 };

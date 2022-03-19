@@ -2,15 +2,15 @@
 	Made by JPUPPER vieja
 	Ultima modificaci�n : 10/5/2019
 
-	Cambios a hacer : 
-	
+	Cambios a hacer :
+
 
 */
 
 #pragma once
 
-//ADDONS :
-//OTHERS:
+// ADDONS :
+// OTHERS:
 #include "ofMain.h"
 #include "JPbox/jp_box.h"
 #include "JPbox/jp_box_shader.h"
@@ -43,7 +43,7 @@ public:
 	void keyPressed(int key);
 	void openRenderWindow();
 	void keycodePressed(ofKeyEventArgs &e);
-	void exit(ofEventArgs &e); //LISTENER FOR EXIT APP .
+	void exit(ofEventArgs &e); // LISTENER FOR EXIT APP .
 
 	void keyReleased(int key);
 	void mouseMoved(int x, int y);
@@ -56,10 +56,10 @@ public:
 	void dragEvent(ofDragInfo dragInfo);
 	void gotMessage(ofMessage msg);
 
-	//ofxKFW2::Device kinect;
+	// ofxKFW2::Device kinect;
 
-	ofTrueTypeFont font_p; //Titulo de compo
-	//JPGui gui;
+	ofTrueTypeFont font_p; // Titulo de compo
+	// JPGui gui;
 
 	JPboxgroup boxes;
 	float a;
@@ -70,7 +70,7 @@ public:
 
 	int prevKey = 0;
 
-	string savedirectory; //directorio en donde se guarda. Cambia si haces un save as.
+	string savedirectory; // directorio en donde se guarda. Cambia si haces un save as.
 
 	bool InitGLtexture(GLuint &texID, unsigned int width, unsigned int height);
 
@@ -93,8 +93,8 @@ public:
 	ofFbo ndiFbo;			// Fbo used for graphics and sending
 #endif
 
-	//WINDOW MANAGMENT:
-	std::vector<shared_ptr<ofAppBaseWindow>> windows; //Esto es para las ventanas de los renders.
+	// WINDOW MANAGMENT:
+	std::vector<shared_ptr<ofAppBaseWindow>> windows; // Esto es para las ventanas de los renders.
 	std::shared_ptr<ofAppBaseWindow> mainWindow;
 	bool isRenderWindowOpen = false;
 	void window_drawRender(ofEventArgs &args);
@@ -108,7 +108,7 @@ public:
 	float window_initialposy;
 	bool window_fullscreen;
 
-	//OSC MANAGMENT
+	// OSC MANAGMENT
 	ofxOscSender sender;
 	ofxOscReceiver receiver;
 	int current_msg_string;
@@ -116,9 +116,9 @@ public:
 	char mouseButtonState[128];
 	void updateOSC();
 
-	//Esto ser�a mejor en uno tal vez ? por ahora lo dejamos con 2.
+	// Esto ser�a mejor en uno tal vez ? por ahora lo dejamos con 2.
 	OpenLoader openloader;
-	//OpenSaveFileLoader opensavefile_loader;
+	// OpenSaveFileLoader opensavefile_loader;
 	SaveAsSaver saveas_saver;
 	ofImage outletimg;
 
@@ -129,7 +129,7 @@ public:
 		TUTORIAL
 	};
 	int pantallaActiva;
-	bool loadAspreset; //ESTO ES PARA QUE TODO EL TIEMPO ME DIGA SI TENGO APRETADO EL BOTON DE LA IZQ O NO .
+	bool loadAspreset; // ESTO ES PARA QUE TODO EL TIEMPO ME DIGA SI TENGO APRETADO EL BOTON DE LA IZQ O NO .
 
 	bool oscout_mode1;
 	bool oscout_mode2;

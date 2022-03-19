@@ -1,6 +1,7 @@
 #include "jp_tooglelist.h"
-//BUENO A VER, YA NO HACE FALTA USAR UN TOOGLE LIST. PERO ERA COMO ESTABA ANTES ASI QUE LO DEJO.
-void JPTooglelist::setup(float _x, float _y, float _width, float _height) {
+// BUENO A VER, YA NO HACE FALTA USAR UN TOOGLE LIST. PERO ERA COMO ESTABA ANTES ASI QUE LO DEJO.
+void JPTooglelist::setup(float _x, float _y, float _width, float _height)
+{
 	x = _x;
 	y = _y;
 	width = _width;
@@ -13,12 +14,14 @@ void JPTooglelist::setup(float _x, float _y, float _width, float _height) {
 	controllertype = TOOGLELIST;
 	paleta = 0;
 }
-void JPTooglelist::draw() {
+void JPTooglelist::draw()
+{
 
-	//YO SE QUE ESTO ES UN CHOCLAZO Y QUE SE PUEDE SINTETIZAR. PERO ESTOY QUEMADEN 
+	// YO SE QUE ESTO ES UN CHOCLAZO Y QUE SE PUEDE SINTETIZAR. PERO ESTOY QUEMADEN
 
-	if (ofGetMousePressed() && mouseOver() && activable) {
-		//activeFlag = true;
+	if (ofGetMousePressed() && mouseOver() && activable)
+	{
+		// activeFlag = true;
 
 		cout << "ACTIVE BOTON " << endl;
 		activable = false;
@@ -28,7 +31,8 @@ void JPTooglelist::draw() {
 		}*/
 	}
 
-	if (!ofGetMousePressed()) {
+	if (!ofGetMousePressed())
+	{
 		activable = true;
 	}
 
@@ -52,25 +56,27 @@ void JPTooglelist::draw() {
 
 	ofSetColor(ofColor::white);
 
-	if (showtext) {
+	if (showtext)
+	{
 
 		string Strvalue = ofToString(movtype);
 		jp_constants::p_font.drawString(Strvalue,
-			x - jp_constants::p_font.stringWidth(Strvalue) / 2,
-			y + jp_constants::p_font.stringHeight(Strvalue) / 2);
-
+										x - jp_constants::p_font.stringWidth(Strvalue) / 2,
+										y + jp_constants::p_font.stringHeight(Strvalue) / 2);
 	}
-	else {
+	else
+	{
 		ofPushMatrix();
 		ofTranslate(x, y);
-		if (movtype == 0) {
+		if (movtype == 0)
+		{
 			ofRotate(-90);
 		}
-		jp_constants_img::actual.draw(0,0);
+		jp_constants_img::actual.draw(0, 0);
 		ofPopMatrix();
 	}
 
 	ofSetColor(255, 0, 0);
-	//ofDrawEllipse(x,y, 30, 30);
-	//lele.drawString(name, x - name.length() * 5, y + height * 0.1); // ESTA LINEA DE CODIGO ME GENERA UN ERROR TOTALMENTE INTENDIBLE MIKE*/
+	// ofDrawEllipse(x,y, 30, 30);
+	// lele.drawString(name, x - name.length() * 5, y + height * 0.1); // ESTA LINEA DE CODIGO ME GENERA UN ERROR TOTALMENTE INTENDIBLE MIKE*/
 }

@@ -75,7 +75,7 @@ public:
 
 	vector<JPcontroller *> controllers; // ESTE ARRAY ES DINAMICO , QUIERE DECIR QUE DEPENDE DE CUANDO CAMBIEN LOS COSOS
 										// ESTO ES SOLO PARA QUE LERPEE LOS VALORES HACIA ESTO.
-	vector<JPbox *> boxes; // TODOS LOS SHADERRENDERS QUE TIENE EL OBJETO.
+	vector<JPbox *> boxes;				// TODOS LOS SHADERRENDERS QUE TIENE EL OBJETO.
 
 	int openguinumber = -1;
 	int controllerselected; // ME INDICA QUE VARIABLE ESTA AGARRADA

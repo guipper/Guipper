@@ -7,11 +7,11 @@
 #include "../JPutils/jp_dragobject.h"
 #include "../JPgui/jp_toogle.h"
 
-//Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
+// Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
 
-class JPbox : public JPdragobject{
+class JPbox : public JPdragobject
+{
 public:
-
 	JPbox();
 	~JPbox();
 
@@ -27,19 +27,20 @@ public:
 	JPParameterGroup parameters;
 	string dir;
 	JPFbohandlerGroup fbohandlergroup;
-	//Shaderrender shaderrender; //HOLDS THE RENDER OF THE SHADER 
+	// Shaderrender shaderrender; //HOLDS THE RENDER OF THE SHADER
 
 	ofFbo fbo;
-	void reloadShaderonly(); //ESTA FUNCION LA VOY A PONER PARA DEBUGGEAR A VER.
+	void reloadShaderonly(); // ESTA FUNCION LA VOY A PONER PARA DEBUGGEAR A VER.
 	virtual void reload();
-	void setup(ofTrueTypeFont & _font);
+	void setup(ofTrueTypeFont &_font);
 	virtual void setup(string _directory, string _name);
 	virtual void update();
 	virtual void draw();
 	virtual void updateFBO();
 	void draw_outlet();
 	virtual void clear();
-	void setPos(float _x, float _y) {
+	void setPos(float _x, float _y)
+	{
 		JPdragobject::setPos(_x, _y);
 	}
 
@@ -53,7 +54,8 @@ public:
 	bool outletActiveFlag;
 	bool mouseOverOutlet();
 
-	enum type {
+	enum type
+	{
 		SHADERBOX,
 		IMAGEBOX,
 		VIDEOBOX,
@@ -65,16 +67,16 @@ public:
 	};
 
 	int getTipo();
-	time_t datemodified; //La pongo aca porque necesito que me recorra la cosa dentro del for. Aunque sea solo para los shaders.
+	time_t datemodified; // La pongo aca porque necesito que me recorra la cosa dentro del for. Aunque sea solo para los shaders.
 
-	//Me perturba que el nombre de la variable sea tan verga.
+	// Me perturba que el nombre de la variable sea tan verga.
 	void setonoff(bool _val);
 	bool getonoff();
 	JPToogle onoff;
 
-protected :
-	int tipo; //Habra una manera menos cacuija de hacer esto? no se, pero ya me pudrio si, esta bien o mal me la chupa.
-	
+protected:
+	int tipo; // Habra una manera menos cacuija de hacer esto? no se, pero ya me pudrio si, esta bien o mal me la chupa.
+
 	float padding_top;
 	float padding_leftright;
 	float padding_bottom;

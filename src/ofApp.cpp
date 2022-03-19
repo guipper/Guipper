@@ -4,13 +4,13 @@
 void ofApp::setup()
 {
 
-	font_p.loadFont("font/Montserrat-Regular.ttf", 11); //Inicio fuente.
+	font_p.loadFont("font/Montserrat-Regular.ttf", 11); // Inicio fuente.
 
 	ofSetVerticalSync(false);
-	//FreeConsole();
+	// FreeConsole();
 
 	ofDisableArbTex();
-	//ESTAS COSAS LAS SETEA DESDE EL SETTINGS XML DESPUES. PERO ACA LES DA UN VALOR INICIAL  POR LAS DUDAS :
+	// ESTAS COSAS LAS SETEA DESDE EL SETTINGS XML DESPUES. PERO ACA LES DA UN VALOR INICIAL  POR LAS DUDAS :
 	float altoventana = ofGetScreenHeight() * 3 / 4;
 	float anchoventana = ofGetScreenWidth() * 3 / 4;
 	ofSetWindowShape(anchoventana, altoventana);
@@ -41,20 +41,20 @@ void ofApp::setup()
 	//.----------------------------------------------------------------/
 
 #ifdef NDI
-	//INIT NDI :
-	// Optionally set fbo readback using OpenGL pixel buffers
+	// INIT NDI :
+	//  Optionally set fbo readback using OpenGL pixel buffers
 	ndiSender.SetReadback(); // Change to false to compare
 	// Optionally set NDI asynchronous sending
 	// instead of clocked at the specified frame rate (60fps default)
 	ndiSender.SetAsync();
-	//ndiSender.
+	// ndiSender.
 	ndiSender.CreateSender(sendername, jp_constants::renderWidth, jp_constants::renderHeight);
 //---------------------------------------------------/
 #endif
 
 	pantallaActiva = NODOS;
 
-	//INIT SPOUT SENDER :
+	// INIT SPOUT SENDER :
 	ofBackground(10, 100, 140);
 	ofEnableNormalizedTexCoords(); // explicitly normalize tex coords for ofBox
 
@@ -67,27 +67,27 @@ void ofApp::setup()
 
 	// Create an OpenGL texture for data transfers
 	sendertexture = 0; // make sure the ID is zero for the first time
-	//InitGLtexture(sendertexture, jp_constants::renderWidth, jp_constants::renderHeight); //!?!??!!?
-	//OK . Esto tira error si no pasas otros valores que no sean : ofGetWidth(), ofGetHeight().
-	//HAbria que ver por que . . . . . Y si le tiras un resize la mata.
-	//cout << "ANCHO VENTANA " << ofGetWidth() << endl;//1440
-	//cout << "ALTO VENTANA " << ofGetHeight() << endl;//810
-	//InitGLtexture(sendertexture, jp_constants::renderWidth, jp_constants::renderHeight); //!?!??!!?
-	//InitGLtexture(sendertexture, jp_constants::renderWidth, jp_constants::renderHeight); //!?!??!!?
+	// InitGLtexture(sendertexture, jp_constants::renderWidth, jp_constants::renderHeight); //!?!??!!?
+	// OK . Esto tira error si no pasas otros valores que no sean : ofGetWidth(), ofGetHeight().
+	// HAbria que ver por que . . . . . Y si le tiras un resize la mata.
+	// cout << "ANCHO VENTANA " << ofGetWidth() << endl;//1440
+	// cout << "ALTO VENTANA " << ofGetHeight() << endl;//810
+	// InitGLtexture(sendertexture, jp_constants::renderWidth, jp_constants::renderHeight); //!?!??!!?
+	// InitGLtexture(sendertexture, jp_constants::renderWidth, jp_constants::renderHeight); //!?!??!!?
 
 	resolution_spoutext = ofVec2f(ofGetWidth(), ofGetHeight());
-	//resolution_spoutext = ofVec2f(ofGetWidth(),ofGetHeight());
+	// resolution_spoutext = ofVec2f(ofGetWidth(),ofGetHeight());
 
-	//LA RECONCHA DEL PATO, NO HAY MANERA POSIBLE PARA QUE PASE EL SPOUT EN UNA RESOLUCION
-	//MAS GRANDE QUE EN LA VENTANA DEL ORTO!??!?!?!?!?!
+	// LA RECONCHA DEL PATO, NO HAY MANERA POSIBLE PARA QUE PASE EL SPOUT EN UNA RESOLUCION
+	// MAS GRANDE QUE EN LA VENTANA DEL ORTO!??!?!?!?!?!
 	InitGLtexture(sendertexture, resolution_spoutext.x, resolution_spoutext.y); //!?!??!!?
 #endif
 
 	// 3D drawing setup for a sender
-	//glEnable(GL_DEPTH_TEST);							// enable depth comparisons and update the depth buffer
-	//glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations
+	// glEnable(GL_DEPTH_TEST);							// enable depth comparisons and update the depth buffer
+	// glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations
 	ofDisableArbTex(); // needed for textures to work
-	//myTextureImage.loadImage("SpoutBox1.png");			// Load a texture image for the demo
+	// myTextureImage.loadImage("SpoutBox1.png");			// Load a texture image for the demo
 	boxes.load(savedirectory);
 }
 
@@ -119,10 +119,10 @@ void ofApp::update()
 		saveas_saver.activeflag = false;
 	}
 
-	//PARA MANEJAR UN PROCESO PARALELO QUE CARGA LOS ARCHIVOS.
+	// PARA MANEJAR UN PROCESO PARALELO QUE CARGA LOS ARCHIVOS.
 	/*if (openloader.activeflag) {
 		try
-		{	
+		{
 			boxes.addBox(openloader.path);
 			//if (openloader.activeFiletype == openloader.SHADER) {
 				//boxes.addShaderBox(openloader.path);
@@ -142,7 +142,7 @@ void ofApp::update()
 		{
 			cout << "COULD NOT OPEN FILE" << endl;
 		}
-		
+
 		openloader.activeflag = false;
 	}*/
 }
@@ -154,7 +154,7 @@ void ofApp::draw()
 	{
 		boxes.draw();
 		ofSetColor(255, 255, 255, 255);
-		//outletimg.draw(ofGetWidth() / 2, ofGetHeight() / 2, 200, 200);
+		// outletimg.draw(ofGetWidth() / 2, ofGetHeight() / 2, 200, 200);
 		if (isDebug)
 		{
 			draw_debugInfo();
@@ -217,7 +217,7 @@ void ofApp::draw_opciones()
 	font_p.drawString("osc IP OUT " + ofToString(sender.getHost()), posx, posy += sepy);
 }
 
-//Esta es la que se dibuja en la otra ventana
+// Esta es la que se dibuja en la otra ventana
 void ofApp::drawRender()
 {
 	boxes.draw_activerender();
@@ -226,7 +226,7 @@ void ofApp::drawRender()
 void ofApp::keyPressed(int key)
 {
 
-	//keyIsDown[key] = true;
+	// keyIsDown[key] = true;
 
 	if (key == '1')
 	{
@@ -251,7 +251,7 @@ void ofApp::keyPressed(int key)
 		}
 		if (key == 'f')
 		{
-			//ofToggleFullscreen();
+			// ofToggleFullscreen();
 		}
 		if (key == 'h')
 		{
@@ -263,7 +263,7 @@ void ofApp::keyPressed(int key)
 		}
 		if (key == 'c')
 		{
-			//boxes.addCamBox();
+			// boxes.addCamBox();
 			boxes.addBox("cam");
 		}
 		if (key == 'n')
@@ -278,8 +278,8 @@ void ofApp::keyPressed(int key)
 
 		if (key == 'o')
 		{
-			//openloader.startThread();
-			//ESTO ES LO QUE HABRIA QUE PROBAR EN MAC PARA VER SI FUNCA O NO . CUANDO ESTEMOS AH�
+			// openloader.startThread();
+			// ESTO ES LO QUE HABRIA QUE PROBAR EN MAC PARA VER SI FUNCA O NO . CUANDO ESTEMOS AH�
 			/*ofFileDialogResult result = ofSystemLoadDialog("Load file");
 			if (result.bSuccess) {
 				string path = result.getPath();
@@ -352,7 +352,7 @@ void ofApp::keyPressed(int key)
 		{
 			openRenderWindow();
 		}
-		//if (key == 'm') {
+		// if (key == 'm') {
 
 		//}
 		if (key == 'm')
@@ -385,18 +385,18 @@ void ofApp::keyPressed(int key)
 void ofApp::keycodePressed(ofKeyEventArgs &e)
 {
 
-	//cout << "KEY : " << e.key << endl;
+	// cout << "KEY : " << e.key << endl;
 
-	//CUANDO APRETAS CONTROL TE TOMA COMO DOS INPUTS EN EL MOMENTO.
+	// CUANDO APRETAS CONTROL TE TOMA COMO DOS INPUTS EN EL MOMENTO.
 	cout << "-------------------------------------" << endl;
 	cout << "PREVKEYCODE " << prevKey << endl;
 	cout << "KEYCODE : " << e.keycode << endl;
 	cout << "KEY : " << e.key << endl;
-	//Como que esto solo sucede cuando apretas el control y despues el save. LO SACAMOS VIENDO VALORES EN CONSOLA. NO ME PREGUNTES LA LOGICA.
+	// Como que esto solo sucede cuando apretas el control y despues el save. LO SACAMOS VIENDO VALORES EN CONSOLA. NO ME PREGUNTES LA LOGICA.
 
-	//if (prevKey == 19) {
+	// if (prevKey == 19) {
 
-	//Aca me lo cambio a 134 de golpe. Que onda? Hay que tener cuidado con este bug.
+	// Aca me lo cambio a 134 de golpe. Que onda? Hay que tener cuidado con este bug.
 	if (e.key == 46 || e.key == 19)
 	{
 
@@ -409,11 +409,11 @@ void ofApp::keycodePressed(ofKeyEventArgs &e)
 		openloader.startThread();
 	}
 
-	//cout << "DELETE ALL SHADERBOXS" << endl;
+	// cout << "DELETE ALL SHADERBOXS" << endl;
 	if (e.key == 'b')
 	{
 		boxes.clear();
-		//boxes.shaderboxs.clear();
+		// boxes.shaderboxs.clear();
 	}
 	prevKey = e.keycode;
 }
@@ -421,7 +421,7 @@ void ofApp::mouseDragged(int x, int y, int button)
 {
 	if (pantallaActiva == NODOS)
 	{
-		//jp_constants::set_mousePressedPos(ofVec2f(ofGetMouseX(), ofGetMouseY()));
+		// jp_constants::set_mousePressedPos(ofVec2f(ofGetMouseX(), ofGetMouseY()));
 		boxes.update_mouseDragged(button);
 	}
 }
@@ -437,9 +437,9 @@ void ofApp::mousePressed(int x, int y, int button)
 void ofApp::windowResized(int w, int h)
 {
 
-	//El resize lo hace solo para mover la interfaz. Los tama�os de render se mantienen igual
+	// El resize lo hace solo para mover la interfaz. Los tama�os de render se mantienen igual
 	boxes.update_resized(ofGetWidth(), ofGetHeight());
-	//InitGLtexture(sendertexture, ofGetWidth(), ofGetHeight()); //!?!??!!?
+	// InitGLtexture(sendertexture, ofGetWidth(), ofGetHeight()); //!?!??!!?
 	//	boxes.update_resized(jp_constants::renderWidth, jp_constants::renderHeight);
 }
 void ofApp::keyReleased(int key) {}
@@ -448,7 +448,7 @@ void ofApp::mouseReleased(int x, int y, int button)
 {
 	if (button == 0)
 	{
-		//mouseButton_left = false;
+		// mouseButton_left = false;
 	}
 }
 void ofApp::mouseEntered(int x, int y) {}
@@ -460,7 +460,7 @@ void ofApp::dragEvent(ofDragInfo dragInfo)
 	cout << "WHAT " << dragInfo.position.t << endl;
 	cout << "DIR : " << dragInfo.files[0] << endl;
 
-	//ESTO TIENE QUE COINCIDIR CON LOS TAMA�OS DE LAS CAJAS QUE ACTUALMENTE ESTA EN 80x80
+	// ESTO TIENE QUE COINCIDIR CON LOS TAMA�OS DE LAS CAJAS QUE ACTUALMENTE ESTA EN 80x80
 	float sepx = 80 * 1.4;
 	float sepy = 80 * 1.6;
 
@@ -527,8 +527,8 @@ void ofApp::openRenderWindow()
 
 		cout << "windows size" << windows.size() << endl;
 
-		//window_width = 600;
-		//window_height = 600;
+		// window_width = 600;
+		// window_height = 600;
 		ofAddListener(windows.back()->events().draw, this, &ofApp::window_drawRender);
 		ofAddListener(windows.back()->events().exit, this, &ofApp::exit);
 		ofAddListener(windows.back()->events().keyPressed, this, &ofApp::window_keyPressed);
@@ -608,16 +608,16 @@ void ofApp::updateOSC()
 {
 	// hide old messages
 
-	//RECEIVER
-	// check for waiting messages
+	// RECEIVER
+	//  check for waiting messages
 	while (receiver.hasWaitingMessages())
 	{
 		// get the next message
 		ofxOscMessage m;
 		receiver.getNextMessage(&m);
-		boxes.listenToOsc(m.getAddress(), m.getArgAsFloat(0)); //Esta te levanta el OSC Digamos?
-		//cout << "ADDRES:" << m.getAddress() << endl;
-		//cout << "VALUE:" << m.getArgAsFloat(0) << endl;
+		boxes.listenToOsc(m.getAddress(), m.getArgAsFloat(0)); // Esta te levanta el OSC Digamos?
+		// cout << "ADDRES:" << m.getAddress() << endl;
+		// cout << "VALUE:" << m.getArgAsFloat(0) << endl;
 
 		if (m.getAddress().find("load") != std::string::npos)
 		{
@@ -631,10 +631,10 @@ void ofApp::updateOSC()
 			savedirectory = dirfinal;
 		}
 	}
-	//SENDER
+	// SENDER
 
-	//ESTO VA A HABER QUE CODEARLO MEJOR PERO VAMOS ASI POR AHORA:
-	//FORMA 1 : MANDA CON NOMBRE DE CAJA TODO EL TIEMPO TODAS LAS VECESSSS
+	// ESTO VA A HABER QUE CODEARLO MEJOR PERO VAMOS ASI POR AHORA:
+	// FORMA 1 : MANDA CON NOMBRE DE CAJA TODO EL TIEMPO TODAS LAS VECESSSS
 	if (oscout_mode1)
 	{
 		for (int i = 0; i < boxes.getBoxesSize(); i++)
@@ -657,7 +657,7 @@ void ofApp::updateOSC()
 			}
 		}
 	}
-	//FORMA 2: MANDA LOS NOMBRES COMO V1,V2,V3 Y SOLO DE LA CAJA DE LA INTERFAZ ACTIVA. :
+	// FORMA 2: MANDA LOS NOMBRES COMO V1,V2,V3 Y SOLO DE LA CAJA DE LA INTERFAZ ACTIVA. :
 	if (oscout_mode2)
 	{
 		if (boxes.openguinumber != -1)
@@ -681,7 +681,7 @@ void ofApp::updateOSC()
 		}
 	}
 }
-//LISTENERS DE LAS VENTANAS:
+// LISTENERS DE LAS VENTANAS:
 void ofApp::window_drawRender(ofEventArgs &args)
 {
 	boxes.draw_activerender(jp_constants::window_width, jp_constants::window_height);
@@ -690,10 +690,10 @@ void ofApp::exit(ofEventArgs &e)
 {
 	cout << "EXIT WINDOW " << endl;
 
-	//Ni idea que hacia este if ??? Pero si lo comento crashea
+	// Ni idea que hacia este if ??? Pero si lo comento crashea
 	if (isRenderWindowOpen)
 	{
-		//windows.back()->close();
+		// windows.back()->close();
 	}
 	windows.clear();
 	window_fullscreen = false;
@@ -730,7 +730,7 @@ void ofApp::window_keyPressed(ofKeyEventArgs &e)
 }
 
 #ifdef SPOUT
-//ESTA FUNCION CORRE EN EL SPOUT Y HACE TODO LO QUE TENGA QUE VER CON DIBUJAR EL SPOUT SENDER:
+// ESTA FUNCION CORRE EN EL SPOUT Y HACE TODO LO QUE TENGA QUE VER CON DIBUJAR EL SPOUT SENDER:
 void ofApp::drawSpout()
 {
 
