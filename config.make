@@ -8,7 +8,7 @@
 #   The location of your root openFrameworks installation
 #       (default) OF_ROOT = ../../.. 
 ################################################################################
-OF_ROOT = /opt/of_v0.11.2_osx_release
+OF_ROOT = ../../..
 
 ################################################################################
 # PROJECT ROOT
