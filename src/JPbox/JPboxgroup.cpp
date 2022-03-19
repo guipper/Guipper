@@ -14,11 +14,11 @@ void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 	inspectorwindow_x = ofGetWidth() - inspectorwindow_width / 2;
 	inspectorwindow_y = inspectorwindow_height / 2;
 	inspectorwindow_sepy = 30;
-	inspectorwindow_height = 0; //Le tiro un valor solo para ver que onda.
+	inspectorwindow_height = 0; // Le tiro un valor solo para ver que onda.
 
 	setinspectorsetactiveparams();
 
-	//boxesdrawing.allocate(ofGetWidth(), ofGetHeight());
+	// boxesdrawing.allocate(ofGetWidth(), ofGetHeight());
 
 	offsetx = 0;
 	offsety = 0;
@@ -34,8 +34,8 @@ void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 }
 void JPboxgroup::draw()
 {
-	//boxesdrawing.draw(0, 0, ofGetWidth(), ofGetHeight());
-	//boxesdrawing.draw(offsetx, offsety, ofGetWidth(), ofGetHeight());
+	// boxesdrawing.draw(0, 0, ofGetWidth(), ofGetHeight());
+	// boxesdrawing.draw(offsetx, offsety, ofGetWidth(), ofGetHeight());
 	draw_conections();
 
 	/*if (draw_SelectionRect) {
@@ -95,19 +95,19 @@ void JPboxgroup::draw_paramswindow()
 		ofDrawRectangle(inspectorwindow_x, inspectorwindow_y, ancho2, alto2);
 		*/
 		ofSetColor(120, 255);
-		//constants_img::background.draw(inspectorwindow_x, inspectorwindow_y, inspectorwindow_width, inspectorwindow_height);
+		// constants_img::background.draw(inspectorwindow_x, inspectorwindow_y, inspectorwindow_width, inspectorwindow_height);
 		ofDrawRectangle(inspectorwindow_x, inspectorwindow_y, inspectorwindow_width, inspectorwindow_height);
 
 		string name = boxes[openguinumber]->name;
 		ofSetColor(255);
 
-		//DIBUJAR EL NOMBRE DEL SHADER
-		//jp_constants::p2_font
+		// DIBUJAR EL NOMBRE DEL SHADER
+		// jp_constants::p2_font
 		jp_constants::h_font.drawString(name,
 										inspectorwindow_x - jp_constants::h_font.stringWidth(name) / 2,
-										inspectorwindow_sepy); //El y de esto esta puesto medio frutanga
+										inspectorwindow_sepy); // El y de esto esta puesto medio frutanga
 
-		int index = 0; //INDICE PARA LOS BOTONES :
+		int index = 0; // INDICE PARA LOS BOTONES :
 		for (int i = 0; i < controllers.size(); i++)
 		{
 			controllers[i]->draw();
@@ -131,7 +131,7 @@ void JPboxgroup::draw_paramswindow()
 }
 void JPboxgroup::draw_conections()
 {
-	//DRAW CONECTIONS :
+	// DRAW CONECTIONS :
 	ofSetLineWidth(2);
 	for (int i = boxes.size() - 1; i >= 0; i--)
 	{
@@ -146,7 +146,7 @@ void JPboxgroup::draw_conections()
 					boxes[i]->triangleangle = atan2(boxes[k]->fbohandlergroup.getPosY(l) - boxes[i]->outlet_y,
 													boxes[k]->fbohandlergroup.getPosX(l) - boxes[i]->outlet_x);
 
-					//boxes[i]->triangleangle+= 1;
+					// boxes[i]->triangleangle+= 1;
 					ofDrawLine(boxes[k]->fbohandlergroup.getPosX(l),
 							   boxes[k]->fbohandlergroup.getPosY(l),
 							   boxes[i]->outlet_x + boxes[i]->outlet_size / 2, boxes[i]->outlet_y);
@@ -161,14 +161,14 @@ void JPboxgroup::draw_conections()
 void JPboxgroup::update()
 {
 
-	//bool unoagarrado = false;
+	// bool unoagarrado = false;
 	update_paramswindow();
 	float lerpAmount = 0.3;
 	for (int i = boxes.size() - 1; i >= 0; i--)
 	{
 		boxes[i]->update();
 
-		//boxes[i]->parameters.update(); //La mutie y no paso nada
+		// boxes[i]->parameters.update(); //La mutie y no paso nada
 		for (int k = boxes[i]->parameters.getSize() - 1; k >= 0; k--)
 		{
 		}
@@ -176,19 +176,19 @@ void JPboxgroup::update()
 		{
 			for (int k = boxes[i]->parameters.getSize() - 1; k >= 0; k--)
 			{
-				//VAMOS A PROBAR MUTEAR ESTO A VER
-				//controllers.at(k)->value = boxes[i]->parameters.getFloatValue(k);
+				// VAMOS A PROBAR MUTEAR ESTO A VER
+				// controllers.at(k)->value = boxes[i]->parameters.getFloatValue(k);
 			}
 		}
-		//ESTO ES PARA QUE EL SLIDER QUE REPRESENTA LA BARRA DE TIEMPO DE LOS VIDEOS
-		//SE ACTUALICE
+		// ESTO ES PARA QUE EL SLIDER QUE REPRESENTA LA BARRA DE TIEMPO DE LOS VIDEOS
+		// SE ACTUALICE
 		if (boxes[i]->getTipo() == boxes[i]->VIDEOBOX && openguinumber == i &&
 			!controllers.at(6)->mouseOver())
 		{
 			controllers.at(6)->value = boxes[i]->parameters.getFloatValue(6);
 		}
 
-		//PARA AGARRAR LAS CAJITAS :
+		// PARA AGARRAR LAS CAJITAS :
 		if (ofGetMousePressed())
 		{
 			if (boxes[i]->mouseOverOutlet() && !ouletagarrado && !shaderboxagarrado)
@@ -209,36 +209,36 @@ void JPboxgroup::update()
 				boxes[i]->activeFlag = true;
 			}
 		}
-		//PARA QUE RECARGUE EL SHADER AUTOMATICAMENTE PAP�.
+		// PARA QUE RECARGUE EL SHADER AUTOMATICAMENTE PAP�.
 		if (!jp_constants::systemDialog_open && boxes[i]->getTipo() == boxes[i]->SHADERBOX)
 		{
 			time_t lasttimemodified = filesystem::last_write_time(boxes[i]->dir);
 			if (lasttimemodified != boxes[i]->datemodified)
 			{
 				//	cout << "RELOAD SHADER " << endl;
-				//cout << "-------------------------------------" << endl;
+				// cout << "-------------------------------------" << endl;
 				boxes[i]->datemodified = lasttimemodified;
 
-				//UF ESTO ESTA ATADO CON ALAMBRE MUY FUERTE. ACA HAY UN BUG QUE LO QUE HACE ES QUE NO RECARGUE BIEN EL SHADER.
-				//BASICAMENTE LO QUE SUCEDE ES QUE CUANDO VOLVES A CARGAR Y GUARDAR A VECES NO LEVANTA LOS PARAMETROS
-				//ENTONCES LE DIGO QUE LO REINICIE HASTA QUE LA CANTIDAD DE PARAMETROS SEA COMO LA CORRECTA DIGAMOS.
-				//OSEA TECNICAMENTE EXISTE LA POSIBILIDAD 0.00000000000000000001% DE QUE NUNCA CARGUE BIEN Y ENTRE EN UN LOOP INFINITO DE MUERTE Y DESTRUCCION.
-				//OSEA AHORA AL MENOS CARGA BIEN SIEMPRE. LO QUE NO PUEDO HACER ES QUE ME VUELVA A CARGAR LOS VALORES QUE TENIA CON LOS RENDER QUE TENIA.
+				// UF ESTO ESTA ATADO CON ALAMBRE MUY FUERTE. ACA HAY UN BUG QUE LO QUE HACE ES QUE NO RECARGUE BIEN EL SHADER.
+				// BASICAMENTE LO QUE SUCEDE ES QUE CUANDO VOLVES A CARGAR Y GUARDAR A VECES NO LEVANTA LOS PARAMETROS
+				// ENTONCES LE DIGO QUE LO REINICIE HASTA QUE LA CANTIDAD DE PARAMETROS SEA COMO LA CORRECTA DIGAMOS.
+				// OSEA TECNICAMENTE EXISTE LA POSIBILIDAD 0.00000000000000000001% DE QUE NUNCA CARGUE BIEN Y ENTRE EN UN LOOP INFINITO DE MUERTE Y DESTRUCCION.
+				// OSEA AHORA AL MENOS CARGA BIEN SIEMPRE. LO QUE NO PUEDO HACER ES QUE ME VUELVA A CARGAR LOS VALORES QUE TENIA CON LOS RENDER QUE TENIA.
 
-				//cout << "Parameter a size :" << boxes[i]->parameters.getSize() << endl;
+				// cout << "Parameter a size :" << boxes[i]->parameters.getSize() << endl;
 				JPbox *aux;
 
 				boxes[i]->reload();
 				cout << "RElOAD SHADER" << endl;
-				//cout << "Parameter d size :" << boxes[i]->parameters.getSize() << endl;
+				// cout << "Parameter d size :" << boxes[i]->parameters.getSize() << endl;
 
-				//boxes[i]->reloadShaderonly();
-				//Este contador de uniforms hace que no crashee nada.
+				// boxes[i]->reloadShaderonly();
+				// Este contador de uniforms hace que no crashee nada.
 				int counter = 0;
 				/*for (int j = 0; j < boxes[i]->parameters.getSize(); j++) {
 					counter++;
 				}*/
-				//cout << "CONTADOR DE UNIFORMS " << counter << endl;
+				// cout << "CONTADOR DE UNIFORMS " << counter << endl;
 
 				if (openguinumber == i)
 				{
@@ -248,7 +248,7 @@ void JPboxgroup::update()
 			}
 		}
 	}
-	//SUELTA LAS CAJITAS Y EL SELECTION RECT
+	// SUELTA LAS CAJITAS Y EL SELECTION RECT
 	if (!ofGetMousePressed())
 	{
 		shaderboxagarrado = false;
@@ -258,10 +258,10 @@ void JPboxgroup::update()
 		draw_SelectionRect = false;
 		lastMouseClick = ofVec2f(ofGetMouseX(), ofGetMouseY());
 	}
-	//ESTO HABLA DE LO MAL QUE PROGRAMAS : MIRA MIRA LO QUE ES ESTO SE FUE A LA MEIRDA EL CODIGO :
-	//LA VARIABLE NEEDSUPDATE DETERMINA SI EL BOTON FUE APRETADO Y SI NECEITA ACTUALIZARSE LO HACE Y LA VUELVE A SETEAR A FALSE
-	//ACA LO QUE PASA ES QUE ESTO SOLUCIONA EL TEMITA DEL SYNC CUANDO SE DESPLIEGA EL BOTON PARA QUE NO QUEDE EN CUALQUIERA
-	//OSEA EL NEEDSUPDATE COMUNICA QUE EL BOTON DEL COLLAPSE DE LOS SLIDERS FUE APRETADO.
+	// ESTO HABLA DE LO MAL QUE PROGRAMAS : MIRA MIRA LO QUE ES ESTO SE FUE A LA MEIRDA EL CODIGO :
+	// LA VARIABLE NEEDSUPDATE DETERMINA SI EL BOTON FUE APRETADO Y SI NECEITA ACTUALIZARSE LO HACE Y LA VUELVE A SETEAR A FALSE
+	// ACA LO QUE PASA ES QUE ESTO SOLUCIONA EL TEMITA DEL SYNC CUANDO SE DESPLIEGA EL BOTON PARA QUE NO QUEDE EN CUALQUIERA
+	// OSEA EL NEEDSUPDATE COMUNICA QUE EL BOTON DEL COLLAPSE DE LOS SLIDERS FUE APRETADO.
 	if (openguinumber != -1)
 	{
 		for (int k = 0; k < boxes[openguinumber]->parameters.getSize(); k++)
@@ -279,9 +279,9 @@ void JPboxgroup::update()
 void JPboxgroup::update_paramswindow()
 {
 
-	int index = 0; //INDICE PARA LOS BOTONES :
+	int index = 0; // INDICE PARA LOS BOTONES :
 
-	//TODO ESTO PARA QUE TIPO AGARRES UN SOLO SLIDER A LA VEZ Y NO SE VUELVA LOCO
+	// TODO ESTO PARA QUE TIPO AGARRES UN SOLO SLIDER A LA VEZ Y NO SE VUELVA LOCO
 	if (!ofGetMousePressed())
 	{
 		controllerselected = -1;
@@ -317,8 +317,8 @@ void JPboxgroup::update_resized(int w, int h)
 	cout << "RESIZE" << endl;
 	cout << "w " << w << endl;
 	cout << "h " << h << endl;
-	//cout << "render_width" << *render_width << endl;
-	//cout << "render_height" << *render_height << endl;
+	// cout << "render_width" << *render_width << endl;
+	// cout << "render_height" << *render_height << endl;
 
 	/*for (int i = boxes.size()-1; i >=0 ; i--) {
 		boxes[i]->fbo.clear();
@@ -332,15 +332,15 @@ void JPboxgroup::update_resized(int w, int h)
 	inspectorwindow_height = 0;
 	setinspectorsetactiveparams();
 
-	//int i = controllers.size()-1; i >= 0; i--
+	// int i = controllers.size()-1; i >= 0; i--
 	for (int i = 0; i < controllers.size(); i++)
 	{
 		controllers[i]->setPos(inspectorwindow_x, inspectorwindow_height);
 		inspectorwindow_height += inspectorwindow_sepy;
 	}
 
-	//setControllers();
-	//boxesdrawing.allocate(ofGetWidth(), ofGetHeight());
+	// setControllers();
+	// boxesdrawing.allocate(ofGetWidth(), ofGetHeight());
 }
 void JPboxgroup::setinspectorsetactiveparams()
 {
@@ -366,7 +366,7 @@ void JPboxgroup::setinspectorsetactiveparams()
 void JPboxgroup::update_mouseDragged(int mousebutton)
 {
 
-	//Para hacer las conexiones :
+	// Para hacer las conexiones :
 	if (cualestaagarrado != -1 && boxes[cualestaagarrado]->activeFlag)
 	{
 		float distx = boxes[cualestaagarrado]->x - (ofGetPreviousMouseX() - ofGetMouseX());
@@ -388,12 +388,12 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 			}
 		}
 	}
-	//Para los sliders :
+	// Para los sliders :
 	if (!shaderboxagarrado && !ouletagarrado && cualestaagarrado == -1 && outlet_cualestaagarrado == -1 && openguinumber != -1)
 	{
-		//Con esto detecto que no se toque ningun slider de mas: osea que no puedas estar tocando dos sliders a la vez :
+		// Con esto detecto que no se toque ningun slider de mas: osea que no puedas estar tocando dos sliders a la vez :
 		bool slideragarrado = false;
-		//Si invertimos el for en este crashea. habra que cambiarlo en otro lugar tambien?
+		// Si invertimos el for en este crashea. habra que cambiarlo en otro lugar tambien?
 		for (int i = 0; i < controllers.size(); i++)
 		{
 			if (controllers[i]->activeFlag)
@@ -402,8 +402,8 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 
 				if (boxes[openguinumber]->parameters.getType(i) == boxes[openguinumber]->parameters.FLOAT && boxes[openguinumber]->parameters.getMovType(i) == 0)
 				{
-					//float valf = ofLerp(controllers[i]->value, boxes[openguinumber]->parameters.getFloatValue(i), 0.1);
-					//boxes[openguinumber]->parameters.setFloatValue(valf, i);
+					// float valf = ofLerp(controllers[i]->value, boxes[openguinumber]->parameters.getFloatValue(i), 0.1);
+					// boxes[openguinumber]->parameters.setFloatValue(valf, i);
 
 					///				float slidervaluewidth = width * 3 / 4;
 					/*slider_value.setup(x, y,
@@ -414,22 +414,22 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 						value,
 						name);
 						*/
-					//controllers
+					// controllers
 
-					//Esto es porque si esta en movtype 0 no actualiza para que no pise con el OSC , entonces hay que actualizarlo manualmente
-					//Esta es la actualizaci�n manual. Acordate que si el movtype esta en 0 el valor NO SE ACTUALIZA.
+					// Esto es porque si esta en movtype 0 no actualiza para que no pise con el OSC , entonces hay que actualizarlo manualmente
+					// Esta es la actualizaci�n manual. Acordate que si el movtype esta en 0 el valor NO SE ACTUALIZA.
 					controllers[i]->value = ofMap(ofGetMouseX(), controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
 												  controllers[i]->x + (controllers[i]->width * 3 / 4) / 2, 0.0, 1.0, true);
 
 					boxes[openguinumber]->parameters.setFloatValue(controllers[i]->value, i);
 					boxes[openguinumber]->parameters.setFloatLerpValue(controllers[i]->value, i);
-					//boxes[openguinumber]->parameters.setSpeed(controllers[i]->speed, i);
-					//boxes[openguinumber]->parameters.setMin(controllers[i]->min, i);
-					//boxes[openguinumber]->parameters.setMax(controllers[i]->max, i);
+					// boxes[openguinumber]->parameters.setSpeed(controllers[i]->speed, i);
+					// boxes[openguinumber]->parameters.setMin(controllers[i]->min, i);
+					// boxes[openguinumber]->parameters.setMax(controllers[i]->max, i);
 				}
 			}
 		}
-		//Si invertimos el for en este crashea. habra que cambiarlo en otro lugar tambien?
+		// Si invertimos el for en este crashea. habra que cambiarlo en otro lugar tambien?
 		if (!slideragarrado && openguinumber != -1)
 		{
 			for (int i = 0; i < controllers.size(); i++)
@@ -455,14 +455,14 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	////SET OPEN GUI NUMBER :
 
 	float dif = ofGetSystemTimeMillis() - lasttime_mouseclick;
-	//cout << "Diference " << dif << endl;
+	// cout << "Diference " << dif << endl;
 	isDoubleClick = (ofGetSystemTimeMillis() - lasttime_mouseclick < duration_mouseclick);
 	lasttime_mouseclick = ofGetSystemTimeMillis();
 	draw_SelectionRect = true;
 	lastMouseClick = ofVec2f(ofGetMouseX(), ofGetMouseY());
-	bool arafue = false; //POR SI NO TOCO NINGUN ELEMENTO;
+	bool arafue = false; // POR SI NO TOCO NINGUN ELEMENTO;
 
-	//SI EL MOUSE ESTA DENTRO DEL INSPECTOR WINDOW PAPA.
+	// SI EL MOUSE ESTA DENTRO DEL INSPECTOR WINDOW PAPA.
 	if (mouseOverGui() && openguinumber != -1)
 	{
 		arafue = true;
@@ -472,18 +472,18 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		}
 		if (inspectorreload.mouseGrab())
 		{
-			//reloadActiveshader();
+			// reloadActiveshader();
 		}
-		//Checkeo todos los controles.
+		// Checkeo todos los controles.
 		bool isovercontrol = false;
-		//ESTE PARECE QUE NO HACE QUE CRASHEE COMO EL RESTO DE LOS CONTROLADORES
-		int index = 0; //INDEX PARA RECORRER LOS BOTONES :
+		// ESTE PARECE QUE NO HACE QUE CRASHEE COMO EL RESTO DE LOS CONTROLADORES
+		int index = 0; // INDEX PARA RECORRER LOS BOTONES :
 		int activeone = -1;
 		for (int i = 0; i < controllers.size(); i++)
 		{
 			if (controllers[i]->mouseOver())
 			{
-				//cout << "MOUSE OVER " << controllers[i]->name << endl;
+				// cout << "MOUSE OVER " << controllers[i]->name << endl;
 				isovercontrol = true;
 				if (boxes[openguinumber]->parameters.getType(i) == boxes[openguinumber]->parameters.FLOAT)
 				{
@@ -500,7 +500,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				index++;
 			}
 		}
-		//PONGO EN FALSE TODOS LOS QUE NO TENGO ACTIVOS:
+		// PONGO EN FALSE TODOS LOS QUE NO TENGO ACTIVOS:
 		for (int i = 0; i < controllers.size(); i++)
 		{
 			if (i != activeone)
@@ -509,8 +509,8 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			}
 			else
 			{
-				//Esto es porque si esta en movtype 0 no actualiza para que no pise con el OSC , entonces hay que actualizarlo manualmente
-				//Esta es la actualizaci�n manual. Acordate que si el movtype esta en 0 el valor NO SE ACTUALIZA.
+				// Esto es porque si esta en movtype 0 no actualiza para que no pise con el OSC , entonces hay que actualizarlo manualmente
+				// Esta es la actualizaci�n manual. Acordate que si el movtype esta en 0 el valor NO SE ACTUALIZA.
 				controllers[i]->value = ofMap(ofGetMouseX(), controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
 											  controllers[i]->x + (controllers[i]->width * 3 / 4) / 2, 0.0, 1.0, true);
 				boxes[openguinumber]->parameters.setFloatValue(controllers[i]->value, i);
@@ -529,14 +529,14 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			}
 			setControllers();
 		}
-		//POR ACA VA LA COSA POR AHROA
+		// POR ACA VA LA COSA POR AHROA
 		for (int i = 0; i < controllers.size(); i++)
 		{
 			if (controllers[i]->overboton_collapse &&
 				boxes[openguinumber]->parameters.getType(i) == boxes[openguinumber]->parameters.FLOAT)
 			{
-				//CAMBIA MOVTYPE
-				//Bueno todo esto esta medio raro pero funciona digamos.
+				// CAMBIA MOVTYPE
+				// Bueno todo esto esta medio raro pero funciona digamos.
 				cout << "Cambia movtype " << endl;
 				cout << "BOTON OVER " << controllers[i]->name << endl;
 			}
@@ -548,7 +548,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		arafue = false;
 		for (int i = boxes.size() - 1; i >= 0; i--)
 		{
-			//Esto esta raro:
+			// Esto esta raro:
 			if (boxes[i]->mouseOverOutlet())
 			{
 			}
@@ -587,14 +587,14 @@ void JPboxgroup::save(string _diroutput)
 	for (int i = 0; i < boxes.size(); i++)
 	{
 
-		//for (int i = boxes.size() - 1; i >= 0; i--) {
+		// for (int i = boxes.size() - 1; i >= 0; i--) {
 		auto data = xml.appendChild("box"); // or whatever name you want to.
 		data.appendChild("nombre").set(boxes[i]->name);
 		data.appendChild("x").set(boxes[i]->x);
 		data.appendChild("y").set(boxes[i]->y);
 		data.appendChild("directory").set(boxes[i]->dir);
 		data.appendChild("onoff").set(boxes[i]->getonoff());
-		//boxes[i]->parameters.coutData();
+		// boxes[i]->parameters.coutData();
 		if (boxes[i]->parameters.getSize() > 0)
 		{
 			auto parameters = data.appendChild("parameters");
@@ -609,9 +609,9 @@ void JPboxgroup::save(string _diroutput)
 				}
 				else
 				{
-					//string name = boxes[i]->parameters.getName(k);
+					// string name = boxes[i]->parameters.getName(k);
 					auto param = parameters.appendChild("param");
-					//param.set(boxes[i]->parameters.getFloatValue(k));
+					// param.set(boxes[i]->parameters.getFloatValue(k));
 					param.appendChild("name").set(boxes[i]->parameters.getName(k));
 					param.appendChild("min").set(boxes[i]->parameters.getMin(k));
 					param.appendChild("max").set(boxes[i]->parameters.getMax(k));
@@ -641,7 +641,7 @@ void JPboxgroup::load2(string _dirinput)
 {
 	JPbox_preset *presetbox = new JPbox_preset();
 
-	//NO SE COMO HACERLO EN UNA SOLA PASADA PERO EN 2 RE FUNCA ASI QUE MIRA QUE PIOLA EH
+	// NO SE COMO HACERLO EN UNA SOLA PASADA PERO EN 2 RE FUNCA ASI QUE MIRA QUE PIOLA EH
 	/*string nombre = _dirinput.substr(_dirinput.find_last_of("/\\") + 1, _dirinput.size());
 	nombre = nombre.substr(0, nombre.find(".xml"));
 	cout << "nombre " << nombre << endl;
@@ -663,10 +663,10 @@ void JPboxgroup::load(string _dirinput)
 
 	ofDirectory dir(_dirinput);
 
-	//if(dir.doesDirectoryExist(_dirinput)){
+	// if(dir.doesDirectoryExist(_dirinput)){
 
 	xml.load(_dirinput);
-	//Carga inicial de las cajitas :
+	// Carga inicial de las cajitas :
 	auto boxloader = xml.find("/box");
 
 	cout << "******************************************************************" << endl;
@@ -678,10 +678,10 @@ void JPboxgroup::load(string _dirinput)
 		auto y = box.getChild("y");
 		auto directory = box.getChild("directory");
 		auto onoff = box.getChild("onoff");
-		//cout << "Nombre : " << nombre.getValue() << endl;
-		//cout << "y : " << x.getValue() << endl;
-		//cout << "x : " << y.getValue() << endl;
-		//cout << "Directory : " << directory.getValue() << endl;
+		// cout << "Nombre : " << nombre.getValue() << endl;
+		// cout << "y : " << x.getValue() << endl;
+		// cout << "x : " << y.getValue() << endl;
+		// cout << "Directory : " << directory.getValue() << endl;
 
 		JPbox *bx;
 		if (directory.getValue().find(".frag") != std::string::npos)
@@ -728,7 +728,7 @@ void JPboxgroup::load(string _dirinput)
 
 		int index = 0;
 		auto parameters = box.getChild("parameters").getChildren();
-		//cout << "PARAMETER SIZE SB " << sb->parameters.getSize() << endl;
+		// cout << "PARAMETER SIZE SB " << sb->parameters.getSize() << endl;
 		for (auto &param : parameters)
 		{
 			/*cout << "............" << endl;
@@ -759,8 +759,8 @@ void JPboxgroup::load(string _dirinput)
 		}
 		boxes.push_back(bx);
 	}
-	//Una vez que cargo todas las cajitas les cargamos los links :
-	//Mira lo que esta este algoritmo para levantar los links entre cajitas papa !!!
+	// Una vez que cargo todas las cajitas les cargamos los links :
+	// Mira lo que esta este algoritmo para levantar los links entre cajitas papa !!!
 	int index1 = 0;
 	int index2 = 0;
 	for (auto &box : boxloader)
@@ -784,8 +784,8 @@ void JPboxgroup::load(string _dirinput)
 	}
 	*activerender = xml.getChild("activerender").getIntValue();
 	//}
-	//activerender_loader.getIntValue();
-	//activerender = activerender_loader.getIntValue();
+	// activerender_loader.getIntValue();
+	// activerender = activerender_loader.getIntValue();
 }
 void JPboxgroup::setControllers()
 {
@@ -804,17 +804,17 @@ void JPboxgroup::setControllers()
 	inspectorwindow_height = font_p->stringHeight(boxes[openguinumber]->name);
 	inspectorwindow_height += inspectorwindow_sepy * 1.;
 
-	//El espacio que ponemos para dibujar el reload shader. Cosa que ya sacamos.
+	// El espacio que ponemos para dibujar el reload shader. Cosa que ya sacamos.
 	/*if(boxes[openguinumber]->getTipo() == boxes[openguinumber]->SHADERBOX){
 		inspectorwindow_height += inspectorwindow_setactivesize;
 	}*/
-	//Espacio para dibujar el set active render
+	// Espacio para dibujar el set active render
 	inspectorwindow_height += inspectorwindow_sepy * 0.5;
 	/*inspectorwindow_height += inspectorwindow_setactivesize;
 	inspectorwindow_height += inspectorwindow_sepy * 0.5;
 	*/
 
-	//FIJATE QUE ESTO SI LA PRIMERA CONDICION NO SE CUMPLE NI EVALUA LA SEGUNDA. PARA PODER EVALUAR LA SEGUNDA LA PRIMERA TIENE QUE SER TRU
+	// FIJATE QUE ESTO SI LA PRIMERA CONDICION NO SE CUMPLE NI EVALUA LA SEGUNDA. PARA PODER EVALUAR LA SEGUNDA LA PRIMERA TIENE QUE SER TRU
 	if (boxes[openguinumber]->parameters.getSize() > 0 && boxes[openguinumber]->parameters.getMovType(0) != 0)
 	{
 		inspectorwindow_height += inspectorwindow_sepy * 0.5;
@@ -843,13 +843,13 @@ void JPboxgroup::setControllers()
 					inspectorwindow_height -= inspectorwindow_sepy * 0.5;
 				}
 			}
-			//boxes[openguinumber]->parameters.setFloatValue(0.0, k);
+			// boxes[openguinumber]->parameters.setFloatValue(0.0, k);
 
-			//boxes[openguinumber]->parameters.parameters[k]->floatValue = 0.5;
+			// boxes[openguinumber]->parameters.parameters[k]->floatValue = 0.5;
 
-			//boxes[openguinumber]->parameters.parameters[k]->floatLerpValue = 0.5;
+			// boxes[openguinumber]->parameters.parameters[k]->floatLerpValue = 0.5;
 
-			//JPParameter* as = boxes[openguinumber]->parameters.parameters[k];
+			// JPParameter* as = boxes[openguinumber]->parameters.parameters[k];
 			JPComplexSlider *sl = new JPComplexSlider();
 			sl->setup(inspectorwindow_x,
 					  inspectorwindow_height, inspectorwindow_width, complexsliderheight,
@@ -859,7 +859,7 @@ void JPboxgroup::setControllers()
 
 			if (k != boxes[openguinumber]->parameters.getSize() - 1)
 			{
-				//inspectorwindow_height -= inspectorwindow_sepy * 0.5;
+				// inspectorwindow_height -= inspectorwindow_sepy * 0.5;
 				inspectorwindow_height += complexsliderheight;
 			}
 			else
@@ -875,7 +875,7 @@ void JPboxgroup::setControllers()
 			toogle->setup(inspectorwindow_x,
 						  inspectorwindow_height, slider_width, slider_height, boxes[openguinumber]->parameters.getName(k), boxes[openguinumber]->parameters.getBoolValue(k));
 			controllers.push_back(toogle);
-			//Esto es para que no lo agregue si es el ultimo elemento :
+			// Esto es para que no lo agregue si es el ultimo elemento :
 			if (k != boxes[openguinumber]->parameters.getSize() - 1)
 			{
 				inspectorwindow_height += complexsliderheight;
@@ -890,15 +890,15 @@ void JPboxgroup::reloadActiveshader()
 	{
 		if (openguinumber != -1)
 		{
-			//cout << "Active Render " << *activerender <<endl;
-			//cout << "Active Render " << *activerender << endl;
+			// cout << "Active Render " << *activerender <<endl;
+			// cout << "Active Render " << *activerender << endl;
 			boxes[openguinumber]->reload();
 			setControllers();
 		}
 		else
 		{
-			//cout << "Active Render " << *activerender << endl;
-			//cout << "Active Render " << *activerender << endl;
+			// cout << "Active Render " << *activerender << endl;
+			// cout << "Active Render " << *activerender << endl;
 			boxes[*activerender]->reload();
 		}
 	}
@@ -906,8 +906,8 @@ void JPboxgroup::reloadActiveshader()
 void JPboxgroup::listenToOsc(string _dir, float _val)
 {
 
-	//string nombre = dir.substr(dir.find_last_of("/\\") + 1, dir.size());
-	//string dir = _dir;
+	// string nombre = dir.substr(dir.find_last_of("/\\") + 1, dir.size());
+	// string dir = _dir;
 	string shadername = _dir.substr(_dir.find_first_of("/") + 1, _dir.find_last_of("/") - 1);
 	string parametername = _dir.substr(_dir.find_last_of("/") + 1, _dir.size());
 
@@ -915,20 +915,20 @@ void JPboxgroup::listenToOsc(string _dir, float _val)
 	{
 		if (boxes[i]->name == shadername)
 		{
-			//cout << "COINCIDE EL NOMBRE LOCO" << endl;
+			// cout << "COINCIDE EL NOMBRE LOCO" << endl;
 			for (int k = 0; k < boxes[i]->parameters.getSize(); k++)
 			{
 				if (boxes[i]->parameters.getName(k) == parametername)
 				{
-					//cout << "COINCIDE EL PARAMETRO LOCO" << endl;
+					// cout << "COINCIDE EL PARAMETRO LOCO" << endl;
 					if (boxes[i]->parameters.getType(k) == boxes[i]->parameters.FLOAT)
 					{
 						boxes[i]->parameters.setFloatValue(_val, k);
 
-						//ESTO ES PARA QUE SOLO MODIFIQUE EL VALOR DEL SLIDER SOLO SI ESTA ABIERTO ESE COSO
+						// ESTO ES PARA QUE SOLO MODIFIQUE EL VALOR DEL SLIDER SOLO SI ESTA ABIERTO ESE COSO
 						if (openguinumber == i)
 						{
-							controllers[k]->value = _val; //ACa la cantidad de controllers siempre va a ser igual a la cantidad de parameters size;
+							controllers[k]->value = _val; // ACa la cantidad de controllers siempre va a ser igual a la cantidad de parameters size;
 						}
 					}
 				}
@@ -940,9 +940,9 @@ void JPboxgroup::listenToOsc(string _dir, float _val)
 	{
 
 		string index = "NULL";
-		//cout << "parametername.size()" << parametername.size() << endl;
+		// cout << "parametername.size()" << parametername.size() << endl;
 
-		//NO TENGO NI PUTA IDEA QUE HACES ESTE CODIGO DE ACA :  ONDA . PORQUE SI ES IGUAL A 6 O A / O SEA QUE CARAJO
+		// NO TENGO NI PUTA IDEA QUE HACES ESTE CODIGO DE ACA :  ONDA . PORQUE SI ES IGUAL A 6 O A / O SEA QUE CARAJO
 		if (parametername.size() == 6)
 		{
 			index = parametername.at(5);
@@ -953,10 +953,10 @@ void JPboxgroup::listenToOsc(string _dir, float _val)
 			index.push_back(parametername.at(6));
 		}
 		int Intindex = ofToInt(index);
-		//cout << "INDEX " << Intindex << endl;
+		// cout << "INDEX " << Intindex << endl;
 
-		//cout << "VAL " << _val << endl;
-		//float finalvalue = ofMap(_val, 0, 127, 0, 1);
+		// cout << "VAL " << _val << endl;
+		// float finalvalue = ofMap(_val, 0, 127, 0, 1);
 		if (Intindex < controllers.size() && openguinumber != -1 && boxes[openguinumber]->parameters.getMovType(Intindex) == 0)
 		{
 
@@ -983,7 +983,7 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 {
 	JPbox *bx;
 
-	//NO SE COMO HACERLO EN UNA SOLA PASADA PERO EN 2 RE FUNCA ASI QUE MIRA QUE PIOLA EH
+	// NO SE COMO HACERLO EN UNA SOLA PASADA PERO EN 2 RE FUNCA ASI QUE MIRA QUE PIOLA EH
 	string nombre = directory.substr(directory.find_last_of("/\\") + 1, directory.size());
 	/*Formatos de video*/
 	nombre = nombre.substr(0, nombre.find(".mov"));
@@ -1047,7 +1047,7 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 		nombre = "NDI";
 	}
 
-	//ESTO ES PARA QUE NO PONGA 2 VECES EL MISMO NOMBRE:
+	// ESTO ES PARA QUE NO PONGA 2 VECES EL MISMO NOMBRE:
 	string nombreaux = nombre;
 	bool existenombre = false;
 	int counter = 2;
@@ -1056,8 +1056,8 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 		existenombre = false;
 		for (int i = 0; i < boxes.size(); i++)
 		{
-			//cout << "AHORA: " << nombre << endl;
-			//cout << "boxes[i]->name: " << boxes[i]->name << endl;
+			// cout << "AHORA: " << nombre << endl;
+			// cout << "boxes[i]->name: " << boxes[i]->name << endl;
 			if (nombre.compare(boxes[i]->name) == 0)
 			{
 				existenombre = true;
@@ -1065,7 +1065,7 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 		}
 		if (existenombre)
 		{
-			//cout << "EL NOMBRE YA EXISTE " << endl;
+			// cout << "EL NOMBRE YA EXISTE " << endl;
 			nombre = nombreaux;
 			nombre += ofToString(counter);
 			counter++;
@@ -1094,7 +1094,7 @@ void JPboxgroup::setupShaderRendersFromDataFolder()
 		{
 			string compofolder_name = dir.getName(i);
 			string compofolder_path = dir.getPath(i);
-			//cout << " " << compofolder_path << endl;
+			// cout << " " << compofolder_path << endl;
 			ofDirectory dir2(compofolder_path);
 			if (dir2.isDirectory())
 			{
@@ -1103,7 +1103,7 @@ void JPboxgroup::setupShaderRendersFromDataFolder()
 				{
 					string compofolder_name2 = dir2.getName(k);
 					string compofolder_path2 = dir2.getPath(k);
-					//cout << compofolder_path2 << endl;
+					// cout << compofolder_path2 << endl;
 
 					JPbox_shader test;
 					test.setup(*font_p,
@@ -1115,7 +1115,7 @@ void JPboxgroup::setupShaderRendersFromDataFolder()
 			}
 		}
 	}
-	//cout << "--------------------------------" << endl;
+	// cout << "--------------------------------" << endl;
 }
 void JPboxgroup::clear()
 {
@@ -1141,14 +1141,14 @@ void JPboxgroup::clear()
 void JPboxgroup::deleteSelectedShader()
 {
 
-	//YA LO ENCONTRAMOS ESE BUG :
-	/*Vamos a dejar esto aca por las dudas, que me reinicie todos los dibujos cuando limpio uno. 
+	// YA LO ENCONTRAMOS ESE BUG :
+	/*Vamos a dejar esto aca por las dudas, que me reinicie todos los dibujos cuando limpio uno.
 	esto es para solucionar el tema ese de que cuando borro un fboPointer, en vez de borrarlo es como
 	si me pusiera otro shader como fboPointer.  Y si por alguna raz�n le haces un clear a todos los fbos entonces
 	es como si reiniciara los punteros dentro del fbohandlergroup.fbos,
-	Sin embargo. Si hubiera muchisimas cajitas, asumo que hacerle un clear y un allocate a todas las cajas 
+	Sin embargo. Si hubiera muchisimas cajitas, asumo que hacerle un clear y un allocate a todas las cajas
 	es un proceso sumamente lento. pero es lo mismo que hace en el resize as� que no s�, es posible que a futuro
-	tenga que solucionarlo. Esta modificaci�n es parte del proceso por encontrar ese bug que cada tanto(todav�a 
+	tenga que solucionarlo. Esta modificaci�n es parte del proceso por encontrar ese bug que cada tanto(todav�a
 	no s� porque aparece, y hace que crashee la app, as� que medio que estamos como doblecheckeando todo e investigando
 	donde mierda puede estar ese bug.
 	*/
@@ -1166,10 +1166,10 @@ void JPboxgroup::deleteSelectedShader()
 			int numbergrab = i;
 			for (int k = boxes.size() - 1; k >= 0; k--)
 			{
-				//cout << "FBO HANDLER GROUP NAMES OF " << boxes[k]->name << endl;
+				// cout << "FBO HANDLER GROUP NAMES OF " << boxes[k]->name << endl;
 				for (int l = 0; l < boxes[k]->fbohandlergroup.getSize(); l++)
 				{
-					//cout << "NUM: " << l << "  NAME : " << boxes[k]->fbohandlergroup.getFboName(l) << endl;
+					// cout << "NUM: " << l << "  NAME : " << boxes[k]->fbohandlergroup.getFboName(l) << endl;
 					if (boxes[k]->fbohandlergroup.getFboName(l) ==
 						boxes[i]->name)
 					{
@@ -1185,15 +1185,15 @@ void JPboxgroup::deleteSelectedShader()
 			index = i;
 			if (i == openguinumber)
 			{
-				//openguinumber = -1;
+				// openguinumber = -1;
 				//*activerender = 0;
 			}
 		}
 	}
 
-	//ESTO ES PARA QUE SI EL QUE BORRAMOS ES EL ULTIMO AGREGADO DE LA LISTA.
-	// Y SI ESE ULTIMO AGREGADO TAMBIEN RESULTA EL RENDER ACTIVO
-	// Y QUE SI SI LA CANTIDAD DE CAJAS ES MAYOR A 0 :
+	// ESTO ES PARA QUE SI EL QUE BORRAMOS ES EL ULTIMO AGREGADO DE LA LISTA.
+	//  Y SI ESE ULTIMO AGREGADO TAMBIEN RESULTA EL RENDER ACTIVO
+	//  Y QUE SI SI LA CANTIDAD DE CAJAS ES MAYOR A 0 :
 	if (index == *activerender && getBoxesSize() > 0 && index == getBoxesSize())
 	{
 		*activerender = index - 1;
@@ -1203,17 +1203,18 @@ void JPboxgroup::deleteSelectedShader()
 		*activerender = 0;
 	}*/
 
-	//ESTO VA A ESTAR ASI HASTA QUE COMPROBEMOS QUE NO CRASHEA POR MUCHO TIEMPO.
+	// ESTO VA A ESTAR ASI HASTA QUE COMPROBEMOS QUE NO CRASHEA POR MUCHO TIEMPO.
 	//*activerender = 0;
 	openguinumber = -1;
 }
-ofTexture JPboxgroup::getActiveTexture()
+ofTexture *JPboxgroup::getActiveTexture()
 {
 	if (boxes.size() >= 1)
 	{
-		return boxes[*activerender]->fbo.getTexture();
-		//boxes[*activerender]->shaderrender.fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
+		return &boxes[*activerender]->fbo.getTexture();
+		// boxes[*activerender]->shaderrender.fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
 	}
+	return nullptr;
 }
 int JPboxgroup::getBoxesSize()
 {
@@ -1224,8 +1225,9 @@ ofFbo *JPboxgroup::getActiverender()
 	if (boxes.size() >= 1)
 	{
 		return &boxes[*activerender]->fbo;
-		//boxes[*activerender]->shaderrender.fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
+		// boxes[*activerender]->shaderrender.fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
 	}
+	return nullptr;
 }
 /*ofFbo JPboxgroup::getActiverender() {
 	if (boxes.size() >= 1) {
