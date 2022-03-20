@@ -90,7 +90,7 @@ OF_ROOT = ../../..
 #   Note: Leave a leading space when adding list items with the += operator
 ################################################################################
 # Possible defines: NDI (requires ofxNDI addon), SPOUT (only Windows)
-PROJECT_DEFINES = NDI
+PROJECT_DEFINES =
 
 ################################################################################
 # PROJECT CFLAGS
