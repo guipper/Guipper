@@ -1,5 +1,11 @@
 obj/
-bin/
 Guiper
 Guiper_Debug
 .vscode/
+
+bin/guipper
+bin/*.so
+bin/data/settings.xml
+bin/data/savefiles/*.xml
+bin/data/exportimgs/*
+bin/data/video/*
