@@ -9,3 +9,5 @@ bin/data/settings.xml
 bin/data/savefiles/*.xml
 bin/data/exportimgs/*
 bin/data/video/*
+
+.DS_Store
