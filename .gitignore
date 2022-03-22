@@ -1,5 +1,8 @@
 .DS_Store
+.vs/
 .vscode/
+addons/
+bin/*.dll
 bin/*.so
 bin/data/exportimgs/*
 bin/data/savefiles/*.xml
@@ -7,6 +10,8 @@ bin/data/settings.xml
 bin/data/video/*
 bin/guipper
 bin/guipper_debug
-bin/guipper.app/
+bin/guipper_debug.*
 bin/guipper_debug.app/
+bin/guipper.*
+bin/guipper.app/
 obj/
