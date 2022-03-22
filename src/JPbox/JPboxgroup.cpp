@@ -1041,11 +1041,13 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 		bx = new JPbox_framedifference();
 		nombre = "frameDif";
 	}
+#ifdef NDI
 	else if (directory.find("ndiReceiver") != std::string::npos)
 	{
 		bx = new JPbox_ndi();
 		nombre = "NDI";
 	}
+#endif
 
 	// ESTO ES PARA QUE NO PONGA 2 VECES EL MISMO NOMBRE:
 	string nombreaux = nombre;
