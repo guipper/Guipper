@@ -1,0 +1,387 @@
+<?xml version="1.0"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<ItemGroup>
+		<ClCompile Include="src\ofApp.cpp">
+			<Filter>src</Filter>
+		</ClCompile>
+		<ClCompile Include="src\main.cpp">
+			<Filter>src</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPgui\jp_knob.cpp">
+			<Filter>src\JPgui</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPgui\jp_controller.cpp">
+			<Filter>src\JPgui</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPgui\jp_bang.cpp">
+			<Filter>src\JPgui</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPgui\jp_slider.cpp">
+			<Filter>src\JPgui</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPgui\jp_toogle.cpp">
+			<Filter>src\JPgui</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPgui\jp_complexslider.cpp">
+			<Filter>src\JPgui</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPgui\jp_tooglelist.cpp">
+			<Filter>src\JPgui</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPbox\jp_box_ndi.cpp">
+			<Filter>src\JPbox</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPbox\jp_box_shader.cpp">
+			<Filter>src\JPbox</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPbox\jp_box.cpp">
+			<Filter>src\JPbox</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPbox\jp_box_framedifference.cpp">
+			<Filter>src\JPbox</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPbox\jp_box_image.cpp">
+			<Filter>src\JPbox</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPbox\jp_box_cam.cpp">
+			<Filter>src\JPbox</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPbox\JPboxgroup.cpp">
+			<Filter>src\JPbox</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPbox\jp_box_video.cpp">
+			<Filter>src\JPbox</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPbox\jp_box_preset.cpp">
+			<Filter>src\JPbox</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPbox\jp_box_spout.cpp">
+			<Filter>src\JPbox</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPutils\jp_parametergroup.cpp">
+			<Filter>src\JPutils</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPutils\jp_dragobject.cpp">
+			<Filter>src\JPutils</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPutils\jp_fileloader.cpp">
+			<Filter>src\JPutils</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPutils\jp_fbohandler.cpp">
+			<Filter>src\JPutils</Filter>
+		</ClCompile>
+		<ClCompile Include="src\JPutils\jp_constants.cpp">
+			<Filter>src\JPutils</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxNDI\src\ofxNDIreceive.cpp">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxNDI\src\ofxNDIsender.cpp">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxNDI\src\ofxNDIsend.cpp">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxNDI\src\ofxNDIdynloader.cpp">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxNDI\src\ofxNDIutils.cpp">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxNDI\src\ofxNDIreceiver.cpp">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxOsc\src\ofxOscBundle.cpp">
+			<Filter>addons\ofxOsc\src</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxOsc\src\ofxOscParameterSync.cpp">
+			<Filter>addons\ofxOsc\src</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxOsc\src\ofxOscSender.cpp">
+			<Filter>addons\ofxOsc\src</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxOsc\src\ofxOscReceiver.cpp">
+			<Filter>addons\ofxOsc\src</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxOsc\src\ofxOscMessage.cpp">
+			<Filter>addons\ofxOsc\src</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxOsc\libs\oscpack\src\osc\OscOutboundPacketStream.cpp">
+			<Filter>addons\ofxOsc\libs\oscpack\src\osc</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxOsc\libs\oscpack\src\osc\OscReceivedElements.cpp">
+			<Filter>addons\ofxOsc\libs\oscpack\src\osc</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxOsc\libs\oscpack\src\osc\OscPrintReceivedElements.cpp">
+			<Filter>addons\ofxOsc\libs\oscpack\src\osc</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxOsc\libs\oscpack\src\osc\OscTypes.cpp">
+			<Filter>addons\ofxOsc\libs\oscpack\src\osc</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxOsc\libs\oscpack\src\ip\IpEndpointName.cpp">
+			<Filter>addons\ofxOsc\libs\oscpack\src\ip</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32\UdpSocket.cpp">
+			<Filter>addons\ofxOsc\libs\oscpack\src\ip\win32</Filter>
+		</ClCompile>
+		<ClCompile Include="..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32\NetworkingUtils.cpp">
+			<Filter>addons\ofxOsc\libs\oscpack\src\ip\win32</Filter>
+		</ClCompile>
+	</ItemGroup>
+	<ItemGroup>
+		<Filter Include="src">
+			<UniqueIdentifier>{d8376475-7454-4a24-b08a-aac121d3ad6f}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="src\JPgui">
+			<UniqueIdentifier>{C5E03673-11C3-518B-4CE4-2FDD}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="src\JPbox">
+			<UniqueIdentifier>{8B239D9C-BD17-0374-AF4D-C599}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="src\JPutils">
+			<UniqueIdentifier>{EC418DD8-4E2A-2529-71A9-4D78}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons">
+			<UniqueIdentifier>{71834F65-F3A9-211E-73B8-DC85}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons\ofxNDI">
+			<UniqueIdentifier>{577C5AAC-F44E-A0BE-E58F-B066}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons\ofxNDI\src">
+			<UniqueIdentifier>{3BB183CD-62BF-E58A-FD5C-A603}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons\ofxNDI\libs">
+			<UniqueIdentifier>{C2091C9D-63A5-7B51-5F40-CF0C}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons\ofxNDI\libs\NDI">
+			<UniqueIdentifier>{50DDA443-51F6-CCFC-46D7-85CE}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons\ofxNDI\libs\NDI\include">
+			<UniqueIdentifier>{B9E7D45F-AC3D-9349-FCD4-7EA6}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons\ofxOsc">
+			<UniqueIdentifier>{D91DCA33-6E5D-4481-2AEC-9FBB}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons\ofxOsc\src">
+			<UniqueIdentifier>{B9DD339A-D93D-92A1-0A2F-4B41}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons\ofxOsc\libs">
+			<UniqueIdentifier>{99ECA1D9-873F-4622-8FC0-FC7B}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons\ofxOsc\libs\oscpack">
+			<UniqueIdentifier>{D3A98534-1602-4FEF-57A6-6593}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons\ofxOsc\libs\oscpack\src">
+			<UniqueIdentifier>{BFB5BB47-98C8-BBCB-3066-1046}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons\ofxOsc\libs\oscpack\src\osc">
+			<UniqueIdentifier>{EDACB89C-9768-9551-4D41-B590}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons\ofxOsc\libs\oscpack\src\ip">
+			<UniqueIdentifier>{5A029128-EB41-95C5-CBC0-CDED}</UniqueIdentifier>
+		</Filter>
+		<Filter Include="addons\ofxOsc\libs\oscpack\src\ip\win32">
+			<UniqueIdentifier>{79DFDFE2-400B-8654-3675-01A3}</UniqueIdentifier>
+		</Filter>
+	</ItemGroup>
+	<ItemGroup>
+		<ClInclude Include="src\ofApp.h">
+			<Filter>src</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPgui\jp_knob.h">
+			<Filter>src\JPgui</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPgui\jp_complexslider.h">
+			<Filter>src\JPgui</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPgui\jp_tooglelist.h">
+			<Filter>src\JPgui</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPgui\jp_slider.h">
+			<Filter>src\JPgui</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPgui\jp_toogle.h">
+			<Filter>src\JPgui</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPgui\jp_controller.h">
+			<Filter>src\JPgui</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPgui\jp_bang.h">
+			<Filter>src\JPgui</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPbox\jp_box_spout.h">
+			<Filter>src\JPbox</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPbox\JPboxgroup.h">
+			<Filter>src\JPbox</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPbox\jp_box_preset.h">
+			<Filter>src\JPbox</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPbox\jp_box_image.h">
+			<Filter>src\JPbox</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPbox\jp_box_shader.h">
+			<Filter>src\JPbox</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPbox\jp_box_ndi.h">
+			<Filter>src\JPbox</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPbox\jp_box_framedifference.h">
+			<Filter>src\JPbox</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPbox\jp_box_cam.h">
+			<Filter>src\JPbox</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPbox\jp_box_video.h">
+			<Filter>src\JPbox</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPbox\jp_box.h">
+			<Filter>src\JPbox</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPutils\jp_fileloader.h">
+			<Filter>src\JPutils</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPutils\jp_constants.h">
+			<Filter>src\JPutils</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPutils\jp_fbohandler.h">
+			<Filter>src\JPutils</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPutils\jp_dragobject.h">
+			<Filter>src\JPutils</Filter>
+		</ClInclude>
+		<ClInclude Include="src\JPutils\jp_parametergroup.h">
+			<Filter>src\JPutils</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\src\ofxNDI.h">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\src\ofxNDIreceive.h">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\src\ofxNDIsender.h">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\src\ofxNDIdynloader.h">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\src\ofxNDIplatforms.h">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\src\ofxNDIsend.h">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\src\ofxNDIutils.h">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\src\sse2neon.h">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\src\ofxNDIreceiver.h">
+			<Filter>addons\ofxNDI\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\libs\NDI\include\Processing.NDI.Lib.cplusplus.h">
+			<Filter>addons\ofxNDI\libs\NDI\include</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\libs\NDI\include\Processing.NDI.Send.h">
+			<Filter>addons\ofxNDI\libs\NDI\include</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\libs\NDI\include\Processing.NDI.deprecated.h">
+			<Filter>addons\ofxNDI\libs\NDI\include</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\libs\NDI\include\Processing.NDI.Recv.ex.h">
+			<Filter>addons\ofxNDI\libs\NDI\include</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\libs\NDI\include\Processing.NDI.Lib.h">
+			<Filter>addons\ofxNDI\libs\NDI\include</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\libs\NDI\include\Processing.NDI.Routing.h">
+			<Filter>addons\ofxNDI\libs\NDI\include</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\libs\NDI\include\Processing.NDI.FrameSync.h">
+			<Filter>addons\ofxNDI\libs\NDI\include</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\libs\NDI\include\Processing.NDI.Find.h">
+			<Filter>addons\ofxNDI\libs\NDI\include</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\libs\NDI\include\Processing.NDI.compat.h">
+			<Filter>addons\ofxNDI\libs\NDI\include</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\libs\NDI\include\Processing.NDI.utilities.h">
+			<Filter>addons\ofxNDI\libs\NDI\include</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\libs\NDI\include\Processing.NDI.DynamicLoad.h">
+			<Filter>addons\ofxNDI\libs\NDI\include</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\libs\NDI\include\Processing.NDI.structs.h">
+			<Filter>addons\ofxNDI\libs\NDI\include</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxNDI\libs\NDI\include\Processing.NDI.Recv.h">
+			<Filter>addons\ofxNDI\libs\NDI\include</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\src\ofxOscArg.h">
+			<Filter>addons\ofxOsc\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\src\ofxOscReceiver.h">
+			<Filter>addons\ofxOsc\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\src\ofxOscMessage.h">
+			<Filter>addons\ofxOsc\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\src\ofxOscBundle.h">
+			<Filter>addons\ofxOsc\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\src\ofxOscSender.h">
+			<Filter>addons\ofxOsc\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\src\ofxOscParameterSync.h">
+			<Filter>addons\ofxOsc\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\src\ofxOsc.h">
+			<Filter>addons\ofxOsc\src</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\libs\oscpack\src\osc\OscPacketListener.h">
+			<Filter>addons\ofxOsc\libs\oscpack\src\osc</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\libs\oscpack\src\osc\OscPrintReceivedElements.h">
+			<Filter>addons\ofxOsc\libs\oscpack\src\osc</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\libs\oscpack\src\osc\OscHostEndianness.h">
+			<Filter>addons\ofxOsc\libs\oscpack\src\osc</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\libs\oscpack\src\osc\OscException.h">
+			<Filter>addons\ofxOsc\libs\oscpack\src\osc</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\libs\oscpack\src\osc\MessageMappingOscPacketListener.h">
+			<Filter>addons\ofxOsc\libs\oscpack\src\osc</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\libs\oscpack\src\osc\OscOutboundPacketStream.h">
+			<Filter>addons\ofxOsc\libs\oscpack\src\osc</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\libs\oscpack\src\osc\OscReceivedElements.h">
+			<Filter>addons\ofxOsc\libs\oscpack\src\osc</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\libs\oscpack\src\osc\OscTypes.h">
+			<Filter>addons\ofxOsc\libs\oscpack\src\osc</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\libs\oscpack\src\ip\IpEndpointName.h">
+			<Filter>addons\ofxOsc\libs\oscpack\src\ip</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\libs\oscpack\src\ip\PacketListener.h">
+			<Filter>addons\ofxOsc\libs\oscpack\src\ip</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\libs\oscpack\src\ip\NetworkingUtils.h">
+			<Filter>addons\ofxOsc\libs\oscpack\src\ip</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\libs\oscpack\src\ip\TimerListener.h">
+			<Filter>addons\ofxOsc\libs\oscpack\src\ip</Filter>
+		</ClInclude>
+		<ClInclude Include="..\..\..\addons\ofxOsc\libs\oscpack\src\ip\UdpSocket.h">
+			<Filter>addons\ofxOsc\libs\oscpack\src\ip</Filter>
+		</ClInclude>
+	</ItemGroup>
+	<ItemGroup>
+		<ResourceCompile Include="icon.rc" />
+	</ItemGroup>
+</Project>

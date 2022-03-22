@@ -1,2 +1,2 @@
-ofxOsc
 ofxNDI
+ofxOsc
