@@ -116,7 +116,7 @@ void JPbox_shader::reload()
 			}
 		}
 	}
-	shader.load("", dir);
+	shader.load("shaders/default.vert", dir);
 
 	fbohandlergroup.setupdragobjects(x, y, outlet_size, outlet_size);
 	setfbohandler_nodepos();
@@ -124,7 +124,7 @@ void JPbox_shader::reload()
 }
 void JPbox_shader::reloadShaderonly()
 {
-	shader.load("", dir);
+	shader.load("shaders/default.vert", dir);
 	frameNum = 0;
 }
 void JPbox_shader::setup(ofTrueTypeFont &_font,
@@ -139,7 +139,7 @@ void JPbox_shader::setup(ofTrueTypeFont &_font,
 	dir = _dir;
 	try
 	{
-		shader.load("", dir);
+		shader.load("shaders/default.vert", dir);
 	}
 	catch (int e)
 	{
@@ -171,7 +171,7 @@ void JPbox_shader::setup2(string _dir,
 	dir = _dir;
 	try
 	{
-		shader.load("", dir);
+		shader.load("shaders/default.vert", dir);
 	}
 	catch (int e)
 	{
@@ -202,7 +202,7 @@ void JPbox_shader::setup(string _dir,
 	dir = _dir;
 	try
 	{
-		shader.load("", dir);
+		shader.load("shaders/default.vert", dir);
 	}
 	catch (int e)
 	{

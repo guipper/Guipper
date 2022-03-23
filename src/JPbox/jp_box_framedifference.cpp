@@ -26,7 +26,7 @@ void JPbox_framedifference::setup(string _dir, string _name)
 	fbohandlergroup.setupdragobjects(x, y, outlet_size, outlet_size);
 	setfbohandler_nodepos();
 
-	shader.load("", "shaders/private/framedifference.frag");
+	shader.load("shaders/default.vert", "shaders/private/framedifference.frag");
 	frameNum = 0;
 }
 void JPbox_framedifference::update()
