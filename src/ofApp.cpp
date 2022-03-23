@@ -487,16 +487,6 @@ void ofApp::dragEvent(ofDragInfo dragInfo)
 		}
 
 		cout << "path " << path << endl;
-		if (path.find("data") != std::string::npos)
-		{
-			cout << "IS INSIDE DATA FOLDER SO LETS CONVERT IT TO RELATIVE DIR" << endl;
-			path = path.substr(path.find("data"), path.size());
-			cout << "NEW PATH CONVERSION :" << path << endl;
-		}
-		else
-		{
-			cout << "WARNING: OUTSIDE DATA FOLDER " << endl;
-		}
 
 		if (path.find(".xml") != std::string::npos &&
 			!loadAspreset)
