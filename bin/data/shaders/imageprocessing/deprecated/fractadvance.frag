@@ -58,12 +58,12 @@ void main()
 		uv2 = scale(vec2(msc1+i*mite_scale))*uv2;
 		uv2+=resolution;
     */
-    vec4 t1 =  texture2D(texture1, uv2/resolution);
+    vec4 t1 =  texture(texture1, uv2/resolution);
 		e= cir(fract(uv2),vec2(0.5),msize*0.1,msize*0.08);
 
 		dib+=t1.rgb;
 	}
-  //vec4 t1 =  texture2D(texture1, gl_FragCoord.xy/resolution);
+  //vec4 t1 =  texture(texture1, gl_FragCoord.xy/resolution);
 	vec3 fin = vec3(0);
 
 

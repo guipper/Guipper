@@ -157,12 +157,12 @@ float de(vec3 p)
       //    d = min(obj1, obj2);0
      // d = obj2;
     // coloreamos segun el objeto con el que choca el rayo
-//	texture2D(texture1, gl_FragCoord.xy/resolution);
+//	texture(texture1, gl_FragCoord.xy/resolution);
 	
 	
 	
-	vec4 tc1 = texture2D(t1, gl_FragCoord.xy/resolution);
-	vec4 tc2 = texture2D(t2, gl_FragCoord.xy/resolution);
+	vec4 tc1 = texture(t1, gl_FragCoord.xy/resolution);
+	vec4 tc2 = texture(t2, gl_FragCoord.xy/resolution);
 	vec3 col1 = tc1.rgb;
 	vec3 col2 = tc2.rgb;
 	  if (d == obj1) objcol = mix(col1,col2,sin(id2*100.+time));;

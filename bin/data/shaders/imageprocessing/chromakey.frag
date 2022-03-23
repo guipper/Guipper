@@ -8,7 +8,7 @@ uniform float threshold;
 uniform float fuerzadist;
 
 void main() {
-  vec3 col=texture2D(input_texture, gl_FragCoord.xy/resolution).rgb;
+  vec3 col=texture(input_texture, gl_FragCoord.xy/resolution).rgb;
   vec3 col2 = vec3(chroma_red,chroma_green,chroma_blue);
 	
 	

@@ -11,7 +11,7 @@ void main()
 {
 	vec2 uv = gl_FragCoord.xy;
 
-	vec3 t1 =  texture2D(textura1, gl_FragCoord.xy).rgb;
+	vec3 t1 =  texture(textura1, gl_FragCoord.xy).rgb;
 
 	vec3 res = vec3(0.);
 
@@ -22,7 +22,7 @@ void main()
 	float iter=rays_samples*200.;
 
 	for (float i=0.; i<iter; i++) {
-		vec3 c = texture2D(textura1, (p*sc+resolution*.5)/resolution).rgb;
+		vec3 c = texture(textura1, (p*sc+resolution*.5)/resolution).rgb;
 		sc*=mapr(1.-ray_step,.9,1.);
 		res+=smoothstep(0.,1.,c)*exp(-i*ray_fade*.2);
 	}

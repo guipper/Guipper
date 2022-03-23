@@ -26,7 +26,7 @@ void main(){
 	
 	float r = length(p);
 	
-	vec4 t1 =  texture2D(textura1, uv2/resolution);
+	vec4 t1 =  texture(textura1, uv2/resolution);
 		
 	float v = 0;
 

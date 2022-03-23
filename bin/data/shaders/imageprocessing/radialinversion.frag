@@ -12,7 +12,7 @@ void main()
 	float tx = time * (speedX-.5)*5.;
 	float ty = time * (speedY-.5)*5.;
 	vec2 iuv = fract(uv/clamp(dot(uv,uv),minInv*.05,1.)+vec2(tx,ty));
-	vec4 t1 =  texture2D(texture1, iuv);
+	vec4 t1 =  texture(texture1, iuv);
 	vec3 fin = t1.rgb;
 		
 	

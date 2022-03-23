@@ -15,7 +15,7 @@ float hash12(vec2 p)
 
 void main()
 {
-	vec4 t1 =  texture2D(texture1, gl_FragCoord.xy/resolution);
+	vec4 t1 =  texture(texture1, gl_FragCoord.xy/resolution);
 
     float l = pow(length(t1),1.+contrast*2.);
 

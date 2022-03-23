@@ -25,7 +25,7 @@ void main()
 	float e = poly(uv,vec2(0.5,0.5),mapsize,mapsizedif,puntas,mapr(rotspeed,0.0,5.0)*time);
 
 	vec2 puv = gl_FragCoord.xy;
-	vec4 fb =  texture2D(feedback, puv/resolution);
+	vec4 fb =  texture(feedback, puv/resolution);
 
 
 	vec3 fin = vec3(e)+fb.rgb*feedbackst;

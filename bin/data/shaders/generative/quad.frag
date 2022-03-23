@@ -16,7 +16,7 @@ void main()
 	float e = poly(uv,vec2(0.5*fx,0.5),mapsize,mapsizedif,4,0.0);
 
 	vec2 puv = gl_FragCoord.xy;
-	vec4 fb =  texture2D(feedback, puv/resolution);
+	vec4 fb =  texture(feedback, puv/resolution);
 
 
 	vec3 fin = vec3(e);

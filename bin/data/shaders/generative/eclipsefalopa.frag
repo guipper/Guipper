@@ -174,7 +174,7 @@ vec3 shade(vec3 p, vec3 dir, vec3 ldir) {
 
 vec3 march(vec3 from, vec3 dir, vec2 uv) {
 	vec3 p;
-    vec3 backtex = texture2D(tex, gl_FragCoord.xy/resolution.xy).rgb;
+    vec3 backtex = texture(tex, gl_FragCoord.xy/resolution.xy).rgb;
     vec3 col = vec3(0.);
     float d, td = 0., sh = 1., md = 100., g=0.;
     for (int i=0; i<100; i++) {

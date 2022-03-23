@@ -17,11 +17,11 @@ void main()
 {
     float size=1.+floor(sample_size*10.);
     float it=floor(size*size);
-    vec3 C=texture2D(input_texture,gl_FragCoord.xy/resolution).rgb;
+    vec3 C=texture(input_texture,gl_FragCoord.xy/resolution).rgb;
 	  vec3 R=vec3(0.);
     for(float i=0.; i<it; i++) {
     	vec2 p=vec2(mod(i,size),floor(i/size))-floor(size*.5);
-        vec3 aC=texture2D(input_texture,(gl_FragCoord.xy+p)/resolution).rgb;
+        vec3 aC=texture(input_texture,(gl_FragCoord.xy+p)/resolution).rgb;
   	    R+=normalize(cross(C,aC))*length(aC);
     };
     R/=it*.5;

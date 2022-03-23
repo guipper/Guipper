@@ -64,8 +64,8 @@ float sampleHeightfield(vec2 p)
 {
     float h = 	textureLod(iChannel0, p / 40. + iTime / 400., 2.).b *
     			textureLod(iChannel1, p / 8., 2.).r * 1.6;
-   /* float h = 	texture2D(iChannel0, fract(p*1.0)).b *
-    			texture2D(iChannel1, fract(p*1.0)).r * 1.6;*/
+   /* float h = 	texture(iChannel0, fract(p*1.0)).b *
+    			texture(iChannel1, fract(p*1.0)).r * 1.6;*/
     return clamp(h, 0., 1. - 1e-4) * maxHeight;
 }
 

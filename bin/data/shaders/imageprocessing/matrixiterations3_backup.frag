@@ -74,9 +74,9 @@ void main()
 		uv2/=resolution;*/
 		
 		
-		vec4 t1 =  texture2D(textura1, uv2);
-		vec4 t2 =  texture2D(textura2, vec2(wruv.y,wruv.x));
-		vec4 t3 =  texture2D(textura3, vec2(wruv.y,wruv.x));
+		vec4 t1 =  texture(textura1, uv2);
+		vec4 t2 =  texture(textura2, vec2(wruv.y,wruv.x));
+		vec4 t3 =  texture(textura3, vec2(wruv.y,wruv.x));
 		//dib += t1.rgb;
 	  	//dib = mix(dib,t1.rgb,t1.rgb);
 		
@@ -89,7 +89,7 @@ void main()
 		dib+=t1.rgb*colf;
      //   dib = blendMode(bm,dib,t1.rgb,1.0);
 	}
-	//vec4 t1 =  texture2D(textura1, uv2);
+	//vec4 t1 =  texture(textura1, uv2);
 	//dib += t1.rgb;
 	dib/=mapcnt*0.5;
 	

@@ -283,7 +283,7 @@ void main()
     R.xy*=2.2;
     R.x*=0.48;
     //R.y*= -R.y;
-      vec3 test= texture2D(iChannel1,R.xy/resolution).xyz;
+      vec3 test= texture(iChannel1,R.xy/resolution).xyz;
     // Modify material.
     vec3 texColor = vec3(1.0);
     float maxv = max(texColor.r, max(texColor.g, texColor.b));

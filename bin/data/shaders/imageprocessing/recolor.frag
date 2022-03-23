@@ -14,7 +14,7 @@ void main()
 {	
 	vec2 uv = gl_FragCoord.xy / resolution;
 	
-	vec4 t1 =  texture2D(textura1, gl_FragCoord.xy/resolution);
+	vec4 t1 =  texture(textura1, gl_FragCoord.xy/resolution);
 	
 	vec4 col1 = vec4(red1,green1,blue1,1.0);
 	vec4 col2 = vec4(red2,green2,blue2,1.0);

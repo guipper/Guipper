@@ -47,7 +47,7 @@ void main()
 	puv-=(resolution/2);
 	//puv = rotate2d(mapr(fb_rotate,-pi/4,pi/4))*puv;
 	puv+=(resolution/2);
-	vec4 fb = texture2D(feedback, puv);
+	vec4 fb = texture(feedback, puv);
 	vec3 fin = dib+fb.rgb*mapr(fb_fuerza,0.9,1.0);
 	
 	gl_FragColor = vec4(fin,1.0);

@@ -10,7 +10,7 @@ void main()
 {
 	vec2 uv = gl_FragCoord.xy;
 
-	vec3 t1 =  texture2D(textura1, gl_FragCoord.xy/resolution).rgb;
+	vec3 t1 =  texture(textura1, gl_FragCoord.xy/resolution).rgb;
 
 	vec3 res = vec3(0.);
 
@@ -20,7 +20,7 @@ void main()
 
 	for (float i=0.; i<smp; i++) {
 		vec2 p=vec2(mod(i,scale),floor(i/scale))-scale*.5;
-		vec3 fb = texture2D(textura1, gl_FragCoord.xy+p).rgb;
+		vec3 fb = texture(textura1, gl_FragCoord.xy+p).rgb;
 		if (modo<.3) res+=abs(fb-t1);
 		else if (modo>=.3 && modo<.6) res+=abs(fb-t1)*(1.-dot(fb,t1));
 		else res+=dot(fb,t1)*.1;

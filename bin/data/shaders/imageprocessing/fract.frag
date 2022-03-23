@@ -26,7 +26,7 @@ void main()
 
 
   puv*=resolution;
-	vec4 t1 =  texture2D(texture1, puv/resolution);
+	vec4 t1 =  texture(texture1, puv/resolution);
 	vec3 fin = t1.rgb;
 
 	gl_FragColor = vec4(fin,1.0);

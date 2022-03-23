@@ -29,7 +29,7 @@ void main()
 	
 	//fin.r*=0.2;
 	
-	vec4 fb = texture2D(feedback,puv);
+	vec4 fb = texture(feedback,puv);
 	vec3 fin = vec3(e)+fb.rgb*feedbackforce;
 	
 	gl_FragColor = vec4(fin,1.0);

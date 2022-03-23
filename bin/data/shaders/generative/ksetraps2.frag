@@ -43,7 +43,7 @@ vec3 fractal(vec2 uv) {
 void main()
 {
 		vec2 uv = gl_FragCoord.xy/resolution;
-		vec3 fback = texture2D(feedback,gl_FragCoord.xy/resolution).rgb;
+		vec3 fback = texture(feedback,gl_FragCoord.xy/resolution).rgb;
 		uv-=.5;
 		uv.x*=resolution.x/resolution.y;
 		vec3 c = fractal(uv);

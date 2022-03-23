@@ -43,8 +43,8 @@ void main()
 	float mamp = mapr(amp,0.0,2.0);
 	float mfase = mapr(fase,0.0,PI*2);
 	float mspeed = mapr(speed,0.0,5.0);
-	vec3 c1 = texture2D(col1,gl_FragCoord.xy/resolution.xy).rgb;
-	vec3 c2 = texture2D(col2,gl_FragCoord.xy/resolution.xy).rgb;
+	vec3 c1 = texture(col1,gl_FragCoord.xy/resolution.xy).rgb;
+	vec3 c2 = texture(col2,gl_FragCoord.xy/resolution.xy).rgb;
 	vec2 m = vec2( mapr(offsetx,0.0,2.0)*fx,mapr(offsety,0.0,2.0));
 
 	float mfuerzafeedback = mapr(fuerzafeedback,0.6,1.0);
@@ -95,7 +95,7 @@ void main()
 	vec2 puv = gl_FragCoord.xy/resolution;
 	
 	
-	vec4 fb =  texture2D(feedback, puv);
+	vec4 fb =  texture(feedback, puv);
 	
 	vec3 fin = mix(fb.rgb*mfuerzafeedback,dib,dib);
 	  gl_FragColor = vec4(fin,

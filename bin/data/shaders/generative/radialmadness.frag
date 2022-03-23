@@ -56,7 +56,7 @@ void main(){
 	}
 	dib/=mapcnt;
 	dib*=brightness;
-	vec4 fb = texture2D(feedback, gl_FragCoord.xy/resolution);
+	vec4 fb = texture(feedback, gl_FragCoord.xy/resolution);
 	vec3 fin = dib;
 	
 	gl_FragColor = vec4(fin,1.0);

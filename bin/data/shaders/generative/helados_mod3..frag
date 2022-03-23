@@ -237,7 +237,7 @@ vec3 march(vec3 from, vec3 dir)
     vec3 colf = mix(col1,col2,f);
 	
 	vec2 uv = gl_FragCoord.xy/resolution.xy ;
-	vec4 fond = texture2D(texture1,uv);
+	vec4 fond = texture(texture1,uv);
 	
 	colf = fond.rgb;
   //  colfondo = col1;

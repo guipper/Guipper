@@ -141,8 +141,8 @@ float de(vec3 p)
     // coloreamos segun el objeto con el que choca el rayo
 	
 	
-	vec4 tc1 = texture2D(t1, gl_FragCoord.xy/resolution);
-	vec4 tc2 = texture2D(t2, gl_FragCoord.xy/resolution);
+	vec4 tc1 = texture(t1, gl_FragCoord.xy/resolution);
+	vec4 tc2 = texture(t2, gl_FragCoord.xy/resolution);
 	vec3 col1 = tc1.rgb;
 	vec3 col2 = tc2.rgb;
 	

@@ -19,7 +19,7 @@ void main()
 	float mapsc = mapr(sc,0.99,1.01);
 	vec2 puv = gl_FragCoord.xy;
 	
-	vec4 t1 =  texture2D(texture1, gl_FragCoord.xy/resolution);
+	vec4 t1 =  texture(texture1, gl_FragCoord.xy/resolution);
 	
 	puv/=resolution;
 
@@ -40,7 +40,7 @@ void main()
 	puv+=vec2(0.5);
 	//puv = abs(.5-fract(puv*mapr(fb_fract,1.0,3.0)));
 	puv*=resolution;
-	vec4 fb =  texture2D(feedback, puv/resolution);
+	vec4 fb =  texture(feedback, puv/resolution);
 	vec3 fin = vec3(0.);
 	
 	
