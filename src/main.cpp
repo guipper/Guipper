@@ -11,7 +11,7 @@ int main()
 	*/
 
 	ofGLFWWindowSettings settings;
-	// settings.setGLVersion(3, 2);
+	settings.setGLVersion(3, 2);
 
 	// Render Window
 	settings.setSize(1200, 720); // Importa el tama�o si despues lo pongo en fullscreen? No, no?

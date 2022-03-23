@@ -12,6 +12,7 @@ uniform vec2 window_mouse;
 #define iResolution resolution
 #define iMouse mouse
 #define fragCoord gl_FragCoord.xy
+#define gl_FragColor fragColor
 
 vec3 verdejpupper(){return vec3(0.0,1.0,0.8);}
 
