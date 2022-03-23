@@ -30,9 +30,9 @@ float noiseW( in vec2 p ) {
     vec2 i = floor( p );
     vec2 f = fract( p );	
 	vec2 u = f*f*(3.0-2.0*f);
-    return -1.0+2.0*mix( mix( hashW( i + vec2(0.0,0.0) ), 
+    return -1.0+2.0*mix( mix( hashW( i + vec2(0.0,0.0) ),
                      hashW( i + vec2(1.0,0.0) ), u.x),
-                mix( hashW( i + vec2(0.0,1.0) ), 
+                mix( hashW( i + vec2(0.0,1.0) ),
                      hashW( i + vec2(1.0,1.0) ), u.x), u.y);
 }
 
@@ -43,9 +43,9 @@ mat2 rot(float a) {
 }
 
 float sea_octave(vec2 uv, float choppy) {
-    uv += noiseW(uv);        
+    uv += noiseW(uv);
     vec2 wv = 1.0-abs(sin(uv));
-    vec2 swv = abs(cos(uv));    
+    vec2 swv = abs(cos(uv));
     wv = mix(wv,swv,wv);
     return pow(1.0-pow(wv.x * wv.y,0.65),choppy);
 }
@@ -83,12 +83,12 @@ float de(vec3 p) {
     float amp = SEA_HEIGHT-turbina*.2;
     float choppy = SEA_CHOPPY;
     vec2 uv = p.xz; uv.x *= 0.5;
-    
-    float d, h = 0.0;    
-    for(int i = 0; i < ITER_FRAGMENT; i++) {        
+
+    float d, h = 0.0;
+    for(int i = 0; i < ITER_FRAGMENT; i++) {
     	d = sea_octave((uv+SEA_TIME)*freq,choppy);
     	d += sea_octave((uv-SEA_TIME)*freq,choppy);
-        h += d * amp;        
+        h += d * amp;
     	uv *= octave_m; freq *= 1.9; amp *= 0.22;
         choppy = mix(choppy,1.0,0.2);
     }
@@ -154,5 +154,5 @@ void main()
 	vec3 from = vec3(0.,perspective*2.,-10.);
 	vec3 dir = normalize(vec3(uv, .8));
 	vec3 col=march(from, dir);
-	gl_FragColor = vec4(col, 1.); 
+	gl_FragColor = vec4(col, 1.);
 }

@@ -4,7 +4,7 @@
 //
 // Version 1.0 (2013-03-19)
 // Simon Stelling-de San Antonio
-// 
+//
 // Many thanks to Inigo Quilez (iq) for articles and example source codes.
 
 vec3 camo;
@@ -78,9 +78,9 @@ vec2 map( vec3 p, float camtime )
                         //repeatedBox(p, vec3(0.524), 0.041, 0.017)
                 ), 1.0);
 
-  attributedUnion(ret, repeatedCone(vec3(p.x, p.y, p.z - camtime), 
-                                    vec3(1.611, 1.9, 5.0), 
-                                    normalize(vec2(1.0, 0.3))), 
+  attributedUnion(ret, repeatedCone(vec3(p.x, p.y, p.z - camtime),
+                                    vec3(1.611, 1.9, 5.0),
+                                    normalize(vec2(1.0, 0.3))),
                        2.0);
 
   attributedUnion(ret, max( repeatedSphere(p+0.25, vec3(2.0), 0.25),

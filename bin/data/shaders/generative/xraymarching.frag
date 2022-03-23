@@ -63,7 +63,7 @@ vec3 march(vec3 from, vec3 dir)
             vec3 n = normal(p);
             dir = reflect(dir, n);
             d2 = .1;
-          
+
         }
         d = max(.01, abs(d2));
         p += d * dir;

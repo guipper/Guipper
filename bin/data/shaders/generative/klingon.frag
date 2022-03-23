@@ -9,7 +9,7 @@ uniform float faser;
 uniform float faseg;
 uniform float faseb;
 
- 
+
 float desf (vec2 uv, float fase){
 
 	//float mf1 = mapr(f1y,0.0,1.0);
@@ -35,5 +35,5 @@ void main()
 	
 	vec3 fin = vec3(r,g,b);
 	
-	gl_FragColor = vec4(fin,1.0); 
+	gl_FragColor = vec4(fin,1.0);
 }

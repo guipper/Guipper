@@ -1,7 +1,7 @@
 #pragma include "../common.frag" //ESta linea tiene todas las definiciones de las funciones globales
 
 uniform sampler2D texture1;
-   
+
 uniform sampler2D texture2;
 uniform float sc=0.5;
 uniform float limit;
@@ -46,8 +46,8 @@ void main()
 	vec3 fin = vec3(0.);
 	
 	
-	if(limit < t1.r && 
-	   limit < t1.g && 
+	if(limit < t1.r &&
+	   limit < t1.g &&
 	   limit < t1.b){
 		fin = t1.rgb;
 	}else{

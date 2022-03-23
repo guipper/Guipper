@@ -2,10 +2,10 @@
 
 // "Vines at Night" by dr2 - 2019
 // License: Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License
-uniform float speed; 
-uniform float altura; 
+uniform float speed;
+uniform float altura;
 uniform float speedz;
-#define AA  0 
+#define AA  0
 
 float PrCylDf (vec3 p, float r, float h);
 float PrRoundBox2Df (vec2 p, vec2 b, float r);
@@ -292,8 +292,8 @@ void main()
   tCur = iTime*mapr(speed,-1.0,1.0)*-1.;
   mPtr = iMouse;
   mPtr.xy = mPtr.xy / canvas ;
-  
-  mPtr.y = 1.-mPtr.y ; 
+
+  mPtr.y = 1.-mPtr.y ;
   hgSize = 1.;
   vel = 0.4;
   p1 = 0.5 * (TrackPath (vel * tCur + 0.2) + TrackPath (vel * tCur + 0.4));
@@ -327,7 +327,7 @@ void main()
   const float naa = 1.;
 #else
   const float naa = 3.;
-#endif  
+#endif
   col = vec3 (0.);
   sr = 2. * mod (dot (mod (floor (0.5 * (uv + 1.) * canvas), 2.), vec2 (1.)), 2.) - 1.;
   for (float a = 0.; a < naa; a ++) {
@@ -421,7 +421,7 @@ vec4 Hashv4v3 (vec3 p)
 float Noisefv2 (vec2 p)
 {
   vec2 t, ip, fp;
-  ip = floor (p);  
+  ip = floor (p);
   fp = fract (p);
   fp = fp * fp * (3. - 2. * fp);
   t = mix (Hashv2v2 (ip), Hashv2v2 (ip + vec2 (0., 1.)), fp.y);

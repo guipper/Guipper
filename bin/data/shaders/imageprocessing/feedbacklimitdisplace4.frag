@@ -44,8 +44,8 @@ void main()
 	vec3 fin = vec3(0.);
 	
 	
-	if(limit < t1.r && 
-	   limit < t1.g && 
+	if(limit < t1.r &&
+	   limit < t1.g &&
 	   limit < t1.b){
 		fin = t1.rgb;
 	}else{

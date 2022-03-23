@@ -18,8 +18,8 @@ void main()
 	float mlimitg = mapr(limitg,0.0,1.0);
 	float mlimitb = mapr(limitb,0.0,1.0);
 	*/
-	/*if(mlimitr < t1.r && 
-	   mlimitg < t1.g && 
+	/*if(mlimitr < t1.r &&
+	   mlimitg < t1.g &&
 	   mlimitb < t1.b){
 		
 	   fin = t1.rgb;

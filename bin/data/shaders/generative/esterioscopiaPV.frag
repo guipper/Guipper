@@ -33,7 +33,7 @@ void main()
 	float mcnt = floor(mapr(iterations,1.,20.));
 	float mite_scale = mapr(ite_scale,0.0,1.);
 	float mxspeed = mapr(xspeed,-0.5,0.5);
-	//float mt = time * speed * 10.;//MAP TIME 
+	//float mt = time * speed * 10.;//MAP TIME
 	float msize = size;
 	
 	vec3 dib = vec3(0.);
@@ -66,7 +66,7 @@ void main()
 	//dib = rgb2hsb(dib);
 	fin = dib*e_force+fb.rgb*mapr(fb_force,0.2,1.0);
 	
-	gl_FragColor = vec4(fin,1.0); 
+	gl_FragColor = vec4(fin,1.0);
 }
 
 

@@ -15,7 +15,7 @@ void main()
 	vec4 fin = mix(t1,t2,mixst);
 		
 	
-	gl_FragColor = fin; 
+	gl_FragColor = fin;
 }
 
 

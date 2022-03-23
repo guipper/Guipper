@@ -75,12 +75,12 @@ vec3 df(vec2 p, int gi) {
   float nny = mod1(pp.y, degree);
   pp.y += PI/2.0;
   p = toRect(pp);
-  
+
   p -= vec2(0.0, largeRadii);
-  
+
   float ymul = mod(nny, 2.0) > 0.0 ? 1.0 : -1.0;
   float xmul = mod(float(int(nx)), 2.0) > 0.0 ? 1.0 : -1.0;
-  
+
   rot2(p, ymul*xmul*TIME*TAU/5.0);
 
   float d = star5(p, smallRadii, 0.25);
@@ -92,9 +92,9 @@ vec3 df(vec2 p, int gi) {
 
 vec3 tunnelEffect(vec2 p) {
   vec3 col = vec3(0.0);
- 
+
   float smoothPixel = 5.0/iResolution.x;
- 
+
   const vec3 baseCol = vec3(1.0);
   const float zbase  = 10.0;
   const float zdtime = 0.25;
@@ -110,30 +110,30 @@ vec3 tunnelEffect(vec2 p) {
 
     float iz      = gz + lz;
     vec2 innerOff = offset(gtime, iz);
-    
+
     vec2 ip       = p + 0.5*zscale*(-innerOff + outerOff);
     float ld      = length(ip)/zscale;
 
     vec3 ddd      = df(ip/zscale, gi)*zscale;
-    float d       = ddd.x;    
+    float d       = ddd.x;
     vec3 scol = baseCol*vec3(0.6 + 0.4*sin(TAU*ddd.y*0.005 - 0.2*iz), pow(0.6 + 0.4*cos(-2.0*abs(ddd.z)-0.4*iz-0.5*gtime), 1.0), 0.8);
-    
+
     float diff = exp(-0.0125*lz)*(1.0 - 1.0*tanh(pow(0.4*max(ld - largeRadii, 0.0), 2.0) + 3.0*smallRadii*max(ddd.y, 0.0)));
-    
+
     vec4 icol = diff*vec4(scol, smoothstep(0.0, -smoothPixel, d));
 
     icol.w += diff*diff*diff*0.75*clamp(1.0 - 30.0*d, 0.0, 1.0);
     icol.w += tanh(0.125*0.125*lz)*0.5*ld*clamp(1.5 - ld, 0.0, 1.0);
-    
+
     col = mix(col, icol.xyz, clamp(icol.w, 0.0, 1.0));
   }
- 
- 
+
+
   return col;
 }
 
 vec3 postProcess(vec3 col, vec2 q) {
-  col=pow(clamp(col,0.0,1.0),vec3(0.75)); 
+  col=pow(clamp(col,0.0,1.0),vec3(0.75));
   col=col*0.6+0.4*col*col*(3.0-2.0*col);  // contrast
   col=mix(col, vec3(dot(col, vec3(0.33))), -0.4);  // satuation
   col*=0.5+0.5*pow(19.0*q.x*q.y*(1.0-q.x)*(1.0-q.y),0.7);  // vigneting
@@ -145,10 +145,10 @@ void main() {
   vec2 q = fragCoord/iResolution.xy;
   vec2 p = -1. + 2. * q;
   p.x *= iResolution.x/iResolution.y;
-  
+
   vec3 col = tunnelEffect(p);
- 
+
   col = postProcess(col, q);
- 
+
   fragColor = vec4(col.xyz, 1.0);
 }

@@ -27,11 +27,11 @@ void main()
 		fin = dif ;
 		}
 	}
-	 
+	
 		fin += fb.rgb *mapr(force,0.0,1.01);
-		 
-		 
-	gl_FragColor = vec4(fin,1.0); 
+		
+		
+	gl_FragColor = vec4(fin,1.0);
 }
 
 

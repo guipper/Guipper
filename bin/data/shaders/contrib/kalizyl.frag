@@ -1,5 +1,5 @@
 #pragma include "../common.frag"
-/*	kalizyl 
+/*	kalizyl
 	
 	(c) 2015, stefan berke (aGPL3)
 
@@ -43,7 +43,7 @@ uniform float bluz;
 #endif
 
 #if EIFFIE_MOD == 0
-// standard kali set 
+// standard kali set
 // modified to return distance to cylinders and spheres in 'kali-space'
 vec2 scene_dist(in vec3 p)
 {
@@ -91,12 +91,12 @@ vec3 traceRay(in vec3 pos, in vec3 dir)
 	vec3 p = pos;
 
 	float t = 0., mlightd = 100.;
-    
+
     vec2 d = scene_dist(pos);
 
 	for (int i=0; i<NUM_TRACE; ++i)
 	{	
-		if (d.x < 0.001 || t >= FOG_DIST) 
+		if (d.x < 0.001 || t >= FOG_DIST)
 			continue;
 
 		p = pos + t * dir;
@@ -123,7 +123,7 @@ vec3 plot2d(in vec3 pos)
     // inside?
     float ins = smoothstep(0.01,-0.01, d.x);
     vec3 col = vec3(d.x, ins, 0.);
-    
+
     return col;
 }
 
@@ -145,7 +145,7 @@ void main()
 	
     vec3 pos, dir;
     mat3 dirm = mat3(vec3(1.,0.,0.), vec3(0.,1.,0.), vec3(0.,0.,1.));
-    
+
 
         // camera time
         float ti = iTime / 19.;
@@ -165,7 +165,7 @@ void main()
         dirm = mat3(right, up, look);
 
         dir = dirm * normalize(vec3(uv, 1.5));
-  
+
 #if PLOT_2D == 0
 	fragColor = vec4( traceRay(pos, dir), 1.);	
 #else

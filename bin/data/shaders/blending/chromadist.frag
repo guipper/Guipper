@@ -22,7 +22,7 @@ void main()
 		 fin = mix(t2.rgb,t1.rgb,distance(col1,t1.rgb)*diststr*3.0);
 	}
 	
-	gl_FragColor = vec4(fin,1.0); 
+	gl_FragColor = vec4(fin,1.0);
 }
 
 

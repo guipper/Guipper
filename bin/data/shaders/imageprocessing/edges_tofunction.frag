@@ -47,7 +47,7 @@ vec3 calculateEdge(vec3 input,
 }
 void main()
 {
-    
+
     vec3 C=texture2D(input_texture,gl_FragCoord.xy/resolution).rgb;
 	vec3 R = calculateEdge(C);
 		 R = calculateEdge(C,effect_mix,
@@ -55,7 +55,7 @@ void main()
 		 color_mix,
 		 sample_size,
 		 brightness);
-		 
+		
     fragColor = vec4(R,1.);
 	/*uniform float effect_mix=1.0;
 	uniform float effect_exp=0.49;

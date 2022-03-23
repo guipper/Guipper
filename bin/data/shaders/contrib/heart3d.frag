@@ -21,7 +21,7 @@ float hash1( float n )
 //const float PI = 3.1415926535897932384626433832795;
 const float PHI = 1.6180339887498948482045868343656;
 
-vec3 forwardSF( float i, float n) 
+vec3 forwardSF( float i, float n)
 {
     float phi = 2.0*PI*fract(i/PHI);
     float zi = 1.0 - (2.0*i+1.0)/n;
@@ -52,10 +52,10 @@ vec2 map( vec3 q )
     q *= 1.0 - 0.2*vec3(1.0,0.5,1.0)*ani;
     q.y -= 1.5*ani;
     float x = abs(q.x);
-    
+
     // x = almostIdentity( x, 1.0, 0.5 ); // remove discontinuity (http://www.iquilezles.org/www/articles/functions/functions.htm)
 
-        
+
     float y = q.y;
     float z = q.z;
     y = 4.0 + y*1.2 - x*sqrt(max((20.0-x)/15.0,0.0));
@@ -63,7 +63,7 @@ vec2 map( vec3 q )
     float d = sqrt(x*x+y*y+z*z) - r;
     d = d/3.0;
     if( d<res.x ) res = vec2( d, 1.0 );
-    
+
     res.x /= 100.0;
     return res;
 }
@@ -131,7 +131,7 @@ vec3 render( in vec2 p )
     //-----------------------------------------------------
 	// render
     //-----------------------------------------------------
-    
+
 	vec3 col = vec3(1.0,0.82,0.9);
 
 	// raymarch
@@ -145,14 +145,14 @@ vec3 render( in vec2 p )
         vec3 nor = calcNormal(pos);
 		vec3 ref = reflect( rd, nor );
         float fre = clamp( 1.0 + dot(nor,rd), 0.0, 1.0 );
-        
+
         float occ = calcAO( pos, nor ); occ = occ*occ;
 
         if( res.y<1.5 ) // heart
         {
             col = vec3(0.9,0.02,0.01);
             col = col*0.72 + 0.2*fre*vec3(1.0,0.8,0.2);
-            
+
             vec3 lin  = 4.0*vec3(0.7,0.80,1.00)*(0.5+0.5*nor.y)*occ;
                  lin += 0.5*fre*vec3(1.0,1.0,1.00)*(0.6+0.4*occ);
             col = col * lin;
@@ -179,19 +179,19 @@ void main()
         vec2 px = fragCoord + vec2(float(m),float(n))/float(AA);
         vec2 p = (2.0*px-iResolution.xy)/iResolution.y;
 		p.y = 1.-p.y;
-    	col += render( p );    
+    	col += render( p );
     }
     col /= float(AA*AA);
-    
+
 #else
     vec2 p = (2.0*fragCoord-iResolution.xy)/iResolution.y;
 	p.y = -p.y;
 	
     vec3 col = render( p );
-#endif    
-    
+#endif
+
     vec2 q = fragCoord/iResolution.xy;
     col *= 0.2 + 0.8*pow(16.0*q.x*q.y*(1.0-q.x)*(1.0-q.y),0.2);
-    
+
     fragColor = vec4( col, 1.0 );
 }

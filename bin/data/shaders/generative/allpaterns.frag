@@ -25,7 +25,7 @@ void main()
 			
 	 float e2 = rxr(vec2(uv.x*mapscalex+time*mapspeedx,
 				  uv.y*mapscaley+time*mapspeedy))*0.5-.5;
-	 e2= smoothstep(0.1,0.8,e2)*8.0;		  
+	 e2= smoothstep(0.1,0.8,e2)*8.0;		
 	 float e3 = ridgedMF(vec2(uv.x*mapscalex+time*mapspeedx
 					 ,uv.y*mapscaley+time*mapspeedy))*0.2;
 	 e3= smoothstep(0.1,0.8,e3)*5.0;	

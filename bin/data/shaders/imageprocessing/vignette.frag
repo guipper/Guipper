@@ -51,6 +51,6 @@ void main(){
 	
 	vec3 fin = t1.rgb * v;
 	//fin = vec3(cir(uv,vec2(0.5*fx,0.5),0.4,0.0));
-	gl_FragColor = vec4(fin,1.0); 
+	gl_FragColor = vec4(fin,1.0);
 }
 

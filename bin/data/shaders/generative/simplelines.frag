@@ -23,7 +23,7 @@ void main(){
 	
 	float d = smoothstep(mapmin,1.0,d2);
 	vec3 fin = vec3(d);
-	gl_FragColor = vec4(fin,1.0); 
+	gl_FragColor = vec4(fin,1.0);
 }
 
 

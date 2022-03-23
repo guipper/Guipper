@@ -33,7 +33,7 @@ float smin (float a, float b, float r) {
 
 // geometry for spell
 float tubes (vec3 pos) {
-    
+
     // cylinder made of 8 tube
     float cylinderRadius = .02; // change shape
     vec3 p = pos;
@@ -41,7 +41,7 @@ float tubes (vec3 pos) {
     float c = amod(p.xz, 8.); // amount of tubes
     p.x -= 2.; // tube cylinder radius
     float tube = sdCylinder(p.xz, cylinderRadius);
-    
+
     // another cylinder made of tubes 16
     p = pos;
     p.xz *= rot(-p.y*.5); // twist amount
@@ -85,13 +85,13 @@ vec3 anim2 (vec3 p) {
 
 float map (vec3 pos) {
     float scene = 1000.;
-    
+
     // ground and ceiling
     float bump = texture(iChannel0, pos.xz*.1).r;
     float ground = 2. - bump*.1;
     scene = min(scene, pos.y+ground);
     scene = min(scene, -(pos.y-ground));
-    
+
     // spell geometry 1
     vec3 p = pos;
     p.y += sin(atan(p.z,p.x)*10.)*3.; // change numbers to get new distortion
@@ -100,7 +100,7 @@ float map (vec3 pos) {
     p.x = length(p.xyz)-3.;
     scene = smin(scene, tubes(p), .5);
     scene = smin(scene, disks(p), .5);
-    
+
     // spell geometry 2
     p = pos;
     p.y += sin(atan(p.z,p.x)*3.)*2.; // change numbers to get new distortion
@@ -109,7 +109,7 @@ float map (vec3 pos) {
     p.x = length(p.xyz)-3.;
     scene = smin(scene, tubes(p), .3);
     scene = smin(scene, disks(p), .3);
-    
+
     return scene;
 }
 

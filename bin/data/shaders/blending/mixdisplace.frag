@@ -27,5 +27,5 @@ void main()
 	
 	vec3 fin = t1.rgb;
 	
-	gl_FragColor = vec4(fin,1.0); 
+	gl_FragColor = vec4(fin,1.0);
 }

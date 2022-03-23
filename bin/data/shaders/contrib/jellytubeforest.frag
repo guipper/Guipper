@@ -29,7 +29,7 @@ vec3 tr2(vec3 o, vec3 r, vec2 t)
     {
         vec3 c = vec3(floor(o.x), 0, floor(o.z));
 
-        vec3 ofs = vec3(cos(c.z) * .1, 0, cos(c.x) * .1);      
+        vec3 ofs = vec3(cos(c.z) * .1, 0, cos(c.x) * .1);
 
         float rad = .3+cos(c.x) * .1;
         ofs.x = cos(t.y * 8. + c.z * 2.5) * rad / 4.;

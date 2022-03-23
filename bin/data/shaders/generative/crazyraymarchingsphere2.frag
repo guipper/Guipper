@@ -79,7 +79,7 @@ float is_id(float id) {
 vec3 color() {
   vec3 col=vec3(0.);
   //col+=vec3(1.,0.,0.)*is_id(1.);
-  
+
   vec2 uv_shp = fract(psph.xy)*resolution*sph_texture_scale*2.;
   col+=texture2D(sph_texture, uv_shp/resolution).rgb*is_id(1.);
   col+=vec3(0.,0.,1.)*is_id(2.);

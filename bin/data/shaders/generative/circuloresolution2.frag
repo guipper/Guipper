@@ -5,7 +5,7 @@ uniform float posx;
 uniform float posy;
 uniform float lk;
 uniform sampler2D miimagen;
-//uniform float posyasdqwd; 
+//uniform float posyasdqwd;
 void main()
 {
 	vec2 uv = gl_FragCoord.xy / resolution;

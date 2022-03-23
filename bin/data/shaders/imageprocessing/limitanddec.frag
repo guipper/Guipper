@@ -20,7 +20,7 @@ void main()
 	vec4 fb =  texture2D(feedback, puv/resolution);
 	vec4 t1 =  texture2D(texture1, gl_FragCoord.xy/resolution);
 	vec3 fin = t1.rgb*mapr(eforce,0.0,0.8)
-			   
+			
 			   +fb.rgb*mapr(feedbackst_low,0.9,1.0);
 
 	fin = lm(fin,vec3(limitr,limitg,limitb),vec3(decr,decg,decb));

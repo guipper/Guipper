@@ -88,7 +88,7 @@ void main()
 		dib_bm2 = mix(dib_bm2,t1.rgb*colf,t1.rgb);
 		dib+=t1.rgb*colf;
      //   dib = blendMode(bm,dib,t1.rgb,1.0);
-	} 
+	}
 	//vec4 t1 =  texture2D(textura1, uv2);
 	//dib += t1.rgb;
 	dib/=mapcnt*0.5;
@@ -96,5 +96,5 @@ void main()
 	
 	vec3 fin = mix(dib,dib_bm2,blendmode);
 	
-	gl_FragColor = vec4(fin,1.0); 
+	gl_FragColor = vec4(fin,1.0);
 }

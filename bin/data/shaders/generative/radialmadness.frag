@@ -44,7 +44,7 @@ void main(){
 		float e = sin(r2*corteradial*40.+velocidadanimacion*10.*time
 				 *0.5+0.5+sin(r2*40.*corteradial2+time
 				 //+sin(a2*10.)
-				 
+				
 				 )) * 0.5+0.5;
 		
 		vec3 dib2 = mix(col,col2,e);
@@ -59,7 +59,7 @@ void main(){
 	vec4 fb = texture2D(feedback, gl_FragCoord.xy/resolution);
 	vec3 fin = dib;
 	
-	gl_FragColor = vec4(fin,1.0); 
+	gl_FragColor = vec4(fin,1.0);
 }
 
 

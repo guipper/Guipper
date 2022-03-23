@@ -24,4 +24,3 @@ void main()
     R=mix(C,R,effect_mix);
     fragColor = vec4(R,1.);
 }
- 

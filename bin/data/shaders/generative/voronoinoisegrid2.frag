@@ -46,14 +46,14 @@ float minkowski(vec3 a, vec3 b)
 {
     vec3 d = a - b;
     float p = 0.5;
-    
+
     return pow(dot(pow(abs(d), vec3(p)), vec3(1.0)), 1.0 / p);
 }
 
 // iq
 vec3 random3f( vec3 p )
 {
-    return fract(sin(vec3( dot(p,vec3(1.0,57.0,113.0)), 
+    return fract(sin(vec3( dot(p,vec3(1.0,57.0,113.0)),
                            dot(p,vec3(57.0,113.0,1.0)),
                            dot(p,vec3(113.0,1.0,57.0))))*43758.5453);
 }
@@ -61,10 +61,10 @@ vec3 random3f( vec3 p )
 float voronoi3(vec3 p, int dist_func, int type)
 {
     vec3 fp = floor(p);
-    
+
     float d1 = 1./0.;
     float d2 = 1./0.;
-    
+
     for(int i = -1; i < 2; i++)
     {
         for(int j = -1; j < 2; j++)
@@ -72,11 +72,11 @@ float voronoi3(vec3 p, int dist_func, int type)
             for(int k = -1; k < 2; k++)
             {
                 vec3 cur_p = fp + vec3(i, j, k);
-                
+
                 vec3 r = random3f(cur_p);
-                
+
                 float cd = 0.0;
-                
+
                 if(dist_func == DISTANCE)
                 	cd = distance(p, cur_p + r);
                 else if(dist_func == SQR_DISTANCE)
@@ -89,13 +89,13 @@ float voronoi3(vec3 p, int dist_func, int type)
                     cd = quadratic(p, cur_p + r);
                 else if(dist_func == MINKOWSKI)
                     cd = minkowski(p, cur_p + r);
-                
+
                 d2 = min(d2, max(cd, d1));
                 d1 = min(d1, cd);
             }
         }
     }
-    
+
     if(type == CLOSEST_1)
     	return d1;
     else if(type == CLOSEST_2)
@@ -109,17 +109,17 @@ float voronoi3(vec3 p, int dist_func, int type)
 void main()
 {
     vec2 screen = ((fragCoord.xy / iResolution.xy) * 1.0 - 1.0);
-    
+
     // determine the voronoi type and distance function to use
     int voronoi_type = int(mapr(type,0.0,4.0));
     int dist_func = int((screen.x + 1.0) / (1.0));
-    
+
     // get the value at this pixel
     screen.x *= iResolution.x / iResolution.y;
     vec3 pos = vec3(screen * TILING, iTime * speed);
     float h = voronoi3(pos, int(mapr(distfunction,0.0,5.0)), voronoi_type);
-    
 
-    
+
+
     fragColor = vec4(vec3(1.0f - h), 1);
 }

@@ -94,7 +94,7 @@ float sun(vec3 from, vec3 dir) {
         float a = .3 * i + t*.05;
         p.yz*=rot(a);
         p.xy*=rot(a);
-        c += ksetsun(p) * .15 * s;            
+        c += ksetsun(p) * .15 * s;
     }
     return c*.8*(1.15-hash(dir.xy+mod(t,10.))*.3);
 }
@@ -119,7 +119,7 @@ float cor(vec2 p) {
 		v1+=snois(crd+vec3(0.,-ti,ti*.02),(pw*50.*(t1+1.)))/it*.13;
 		v2+=snois(crd+vec3(0.,-ti,ti*.02),(pw*50.*(t2+1.)))/it*.13;
     }
-	float co = pow(v1 * fad, 1.5); 
+	float co = pow(v1 * fad, 1.5);
 	co += pow(v2 * fad, 1.5)*.5;
 	co *= 1. - t1 * .3 * (1. - fad * .3);
     return clamp(co * 3., 0., 1.)*(1.2-hash(p+mod(t,10.))*.3);
@@ -234,5 +234,5 @@ void main()
 	 dir.yz*=rot(0.0);
     vec3 col = march(from, dir, uv);
 
-	gl_FragColor = vec4(col, 1.); 
+	gl_FragColor = vec4(col, 1.);
 }

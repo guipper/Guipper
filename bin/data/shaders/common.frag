@@ -456,7 +456,7 @@ float fbm (in vec2 uv,in float _time) {
 
 
 ///SOFT LIGHT
-#define ADD 1 
+#define ADD 1
 #define	AVERAGE 2
 #define	COLOR_BURN 3
 #define	COLOR_DODGE 4
@@ -495,7 +495,7 @@ vec3 blendSoftLight(vec3 base, vec3 blend, float opacity) {
 	return (blendSoftLight(base, blend) * opacity + base * (1.0 - opacity));
 }
 
-//ADD : 
+//ADD :
 float blendAdd(float base, float blend) {
 	return min(base+blend,1.0);
 }
@@ -516,7 +516,7 @@ vec3 blendAverage(vec3 base, vec3 blend) {
 vec3 blendAverage(vec3 base, vec3 blend, float opacity) {
 	return (blendAverage(base, blend) * opacity + base * (1.0 - opacity));
 }
-  
+
 float blendColorBurn(float base, float blend) {
 	return (blend==0.0)?blend:max((1.0-((1.0-base)/blend)),0.0);
 }
@@ -684,7 +684,7 @@ vec3 blendReflect(vec3 base, vec3 blend) {
 vec3 blendReflect(vec3 base, vec3 blend, float opacity) {
 	return (blendReflect(base, blend) * opacity + base * (1.0 - opacity));
 }
-  
+
 float blendScreen(float base, float blend) {
 	return 1.0-((1.0-base)*(1.0-blend));
 }

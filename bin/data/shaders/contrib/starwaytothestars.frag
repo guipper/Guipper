@@ -1,5 +1,5 @@
 #pragma include "../common.frag"
-// Inspired by: 
+// Inspired by:
 // "Stairway to the Stars" by dr2 - 2015
 // License: Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License
 uniform float rOUT;
@@ -154,7 +154,7 @@ float ObjRay (vec3 ro, vec3 rd)
 
 vec3 ObjCol (vec3 ro, vec3 rd, vec3 vn)
 {
-  vec3 ltDir, acDif, col; 
+  vec3 ltDir, acDif, col;
   float ltDist, ltDistSq, dif, atten, acSpe, sh, d, h;
   col = vec3 (0.);
   if (idObj == 1) {
@@ -282,11 +282,11 @@ void main ()
   ro = - vec3 (0.01, 0.1, 0.9) * rOut;
   az = 0.8;
   el = mapr(rotY,0.0,2.0);
-  
-  
+
+
     ro.z = clamp (ro.z + 0.8 * mPtr.x, - 0.99 * rOut, - 0.4 * rIn);
     el = clamp (el + 3. * mPtr.y, -1.5, 1.5);
- 
+
   vEl = vec2 (cos (el), sin (el));
   vAz = vec2 (cos (az), sin (az));
   vuMat = mat3 (1., 0., 0., 0., vEl.x, - vEl.y, 0., vEl.y, vEl.x) *

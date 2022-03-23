@@ -21,8 +21,8 @@ void main()
 	vec3 fin = vec3(0.);
 	
 	
-	if(limit > abs(chromar-t1.r) || 
-	   limit > abs(chromag-t1.g) || 
+	if(limit > abs(chromar-t1.r) ||
+	   limit > abs(chromag-t1.g) ||
 	   limit > abs(chromab-t1.b)){
 		fin = t1.rgb;
 	}else{

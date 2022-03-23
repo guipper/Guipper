@@ -14,7 +14,7 @@ void main()
 	vec2 uv = gl_FragCoord.xy / resolution;	
 	vec2 uv2 = gl_FragCoord.xy / resolution;
 
-	float flip_x =0 ; 
+	float flip_x =0 ;
 	
 	float msuavizadox = mapr(suavizadox,0.0,0.1);
 	if(flipx){
@@ -25,7 +25,7 @@ void main()
 		flip_x = step(uv.x,0.5);
 	}
 	
-	float flip_y =0 ; 
+	float flip_y =0 ;
 	float msuavizadoy = mapr(suavizadoy,0.0,0.1);
 	if(flipy){
 		//flip_y = step(1.-uv.y,0.5);
@@ -51,5 +51,5 @@ void main()
 	
 	vec3 fin = t1.rgb;
 	
-	gl_FragColor = vec4(fin,1.0); 
+	gl_FragColor = vec4(fin,1.0);
 }

@@ -7,7 +7,7 @@ vec2 scale(vec2 st, float size)
     return s * st;
 }
 
-float animate(float a, float t) 
+float animate(float a, float t)
 {
     // Thump Thump... Thump Thump...
     return a * max(sin(t * 5.0), 0.0) * cos(t * 5.0);
@@ -16,16 +16,16 @@ float animate(float a, float t)
 float heart3(vec2 st, vec2 translate, float radius, float smoothRange)
 {
     vec2 uv = st - translate;
-    
+
     // Two partially overlapping circles for the +ve y quadrants
     float top = step(0.0, uv.y) * (smoothstep(radius + 0.025, radius + 0.025 - smoothRange, length(abs(uv) - vec2(radius - 0.025,0.0))));
-        
+
     // Two symmetric sin curves for the -ve y quadrants
     uv.x = abs(uv.x);
-    
-    float bottom = step(-PI, uv.y * PI) * step(0.0, -uv.y) * 
+
+    float bottom = step(-PI, uv.y * PI) * step(0.0, -uv.y) *
         smoothstep(0.0, smoothRange, (radius * sin(uv.y * PI + PI / 2.0) - uv.x + 1.0 * radius));
-    
+
     // Put them all together
     return top + bottom;
 }
@@ -38,6 +38,6 @@ void main()
     st.y = -st.y;
     st = scale(st, 1.0 - animate(0.05, iTime*speed*5.0));
     float c = heart3(st, vec2(0.0, 0.25), 0.35, 0.01);
-    
+
     fragColor = vec4(mix(vec3(1.0), vec3(0.9, 0.15, 0.07), c),1.0);
 }

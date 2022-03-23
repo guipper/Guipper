@@ -12,5 +12,5 @@ void main()
 	vec4 t1 =  texture2D(textura1, uv2/resolution);	
 	vec3 fin = smoothstep(min,max,t1.rgb);
 	
-	gl_FragColor = vec4(fin,1.0); 
+	gl_FragColor = vec4(fin,1.0);
 }

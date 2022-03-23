@@ -18,7 +18,7 @@ void main()
     vec2 p = vec2(0.5*fix,0.5) - uv;
     float r = length(p);
     float a = atan(p.x,p.y);
-    
+
     int cantidad = int(mapr(cant,1.0,100.0));//Defino la cantidad de iteraciones que tendra mi for
     int puntas1 = int(mapr(poly1_puntas,2.0,30.0));
 	int puntas2 = int(mapr(poly2_puntas,2.0,30.0));
@@ -40,16 +40,16 @@ void main()
 	}
 
 	vec3 fin = vec3(0.0);//Defino un vec3 en el que ire sumando los circulos.
-    
+
     vec2 uv2 = uv;
     for(int i =0; i< cantidad; i++){
-        
-        float index = i*PI*2.0/cantidad; 
+
+        float index = i*PI*2.0/cantidad;
         index*=anglemulti;
         uv2-=vec2(0.5*fix,0.5);
         uv2 = scale(vec2(0.9))*uv2;
         uv2+=vec2(0.5*fix,0.5);
-    
+
         vec3 col1 = vec3(1.0,0.0,0.0);
         vec3 col2 = vec3(0.0,0.0,1.0);
 
@@ -60,19 +60,19 @@ void main()
 			mappoly1_size,
 			mappoly1_size+mappoly1_diffuse,
 			puntas1,
-			angle1+speed1*time+index); 
+			angle1+speed1*time+index);
         }else{
 			fin-= poly(uv2,
 			vec2(0.5*fix,0.5),
 			mappoly1_size,
 			mappoly1_size+mappoly1_diffuse,
 			puntas2,
-			angle2-speed1*time+index); 
-          //  fin-= poly(uv2,vec2(0.5*fix,0.5),mappoly2_size,mappoly2_diffuse,puntas2,0.0); 
+			angle2-speed1*time+index);
+          //  fin-= poly(uv2,vec2(0.5*fix,0.5),mappoly2_size,mappoly2_diffuse,puntas2,0.0);
         }
-        
+
     }
-    gl_FragColor = vec4(fin,1.0);  
+    gl_FragColor = vec4(fin,1.0);
 }
 
 

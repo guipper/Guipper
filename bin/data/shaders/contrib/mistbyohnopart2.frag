@@ -39,7 +39,7 @@ vec3 re(vec3 p, float d) {
 void amod2(inout vec2 p, float d) {
 	// should be atan(p.y, p.x) but I had this function for a while
 	// and putting parameters like this add a PI/6 rotation.
-	float a = re(vec3(atan(p.x, p.y)), d).x; 
+	float a = re(vec3(atan(p.x, p.y)), d).x;
 	p = vec2(cos(a), sin(a)) * length(p);
 }
 

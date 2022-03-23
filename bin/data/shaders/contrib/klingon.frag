@@ -26,5 +26,5 @@ void main()
 	
 	vec3 fin = vec3(sin(uv.x*10*v1)*sin(uv.y*10.+v1*2.0+time));
 	
-	gl_FragColor = vec4(fin,1.0); 
+	gl_FragColor = vec4(fin,1.0);
 }

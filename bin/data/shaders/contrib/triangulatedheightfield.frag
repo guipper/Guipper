@@ -73,7 +73,7 @@ float sampleHeightfield(vec2 p)
 float trace(vec3 ro, vec3 rd, out vec3 triNorm, out vec3 bary)
 {
     vec3 oro = ro;
-    
+
     float mint = (maxHeight * step(rd.y, 0.) - ro.y) / rd.y;
 
     // Move ray start to bounding slab of heightfield.
@@ -82,9 +82,9 @@ float trace(vec3 ro, vec3 rd, out vec3 triNorm, out vec3 bary)
     // Determine the starting triangle by transforming the XZ
     // plane triangular grid to a square grid with diagonal cuts at each square,
     // then transforming the closet corners in that square grid back again.
-    
+
     vec2 u = m * ro.xz;
-    
+
     vec2 cu = floor(u), fu = u - cu;
 
     vec2 tri0, tri1, tri2;
@@ -105,15 +105,15 @@ float trace(vec3 ro, vec3 rd, out vec3 triNorm, out vec3 bary)
     // Ray geometry
     vec3 rod = vec3(ro.x, dot(ro.xz, ns[1]), dot(ro.xz, ns[2]));
     vec3 rdd = vec3(rd.x, dot(rd.xz, ns[1]), dot(rd.xz, ns[2]));
-    
+
     vec3 inv = vec3(1) / rdd;
-    
+
     // Intersection distances to each of the three lines on the
     // equilateral triangle grid, from the ray starting point.
     vec3 is = (floor(rod) + step(0., rdd) - rod) * inv;
-    
+
     inv = abs(inv);
-    
+
     vec3 triangle[3];
 
     // Sort the triangle corners so that the corner at index N is opposite
@@ -143,18 +143,18 @@ float trace(vec3 ro, vec3 rd, out vec3 triNorm, out vec3 bary)
     vec2 triSteps[3] = vec2[3](ns[0] * 2. * sign(rdd.x),
                                ns[1] * 2. * sign(rdd.y),
                                ns[2] * 2. * sign(rdd.z));
-    
+
     float t0 = 0., t1, t = -1.;
-        
+
     float maxt = (maxHeight * step(0., rd.y) - ro.y) / rd.y;
-    
+
     triNorm = vec3(0);
-    
+
     // The ray stepping loop
     // "min(iFrame, 0)" is used here to prevent complete unrolling of the loop (which
     // causes the compiler to take forever on OpenGL).
     for(int i = 0; i < 200; ++i)
-    {       
+    {
         // Determine which grid line has the next closest intersection, and get the index
         // of the triangle corner which is opposite to the edge coincident with that line.
 
@@ -174,49 +174,49 @@ float trace(vec3 ro, vec3 rd, out vec3 triNorm, out vec3 bary)
         	idx = 1;
             t1 = is.y;
         }
-        
+
         // Intersect ray with triangle. Actually this is just a ray-versus-plane
         // intersection, because the intersection point is already bounded by t0 and t1.
         triNorm = cross(triangle[2] - triangle[0], triangle[1] - triangle[0]);
         t = dot(triangle[0] - ro, triNorm) / dot(rd, triNorm);
-        
+
         if(t > t0 && t < t1)
             break;
-        
+
 		if(t1 > maxt)
             return 1e5;
-        
+
         int idx1 = (idx + 1) % 3, idx2 = (idx + 2) % 3;
-        
+
         // Step the ray to the next grid line intersection point.
         is[idx] += inv[idx];
-        
+
         // Mirror the triangle aross this grid line (which is coincident with
         // the edge opposite the triangle corner being moved here). This reverses
         // the winding.
         triangle[idx].xz += triSteps[idx];
-        
+
         // Take a single sample of the heightfield.
         triangle[idx].y = sampleHeightfield(triangle[idx].xz);
-        
+
         // Swap the other two corners, to maintain correspondence between triangle
         // corners and opposite edge lines. This also has the effect of reversing the winding
         // a second time, so all of the constructed triangles in fact have the same winding order.
         vec3 temp = triangle[idx1];
         triangle[idx1] = triangle[idx2];
         triangle[idx2] = temp;
-        
+
         t0 = t1;
     }
-    
+
     // Return the final intersection information.
-    
+
     triNorm = normalize(triNorm);
 
     vec3 rp = ro + rd * t;
-    
+
     // Get the barycentric coordinates.
-    
+
     float alpha = area(triangle[0], triangle[1], rp);
     float beta = area(triangle[1], triangle[2], rp);
     float gamma = area(triangle[2], triangle[0], rp);
@@ -241,31 +241,31 @@ void main()
 {
     vec3 col = vec3(0);
 
-    vec2 uv = fragCoord / iResolution.xy * 2. - 1.;    
+    vec2 uv = fragCoord / iResolution.xy * 2. - 1.;
     uv.x *= iResolution.x / iResolution.y;
 
     // Setup primary ray.
     vec3 o = vec3(cos(iTime / 4.) * 4., 10., -iTime), r = rfunc(uv);
-    
+
     vec3 triNorm, bary;
     float t = trace(o, r, triNorm, bary);
-    
+
     vec3 n = triNorm;
 
     vec3 rp = o + r * t;
     vec3 ld = normalize(vec3(10, 6, 3));
-    
+
     // Directional light
 	col = vec3(max(0., dot(triNorm, ld))) * .8;
-                
+
     // Shadow
     float st = trace(rp + ld * 1e-2, ld, triNorm, triNorm);
     if(st > 1e-2 && st < 1e3)
 		col *= .1;
-    
+
     // Ambient light
     col += max(0., n.y) * vec3(.3);
-    
+
     col *= cos((rp.y + 6.5) * vec3(1.5, 2, .5) / 3.) * .5 + .5;
     float w = t / 800. + pow(max(0., 1. - dot(-r, n)), 4.) * .2;
     col *= mix(1.4, 1., smoothstep(.02 - w, .02 + w, min(bary.x, min(bary.y, bary.z))));

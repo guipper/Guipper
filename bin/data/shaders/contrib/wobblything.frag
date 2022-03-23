@@ -7,7 +7,7 @@
 #define SHSTEPS    10
 #define SHPOWER    3.0
 
-#define PI2        PI*0.5    
+#define PI2        PI*0.5
 
 #define AMBCOL     vec3(1.0,1.0,1.0)
 #define BACCOL     vec3(1.0,1.0,1.0)
@@ -39,8 +39,8 @@ void oprep2(inout vec2 p, float l, float s, float k) {
 	p.x+=ofs;
 }
 
-float hash(float n) { 
-	return fract(sin(n)*43758.5453123); 
+float hash(float n) {
+	return fract(sin(n)*43758.5453123);
 }
 
 float noise3(vec3 x) {
@@ -65,7 +65,7 @@ float sminp(float a, float b) {
 /***********************************************/
 
 vec2 DE(vec3 p) {
-    
+
     //distortion
     float d3=noise3(p*2.0 + iTime)*0.18;
     //shape
@@ -83,7 +83,7 @@ vec2 DE(vec3 p) {
 
     oprep2(p.xy,3.0,8.5, 3.0);
     oprep2(p.xz,12.0,0.25, 0.0);
-        
+
     p.y=mod(p.y,0.3)-0.5*0.3;
     float k2=rbox(p,vec3(0.12,0.12,1.0),0.05) - 0.01;
 
@@ -97,10 +97,10 @@ vec2 DE(vec3 p) {
       float sub=max(g,-g2);
         float o=max(tot,-g);
         float i=max(sub,-h);
-        
+
             o=max(o,-k);
             i=max(i,-k2);
-      
+
       tot=sminp(o,i);
 
 	return vec2( tot*0.9 , MAT1);
@@ -177,7 +177,7 @@ void main() {
 	/* draw */
 	if( r.x<FARCLIP ) {
 	    vec2 rs=vec2(0.2,1.0);  //rim and spec
-		if (r.y==MAT1) { col=vec3(0.29,0.53,0.91);  } 
+		if (r.y==MAT1) { col=vec3(0.29,0.53,0.91);  }
 
 		vec3 nor=normal(ww);
 
@@ -192,7 +192,7 @@ void main() {
 	    col *= 0.5*amb*AMBCOL*ao + 0.4*dif*DIFCOL*sh + 0.05*bac*BACCOL*ao;
 	    col += 0.3*rim*amb * rs.x;
     	col += 0.5*pow(spe,1.0)*sh * rs.y;
-        
+
 	}
 	
 	col*=exp(.08*-r.x); col*=2.0;

@@ -16,13 +16,13 @@ uniform float speed;
 #define AA 2 // Make it 3 if you have a fast machine
 #endif
 
-vec4 orb; 
+vec4 orb;
 
 float map( vec3 p, float s )
 {
 	float scale = 1.0;
 
-	orb = vec4(1000.0); 
+	orb = vec4(1000.0);
 	
 	for( int i=0; i<8;i++ )
 	{
@@ -47,7 +47,7 @@ float trace( in vec3 ro, in vec3 rd, float s )
     for( int i=0; i<200; i++ )
     {
 	    float precis = 0.001 * t;
-        
+
 	    float h = map( ro+rd*t, s );
         if( h<precis||t>maxd ) break;
         t += h;
@@ -62,9 +62,9 @@ vec3 calcNormal( in vec3 pos, in float t, in float s )
     float precis = 0.001 * t;
 
     vec2 e = vec2(1.0,-1.0)*precis;
-    return normalize( e.xyy*map( pos + e.xyy, s ) + 
-					  e.yyx*map( pos + e.yyx, s ) + 
-					  e.yxy*map( pos + e.yxy, s ) + 
+    return normalize( e.xyy*map( pos + e.xyy, s ) +
+					  e.yyx*map( pos + e.yyx, s ) +
+					  e.yxy*map( pos + e.yxy, s ) +
                       e.xxx*map( pos + e.xxx, s ) );
 }
 
@@ -107,7 +107,7 @@ void main()
 {
     float mtime = time * speed;
     float anim = 1.1 + 0.5*smoothstep( -0.3, 0.3, cos(0.1*iTime) );
-    
+
     vec3 tot = vec3(0.0);
     #if AA>1
     for( int jj=0; jj<AA; jj++ )
@@ -132,9 +132,9 @@ void main()
 
         tot += render( ro, rd, anim );
     }
-    
+
     tot = tot/float(AA*AA);
-    
+
 	fragColor = vec4( tot, 1.0 );	
 
 }

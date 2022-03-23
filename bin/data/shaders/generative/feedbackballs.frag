@@ -33,7 +33,7 @@ void main()
 	float mrot = mapr(rotangle,-pi/8.,pi/8.);
 	float mxspeed = mapr(xspeed,-0.5,0.5);
 	float myspeed = mapr(yspeed,-0.5,0.5);
-	//float mt = time * speed * 10.;//MAP TIME 
+	//float mt = time * speed * 10.;//MAP TIME
 	float mrotspeed = mapr(rotspeed,-0.5,0.5);
 	float msize = size;
 	
@@ -66,7 +66,7 @@ void main()
 	//dib = rgb2hsb(dib);
 	fin = dib*e_force+fb.rgb*mapr(fb_force,0.2,1.0);
 	
-	gl_FragColor = vec4(fin,1.0); 
+	gl_FragColor = vec4(fin,1.0);
 }
 
 

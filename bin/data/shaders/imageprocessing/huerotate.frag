@@ -16,5 +16,5 @@ void main()
 							rgbahsb.g,
 							rgbahsb.b));
 	
-	gl_FragColor = vec4(fin,1.0); 
+	gl_FragColor = vec4(fin,1.0);
 }

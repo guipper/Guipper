@@ -60,7 +60,7 @@ void main()
 		vec3 p=from+s*dir*.5;
 		p = abs(vec3(tile)-mod(p,vec3(tile*2.))); // tiling fold
 		float pa,a=pa=0.;
-		for (int i=0; i<mite; i++) { 
+		for (int i=0; i<mite; i++) {
 			p=abs(p)/dot(p,p)-formuparam; // the magic formula
 			a+=abs(length(p)-pa); // absolute sum of average change
 			pa=length(p);

@@ -9,7 +9,7 @@ void main()
 
 	vec4 t1 =  texture2D(textura1, gl_FragCoord.xy/resolution);
 	vec4 t2 =  texture2D(textura2, gl_FragCoord.xy/resolution);
- 
+
 	vec3 fin = blendMode(PHOENIX,t1.rgb,t2.rgb,opacity*2.0);
 
 	gl_FragColor = vec4(fin,1.0);
