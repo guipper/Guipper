@@ -258,7 +258,11 @@ void ofApp::keyPressed(int key)
 		}
 		if (key == 'h')
 		{
+#ifdef SPOUT
 			boxes.addBox("spoutReceiver");
+#else
+			cerr << "Spout not supported" << endl;
+#endif
 		}
 		if (key == 'i')
 		{
@@ -271,8 +275,13 @@ void ofApp::keyPressed(int key)
 		}
 		if (key == 'n')
 		{
+#ifdef NDI
 			boxes.addBox("ndiReceiver");
+#else
+			cerr << "NDI not supported" << endl;
+#endif
 		}
+
 		if (key == OF_KEY_DEL)
 		{
 			cout << "DEL " << endl;
