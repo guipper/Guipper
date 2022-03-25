@@ -115,6 +115,7 @@ void ofApp::update()
 	if (saveas_saver.activeflag)
 	{
 		savedirectory = saveas_saver.path;
+		cout << "Save session to " << savedirectory << endl;
 		boxes.save(savedirectory);
 		saveas_saver.activeflag = false;
 	}
@@ -331,12 +332,12 @@ void ofApp::keyPressed(int key)
 
 		if (key == 's')
 		{
-			cout << "savedirectory" << savedirectory << endl;
-			cout << "SOLO SAVE " << endl;
+			cout << "Save session to " << savedirectory << endl;
 			boxes.save(savedirectory);
 		}
 		if (key == 'l')
 		{
+			cout << "Load session from " << savedirectory << endl;
 			boxes.load(savedirectory);
 		}
 		if (key == 'd')

@@ -577,7 +577,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	}
 }
 void JPboxgroup::draw_cursorrect() {}
-void JPboxgroup::save(string _diroutput)
+void JPboxgroup::save(string outputPath)
 {
 	ofXml xml;
 
@@ -635,7 +635,8 @@ void JPboxgroup::save(string _diroutput)
 		}
 	}
 
-	xml.save(_diroutput);
+	ofFilePath::createEnclosingDirectory(outputPath);
+	xml.save(outputPath);
 }
 void JPboxgroup::load2(string _dirinput)
 {
