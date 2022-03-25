@@ -102,7 +102,8 @@ public:
 	void window_mouseMove(ofMouseEventArgs &e);
 	void window_keyPressed(ofKeyEventArgs &e);
 
-	void setInitialValues();
+	void loadSettings();
+	void saveSettings();
 
 	float window_initialposx;
 	float window_initialposy;

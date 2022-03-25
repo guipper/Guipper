@@ -34,7 +34,9 @@ void ofApp::setup()
 	receiver.setup(PORT);
 	oscout_mode1 = true;
 	oscout_mode2 = true;
-	setInitialValues();
+
+	loadSettings();
+
 	ofSetWindowTitle("GUIPPER");
 
 	loadAspreset = false;
@@ -527,12 +529,18 @@ void ofApp::openRenderWindow()
 		ofAddListener(windows.back()->events().windowResized, this, &ofApp::window_resized);
 	}
 }
-void ofApp::setInitialValues()
+
+void ofApp::loadSettings()
 {
 
-	ofXml xml;
+	const auto settingsPath = ofToDataPath("settings.xml");
 
-	xml.load("settings.xml");
+	// If file does not exist, do not change anything (use default values)
+	if (!ofFile(settingsPath).exists())
+		return;
+
+	ofXml xml;
+	xml.load(settingsPath);
 
 	auto settings = xml.getChild("settings");
 	auto renderwidthaux = settings.getChild("renderwidth");
@@ -595,6 +603,39 @@ void ofApp::setInitialValues()
 		openRenderWindow();
 	}
 }
+
+std::string toXmlString(const bool value)
+{
+	return value ? "true" : "false";
+}
+
+void ofApp::saveSettings()
+{
+	const auto settingsPath = ofToDataPath("settings.xml");
+
+	ofXml xml;
+
+	auto settings = xml.appendChild("settings");
+	settings.appendChild("renderwidth").set(jp_constants::renderWidth);
+	settings.appendChild("renderheight").set(jp_constants::renderHeight);
+	settings.appendChild("window_x").set(ceil(window_initialposx));
+	settings.appendChild("window_y").set(ceil(window_initialposy));
+	settings.appendChild("window_width").set(jp_constants::window_width);
+	settings.appendChild("window_height").set(jp_constants::window_height);
+	settings.appendChild("window_fullscreen").set(toXmlString(window_fullscreen));
+	settings.appendChild("window_open").set(toXmlString(isRenderWindowOpen));
+#ifdef SPOUT
+	settings.appendChild("spouton").set(toXmlString(spoutActive));
+#endif
+	settings.appendChild("osc_port_in").set(receiver.getPort());
+	settings.appendChild("osc_port_out").set(sender.getPort());
+	settings.appendChild("osc_ip_out").set(sender.getHost());
+	settings.appendChild("oscout_mode1").set(toXmlString(oscout_mode1));
+	settings.appendChild("oscout_mode2").set(toXmlString(oscout_mode2));
+
+	xml.save(settingsPath);
+}
+
 void ofApp::updateOSC()
 {
 	// hide old messages
@@ -680,6 +721,9 @@ void ofApp::window_drawRender(ofEventArgs &args)
 void ofApp::exit(ofEventArgs &e)
 {
 	cout << "EXIT WINDOW " << endl;
+
+	// Save settings before exiting
+	saveSettings();
 
 	// Ni idea que hacia este if ??? Pero si lo comento crashea
 	if (isRenderWindowOpen)
