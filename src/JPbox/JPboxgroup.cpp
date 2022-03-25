@@ -212,39 +212,42 @@ void JPboxgroup::update()
 		// PARA QUE RECARGUE EL SHADER AUTOMATICAMENTE PAP�.
 		if (!jp_constants::systemDialog_open && boxes[i]->getTipo() == boxes[i]->SHADERBOX)
 		{
-			time_t lasttimemodified = filesystem::last_write_time(boxes[i]->dir);
-			if (lasttimemodified != boxes[i]->datemodified)
+			if (ofFile(boxes[i]->dir).exists())
 			{
-				//	cout << "RELOAD SHADER " << endl;
-				// cout << "-------------------------------------" << endl;
-				boxes[i]->datemodified = lasttimemodified;
-
-				// UF ESTO ESTA ATADO CON ALAMBRE MUY FUERTE. ACA HAY UN BUG QUE LO QUE HACE ES QUE NO RECARGUE BIEN EL SHADER.
-				// BASICAMENTE LO QUE SUCEDE ES QUE CUANDO VOLVES A CARGAR Y GUARDAR A VECES NO LEVANTA LOS PARAMETROS
-				// ENTONCES LE DIGO QUE LO REINICIE HASTA QUE LA CANTIDAD DE PARAMETROS SEA COMO LA CORRECTA DIGAMOS.
-				// OSEA TECNICAMENTE EXISTE LA POSIBILIDAD 0.00000000000000000001% DE QUE NUNCA CARGUE BIEN Y ENTRE EN UN LOOP INFINITO DE MUERTE Y DESTRUCCION.
-				// OSEA AHORA AL MENOS CARGA BIEN SIEMPRE. LO QUE NO PUEDO HACER ES QUE ME VUELVA A CARGAR LOS VALORES QUE TENIA CON LOS RENDER QUE TENIA.
-
-				// cout << "Parameter a size :" << boxes[i]->parameters.getSize() << endl;
-				JPbox *aux;
-
-				boxes[i]->reload();
-				cout << "RElOAD SHADER" << endl;
-				// cout << "Parameter d size :" << boxes[i]->parameters.getSize() << endl;
-
-				// boxes[i]->reloadShaderonly();
-				// Este contador de uniforms hace que no crashee nada.
-				int counter = 0;
-				/*for (int j = 0; j < boxes[i]->parameters.getSize(); j++) {
-					counter++;
-				}*/
-				// cout << "CONTADOR DE UNIFORMS " << counter << endl;
-
-				if (openguinumber == i)
+				time_t lasttimemodified = filesystem::last_write_time(boxes[i]->dir);
+				if (lasttimemodified != boxes[i]->datemodified)
 				{
-					setControllers();
+					//	cout << "RELOAD SHADER " << endl;
+					// cout << "-------------------------------------" << endl;
+					boxes[i]->datemodified = lasttimemodified;
+
+					// UF ESTO ESTA ATADO CON ALAMBRE MUY FUERTE. ACA HAY UN BUG QUE LO QUE HACE ES QUE NO RECARGUE BIEN EL SHADER.
+					// BASICAMENTE LO QUE SUCEDE ES QUE CUANDO VOLVES A CARGAR Y GUARDAR A VECES NO LEVANTA LOS PARAMETROS
+					// ENTONCES LE DIGO QUE LO REINICIE HASTA QUE LA CANTIDAD DE PARAMETROS SEA COMO LA CORRECTA DIGAMOS.
+					// OSEA TECNICAMENTE EXISTE LA POSIBILIDAD 0.00000000000000000001% DE QUE NUNCA CARGUE BIEN Y ENTRE EN UN LOOP INFINITO DE MUERTE Y DESTRUCCION.
+					// OSEA AHORA AL MENOS CARGA BIEN SIEMPRE. LO QUE NO PUEDO HACER ES QUE ME VUELVA A CARGAR LOS VALORES QUE TENIA CON LOS RENDER QUE TENIA.
+
+					// cout << "Parameter a size :" << boxes[i]->parameters.getSize() << endl;
+					JPbox *aux;
+
+					boxes[i]->reload();
+					cout << "RElOAD SHADER" << endl;
+					// cout << "Parameter d size :" << boxes[i]->parameters.getSize() << endl;
+
+					// boxes[i]->reloadShaderonly();
+					// Este contador de uniforms hace que no crashee nada.
+					int counter = 0;
+					/*for (int j = 0; j < boxes[i]->parameters.getSize(); j++) {
+						counter++;
+					}*/
+					// cout << "CONTADOR DE UNIFORMS " << counter << endl;
+
+					if (openguinumber == i)
+					{
+						setControllers();
+					}
+					cout << "-------------------------------------" << endl;
 				}
-				cout << "-------------------------------------" << endl;
 			}
 		}
 	}
@@ -1036,7 +1039,7 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 		bx = new JPbox_spout();
 		nombre = "SPOUT";
 	}
-#endif SPOUT
+#endif
 	else if (directory.find("framedifference") != std::string::npos)
 	{
 		bx = new JPbox_framedifference();

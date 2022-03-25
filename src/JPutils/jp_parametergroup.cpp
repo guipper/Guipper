@@ -128,6 +128,9 @@ void JPParameterGroup::update()
 }
 void JPParameterGroup::setmovetype(int _movetype, int _index)
 {
+	if (_index >= parameters.size())
+		return;
+
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
 		parameters[_index]->movtype = _movetype;
@@ -136,6 +139,9 @@ void JPParameterGroup::setmovetype(int _movetype, int _index)
 // SETTERS
 void JPParameterGroup::setFloatValue(float _val, int _index)
 {
+	if (_index >= parameters.size())
+		return;
+
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
 		parameters[_index]->floatValue = _val;
@@ -143,6 +149,9 @@ void JPParameterGroup::setFloatValue(float _val, int _index)
 }
 void JPParameterGroup::setFloatLerpValue(float _val, int _index)
 {
+	if (_index >= parameters.size())
+		return;
+
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
 		parameters[_index]->floatLerpValue = _val;
@@ -154,6 +163,9 @@ void JPParameterGroup::setName(string _name)
 }
 void JPParameterGroup::setSpeed(float _val, int _index)
 {
+	if (_index >= parameters.size())
+		return;
+
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
 		parameters[_index]->speed = _val;
@@ -161,12 +173,17 @@ void JPParameterGroup::setSpeed(float _val, int _index)
 }
 void JPParameterGroup::setBoolValue(bool _val, int _index)
 {
+	if (_index >= parameters.size())
+		return;
+
 	// if (parameters[_index].variabletype == parameters[_index].BOOL) {
 	parameters[_index]->boolValue = _val;
 	//}
 }
 void JPParameterGroup::setMin(float _val, int _index)
 {
+	if (_index >= parameters.size())
+		return;
 
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
@@ -175,6 +192,9 @@ void JPParameterGroup::setMin(float _val, int _index)
 }
 void JPParameterGroup::setMax(float _val, int _index)
 {
+	if (_index >= parameters.size())
+		return;
+
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
 		parameters[_index]->max = _val;
@@ -187,6 +207,9 @@ int JPParameterGroup::getSize()
 }
 int JPParameterGroup::getType(int _index)
 {
+	if (_index >= parameters.size())
+		return 0;
+
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
 		return parameters[_index]->FLOAT;
@@ -198,10 +221,16 @@ int JPParameterGroup::getType(int _index)
 }
 float JPParameterGroup::getSpeed(int _index)
 {
+	if (_index >= parameters.size())
+		return 0.0;
+
 	return parameters[_index]->speed;
 }
 float JPParameterGroup::getFloatValue(int _index)
 {
+	if (_index >= parameters.size())
+		return 0.0;
+
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
 		return parameters[_index]->floatValue;
@@ -213,6 +242,9 @@ float JPParameterGroup::getFloatValue(int _index)
 }
 float JPParameterGroup::getLerpValue(int _index)
 {
+	if (_index >= parameters.size())
+		return 0.0;
+
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
 		return parameters[_index]->floatLerpValue;
@@ -224,6 +256,9 @@ float JPParameterGroup::getLerpValue(int _index)
 }
 float JPParameterGroup::getMin(int _index)
 {
+	if (_index >= parameters.size())
+		return 0.0;
+
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
 		return parameters[_index]->min;
@@ -235,6 +270,9 @@ float JPParameterGroup::getMin(int _index)
 }
 float JPParameterGroup::getMax(int _index)
 {
+	if (_index >= parameters.size())
+		return 0.0;
+
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
 		return parameters[_index]->max;
@@ -246,6 +284,9 @@ float JPParameterGroup::getMax(int _index)
 }
 bool JPParameterGroup::getBoolValue(int _index)
 {
+	if (_index >= parameters.size())
+		return false;
+
 	if (parameters[_index]->variabletype == parameters[_index]->BOOL)
 	{
 		return parameters[_index]->boolValue;
@@ -257,6 +298,9 @@ bool JPParameterGroup::getBoolValue(int _index)
 }
 int JPParameterGroup::getMovType(int _index)
 {
+	if (_index >= parameters.size())
+		return 0;
+
 	// cout << endl << "MOVTYPE" << parameters[_index]->movtype << endl;
 	return parameters[_index]->movtype;
 }

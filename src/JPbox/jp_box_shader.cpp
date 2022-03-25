@@ -131,12 +131,12 @@ void JPbox_shader::setup(ofTrueTypeFont &_font,
 						 string _dir,
 						 string _nombre)
 {
-
 	JPbox::setup(_font);
 	setUniforms(parameters, fbohandlergroup, _dir, _nombre);
 	// parameters.coutData();
 	name = _nombre;
 	dir = _dir;
+
 	try
 	{
 		shader.load("shaders/default.vert", dir);
@@ -153,17 +153,25 @@ void JPbox_shader::setup(ofTrueTypeFont &_font,
 	{
 		cout << "FALLOO HEAVY " << endl;
 	}
-	datemodified = filesystem::last_write_time(dir);
 
 	tipo = SHADERBOX;
 	fbohandlergroup.setupdragobjects(x, y, outlet_size, outlet_size);
 	setfbohandler_nodepos();
+
+	if (!ofFile(dir).exists())
+	{
+		cerr << dir << " does not exist!" << endl;
+		return;
+	}
+
+	datemodified = filesystem::last_write_time(dir);
 }
 
 void JPbox_shader::setup2(string _dir,
 						  string _nombre)
 {
 	cout << "CORRE SETUP DE SHADER " << endl;
+
 	JPbox::setup(_dir, _nombre);
 	setUniforms(parameters, fbohandlergroup, _dir, _nombre);
 	// parameters.coutData();
@@ -185,12 +193,20 @@ void JPbox_shader::setup2(string _dir,
 	{
 		cout << "FALLOO HEAVY " << endl;
 	}
-	datemodified = filesystem::last_write_time(dir);
 
 	tipo = SHADERBOX;
 	fbohandlergroup.setupdragobjects(x, y, outlet_size, outlet_size);
 	setfbohandler_nodepos();
+
+	if (!ofFile(dir).exists())
+	{
+		cerr << dir << " does not exist!" << endl;
+		return;
+	}
+
+	datemodified = filesystem::last_write_time(dir);
 }
+
 void JPbox_shader::setup(string _dir,
 						 string _nombre)
 {
@@ -216,11 +232,18 @@ void JPbox_shader::setup(string _dir,
 	{
 		cout << "FALLOO HEAVY " << endl;
 	}
-	datemodified = filesystem::last_write_time(dir);
 
 	tipo = SHADERBOX;
 	fbohandlergroup.setupdragobjects(x, y, outlet_size, outlet_size);
 	setfbohandler_nodepos();
+
+	if (!ofFile(_dir).exists())
+	{
+		cerr << _dir << " does not exist!" << endl;
+		return;
+	}
+
+	datemodified = filesystem::last_write_time(dir);
 }
 
 void JPbox_shader::draw()
