@@ -13,6 +13,7 @@
 #endif
 #include "jp_box_preset.h"
 #include "jp_box_framedifference.h"
+
 #ifdef NDI
 #include "jp_box_ndi.h"
 #endif

@@ -1,3 +1,5 @@
+
+#include "defines.h"
 #include "jp_box.h"
 #include "../ofApp.h"
 

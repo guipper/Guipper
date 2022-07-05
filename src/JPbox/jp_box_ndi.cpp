@@ -1,3 +1,6 @@
+
+
+#include "defines.h"
 #ifdef NDI
 #include "jp_box_ndi.h"
 

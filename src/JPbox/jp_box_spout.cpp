@@ -1,3 +1,5 @@
+
+#include "defines.h"
 #ifdef SPOUT
 
 #include "jp_box_spout.h"
