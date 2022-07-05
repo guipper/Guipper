@@ -69,7 +69,7 @@ void main()
 	
 	float ramp = fract(e1*mfrequency+mspeed);
     float seno = sin(ramp*TWO_PI)*0.5+0.5;
-    float saw  = 1.- ramp;
+    float saw  = 1.- ramp; 
     float tri  = abs(ramp*2.-1.);
 	float pulse = 1.- smoothstep(0.49,0.5001,ramp);
 	
@@ -90,5 +90,5 @@ void main()
 	
 	fin = mix(col1,col2,e);
 	
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 }

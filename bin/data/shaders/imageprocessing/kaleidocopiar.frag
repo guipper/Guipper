@@ -33,7 +33,7 @@ void main()
 		/*uv2*=resolution;
 		uv = fract(uv2);
 		uv2/=resolution;*/
-		vec4 t1 =  texture(textura1, uv2/resolution);
+		vec4 t1 =  texture2D(textura1, uv2/resolution);
 		dib += t1.rgb;
 	}
 	
@@ -42,5 +42,5 @@ void main()
 	
 	vec3 fin = dib;
 	
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0); 
 }

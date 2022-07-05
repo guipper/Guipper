@@ -3,7 +3,7 @@
 // rainbow spaghetti by mattz
 // Refactored by FabriceNeyret2
 void main() {
-	vec2 p = gl_FragCoord.xy;
+	vec2 p = gl_FragCoord.xy.xy;
     vec2 R = iResolution.xy;
     float t = iTime;
     

@@ -15,9 +15,9 @@ mat2 r(float a) {
 }
 
 
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
+void mainImage( out vec4 fragColor, in vec2 gl_FragCoord )
 {
-	vec2 uv = fragCoord.xy / iResolution.xy;
+	vec2 uv = gl_FragCoord.xy / iResolution.xy;
 	vec2 xy = uv*2.-1.;
     uv.x*=iResolution.x/iResolution.y;
     xy.x*=iResolution.x/iResolution.y;
@@ -44,5 +44,5 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 void main() {
   vec4 fragColor;
   mainImage(fragColor, gl_FragCoord.xy);
-  gl_FragColor = fragColor;
+  fragColor = fragColor;
 }

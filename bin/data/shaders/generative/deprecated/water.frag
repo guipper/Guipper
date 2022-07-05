@@ -147,7 +147,7 @@ vec3 march(vec3 from, vec3 dir) {
 		td+=d;
 		g++;
 	}
-	vec3 back = texture(tex,gl_FragCoord.xy/resolution).rgb;
+	vec3 back = texture2D(tex,gl_FragCoord.xy/resolution).rgb;
 	if (d<det) {
 		p-=det*dir;
 		col=mix(shade(p, dir),back,.4);
@@ -171,5 +171,5 @@ void main()
 	vec3 from = vec3(0.,perspective*2.,-10.);
 	vec3 dir = normalize(vec3(uv, 1.));
 	vec3 col=march(from, dir);
-	gl_FragColor = vec4(col, 1.); 
+	fragColor = vec4(col, 1.); 
 }

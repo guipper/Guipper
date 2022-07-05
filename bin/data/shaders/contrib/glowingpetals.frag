@@ -32,16 +32,16 @@ float de(vec3 p) {
 	
     p.xy *= r2d(iTime*.1 *speed+ p.z);
     p.xz *= r2d(3.14/2.);
-
-
-
+    
+    
+    
     p.zy = amod(p.zy, .785);
-
+    
     p.y = abs(p.y) - .4;
 	p.z = abs(p.z) - .4;
 	if (p.z > p.y) p.yz = p.zy;
-
-
+    
+    
     vec3 q = p;
 
 	p.xy *= r2d(-3.14 / 3.);
@@ -80,7 +80,7 @@ float de(vec3 p) {
 
 void main()
 {
-	vec2 uv = ( fragCoord - .5*iResolution.xy ) / iResolution.y;
+	vec2 uv = ( gl_FragCoord.xy - .5*iResolution.xy ) / iResolution.y;
 
 	vec3 ro = vec3(0., 0, 6. + cos(iTime*speed)), p;
 	vec3 rd = normalize(vec3(uv, -1));

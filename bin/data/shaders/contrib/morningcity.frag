@@ -16,7 +16,7 @@ float rand(vec2 n) {
 vec3 polygonXY(float z,vec2 vert1, vec2 vert2, vec3 camPos,vec3 rayDir){
     float t = -(camPos.z-z)/rayDir.z;
     vec2 cross = camPos.xy + rayDir.xy*t;
-    if (cross.x>min(vert1.x,vert2.x) &&
+    if (cross.x>min(vert1.x,vert2.x) && 
         cross.x<max(vert1.x,vert2.x) &&
        	cross.y>min(vert1.y,vert2.y) &&
        	cross.y<max(vert1.y,vert2.y) &&
@@ -24,13 +24,13 @@ vec3 polygonXY(float z,vec2 vert1, vec2 vert2, vec3 camPos,vec3 rayDir){
         	float dist = length(camPos-vec3(cross,z));
             return vec3(dist, cross.x-min(vert1.x,vert2.x),cross.y-min(vert1.y,vert2.y));
         }
-
+    
     return vec3(101.0,0.0,0.0);
 }
 vec3 polygonYZ(float x,vec2 vert1, vec2 vert2, vec3 camPos,vec3 rayDir){
     float t = -(camPos.x-x)/rayDir.x;
     vec2 cross1 = camPos.yz + rayDir.yz*t;
-    if (cross1.x>min(vert1.x,vert2.x) &&
+    if (cross1.x>min(vert1.x,vert2.x) && 
         cross1.x<max(vert1.x,vert2.x) &&
        	cross1.y>min(vert1.y,vert2.y) &&
        	cross1.y<max(vert1.y,vert2.y)&&
@@ -38,13 +38,13 @@ vec3 polygonYZ(float x,vec2 vert1, vec2 vert2, vec3 camPos,vec3 rayDir){
         	float dist = length(camPos-vec3(x,cross1));
             return vec3(dist, cross1.x-min(vert1.x,vert2.x),cross1.y-min(vert1.y,vert2.y));
         }
-
+    
     return vec3(101.0,0.0,0.0);
 }
 vec3 polygonXZ(float y,vec2 vert1, vec2 vert2, vec3 camPos,vec3 rayDir){
     float t = -(camPos.y-y)/rayDir.y;
     vec2 cross1 = camPos.xz + rayDir.xz*t;
-    if (cross1.x>min(vert1.x,vert2.x) &&
+    if (cross1.x>min(vert1.x,vert2.x) && 
         cross1.x<max(vert1.x,vert2.x) &&
        	cross1.y>min(vert1.y,vert2.y) &&
        	cross1.y<max(vert1.y,vert2.y)&&
@@ -52,7 +52,7 @@ vec3 polygonXZ(float y,vec2 vert1, vec2 vert2, vec3 camPos,vec3 rayDir){
         	float dist = length(camPos-vec3(cross1.x,y,cross1.y));
             return vec3(dist, cross1.x-min(vert1.x,vert2.x),cross1.y-min(vert1.y,vert2.y));
         }
-
+    
     return vec3(101.0,0.0,0.0);
 }
 
@@ -63,7 +63,7 @@ vec3 textureWall(vec2 pos, vec2 maxPos, vec2 squarer,float s,float height,float 
     vec2 windowSize = vec2(0.65,0.35);
     vec3 wallColor = s*(0.3+1.4*fract(randB*100.0))*vec3(0.1,0.1,0.1)+(-0.7+1.4*fract(randB*1000.0))*vec3(0.02,0.,0.);
 	wallColor*=1.3;
-
+    
     vec3 color = vec3(0.0);
     vec3 conturColor = wallColor/1.5;
     if (height<0.51){
@@ -80,24 +80,24 @@ vec3 textureWall(vec2 pos, vec2 maxPos, vec2 squarer,float s,float height,float 
     float wsize = 0.02;
     wsize+=-0.007+0.014*fract(randB*75389.9365);
     windowSize+= vec2(0.34*fract(randB*45696.9365),0.50*fract(randB*853993.5783));
-
+    
     vec2 contur=vec2(0.0)+(fract(maxPos/2.0/wsize))*wsize;
     if (contur.x<wsize){contur.x+=wsize;}
     if (contur.y<wsize){contur.y+=wsize;}
-
+    
 	vec2 winPos = (pos-contur)/wsize/2.0-floor((pos-contur)/wsize/2.0);
-
+    
     float numWin = floor((maxPos-contur)/wsize/2.0).x;
-
+    
     if ( (maxPos.x>0.5&&maxPos.x<0.6) && ( ((pos-contur).x>wsize*2.0*floor(numWin/2.0)) && ((pos-contur).x<wsize*2.0+wsize*2.0*floor(numWin/2.0)) )){
      	   return (0.9+0.2*noise(pos))*conturColor;
     }
-
+    
     if ( (maxPos.x>0.6&&maxPos.x<0.7) &&( ( ((pos-contur).x>wsize*2.0*floor(numWin/3.0)) && ((pos-contur).x<wsize*2.0+wsize*2.0*floor(numWin/3.0)) )||
                                           ( ((pos-contur).x>wsize*2.0*floor(numWin*2.0/3.0)) && ((pos-contur).x<wsize*2.0+wsize*2.0*floor(numWin*2.0/3.0)) )) ){
      	   return (0.9+0.2*noise(pos))*conturColor;
     }
-
+    
     if ( (maxPos.x>0.7) &&( ( ((pos-contur).x>wsize*2.0*floor(numWin/4.0)) && ((pos-contur).x<wsize*2.0+wsize*2.0*floor(numWin/4.0)) )||
                                           ( ((pos-contur).x>wsize*2.0*floor(numWin*2.0/4.0)) && ((pos-contur).x<wsize*2.0+wsize*2.0*floor(numWin*2.0/4.0)) )||
                                           ( ((pos-contur).x>wsize*2.0*floor(numWin*3.0/4.0)) && ((pos-contur).x<wsize*2.0+wsize*2.0*floor(numWin*3.0/4.0)) )) ){
@@ -105,7 +105,7 @@ vec3 textureWall(vec2 pos, vec2 maxPos, vec2 squarer,float s,float height,float 
     }
     if ((maxPos.x-pos.x<contur.x)||(maxPos.y-pos.y<contur.y+2.0*wsize)||(pos.x<contur.x)||(pos.y<contur.y)){
             return (0.9+0.2*noise(pos))*conturColor;
-
+        
     }
     if (maxPos.x<0.14) {
      	   return (0.9+0.2*noise(pos))*wallColor;
@@ -114,27 +114,27 @@ vec3 textureWall(vec2 pos, vec2 maxPos, vec2 squarer,float s,float height,float 
     float random = rand(squarer*s*maxPos.y+window);
     float randomZ = rand(squarer*s*maxPos.y+floor(vec2((pos-contur).y,(pos-contur).y)/wsize/2.0));
     float windows = floorFactor*sin(randomZ*5342.475379+(fract(975.568*randomZ)*0.15+0.05)*window.x);
-
+    
 	float blH = 0.06*dist*600.0/iResolution.x/abs(dot(normalize(rayDir.xy),normalize(norm.xy)));
     float blV = 0.06*dist*600.0/iResolution.x/sqrt(abs(1.0-pow(abs(rayDir.z),2.0)));
-
+    
 	windowColor +=vec3(1.0,1.0,1.0);
     windowColor *= smoothstep(0.5-windowSize.x/2.0-blH,0.5-windowSize.x/2.0+blH,winPos.x);
    	windowColor *= smoothstep(0.5+windowSize.x/2.0+blH,0.5+windowSize.x/2.0-blH,winPos.x);
    	windowColor *= smoothstep(0.5-windowSize.y/2.0-blV,0.5-windowSize.y/2.0+blV,winPos.y);
    	windowColor *= smoothstep(0.5+windowSize.y/2.0+blV,0.5+windowSize.y/2.0-blV,winPos.y);
-
+    
     if ((random <0.05*(3.5-2.5*floorFactor))||(windows>0.65)){
         	if (winPos.y<0.5) {windowColor*=(1.0-0.4*fract(random*100.0));}
         	if ((winPos.y>0.5)&&(winPos.x<0.5)) {windowColor*=(1.0-0.4*fract(random*10.0));}
             return (0.9+0.2*noise(pos))*wallColor+(0.9+0.2*noise(pos))*windowColor;
 
 
-    }
+    } 
     else{
         windowColor*=0.08*fract(10.0*random);
     }
-
+    
     return (0.9+0.2*noise(pos))*wallColor+windowColor;
 
 }
@@ -147,45 +147,45 @@ vec3 textureRoof(vec2 pos, vec2 maxPos,vec2 squarer){
     vec2 contur = vec2(0.02);
     if ((maxPos.x-pos.x<contur.x)||(maxPos.y-pos.y<contur.y)||(pos.x<contur.x)||(pos.y<contur.y)){
             return (0.9+0.2*noise(pos))*conturColor;
-
+        
     }
     float step1 = 0.06+0.12*fract(randB*562526.2865);
     pos -=step1;
     maxPos -=step1*2.0;
     if ((pos.x>0.0&&pos.y>0.0&&pos.x<maxPos.x&&pos.y<maxPos.y)&&((abs(maxPos.x-pos.x)<contur.x)||(abs(maxPos.y-pos.y)<contur.y)||(abs(pos.x)<contur.x)||(abs(pos.y)<contur.y))){
             return (0.9+0.2*noise(pos))*conturColor;
-
+        
     }
     pos -=step1;
     maxPos -=step1*2.0;
     if ((pos.x>0.0&&pos.y>0.0&&pos.x<maxPos.x&&pos.y<maxPos.y)&&((abs(maxPos.x-pos.x)<contur.x)||(abs(maxPos.y-pos.y)<contur.y)||(abs(pos.x)<contur.x)||(abs(pos.y)<contur.y))){
             return (0.9+0.2*noise(pos))*conturColor;
-
+        
     }
     pos -=step1;
     maxPos -=step1*2.0;
     if ((pos.x>0.0&&pos.y>0.0&&pos.x<maxPos.x&&pos.y<maxPos.y)&&((abs(maxPos.x-pos.x)<contur.x)||(abs(maxPos.y-pos.y)<contur.y)||(abs(pos.x)<contur.x)||(abs(pos.y)<contur.y))){
             return (0.9+0.2*noise(pos))*conturColor;
-
+        
     }
-
+    
     return (0.9+0.2*noise(pos))*wallColor;
-
+    
 }
 vec3 cars(vec2 squarer, vec2 pos, float dist,float level){
     vec3 color = vec3(0.0);
     float carInten = 3.5/sqrt(dist);
-    float carRadis = 0.01;
+    float carRadis = 0.01; 
     if (dist>2.0) {carRadis *= sqrt(dist/2.0);}
     vec3 car1 = vec3(0.5,0.5,1.0);
     vec3 car2 = vec3(1.0,0.1,0.1);
     float carNumber = 0.5;
-
+    
     float random = noise((level+1.0)*squarer*1.24435824);
     for (int j=0;j<10; j++){
         float i = 0.03+float(j)*0.094;
         if(fract(random*5.0/i)>carNumber){color += car1*carInten*smoothstep(carRadis,0.0,length(pos - vec2(fract(i+iTime/4.0),0.025)));}
-
+        
         if(fract(random*10.0/i)>carNumber){color += car2*carInten*smoothstep(carRadis,0.0,length(pos - vec2(fract(i-iTime/4.0),0.975)));}
     	if(color.x>0.0) break;
     }
@@ -229,40 +229,40 @@ vec3 textureGround(vec2 squarer, vec2 pos,vec2 vert1,vec2 vert2,float dist){
     vec2 contur = vec2(0.06,0.06);
     if ((pos.x>0.0&&pos.y>0.0&&pos.x<maxPos.x&&pos.y<maxPos.y)&&((abs(maxPos.x-pos.x)<contur.x)||(abs(maxPos.y-pos.y)<contur.y)||(abs(pos.x)<contur.x)||(abs(pos.y)<contur.y))){
             color =  vec3(0.1,0.1,0.1)*(0.9+0.2*noise(pos));
-
+        
     }
     pos -= 0.06;
     maxPos = vec2(.88,0.88);
     contur = vec2(0.01,0.01);
     if ((pos.x>0.0&&pos.y>0.0&&pos.x<maxPos.x&&pos.y<maxPos.y)&&((abs(maxPos.x-pos.x)<contur.x)||(abs(maxPos.y-pos.y)<contur.y)||(abs(pos.x)<contur.x)||(abs(pos.y)<contur.y))){
             color =  vec3(0.,0.,0.);
-
+        
     }
     color = mix(color,(0.9+0.2*noise(pos))*wallColor*1.5/2.5,f);
 
     pos+=0.06;
-
+    
 #ifdef CARS
     if (pos.x<0.07||pos.x>0.93||pos.y<0.07||pos.y>0.93){
         color+=cars(squarer,pos,dist,0.0);
     }
 #endif
-
+    
     return color;
 }
 
 
 void main() {
-    vec2 pos = (gl_FragCoord.xy*2.0 - iResolution.xy) / iResolution.y;
+    vec2 pos = (gl_FragCoord.xy.xy*2.0 - iResolution.xy) / iResolution.y;
 	pos.y = 1.-pos.y;
 	float mspeed = mapr(speed,-5.0,5.0);
     float t = iTime*mspeed;
     float tt = iTime*mspeed-0.5;
-
-
+    
+    
     //vec3 camPos = vec3(5.0+12.0*sin(t*0.05),5.0+ 7.0*cos(t*0.05), 1.9);
     //vec3 camTarget = vec3(5.0+0.0,5.0+7.0*sin(t*0.05), 0.0);
-
+    
 	vec3 camPos;
 	vec3 camTarget;
 	
@@ -309,7 +309,7 @@ void main() {
 	float finalb = b;
 	
     for (int i=1; i<I_MAX; i++){
-
+                
         vec2 squarer = square-vec2(0.5,0.5)+0.5*sign(rayDir.xy);
         if (crossSky == squarer&&crossSky!=floor(camPos.xy))
         {
@@ -336,7 +336,7 @@ void main() {
         if (height>0.85){maxJ = 4.0;}
         if (fract(height*100.0)<0.15){height = pow(maxJ-1.0,0.3)*height; maxJ = 2.0; roof = 0.0;}
 
-
+        
         float maxheight = 1.5*pow((maxJ-1.0),0.3)*height+roof*0.07;
         if (camPos.z+rayDir.z*(length(camPos.xy - square) +0.71 - sign(rayDir.z)*0.71)/length(rayDir.xy)<maxheight){
 			vec2 vert1r;
@@ -356,7 +356,7 @@ void main() {
       		      	zz = 1.5*pow((j-1.0),0.3)*height+0.03+0.04*fract(random*1535.347);
      	           	dia = 1.0/pow((j-1.0),0.3)-0.2-0.2*fract(random*10000.0);
        		    }
-
+            
             	vec2 v1 = vec2(0.0);//vec2(random*10.0,random*1.0);
             	vec2 v2 = vec2(0.0);//vec2(random*1000.0,random*100.0);
                 float randomF = fract(random*10.0);
@@ -374,17 +374,17 @@ void main() {
             	    v1.x = v2.x;
             	    v2.x = x;
             	}
-
+            
         		vec2 vert1 = square+sign(rayDir.xy)*(0.5-0.37*(dia*1.0-1.0*v1));
         		vec2 vert2 = square+sign(rayDir.xy)*(0.5+0.37*(dia*1.0-1.0*v2));
-                if (j==1.0){
+                if (j==1.0){ 
                     vert1r = vec2(min(vert1.x, vert2.x),min(vert1.y,vert2.y));
                     vert2r = vec2(max(vert1.x, vert2.x),max(vert1.y,vert2.y));
                 }
-
+            
         		vec3 pxy = polygonXY(zz,vert1,vert2,camPos,rayDir);
             	if (pxy.x<mind){mind = pxy.x; pol = pxy; k=1;maxPos = vec2(abs(vert1.x-vert2.x),abs(vert1.y-vert2.y));}
-
+            
         		vec3 pyz = polygonYZ(vert1.x,vec2(vert1.y,prevZZ),vec2(vert2.y,zz),camPos,rayDir);
             	if (pyz.x<mind){mind = pyz.x; pol = pyz; k=2;maxPos = vec2(abs(vert1.y-vert2.y),zz-prevZZ);}
 
@@ -393,19 +393,19 @@ void main() {
                	
 
         	}
-
+            
         	if ((mind<100.0)&&(k==1)){
             	color += textureRoof(vec2(pol.y,pol.z),maxPos,squarer);
                 if (mind>3.0){color*=sqrt(3.0/mind);}
 
             	break;
-        	}
+        	} 
         	if ((mind<100.0)&&(k==2)){
             	color += textureWall(vec2(pol.y,pol.z),maxPos,squarer,1.2075624928,height,mind,rayDir,vec3(1.0,0.0,0.0));
             	if (mind>3.0){color*=sqrt(3.0/mind);}
             	break;
-        	}
-
+        	} 
+        
         	if ((mind<100.0)&&(k==3)){
             	color += textureWall(vec2(pol.y,pol.z),maxPos,squarer,0.8093856205,height,mind,rayDir,vec3(0.0,1.0,0.0));
             	if (mind>3.0){color*=sqrt(3.0/mind);}
@@ -422,16 +422,16 @@ void main() {
 
             	break;
         	}
-
-        }
-
-
+        
+        } 
+        
+            
         if ((square.x+sign(rayDir.x)-camPos.x)/rayDir.x<(square.y+sign(rayDir.y)-camPos.y)/rayDir.y) {
             square.x += sign(rayDir.x)*1.0;
         } else {
             square.y += sign(rayDir.y)*1.0;
         }
-
+        
         if(i==I_MAX-1&&rayDir.z>-0.1) {
 			color += vec3(vec2(r,g)*abs(angle)*exp(-rayDir.z*rayDir.z*30.0),b);
 			//color += vec3(0.5,0.6,0.7))

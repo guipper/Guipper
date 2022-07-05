@@ -99,7 +99,7 @@ struct DistMat {
 };
 // ...see what I did there?
 
-
+    
 // SDFunctions
 float planeSDF(vec3 p, vec3 n) {
     return length(p) * dot(normalize(p), n);
@@ -133,23 +133,23 @@ const float spacing = 0.04;
 
 // Calculates right coordinates from worldspace and returns a texel of the video.
 vec3 getVideoTexel(vec3 p) {
-
+        
     p.x = -p.x;
     p.xz += vec2(3.0, 2.3);
-
+    
    	const vec2 modDomain = vec2(spacing) * 0.5;
-
+    
     vec3 pp = p;
     pp.xz = mod(pp.xz + modDomain, modDomain * 2.0) - modDomain;
-
+    
     // What I'm doing here is called a pro gamer move.
     // we are taking the difference from original coordinates and using it
     // as the UVs. Each box is the same, but each is different. B)
     vec2 uv = (p.xz - pp.xz) * 0.2;
     //uv.x *= iChannelResolution[0].y / iChannelResolution[0].x;
-
+    
     vec3 tex = pow(texture(iChannel0, uv).rgb, vec3(2.2));
-
+    
     return tex * step(0.01, uv.x) * step(0.01, 1.0 - uv.x) * step(0.01, uv.y) * step(0.01, 1.0 - uv.y);
 }
 
@@ -175,26 +175,26 @@ DistMat intersect(DistMat a, DistMat b) {
 
 
 DistMat sceneSDF(vec3 p)
-{
+{    
     vec3 op = p;
-
+    
     float texel = luminance(getVideoTexel(p));
-
+    
     p.x = -p.x;
     p.xz += vec2(3.0, 2.3);
-
+    
    	const vec2 modDomain = vec2(spacing) * 0.5;
     p.xz = mod(p.xz + modDomain, modDomain * 2.0) - modDomain;
-
+    
     // Pin height in just the right proportions.
     float h = (texel - 0.015) * 0.14;
-
+    
     // Pinscreen
     DistMat scene = DistMat(boxSDF(p - vec3(0.0, h, 0.0), vec3(spacing * 0.4, h, spacing * 0.4)) - 0.004, 0);
-
+    
     // Room
     scene = sum(scene, DistMat(-boxSDF(op - vec3(0.0, 8.0, 0.0), vec3(5.15, 8.0, 5.15)), 1));
-
+    
     // Simple.
     return scene;
 }
@@ -204,31 +204,31 @@ DistMat shortestDistanceToSurface(vec3 eye, vec3 marchingDirection, float start,
     float depth = start;
     int mat = 0;
     int i;
-
+    
     for (i = 0; i < MAX_STEPS; i++) {
         DistMat dist = sceneSDF(eye + depth * marchingDirection);
-
+        
         // Relax, distance. You don't want to miss your opportunities.
         depth += dist.dist * 0.3;
         mat = dist.mat;
-
+        
         // abs prevents premature e...xiting when inside something
         if (abs(dist.dist) < EPSILON) {
 			break;
         }
-
+        
         if (depth >= end) {
             depth = end;
             break;
         }
     }
-
+    
     return DistMat(depth, mat);
-}
+}      
 
 
 // Maths. Skip this.
-vec3 rayDirection(float fieldOfView, vec2 size, vec2 fragCoord) {
+vec3 rayDirection(float fieldOfView, vec2 size, vec2 gl_FragCoord.xy) {
     vec2 xy =   - size / 2.0;
     float z = size.y / tan(radians(fieldOfView) / 2.0);
     return normalize(vec3(xy, -z));
@@ -262,9 +262,9 @@ vec3 randomPointOnHemisphere(vec3 dir, float seed) {
     float a = hash(seed);
     float b = hash(seed + 1.0);
     float c = hash(seed + 2.0);
-
+    
     vec3 point = normalize(-1.0 + 2.0 * vec3(a, b, c));
-
+    
     // Point it in the right direction.
     return point * sign(dot(dir, point));
 }
@@ -274,7 +274,7 @@ vec3 randomPointOnHemisphere(vec3 dir, float seed) {
 float ao(vec3 p, vec3 n) {
     float accu = 0.0;
     float mult = 0.0;
-
+    
     // One sample is enough with TAA and a big viewing distance.
     // I mean the viewport, not the screen. Pfsh.
     for (float i = 0.0; i < 1.0; i++)
@@ -284,7 +284,7 @@ float ao(vec3 p, vec3 n) {
         accu += dist;
         mult += depth;
     }
-
+    
     // Weighted average because yeah.
     return clamp(accu / mult, 0.0, 1.0);
 }
@@ -310,13 +310,13 @@ vec3 lighting(in vec3 position, in vec3 normal, in vec2 coords, in vec3 viewDir,
 {
     vec3 lightPos = lightPosition();
     vec3 lightCol = lightColor();
-
+    
     float lightAtten = lightIntensity() / pow(distance(position, lightPos), 2.0);
-
+    
     // The floor/wall pattern/
     float zig = abs(mod(position.x * 4.0, 2.0) - 1.0) + abs(mod(position.y * 4.0 - 1.0, 2.0) - 1.0) + abs(mod(position.z * 4.0, 2.0) - 1.0);
     zig = step(1.0, zig);
-
+    
     // "Left" is gold, "right" is white "marble".
     vec3 color = mix(vec3(1.0, 0.94, 0.75) * 0.47, vec3(0.72), zig);
     float shininess = mix(0.4, 0.1, zig);
@@ -328,43 +328,43 @@ vec3 lighting(in vec3 position, in vec3 normal, in vec2 coords, in vec3 viewDir,
         roughness = 0.2;
         shininess = 0.05;
     }
-
+        
 	// _lighting_
     vec3 lightDir = normalize(lightPos - position);
-
-
+    
+    
     // Diffuse terms, e.g. "I like you as a friend."
     float ndotl = dot(normal, normalize(lightDir));
-
+    
     float diffuseLambert = max(0.0, ndotl);
-
-
+    
+    
     // Specular terms.
     float ndoth = dot(normal, normalize(-viewDir + lightDir));
     float ldotr = dot(lightDir, reflect(viewDir, -normal));
-
+    
     float specularBlinnPhong = pow(max(ndoth, 0.0), roughness);
     float specularPhong = pow(max(ldotr, 0.0), roughness);
-
-
+    
+    
     // Ambient Occlusion
     float ao = ao(position, normal);
-
-
+    
+    
     // Finals. I hate finals.
     // Joking. I finished school. Too cool (B
-
+    
     float ambient = 0.6;
     float diffuse = diffuseLambert * (1.0 - ambient);
-
+    
     // You can swap specularBlinnPhong for specularPhong. That's your decision.
     float specular = specularBlinnPhong * shininess;
 
-
+    
     // Uncomment and play with the below line to check out specific terms!
     // return vec3(ao);
-
-
+    
+    
     // aaand boom.
     return vec3(ambient * color + (diffuse * color + specular) * ao * lightAtten) * lightCol;
 }
@@ -374,7 +374,7 @@ vec3 lighting(in vec3 position, in vec3 normal, in vec2 coords, in vec3 viewDir,
 mat4 viewMatrix(vec3 eye, vec3 center, vec3 up) {
     vec3 f = normalize(center - eye);
     vec3 s = normalize(cross(f, up));
-    vec3 u = cross(s, f);
+    vec3 u = cross(s, f); 
     return mat4(
         vec4(s, 0.0),
         vec4(u, 0.0),
@@ -387,10 +387,10 @@ mat4 viewMatrix(vec3 eye, vec3 center, vec3 up) {
 float getTake() {
     const float take_duration = 9.0;
     const float take_count = 3.0;
-
+    
     // Uncomment below line to force a take!
     // return 1.0;
-
+    
     return float(int(mod(time2 / take_duration, take_count) * take_duration) / int(take_duration));
 }
 
@@ -399,22 +399,22 @@ vec3 getEye() {
     vec3 eye2 = rotY(time2 * 0.15) * vec3(3.0, 0.8, 2.0);
     vec3 eye3 = vec3(sin(time2 * 0.2) * 4.5, 2.0, cos(time2 * 0.2) * 1.0);
     // Three-eyed beast.
-
-
+    
+    
     float take = getTake();
-
+    
     vec3 eye = mix(eye1, eye2, step(1.0, take));
     eye = mix(eye, eye3, step(2.0, take));
-
+    
     return eye;
 }
 
 float getFov() {
     float take = getTake();
-
+    
     float fov = mix(60.0, 90.0, step(1.0, take));
     fov = mix(fov, 30.0, step(2.0, take));
-
+    
     return fov;
 }
 
@@ -424,97 +424,97 @@ void main()
     // This global variable is what makes the TAA tick.
     time2 = iTime;
 
-
+    
     // The left one, or the right one? I hope the right one.
-
-    vec2 coord = gl_FragCoord.xy / iResolution.xy;
-
+    
+    vec2 coord = gl_FragCoord.xy.xy / iResolution.xy;
+    
     vec3 color = vec3(0.0);
-
+    
     float dt = 0.0;
     float da = 0.0;
-
-
+    
+    
     // Just for safety.
     float ttime2 = iTime;
-
-
+    
+    
     #define DS float(TAA_SAMPLES)
     #define DDT 0.001
-
+    
     // Let's play with time2.
     for (dt = -DS*0.5*DDT; dt < DS*0.5*DDT; dt += DDT)
     {
         // Angle by which a sample will be offset
         da = dt / DDT;
 
-
+        
         // Wheeee~
         time2 = ttime2 + dt;
-
+        
 
         // Every game needs it.
         vec3 cameraShake = vec3(cosf(time2 * 3.3), sinf(time2 * 3.7), cosf(time2 * 4.3)) * 0.015 * (getFov() / 60.0);
         // getFov() / 60.0 is just to weaken the shake for smaller FoVs
-
+        
         vec3 eye = getEye() + cameraShake;
         mat4 viewToWorld = viewMatrix(eye, vec3(0.0, -0.5, 0.0) + cameraShake, vec3(0.0, 1.0, 0.0));
 
         // Offset the sample a bit for every sample, free AA! \o/
         vec2 sampleOffset = vec2(cos(da), sin(da)) * 0.4;
 
-        vec3 viewDir = rayDirection(getFov(), iResolution.xy, gl_FragCoord.xy + sampleOffset);
+        vec3 viewDir = rayDirection(getFov(), iResolution.xy, gl_FragCoord.xy.xy + sampleOffset);
         vec3 worldDir = (viewToWorld * vec4(viewDir, 0.0)).xyz;
-
-
+        
+        
         // Hit it!
         DistMat hitInfo = shortestDistanceToSurface(eye, worldDir, MIN_DIST, MAX_DIST);
 
-
+        
         // Magenta helps every time2.
         vec3 c = vec3(1.0, 0.0, 1.0);
 
         if (hitInfo.dist < MAX_DIST)
-        {
+        {    
             vec3 p = eye + hitInfo.dist * worldDir;
             vec3 n = normal(p, worldDir);
 
-            c = lighting(p, n, gl_FragCoord.xy / iResolution.xy, worldDir, hitInfo.mat);
+            c = lighting(p, n, gl_FragCoord.xy.xy / iResolution.xy, worldDir, hitInfo.mat);
         }
 
         color += c;
     }
-
-
+    
+    
     // I wrote this a long time2 ago and for most values of DS it just works soooo
     color /= DS;
-
-
+    
+    
     float l = luminance(color);
-
+    
 #ifdef TONEMAPPING
     l *= 4.0;
     l /= 1.0 + l;
-
+    
     // That's Reinhardt tonemapping... I think
     color /= l;
 #endif
-
+    
 #ifdef PP
     // Cool hue changing vignette
     color = pow(color, mix(vec3(1.0), vec3(1.0, 1.1, 1.25), 0.1 + length(coord - 0.5)));
-
+    
     // Cool DARKNESS vignette
     color *= mix(1.0, 0.5, pow(length(coord - 0.5), 2.0));
-
+    
     // Cool grain- okay, noise.
     color += 0.1 * pow(1.0 - l, 1.5) * hash(vec3(coord, time2));
-
+    
     // Cool.
     color = mix(color, vec3(1.0), 0.05);
 #endif
 
-
+    
     // Throw it out!
-	gl_FragColor	= vec4(color, 1.0);
+	fragColor	= vec4(color, 1.0);
 }

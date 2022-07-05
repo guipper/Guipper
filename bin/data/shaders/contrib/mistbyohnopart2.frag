@@ -39,7 +39,7 @@ vec3 re(vec3 p, float d) {
 void amod2(inout vec2 p, float d) {
 	// should be atan(p.y, p.x) but I had this function for a while
 	// and putting parameters like this add a PI/6 rotation.
-	float a = re(vec3(atan(p.x, p.y)), d).x;
+	float a = re(vec3(atan(p.x, p.y)), d).x; 
 	p = vec2(cos(a), sin(a)) * length(p);
 }
 
@@ -216,8 +216,8 @@ void glitch(inout vec2 uv, float start_time2_stamp, float end_time2_stamp)
 	// glitch pixellate
 	if (time2 > start_time2_stamp && time2 <= end_time2_stamp) uv = floor(uv * res) / res;
 
-	int seedX = int(gl_FragCoord.x + time2) / 32;
-	int seedY = int(gl_FragCoord.y + time2) / 32;
+	int seedX = int(gl_FragCoord.xy.x + time2) / 32;
+	int seedY = int(gl_FragCoord.xy.y + time2) / 32;
 	int seed = mod(time2, 2.) > 1. ? seedX : seedY;
 
 
@@ -232,7 +232,7 @@ void glitch(inout vec2 uv, float start_time2_stamp, float end_time2_stamp)
 ////////////////////////// MAIN FUNCTION //////////////////////////
 
 void main() {
-	vec2 q = fragCoord.xy / iResolution.xy;
+	vec2 q = gl_FragCoord.xy.xy / iResolution.xy;
     vec2 uv = (q - .5) * iResolution.xx / iResolution.yx;
 
 	/* just code for the shadertoy port */

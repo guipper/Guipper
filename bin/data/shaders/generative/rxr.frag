@@ -24,5 +24,5 @@ void main()
 		  e2 = smoothstep(0.02,0.75,e2);
 		  e2 = sin(e2*100.0+time);
 	vec3 fin = vec3(e2);
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 }

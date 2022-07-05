@@ -162,7 +162,7 @@ float curve(in vec3 p, in float w){
 void main(){
 	
 	// Screen coordinates.
-	vec2 uv = (fragCoord - iResolution.xy*0.5)/iResolution.y;
+	vec2 uv = (gl_FragCoord.xy - iResolution.xy*0.5)/iResolution.y;
 	
 	// Camera Setup.
 	vec3 camPos = vec3(0.0, 0.0, iTime*5.); // Camera position, doubling as the ray origin.

@@ -21,7 +21,7 @@ vec2 fb( vec3 p, float s, float m, float b ) // fb "fucking bit" function make a
   t.x*=0.7; return t; //Tweak distance field to avoid artifact and return the whole shit
 }
 vec2 mp( vec3 p )
-{
+{ 
   p.xy*=r2(.3);//tilt the whole fucking scene a bit forward, make it more menacing, like a cross armed BTP officers fining skateboarders in the Corporation of London
   np=bp=pp=p; bp.xy+=vec2(3,12); bp.xy*=r2(5.5-sin(tt)*.2);pp.x=mod(pp.x+tt*5.,20.)-10.; //Setup new positions np, bp and pp used in kifs below and then  passed to fb to generate more geometries
   at=min(0.,(length(p+vec3(sin(tt*.5)*50.,-sin(p.y*.5+tt*5.)*5.,0))-30.)/30.); //spherical field displacement reverse attractor bullshit, name it whatever you wish, I'm way too busy counting the grains of rice in this bag.
@@ -40,7 +40,7 @@ vec2 mp( vec3 p )
     pp=abs(pp)-vec3(5,5.5,0);//Fucking hell one more kifs? One trick poney bullshit right there. Well fuck it I just needed one more kif for the structure at bottom and top
     pp.yz*=r2(0.45);//Rather dull simple shit here brohs...
     pp.xz*=r2(0.1); //...I've seen more exciting stuff happen at a funeral
-  }
+  }  
   vec2 h,t=fb(np,1.2,3.,0.); //Now we have all the new positions, we call fucking bit function with the more complex position np to create faces
   h=fb(bp,3.+sin(bp.z*.5)*2.,6.,0.); t=t.x<h.x?t:h;//Then we call again fucking bit this time with bp complex position to create the bottom jaw
   h=fb(pp,30.,6.,0.); t=t.x<h.x?t:h; //Finally we call fucking bit a third time with pp complex position to create structure above and bellow
@@ -61,10 +61,10 @@ vec2 mp( vec3 p )
   h.x=max(h.x,pp.x-0.6);h.x*=0.6; //Cut ears with plane to reveal the onion skin edges, then tweak distance field to avoid artifact due to spherical attractor
   t=t.x<h.x?t:h; return t; // Add cat ears and return the whole shit
 }
-vec2 tr( vec3 ro, vec3 rd ) // main trace / raycast / raymarching loop function
+vec2 tr( vec3 ro, vec3 rd ) // main trace / raycast / raymarching loop function 
 {
   vec2 h,t= vec2(.1); //Near plane because when it all started the hipsters still lived in Norwich and they only wore tweed.
-  for(int i=0;i<128;i++){ //Main loop de loop
+  for(int i=0;i<128;i++){ //Main loop de loop 
     h=mp(ro+rd*t.x); //Marching forward like any good fascist army: without any care for culture theft. (get distance to geom)
     if(h.x<.0001||t.x>120.) break; //Conditional break we hit something or gone too far. Don't let the bastards break you down!
     t.x+=h.x;t.y=h.y; //Huge step forward and remember material id. Let me hold the bottle of gin while you count the colours.
@@ -76,7 +76,7 @@ vec2 tr( vec3 ro, vec3 rd ) // main trace / raycast / raymarching loop function
 #define s(d) smoothstep(0.,1.,mp(po+ld*d).x/d)
 void main()//2 lines above are a = ambient occlusion and s = sub surface scattering
 {
-  vec2 uv=(fragCoord.xy/iResolution.xy-0.5)/vec2(iResolution.y/iResolution.x,1); //get UVs, nothing fancy,
+  vec2 uv=(gl_FragCoord.xy.xy/iResolution.xy-0.5)/vec2(iResolution.y/iResolution.x,1); //get UVs, nothing fancy, 
   tt=mod(iTime,62.8318);  //Time variable, modulo'ed to avoid ugly artifact. Imagine moduloing your timeline, you would become a cry baby straight after dying a bitter old man. Christ, that's some fucking life you've lived, Steve.
   bb=0.5+clamp(sin(tt*.5),-.5,.5);
   vec3 ro=mix(vec3(1),vec3(1,-1,-1),ceil(sin(tt*.2)))*vec3(30.+sin(tt*.2)*4.,sin(tt*.1)*3.,cos(tt*.2)*15.),//Ro=ray origin=camera position We build camera right here broski. Gotta be able to see, to peep through the keyhole.
@@ -88,7 +88,7 @@ void main()//2 lines above are a = ambient occlusion and s = sub surface scatter
   if(z.y>0.){ //Yeah we hit something, just like me stumbling home after 7 pints
     po=ro+rd*t; //Get ray pos, know where you at, be where you is.
     no=normalize(e.xyy*mp(po+e.xyy).x+e.yyx*mp(po+e.yyx).x+e.yxy*mp(po+e.yxy).x+e.xxx*mp(po+e.xxx).x); //Make some fucking normals. You do the maths while I count how many instances of Holly Willoughby there really is.
-    al=vec3(.4-sin(po.y*.5)*.2,.1,.2); //al=albedo=base color, by default it's a gradient between purple and dark blue.
+    al=vec3(.4-sin(po.y*.5)*.2,.1,.2); //al=albedo=base color, by default it's a gradient between purple and dark blue. 
     if(z.y<5.) al=vec3(0); //material ID < 5 makes it black
     if(z.y>5.) al=vec3(1); //material ID > 5 makes it white
     float dif=max(0.,dot(no,ld)), //Dumb as fuck diffuse lighting

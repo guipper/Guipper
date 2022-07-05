@@ -6,12 +6,12 @@
  *
  * Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
  *
- * This shader, as always, uses a lot of code (raymarching, noise and lighting) credited to iq
- * [ https://www.shadertoy.com/view/Xds3zN ].
+ * This shader, as always, uses a lot of code (raymarching, noise and lighting) credited to iq 
+ * [ https://www.shadertoy.com/view/Xds3zN ]. 
  * Camera path is based on Shane's "Subterranean Fly-Through" [ https://www.shadertoy.com/view/XlXXWj ].
  * Additional specular lighting trick is based on "Wet stone" by TDM [ https://www.shadertoy.com/view/ldSSzV ].
  * Thanks for sharing great code guys!
- *
+ * 
  * The shader was created and exported from Synthclipse [ http://synthclipse.sourceforge.net/ ].
  */
 
@@ -212,7 +212,7 @@ mat3 rotationZ(float a) {
 }
 
 void main() {
-	vec2 q = fragCoord / iResolution.xy;
+	vec2 q = gl_FragCoord.xy / iResolution.xy;
 	vec2 coord = 2.0 * q - 1.0;
 	coord.x *= iResolution.x / iResolution.y;
 	coord *= FOV;

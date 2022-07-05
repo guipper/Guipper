@@ -4,7 +4,7 @@ uniform sampler2DRect iChannel0;
 
 void main()
 {
- 	vec2 UV = gl_FragCoord.xy / iResolution.xy;
+ 	vec2 UV = gl_FragCoord.xy.xy / iResolution.xy;
     
     // Chromatic Abberation
     vec2 CAOffset = (UV - 0.5) * 0.005;

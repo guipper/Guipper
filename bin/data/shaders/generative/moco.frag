@@ -52,7 +52,7 @@ void main()
 	uv.x*=fix;
 	
 	vec2 coords = gl_FragCoord.xy ;
-	vec4 fb =  texture(feedback, coords*resolution.xy);
+	vec4 fb =  texture2D(feedback, coords*resolution.xy);
 	
 
 	vec2 p = vec2(0.5*fix,0.5);
@@ -74,7 +74,7 @@ void main()
 	
 	vec3 fin = dib;
 	
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0); 
 }
 
 

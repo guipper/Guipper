@@ -9,10 +9,10 @@ uniform float cfest;
 void main()
 {
 		vec2 uv = gl_FragCoord.xy / resolution;
-	//vec4 fin = texture(backbuffer,uv);
+	//vec4 fin = texture2D(backbuffer,uv);
 
-	vec4 cf = texture(texture1,vec2(uv.x,uv.y));
-	vec4 cf2 = texture(texture1,vec2(1.-uv.y,1.-uv.x));
+	vec4 cf = texture2D(texture1,vec2(uv.x,uv.y));
+	vec4 cf2 = texture2D(texture1,vec2(1.-uv.y,1.-uv.x));
 
 	vec2 puv = uv;
 
@@ -22,7 +22,7 @@ void main()
 	puv-=vec2(0.5);
 	puv*=scale(vec2(1.0-cfe*mcfest));
 	puv+=vec2(0.5);
-	vec4 prev = texture(feedback,puv);
+	vec4 prev = texture2D(feedback,puv);
     vec3 fin = cf.rgb+vec3(0.2);
 
 
@@ -34,6 +34,6 @@ void main()
   		fin = prev.rgb*fbst*1.01	;
   		fin = lm(fin,vec3(limitburn),vec3(dec));
   		}
-	gl_FragColor = vec4(fin, 1.0);
+	fragColor = vec4(fin, 1.0);
 
 }

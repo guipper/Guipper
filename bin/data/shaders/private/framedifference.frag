@@ -8,11 +8,11 @@ uniform sampler2D textura2;
 uniform bool origcolor;
 void main()
 {	
-	vec2 uv = gl_FragCoord.xy / resolution;
+	vec2 uv = fragCoord.xy / resolution;
 	
-	vec4 t1 =  texture(textura1, gl_FragCoord.xy/resolution);
-	vec4 t2 =  texture(textura2, gl_FragCoord.xy/resolution);
-	vec4 fb =  texture(feedback, gl_FragCoord.xy/resolution);
+	vec4 t1 =  texture2D(textura1, fragCoord.xy/resolution);
+	vec4 t2 =  texture2D(textura2, fragCoord.xy/resolution);
+	vec4 fb =  texture2D(feedback, fragCoord.xy/resolution);
 	
 	
 	vec3 dif = abs(t2.rgb - t1.rgb);
@@ -27,11 +27,11 @@ void main()
 		fin = dif ;
 		}
 	}
-	
+	 
 		fin += fb.rgb *mapr(force,0.0,1.01);
-		
-		
-	gl_FragColor = vec4(fin,1.0);
+		 
+		 
+	fragColor = vec4(fin,1.0); 
 }
 
 

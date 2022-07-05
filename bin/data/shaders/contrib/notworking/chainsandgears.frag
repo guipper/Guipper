@@ -674,9 +674,9 @@ vec3 GetSceneColourPrimary( const in C_Ray ray )
 
 float kFarClip = 30.0;
 
-void GetCameraRay( const in vec3 vPos, const in vec3 vForwards, const in vec3 vWorldUp, const in vec2 fragCoord, out C_Ray ray)
+void GetCameraRay( const in vec3 vPos, const in vec3 vForwards, const in vec3 vWorldUp, const in vec2 gl_FragCoord.xy, out C_Ray ray)
 {
-    vec2 vUV = ( fragCoord.xy / iResolution.xy );
+    vec2 vUV = ( gl_FragCoord.xy.xy / iResolution.xy );
     vec2 vViewCoord = vUV * 2.0 - 1.0;
 
     float fRatio = iResolution.x / iResolution.y;
@@ -692,12 +692,12 @@ void GetCameraRay( const in vec3 vPos, const in vec3 vForwards, const in vec3 vW
     ray.fLength = kFarClip;      
 }
 
-void GetCameraRayLookat( const in vec3 vPos, const in vec3 vInterest, const in vec2 fragCoord, out C_Ray ray)
+void GetCameraRayLookat( const in vec3 vPos, const in vec3 vInterest, const in vec2 gl_FragCoord.xy, out C_Ray ray)
 {
     vec3 vForwards = normalize(vInterest - vPos);
     vec3 vUp = vec3(0.0, 1.0, 0.0);
 
-    GetCameraRay(vPos, vForwards, vUp, fragCoord, ray);
+    GetCameraRay(vPos, vForwards, vUp, gl_FragCoord.xy, ray);
 }
 
 vec3 OrbitPoint( const in float fHeading, const in float fElevation )
@@ -721,7 +721,7 @@ void main()
 {
     C_Ray ray;
 
- 	GetCameraRayLookat( OrbitPoint(iTime * 0.3, cos(iTime * 0.2) * 0.3 + 0.4) * 7.0, vec3(0.0, 0.0, 0.0), fragCoord, ray);
+ 	GetCameraRayLookat( OrbitPoint(iTime * 0.3, cos(iTime * 0.2) * 0.3 + 0.4) * 7.0, vec3(0.0, 0.0, 0.0), gl_FragCoord.xy, ray);
 
     vec3 cScene = GetSceneColourPrimary( ray );  
 
@@ -729,7 +729,7 @@ void main()
     fragColor = vec4( Tonemap(cScene * fExposure), 1.0 );
 }
 
-void mainVR( out vec4 fragColor, in vec2 fragCoord, in vec3 fragRayOri, in vec3 fragRayDir )
+void mainVR( out vec4 fragColor, in vec2 gl_FragCoord.xy, in vec3 fragRayOri, in vec3 fragRayDir )
 {
     C_Ray ray;
     

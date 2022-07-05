@@ -28,7 +28,7 @@ vec4 segment( float x0, float x1, vec2 uv, float id, float time, float f )
 }
 
 void main(){
-  vec2 uv = (-resolution.xy+2.0*gl_FragCoord.xy) / max(resolution.x,resolution.y);
+  vec2 uv = (-resolution.xy+2.0*gl_FragCoord.xy.xy) / max(resolution.x,resolution.y);
 	uv *= 5.0;
 
   vec2 st = vec2( length(uv), atan(uv.y, uv.x) );
@@ -58,7 +58,7 @@ void main(){
 
   tot = tot / float(numSamples);
 
- 	gl_FragColor = vec4( tot, 1.0);
+ 	fragColor = vec4( tot, 1.0);
 
-	//gl_FragColor = vec4(fin,1.0);
+	//fragColor = vec4(fin,1.0);
 }

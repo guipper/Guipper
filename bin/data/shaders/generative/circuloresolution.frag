@@ -12,11 +12,11 @@ void main()
     float fx = resolution.x/resolution.y;
 	uv.x*=fx;
 	//uv.x*=resolution.y/resolution.x;
-	vec2 m = vec2(mouse.x*fx,mouse.y);
+	
 
 	//float e = poly(uv,m,0.4,0.4,mpuntas,0.0); // pincel
 	float e = cir(uv,vec2(posx*fx,posy),size,sizedif);
 	vec3 fin = vec3(e);
 	//fin.r*=0.2;
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 }

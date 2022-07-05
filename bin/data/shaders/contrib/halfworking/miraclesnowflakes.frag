@@ -166,7 +166,7 @@ void main()
 {
     float time = iTime*0.2;//*0.1;
     res = 1.0 / iResolution.y;
-	vec2 p = (-iResolution.xy + 2.0*fragCoord.xy) *res;
+	vec2 p = (-iResolution.xy + 2.0*gl_FragCoord.xy.xy) *res;
 	//p.y = -p.y;
     vec3 rotate;
     

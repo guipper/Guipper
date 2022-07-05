@@ -176,7 +176,7 @@ float chequer(vec2 p)
 
 void main()
 {
-    vec2 uv = fragCoord / iResolution.xy;
+    vec2 uv = gl_FragCoord.xy / iResolution.xy;
     
     vec2 t = uv * 2. - 1. + 1e-3;
     t.x *= iResolution.x / iResolution.y;

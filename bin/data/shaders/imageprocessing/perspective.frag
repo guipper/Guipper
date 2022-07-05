@@ -16,9 +16,10 @@ void main()
 	vec2 iuv = vec2(uv.x/uv.y, 1./uv.y*2.)*height*10.;
     iuv.x+=sign(uv.y)*tx;
     iuv.y+=sign(uv.y)*ty;
-	vec4 t1 =  texture(texture1, abs(0.5-fract(-iuv*size*.5)));
+	vec4 t1 =  texture2D(texture1, abs(0.5-fract(-iuv*size*.5)));
 	vec3 fin = t1.rgb * smoothstep(0.,fade,abs(uv.y));
 		
 	
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 }
+ 

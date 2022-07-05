@@ -598,9 +598,9 @@ vec3 getGlassAbsColor(float dist, vec3 color)
 }
 
 // Main render function with reflections and refractions
-vec4 render(vec2 fragCoord)
+vec4 render(vec2 gl_FragCoord.xy)
 {   
-  	vec2 uv = fragCoord.xy / iResolution.xy; 
+  	vec2 uv = gl_FragCoord.xy.xy / iResolution.xy; 
   	uv = uv*2.0 - 1.0;
   	uv.x*= iResolution.x / iResolution.y;
 
@@ -663,13 +663,13 @@ void main(){
        for (int i=0;i<aasamples ;i++)
        {
           float ox = float(i)*aawidth/max(float(aasamples-1), 1.);
-          vs+= render(fragCoord + vec2(ox, oy));
+          vs+= render(gl_FragCoord.xy + vec2(ox, oy));
           aaIndex++;
        }
     }
-    vec2 uv = fragCoord.xy / iResolution.xy;
+    vec2 uv = gl_FragCoord.xy.xy / iResolution.xy;
     fragColor = vs/vec4(aasamples*aasamples);
     #else
-    fragColor = render(fragCoord);
+    fragColor = render(gl_FragCoord.xy);
     #endif
 }

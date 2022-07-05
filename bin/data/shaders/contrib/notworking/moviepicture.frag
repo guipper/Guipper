@@ -240,7 +240,7 @@ mat3 LookAt(in vec3 P, in vec3 focusP)
 
 void main()
 {
-	vec2 uv = (2.0*fragCoord.xy - iResolution.xy) / iResolution.xx;
+	vec2 uv = (2.0*gl_FragCoord.xy.xy - iResolution.xy) / iResolution.xx;
 	uv.y  = -uv.y;
     float t = iTime;
     
@@ -283,7 +283,7 @@ void main()
     R.xy*=2.2;
     R.x*=0.48;
     //R.y*= -R.y;
-      vec3 test= texture(iChannel1,R.xy/resolution).xyz;
+      vec3 test= texture2D(iChannel1,R.xy/resolution).xyz;
     // Modify material.
     vec3 texColor = vec3(1.0);
     float maxv = max(texColor.r, max(texColor.g, texColor.b));

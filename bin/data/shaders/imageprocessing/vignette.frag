@@ -1,10 +1,10 @@
 #pragma include "../common.frag" //ESta linea tiene todas las definiciones de las funciones globales
 
 uniform sampler2D textura1;
-uniform float size;
-uniform float difuse;
-uniform bool respectaspectradio;
-uniform bool quadvignette;
+uniform float size ;
+uniform float difuse ;
+uniform bool respectaspectradio ;
+uniform bool quadvignette ;
 
 void main(){
 	
@@ -26,7 +26,7 @@ void main(){
 	
 	float r = length(p);
 	
-	vec4 t1 =  texture(textura1, uv2/resolution);
+	vec4 t1 =  texture2D(textura1, uv2/resolution);
 		
 	float v = 0;
 
@@ -51,6 +51,6 @@ void main(){
 	
 	vec3 fin = t1.rgb * v;
 	//fin = vec3(cir(uv,vec2(0.5*fx,0.5),0.4,0.0));
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0); 
 }
 

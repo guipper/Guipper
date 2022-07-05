@@ -3,7 +3,7 @@
 #define iResolution resolution
 #define iMouse mouse
 #define texture(tex,uv) texture2DRect(tex,(uv)*resolution)
-#define fragCoord gl_FragCoord.xy
+#define gl_FragCoord.xy gl_FragCoord.xy.xy
 //#pragma include "../common.frag"
 #define PI 3.14159265359
 #define rot(a) mat2(cos(a + PI*0.5*vec4(0,1,3,0)))
@@ -432,10 +432,10 @@ vec3 getBackground( in vec3 dir ) {
 }
 
 // return ray color for this position and direction
-vec4 getColor( in vec2 fragCoord, in vec3 from, in vec3 dir ) {
+vec4 getColor( in vec2 gl_FragCoord.xy, in vec3 from, in vec3 dir ) {
     
     // get random stuff
-    vec3 rnd = hash33(vec3(fragCoord, iFrame*2.+0.));
+    vec3 rnd = hash33(vec3(gl_FragCoord.xy, iFrame*2.+0.));
     
     // find the angular extent of this pixel
     vec3 ddir = normalize(dir+fwidth(dir)*0.5);
@@ -482,17 +482,17 @@ vec4 getColor( in vec2 fragCoord, in vec3 from, in vec3 dir ) {
 }
 
 // vr entry point
-void mainVR( out vec4 fragColor, in vec2 fragCoord, in vec3 fragRayOri, in vec3 fragRayDir ) {
+void mainVR( out vec4 fragColor, in vec2 gl_FragCoord.xy, in vec3 fragRayOri, in vec3 fragRayDir ) {
     
     // get color and mix with background
-    vec4 col = getColor(fragCoord, fragRayOri/VR_SCALE, fragRayDir);
+    vec4 col = getColor(gl_FragCoord.xy, fragRayOri/VR_SCALE, fragRayDir);
     fragColor.rgb = mix(getBackground(fragRayDir), col.rgb, col.a);
     // tonemapping
     fragColor.rgb = fragColor.rgb / (fragColor.rgb + vec3(1.0));
     // gamma correction
     fragColor.rgb = pow(fragColor.rgb, vec3(1.0/2.2));
     // add noise
-    vec3 rnd = hash33(vec3(fragCoord, iFrame*2.0+1.0));
+    vec3 rnd = hash33(vec3(gl_FragCoord.xy, iFrame*2.0+1.0));
     fragColor.rgb += (rnd-0.5)*0.08;
     
     fragColor.a = 1.0;
@@ -501,7 +501,7 @@ void mainVR( out vec4 fragColor, in vec2 fragCoord, in vec3 fragRayOri, in vec3 
 // main entry point, simulate vr input
 void main() {
     
-    vec2 uv = fragCoord - iResolution.xy * 0.5;
+    vec2 uv = gl_FragCoord.xy - iResolution.xy * 0.5;
     uv /= iResolution.y;
     
     vec3 from = vec3(0, 0, -2.0);
@@ -522,10 +522,10 @@ void main() {
     dir.xz *= rot(r.x);
     from.xz *= rot(r.x);
     
-    mainVR(fragColor, fragCoord, from*VR_SCALE, dir);
+    mainVR(fragColor, gl_FragCoord.xy, from*VR_SCALE, dir);
     
     // add some vignetting in non vr
-    vec2 uvv = fragCoord / iResolution.xy * 2.0 - 1.0;
+    vec2 uvv = gl_FragCoord.xy / iResolution.xy * 2.0 - 1.0;
     float vigD = dot(uvv, uvv);
     fragColor.rgb = mix(fragColor.rgb, vec3(0), vigD*0.3);
     

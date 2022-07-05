@@ -5,7 +5,7 @@ uniform float posx;
 uniform float posy;
 uniform float lk;
 uniform sampler2D miimagen;
-//uniform float posyasdqwd;
+//uniform float posyasdqwd; 
 void main()
 {
 	vec2 uv = gl_FragCoord.xy / resolution;
@@ -22,5 +22,5 @@ void main()
 	
 	img.r = sin(uv.x*100.+time);
 	//fin.r*=0.2;
-	gl_FragColor = vec4(img.rgb,1.0);
+	fragColor = vec4(img.rgb,1.0);
 }

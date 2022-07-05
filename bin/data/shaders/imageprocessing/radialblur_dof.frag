@@ -22,7 +22,7 @@ void main()
       for(float a=0.; a<it; a+=st) {
         i+=r;
         vec2 p=vec2(sin(a),cos(a))*r*radstep*10.*ff;
-        vec3 aC=texture(input_texture,(gl_FragCoord.xy+p)/resolution).rgb;
+        vec3 aC=texture2D(input_texture,(gl_FragCoord.xy+p)/resolution).rgb;
   		  R+=aC*r;
       };
     }

@@ -66,5 +66,5 @@ void main()
 	uv-=.5;
 	uv.x*=resolution.x/resolution.y;
 	col+=part(uv);
-	gl_FragColor = vec4(col, 1.); 
+	fragColor = vec4(col, 1.); 
 }

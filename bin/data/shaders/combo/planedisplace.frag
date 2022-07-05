@@ -83,10 +83,10 @@ vec3 march(vec3 from, vec3 dir) {
 
 void main()
 {
-  vec2 uv = gl_FragCoord.xy/resolution-.5;
+  vec2 uv = fragCoord.xy/resolution-.5;
   uv.x*=resolution.x/resolution.y;
   vec3 dir = normalize(vec3(uv,1.));
   vec3 from = vec3(0.,0.,-dist*5.);
   vec3 col=march(from, dir);
-  gl_FragColor = vec4(col,1.);
+  fragColor = vec4(col,1.);
 }

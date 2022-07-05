@@ -178,7 +178,7 @@ geometry trace(vec3 o, vec3 d) {
 
 void main() {
     
-    vec2 ouv = fragCoord.xy / iResolution.xy;
+    vec2 ouv = gl_FragCoord.xy.xy / iResolution.xy;
     vec2 uv = ouv - .5;
 
     uv *= tan(radians (FOV) / 2.0) * 4.;

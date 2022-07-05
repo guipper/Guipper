@@ -8,10 +8,6 @@ uniform float noisex;
 uniform float noisey;
 vec2 scale(vec2 uv, float s);
 
-float rad(vec2 uv);
-float ang(vec2 uv);
-
-
 float random (in vec2 _st);
 float sm(float v1,float v2,float val){return smoothstep(v1,v2,val);}
 
@@ -98,15 +94,15 @@ float ridgedMF2(vec2 p) {
     }
     return sum;
 }
-void main(void){
+void main(void){   
     vec2 uv = gl_FragCoord.xy/resolution.xy;
     float fx = resolution.x/resolution.y;
     uv.x *= fx;
-
+    
     vec2 p = vec2(0.5*fx,0.5) - uv;
     float r = length(p);
     float a = atan(p.x,p.y);
-
+    
     vec3 color = vec3(0.0);
 
     float n = snoise(vec2(uv.x*100.*noisex,uv.y*100.*noisey+time*1)*0.002) ;
@@ -115,7 +111,7 @@ void main(void){
         float fas = i*PI*2./cnt;
         uv+=vec2(0.5);
         uv = scale(vec2(1.2))*uv;
-        uv-=vec2(0.5);
+        uv-=vec2(0.5);   
     }
     uv/=cnt;
 
@@ -124,13 +120,13 @@ void main(void){
              *ridgedMF2(vec2(uv.x*1,uv.y-time*0.002)*ridgedMF2(vec2(uv.x*0.5,uv.y*0.5-time*0.002))))
              *sin(uv.x*200.*scalex+fasex*4.0)*sin(uv.y*200.*scaley+fasey*4.0)
              ;
-
+         
     vec3 col1 = vec3(0.1,0.1,0.4);
     vec3 col2 = vec3(1.9,0.8,1.-r);
-
+    
     vec3 fin2 = vec3(smoothstep(0.9,0.5,e*0.0))*(1.-sm(0.0,0.0,r*e*8));
          fin2*=vec3(1.0,0.0,0.0);
-
+    
     vec3 fin = mix(col1,col2,e);
          fin+=fin2;
 

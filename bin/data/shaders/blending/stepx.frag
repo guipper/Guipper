@@ -8,10 +8,10 @@ uniform float degrade;
 uniform float defy;
 void main()
 {
-	vec2 uv = gl_FragCoord.xy / resolution;
+	vec2 uv = fragCoord.xy / resolution;
 
-	vec4 t1 =  texture(textura1, gl_FragCoord.xy/resolution);
-	vec4 t2 =  texture(textura2, gl_FragCoord.xy/resolution);
+	vec4 t1 =  texture2D(textura1, fragCoord.xy/resolution);
+	vec4 t2 =  texture2D(textura2, fragCoord.xy/resolution);
 
 	float ey = abs(sin(uv.y*50.+sin(uv.x*200.-time)+time*2.))*defy;
 	//ey*=ridgedMF(uv*500.0);
@@ -23,5 +23,5 @@ void main()
 	t2.rgb,
 	e*t3.rgb);
 
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 }

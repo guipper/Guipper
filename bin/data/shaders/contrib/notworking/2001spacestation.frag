@@ -266,7 +266,7 @@ vec3 ShowScene (vec3 ro, vec3 rd)
 void main ()
 {
   vec2 canvas = iResolution.xy;
-  vec2 uv = 1. * fragCoord.xy / canvas - 1.;
+  vec2 uv = 1. * gl_FragCoord.xy.xy / canvas - 1.;
   uv.x *= canvas.x / canvas.y;
   tCur = iTime;
   vec4 mPtr = iMouse;

@@ -33,7 +33,7 @@ vec2 rotsim(vec2 p,float s){
 }
 
 float rnd(vec2 v){
-  return sin((sin(((v.y-1453.0)/(v.x+1229.0))*23232.124))*16283.223)*0.5+0.5;
+  return sin((sin(((v.y-1453.0)/(v.x+1229.0))*23232.124))*16283.223)*0.5+0.5; 
 }
 
 float noise2(vec2 v){
@@ -48,9 +48,9 @@ float noise2(vec2 v){
 
 //Util End
 
-
+ 
 //Scene Start
-
+ 
 //Floor
 vec2 obj0(in vec3 p){
   if (p.y<0.4)
@@ -89,10 +89,10 @@ vec2 obj1(vec3 p){
   f=min(f,makeShow(p,1.55, 0.23, 1.16));
   f=min(f,makeShow(p,1.25, 0.41, 1.04));
   f=min(f,makeShow(p,1.49, 0.29, 1.31));
-  f=min(f,makeShow(p,1.31, 1.31, 1.13));
+  f=min(f,makeShow(p,1.31, 1.31, 1.13));  
   return vec2(f,1.0);
 }
-
+ 
 vec3 obj1_c(vec3 p){
     return vec3(1,1,1);
 }
@@ -105,7 +105,7 @@ vec2 obj2(vec3 p){
   float l=length(p);
   if (l<2.0){
   p.xy=rotsim(p.xy,2.5);
-  p.y=p.y-2.0;
+  p.y=p.y-2.0; 
   p.z=abs(p.z);
   p.x=abs(p.x);
   return vec2(dot(p,normalize(vec3(2.0,1,3.0)))/4.0,2);
@@ -115,37 +115,37 @@ vec2 obj2(vec3 p){
 vec3 obj2_c(vec3 p){
   return vec3(1.0,0.5,0.2);
 }
-
+ 
 //Objects union
 vec2 inObj(vec3 p){
   return ObjUnion(ObjUnion(obj0(p),obj1(p)),obj2(p));
 }
-
+ 
 //Scene End
-
+ 
 void main(){
-  vec2 vPos=-1.0+2.0*fragCoord.xy/iResolution.xy;
+  vec2 vPos=-1.0+2.0*gl_FragCoord.xy.xy/iResolution.xy;
 vPos.y = -vPos.y;
   //Camera animation
   vec3 vuv=normalize(vec3(sin(iTime)*0.3,1,0));
   vec3 vrp=vec3(0,cos(iTime*0.5)+2.5,0);
   vec3 prp=vec3(sin(iTime*0.5)*(sin(iTime*0.39)*2.0+3.5),sin(iTime*0.5)+3.5,cos(iTime*0.5)*(cos(iTime*0.45)*2.0+3.5));
-  float vpd=1.5;
-
+  float vpd=1.5;  
+ 
   //Camera setup
   vec3 vpn=normalize(vrp-prp);
   vec3 u=normalize(cross(vuv,vpn));
   vec3 v=cross(vpn,u);
   vec3 scrCoord=prp+vpn*vpd+vPos.x*u*iResolution.x/iResolution.y+vPos.y*v;
   vec3 scp=normalize(scrCoord-prp);
-
+ 
   //lights are 2d, no raymarching
   mat4 cm=mat4(
     u.x,   u.y,   u.z,   -dot(u,prp),
     v.x,   v.y,   v.z,   -dot(v,prp),
     vpn.x, vpn.y, vpn.z, -dot(vpn,prp),
     0.0,   0.0,   0.0,   1.0);
-
+ 
   vec4 pc=vec4(0,0,0,0);
   const float maxl=80.0;
   for(float i=0.0;i<maxl;i++){
@@ -166,14 +166,14 @@ vPos.y = -vPos.y;
   pc=pc/maxl;
 
   pc=smoothstep(0.0,1.0,pc);
-
+  
   //Raymarching
   const vec3 e=vec3(0.1,0,0);
   const float maxd=15.0; //Max depth
-
+ 
   vec2 s=vec2(0.1,0.0);
   vec3 c,p,n;
-
+ 
   float f=1.0;
   for(int i=0;i<64;i++){
     if (abs(s.x)<.001||f>maxd) break;
@@ -181,7 +181,7 @@ vPos.y = -vPos.y;
     p=prp+scp*f;
     s=inObj(p);
   }
-
+  
     if (s.y==0.0)
       c=obj0_c(p);
     else if (s.y==1.0)
@@ -191,14 +191,14 @@ vPos.y = -vPos.y;
       if (s.y<=1.0){
         fragColor=vec4(c*max(1.0-f*.08,0.0),1.0)+pc;
       } else{
-         //tetrahedron normal
+         //tetrahedron normal   
          const float n_er=0.01;
          float v1=inObj(vec3(p.x+n_er,p.y-n_er,p.z-n_er)).x;
          float v2=inObj(vec3(p.x-n_er,p.y-n_er,p.z+n_er)).x;
          float v3=inObj(vec3(p.x-n_er,p.y+n_er,p.z-n_er)).x;
          float v4=inObj(vec3(p.x+n_er,p.y+n_er,p.z+n_er)).x;
          n=normalize(vec3(v4+v1-v3-v2,v3+v4-v1-v2,v2+v4-v3-v1));
-
+  
         float b=max(dot(n,normalize(prp-p)),0.0);
         fragColor=vec4((b*c+pow(b,8.0))*(1.0-f*.01),1.0)+pc;
       }

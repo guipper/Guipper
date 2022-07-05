@@ -14,7 +14,7 @@ vec3 calculateEdge(vec3 input){
 	 vec3 R=vec3(0.);
     for(float i=0.; i<it; i++) {
     	vec2 p=vec2(mod(i,size),floor(i/size))-floor(size*.5);
-        vec3 aC=texture(input_texture,(gl_FragCoord.xy+p)/resolution).rgb;
+        vec3 aC=texture2D(input_texture,(gl_FragCoord.xy+p)/resolution).rgb;
 		    R+=pow(distance(input,aC),effect_exp*3.);
     };
     R/=it;
@@ -36,7 +36,7 @@ vec3 calculateEdge(vec3 input,
 	 vec3 R=vec3(0.);
     for(float i=0.; i<it; i++) {
     	vec2 p=vec2(mod(i,size),floor(i/size))-floor(size*.5);
-        vec3 aC=texture(input_texture,(gl_FragCoord.xy+p)/resolution).rgb;
+        vec3 aC=texture2D(input_texture,(gl_FragCoord.xy+p)/resolution).rgb;
 		R+=pow(distance(input,aC),_effect_exp*3.);
     };
     R/=it;
@@ -47,15 +47,15 @@ vec3 calculateEdge(vec3 input,
 }
 void main()
 {
-
-    vec3 C=texture(input_texture,gl_FragCoord.xy/resolution).rgb;
+    
+    vec3 C=texture2D(input_texture,gl_FragCoord.xy/resolution).rgb;
 	vec3 R = calculateEdge(C);
 		 R = calculateEdge(C,effect_mix,
 		 effect_exp,
 		 color_mix,
 		 sample_size,
 		 brightness);
-		
+		 
     fragColor = vec4(R,1.);
 	/*uniform float effect_mix=1.0;
 	uniform float effect_exp=0.49;

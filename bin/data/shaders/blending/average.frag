@@ -5,12 +5,12 @@ uniform sampler2D textura2;
 uniform float opacity;
 void main()
 {
-	vec2 uv = gl_FragCoord.xy / resolution;
+	vec2 uv = fragCoord.xy / resolution;
 
-	vec4 t1 =  texture(textura1, gl_FragCoord.xy/resolution);
-	vec4 t2 =  texture(textura2, gl_FragCoord.xy/resolution);
-
+	vec4 t1 =  texture2D(textura1, fragCoord.xy/resolution);
+	vec4 t2 =  texture2D(textura2, fragCoord.xy/resolution);
+ 
 	vec3 fin = blendMode(AVERAGE,t1.rgb,t2.rgb,opacity*2.0);
 
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 }

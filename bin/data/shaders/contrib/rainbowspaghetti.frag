@@ -138,7 +138,7 @@ vec2 map(in vec3 pos) {
 	float o2 = torus( b1, -b2, po);
 	float o3 = torus(-b1,  b3, po);
 	float o4 = torus(-b1, -b3, po);
-						
+						 
 	vec2 noodle = vec2(min(max(bd, min(t1,t2)),
 						   max(-bd, min(min(o1, o2), min(o3, o4)))),
 					   hueOf(orig+0.5*vel*iTime));
@@ -220,7 +220,7 @@ void main() {
 	const float yscl = 720.0;
 	const float f = 900.0;
 	
-	vec2 uv = (fragCoord.xy - 0.5*iResolution.xy) * yscl / iResolution.y;
+	vec2 uv = (gl_FragCoord.xy.xy - 0.5*iResolution.xy) * yscl / iResolution.y;
 	
 	vec3 up = vec3(0.0, 1.0, 0.0);
 	
@@ -231,9 +231,9 @@ void main() {
 	float thetax = 0.0;
 	float thetay = 0.0;
 	
-	//if (max(iMouse.x, iMouse.y) > 20.0) {
-		thetax = (iMouse.y - 0.5*iResolution.y) * 3.14/iResolution.y;
-		thetay = (iMouse.x - 0.5*iResolution.x) * -6.28/iResolution.x;
+	//if (max(iMouse.x, iMouse.y) > 20.0) { 
+		thetax = (iMouse.y - 0.5*iResolution.y) * 3.14/iResolution.y; 
+		thetay = (iMouse.x - 0.5*iResolution.x) * -6.28/iResolution.x; 
 	//}
 	thetax = movx*PI*2.0;
 	thetay = movy*PI*2.0;
@@ -242,7 +242,7 @@ void main() {
 	float cy = cos(thetay);
 	float sy = sin(thetay);
 	
-	mat3 Rx = mat3(1.0, 0.0, 0.0,
+	mat3 Rx = mat3(1.0, 0.0, 0.0, 
 				   0.0, cx, sx,
 				   0.0, -sx, cx);
 	

@@ -1,4 +1,4 @@
-#version 150
+#version 330
 
 //UNIVERSAL UNIFORMS
 uniform sampler2D feedback;
@@ -11,8 +11,7 @@ uniform vec2 window_mouse;
 #define iFrame floor (time*60.)
 #define iResolution resolution
 #define iMouse mouse
-#define fragCoord gl_FragCoord.xy
-#define gl_FragColor fragColor
+#define fragCoord fragCoord.xy
 
 vec3 verdejpupper(){return vec3(0.0,1.0,0.8);}
 
@@ -160,7 +159,7 @@ float atan2(float x,float y){
     } else if(x == 0 && y<0){
         return -PI/2;
     }else{
-        return 0.0;
+        return 0;
     }
 }
 
@@ -456,7 +455,7 @@ float fbm (in vec2 uv,in float _time) {
 
 
 ///SOFT LIGHT
-#define ADD 1
+#define ADD 1 
 #define	AVERAGE 2
 #define	COLOR_BURN 3
 #define	COLOR_DODGE 4
@@ -495,7 +494,7 @@ vec3 blendSoftLight(vec3 base, vec3 blend, float opacity) {
 	return (blendSoftLight(base, blend) * opacity + base * (1.0 - opacity));
 }
 
-//ADD :
+//ADD : 
 float blendAdd(float base, float blend) {
 	return min(base+blend,1.0);
 }
@@ -516,7 +515,7 @@ vec3 blendAverage(vec3 base, vec3 blend) {
 vec3 blendAverage(vec3 base, vec3 blend, float opacity) {
 	return (blendAverage(base, blend) * opacity + base * (1.0 - opacity));
 }
-
+  
 float blendColorBurn(float base, float blend) {
 	return (blend==0.0)?blend:max((1.0-((1.0-base)/blend)),0.0);
 }
@@ -684,7 +683,7 @@ vec3 blendReflect(vec3 base, vec3 blend) {
 vec3 blendReflect(vec3 base, vec3 blend, float opacity) {
 	return (blendReflect(base, blend) * opacity + base * (1.0 - opacity));
 }
-
+  
 float blendScreen(float base, float blend) {
 	return 1.0-((1.0-base)*(1.0-blend));
 }

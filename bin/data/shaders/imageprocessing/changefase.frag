@@ -25,12 +25,12 @@ void main()
 	vec2 uvg = gl_FragCoord.xy+offset(fase_g_x,fase_g_y);
 	vec2 uvb = gl_FragCoord.xy+offset(fase_b_x,fase_b_y);
 		
-	vec4 tr =  texture(textura1, uvr/resolution);
-	vec4 tg =  texture(textura1, uvg/resolution);	
-	vec4 tb =  texture(textura1, uvb/resolution);
+	vec4 tr =  texture2D(textura1, uvr/resolution);
+	vec4 tg =  texture2D(textura1, uvg/resolution);	
+	vec4 tb =  texture2D(textura1, uvb/resolution);
 
 	vec3 fin = vec3(tr.r,tg.g,tb.b);
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0); 
 
 }
 

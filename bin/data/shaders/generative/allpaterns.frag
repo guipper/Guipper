@@ -12,8 +12,8 @@ void main()
 
 	float mapspeedx = mapr(speedx,-1.,1.0);
 	float mapspeedy = mapr(speedy,-1.,1.0);
-	float mapscalex = mapr(scalex,0.0,20.0);
-	float mapscaley = mapr(scaley,0.0,20.0);
+	float mapscalex = mapr(scalex,0.0,2000.0);
+	float mapscaley = mapr(scaley,0.0,2000.0);
 	
 	float patron =mapr(pattern,0.0,6.0);
 	
@@ -25,7 +25,7 @@ void main()
 			
 	 float e2 = rxr(vec2(uv.x*mapscalex+time*mapspeedx,
 				  uv.y*mapscaley+time*mapspeedy))*0.5-.5;
-	 e2= smoothstep(0.1,0.8,e2)*8.0;		
+	 e2= smoothstep(0.1,0.8,e2)*8.0;		  
 	 float e3 = ridgedMF(vec2(uv.x*mapscalex+time*mapspeedx
 					 ,uv.y*mapscaley+time*mapspeedy))*0.2;
 	 e3= smoothstep(0.1,0.8,e3)*5.0;	
@@ -59,5 +59,5 @@ void main()
 	 if(patron > 5.0 && patron <=6.0){
 		fin = vec3(mix(e7,e8,patron- 5.0));
 	 }
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 }

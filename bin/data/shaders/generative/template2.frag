@@ -3,9 +3,9 @@
 
 uniform float v1;
 
-
+uniform float azul2 ;
 void main()
 {
 	vec2 uv = gl_FragCoord.xy / resolution;
-	gl_FragColor = vec4(uv.x,uv.y,0.0,1.0);
+	fragColor = vec4(0.,0.0,azul2,1.0);
 }

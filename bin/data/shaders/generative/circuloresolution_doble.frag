@@ -25,5 +25,5 @@ void main()
 		  e+=cir(uv,vec2(posx2*fx+mov,posy2),size2*0.4,sizedif2*0.4);
 	vec3 fin = vec3(e);
 	//fin.r*=0.2;
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 }

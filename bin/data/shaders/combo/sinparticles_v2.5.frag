@@ -18,7 +18,7 @@ uniform float fuerzafeedback;
 void main()
 {
 
-	vec2 uv = gl_FragCoord.xy / resolution.xy;
+	vec2 uv = fragCoord.xy / resolution.xy;
 	vec2 uv2 = uv;
 
 	float fx = resolution.x/resolution.y;
@@ -57,8 +57,8 @@ void main()
 		//uv3 =fract(uv3*4.);
 		float idx = pi * 2.0 *float(i)/float(cnt)*fase;
 		
-		//m.x-=time*0.02;
-
+		//m.x-=time*0.02; 
+      
 		float def =smoothstep(0.3
 		,0.69,sin(uv.y*5.-mspeed*999.)*0.1*sin(uv.x*5.+time));
 		uv3-=vec2(m.x,m.y);
@@ -92,13 +92,13 @@ void main()
 	}
 	
 	
-	vec2 puv = gl_FragCoord.xy;
+	vec2 puv = fragCoord.xy;
 	
 	
 	vec4 fb =  texture2DRect(feedback, puv);
 	
 	vec3 fin = mix(fb.rgb*mfuerzafeedback,dib,dib);
-	  gl_FragColor = vec4(fin,
+	  fragColor = vec4(fin,
 					  1.0);
 
 }

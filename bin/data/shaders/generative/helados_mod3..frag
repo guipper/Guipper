@@ -25,9 +25,9 @@ mat2 rot(float a) {
 }
 
 
-// FUNCIONES DE DISTANCIA PRIMITIVAS
+// FUNCIONES DE DISTANCIA PRIMITIVAS 
 
-float sphere(vec3 p, float rad)
+float sphere(vec3 p, float rad) 
 {
     return length(p) - rad;
 }
@@ -38,7 +38,7 @@ float box(vec3 p, vec3 c)
     return length(max(p,0.))+min(0.,max(p.z,max(p.x,p.y)));
 }
 
-float ground(vec3 p, float y)
+float ground(vec3 p, float y) 
 {
     p.y += y;
     return abs(p.y);
@@ -57,7 +57,7 @@ vec3 opElongate(vec3 p, in vec3 h )
     return  p - clamp( p, -h, h );
 }
 
-float de(vec3 p)
+float de(vec3 p) 
 {
 
 
@@ -65,11 +65,11 @@ float de(vec3 p)
     vec3 pos = p;
 	vec3 po = p;
     float pz = abs(fract(sin(p.z*0.93+time*0.012)*1.0-1));
-
+    
     int cnt = 2;
     vec3 col1 = vec3(0.9,0.2,0.7);
     vec3 col2 = vec3(0.4,0.5,0.8);
-
+   
 	float sph = 0.0;
     for(int i=0; i<cnt; i++){
         float index = i/float(cnt);
@@ -83,13 +83,13 @@ float de(vec3 p)
         pcono.y -=8.2;
 		
 		
-        //pcono.x+= sin(pcono.y*10.*freqx+time*0.+sin(p.z*2.)*10.)*ampx;
+        //pcono.x+= sin(pcono.y*10.*freqx+time*0.+sin(p.z*2.)*10.)*ampx; 
        // pcono.y+=sin(pcono.z*2.+time*.8)*1.5;
 		
 		//pcono = opElongate(p,vec3(0.2));
         float mof = cos(sin(p.z*5.)*0.5+index*pi*4.+time*0.)*defor*0.08;
-        box = min(box,sdCone(pcono,vec2(0.1+mof+.0,0.02+index*0.05+mof),8.1));
-
+        box = min(box,sdCone(pcono,vec2(0.1+mof+.0,0.02+index*0.05+mof),8.1));   
+        
 		
 		
 		vec3 psph = vec3(pcono.x,pcono.y+sin(index*1.+p.z*1+time*.4)*3-3,pcono.z);
@@ -98,39 +98,39 @@ float de(vec3 p)
 		
 		box = min(box,sdSphere( psph, 0.3));
 		sph = min(1.,sdSphere( psph, 0.9));
-		//box = max(box,sdCone(pcono,vec2(0.07+mof+.0,0.02+index*0.05+mof),8.1));
+		//box = max(box,sdCone(pcono,vec2(0.07+mof+.0,0.02+index*0.05+mof),8.1)); 
         vec3 col11 = vec3(0.2,0.7,.9);
         vec3 col12 = vec3(0.8,0.4,0.1);
         vec3 col21 = vec3(0.7,0.8,0.1);
         vec3 col22 = vec3(0.1,0.3,0.4);
-
+        
         col1 = mix(col11,col12,index);
-
+        
         col2 = mix(col21,col22,index);
     }
     vec3 pospiso = pos;
-    pospiso.y += cos(pospiso.x*3+pospiso.z*2)*.1;
-    pospiso.y += sin(pospiso.z*1+pospiso.y*2)*.2;
+    pospiso.y += cos(pospiso.x*3+pospiso.z*2)*.1;    
+    pospiso.y += sin(pospiso.z*1+pospiso.y*2)*.2;    
     float pla = ground(pospiso, 0.8);
-
+    
     float d = box;
-
+    
 	
     //d = min(box,pla);
 	d = min(box,sdSphere(po, 1.5));
-
+   
     d = min(box,sph);
     float c = pow(max(max(fract(p.x),fract(p.y)), fract(p.z)),0.5);
     float b = pow(max(fract(p.x),fract(p.z)),2.);
 
    // length(fract(pos.xz));
   //  if (d==box) objcol=vec3(0.8-pz,sin(length(fract(pos.zz))*1)*0.7,pz);
-
-
-
+ 
+  
+   
    pz = sin(pz*2.0+time*1.00)*.5+.5;
-
-
+   
+   
     if (d==box) objcol=mix(col1,col2,pz);
     if (d==pla) objcol=mix(col2,col1,pz);
 	if (d==sph) objcol=vec3(.7,.4,.3);
@@ -141,10 +141,10 @@ float de(vec3 p)
 
 // FUNCION NORMAL
 
-vec3 normal(vec3 p)
-{
+vec3 normal(vec3 p) 
+{   
     vec2 d = vec2(0., det);
-
+    
     return normalize(vec3(de(p + d.yxx), de(p + d.xyx), de(p + d.xxy)) - de(p));
 }
 
@@ -154,7 +154,7 @@ vec3 normal(vec3 p)
 
 float shadow(vec3 p, vec3 ldir) {
     float td=.001,sh=150.,d=det;
-
+    
     for (int i=0; i<0; i++) {
         p+=ldir*d;
         d=de(p);
@@ -171,38 +171,38 @@ float shadow(vec3 p, vec3 ldir) {
 vec3 shade(vec3 p, vec3 dir) {
 
     vec3 col = objcol;
-
-    vec3 lightdir = normalize(vec3(sin(time)*0.5+0.5, 0.9, 0.9));
+    
+    vec3 lightdir = normalize(vec3(sin(time)*0.5+0.5, 0.9, 0.9)); 
 
     vec3 n = normal(p);
 
-    float sh = shadow(p, lightdir);
-
+    float sh = shadow(p, lightdir);    
+    
     float diff = max(0.0, dot(lightdir, n)) * sh; // multiplicamos por sombra;
-
+    
     vec3 refl = reflect(dir, n);
-
+    
     float spec = pow(max(0., dot(lightdir, refl)), 0.01) * sh; // multiplicamos por sombra;
-
+    
     float amb = .1;
-
+    
 	float flmod = sin(p.z*10);
     return col*(amb*10.0 + diff) + spec * 0.1;
-
+    
 }
 
 
 
 // FUNCION DE RAYMARCHING
 
-vec3 march(vec3 from, vec3 dir)
+vec3 march(vec3 from, vec3 dir) 
 {
 
     float d, td=0.;
     vec3 p, col;
 
 
-    for (int i=0; i<maxsteps; i++)
+    for (int i=0; i<maxsteps; i++) 
     {
         p = from + td * dir;
 
@@ -228,21 +228,21 @@ vec3 march(vec3 from, vec3 dir)
     // utilizando para mezclarlos la funcion exp con la variable td
     // que es la distancia en la que quedo el rayo con respecto a la cam
     // el -.01 en la funcion exp altera la distancia de la niebla
-
+    
     vec3 colfondo = vec3(1.-p.y,1.-p.y,1.-p.y);
-
+    
     float f = sin(dir.x*2+time)*0.5+0.5;
     vec3 col1 = vec3(0.4,0.3,0.4);
     vec3 col2 = vec3(0.2,0.5,0.7);
     vec3 colf = mix(col1,col2,f);
 	
-	vec2 uv = gl_FragCoord.xy/resolution.xy ;
-	vec4 fond = texture(texture1,uv);
-	
+	vec2 uv = gl_FragCoord.xy/resolution.xy ; 
+	vec4 fond = texture2D(texture1,uv);
+	 
 	colf = fond.rgb;
   //  colfondo = col1;
     col = mix(colf,col, exp(-.0003*td*td));
-    return col;
+    return col;    
 }
 
 
@@ -250,10 +250,10 @@ vec3 march(vec3 from, vec3 dir)
 
 void main(void)
 {
-
-    vec2 uv = gl_FragCoord.xy/resolution.xy - .5;
+ 
+    vec2 uv = gl_FragCoord.xy/resolution.xy - .5; 
 	uv.y = 1.-uv.y-1.0;
-    uv.x *= resolution.x / resolution.y;
+    uv.x *= resolution.x / resolution.y; 
     	
     vec3 from = vec3(0., 0.,2.);
     //from.z-=time*0.1;
@@ -263,7 +263,7 @@ void main(void)
     //una forma simple de rotar la cámara
     //es rotando en los mismos ejes tanto from como dir
     //from.zx *= rot(time*.8);
-
+    
     from.x-=sin(time*.1)*20.;
    // from.x-=time*5;
    // from.y-=sin(time*.001);

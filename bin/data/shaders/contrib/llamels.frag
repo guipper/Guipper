@@ -119,12 +119,12 @@ mat3 lookat(vec3 fw){
 void main(){
     tim = time*5.0;
 	vec3 ro=vec3(17.0,1.3,-1.5);
-	vec3 dr=vec3((2.0*fragCoord.xy-size.xy)/size.y,2.0);
+	vec3 dr=vec3((2.0*gl_FragCoord.xy.xy-size.xy)/size.y,2.0);
 	vec3 rd=normalize(dr);
 	float px=2.5/(size.y*dot(rd,dr));
 	rd=lookat(vec3(-0.25,-0.3,0.5))*rd;
 	vec3 col=mix(vec3(1.0,0.7,0.3),vec3(0.3,0.7,1.0),0.5+rd.y);
-	float t=DE(ro)*(0.5+0.5*rnd(fragCoord.xy)),d,dm=10.0,tm;
+	float t=DE(ro)*(0.5+0.5*rnd(gl_FragCoord.xy.xy)),d,dm=10.0,tm;
 	for(int i=0;i<48;i++){
 		t+=d=DE(ro+rd*t);
 		if(d<dm){dm=d;tm=t;}

@@ -33,12 +33,12 @@ float scene(vec3 p) {
 }
 
 void main() {
-    vec2 uv = gl_FragCoord.xy / iResolution.xy;
+    vec2 uv = gl_FragCoord.xy.xy / iResolution.xy;
     uv -= 0.5;
     uv /= vec2(iResolution.y / iResolution.x, 1);
 	
 	time2 = 0.;
-    time2 = mod(iTime / 100.*speed, 1.)*speed*10.;
+    time2 = mod(iTime / 100.*speed, 1.)*speed*10.; 
 	//time2*=0.000;;
 	//time2 = time*speed;
     vec3 cam = vec3(0, 0, -5);

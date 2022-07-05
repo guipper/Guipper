@@ -137,12 +137,12 @@ mat3 lookat(vec3 dir,vec3 up){
 
 void main()
 {
-  vec2 uv = gl_FragCoord.xy/resolution-.5;
+  vec2 uv = fragCoord.xy/resolution-.5;
   uv.x*=resolution.x/resolution.y;
   vec3 dir = normalize(vec3(uv,1.));
   vec3 from = vec3(0.,-1.,-7.);
   vec3 target = vec3(-mouse.x+.5,mouse.y-.5,0.)*5.;
   dir=lookat(target-from,vec3(0.,1.,0.))*dir;
   vec3 col=march(from, dir);
-  gl_FragColor = vec4(col,1.);
+  fragColor = vec4(col,1.);
 }

@@ -10,7 +10,7 @@ void main()
 	vec2 uv = gl_FragCoord.xy / resolution;
 	vec2 uv2 = gl_FragCoord.xy ;
 	
-	vec4 t1 =  texture(textura1, uv2/resolution);	
+	vec4 t1 =  texture2D(textura1, uv2/resolution);	
 	
 	vec3 rgbahsb = rgb2hsb(t1.rgb);
 	
@@ -18,5 +18,5 @@ void main()
 							rgbahsb.g*saturation*2.,
 							rgbahsb.b*brightness*2.));
 	
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0); 
 }

@@ -21,7 +21,7 @@ uniform float blendmode;
 uniform float colormix;
 //uniform float blendmode;
 void main()
-{	
+{	 
 	vec2 uv = gl_FragCoord.xy / resolution;
 	vec2 wruv = uv;
 		
@@ -53,7 +53,7 @@ void main()
 		//rotindex
 	
 		uv2-=resolution/2;
-	    uv2*= rotate2d(0.0+index+time*mapspeedrot);
+	    uv2*= rotate2d(0.0+index+time*mapspeedrot); 
 		uv2+=resolution/2;
 		
 		uv2/=resolution;
@@ -64,16 +64,16 @@ void main()
 		//uv2.y+=time*speedx;
 		uv2 = fract(uv2*(10.0*fractalize+1.0)*(index3));
 		
-		vec4 t1 =  texture(textura1, uv2);	
+		vec4 t1 =  texture2D(textura1, uv2);	 
 		uv2 = abs(2.*fract(uv2*(texturewrap*4.0+1.0))-1.0);
-		vec4 t2 =  texture(textura2, uv2);
-		vec4 t3 =  texture(textura3, uv2);
+		vec4 t2 =  texture2D(textura2, uv2);
+		vec4 t3 =  texture2D(textura3, uv2);
 		
 	
 	    vec3 colf =mix(col1,col2,i/float(mapcnt));
 		     colf = mix(t2.rgb,t3.rgb,i/float(mapcnt));
 		
-		dib_bm2 =
+		dib_bm2 = 
 		
 		mix(mix(dib_bm2,t1.rgb*colf,t1.rgb),
 			mix(dib_bm2,t1.rgb,t1.rgb),
@@ -84,15 +84,15 @@ void main()
 		
 		//dib+=mix(t1.rgb*colf,t1.rgb,vec3(1.-colormix));
 		dib+=t1.rgb;
-		//dib_bm2 = mix(dib_bm2,t1.rgb*colf,t1.rgb);
+		//dib_bm2 = mix(dib_bm2,t1.rgb*colf,t1.rgb); 
 		
-	}
-	//vec4 t1 =  texture(textura1, uv2);
+	} 
+	//vec4 t1 =  texture2D(textura1, uv2);
 	//dib += t1.rgb;
 	dib/=mapcnt*0.5;
 	
 	
 	vec3 fin = mix(dib,dib_bm2,blendmode);
 	
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0); 
 }

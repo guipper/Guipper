@@ -7,10 +7,10 @@ uniform float mix_b;
 uniform float mix_g;
 void main()
 {
-	vec2 uv = gl_FragCoord.xy / resolution;
+	vec2 uv = fragCoord.xy / resolution;
 	
-	vec4 t1 =  texture(textura1, gl_FragCoord.xy/resolution);
-	vec4 t2 =  texture(textura2, gl_FragCoord.xy/resolution);
+	vec4 t1 =  texture2D(textura1, fragCoord.xy/resolution);
+	vec4 t2 =  texture2D(textura2, fragCoord.xy/resolution);
 	
 	vec3 fin = vec3(0.0);
 	
@@ -18,8 +18,8 @@ void main()
 	float mlimitg = mapr(limitg,0.0,1.0);
 	float mlimitb = mapr(limitb,0.0,1.0);
 	*/
-	/*if(mlimitr < t1.r &&
-	   mlimitg < t1.g &&
+	/*if(mlimitr < t1.r && 
+	   mlimitg < t1.g && 
 	   mlimitb < t1.b){
 		
 	   fin = t1.rgb;
@@ -30,6 +30,6 @@ void main()
 	fin = mix(t1.rgb,t2.rgb,mix(t1.rgb,t2.rgb,mixf));
 	//fin = t1.rgb;
 	 //fin = vec3(uv.x,uv.y,1.0);
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 
 }

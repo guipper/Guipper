@@ -45,7 +45,7 @@ float fbm(vec2 n) {
 // -----------------------------------------------
 
 void main() {
-  vec2 uv = gl_FragCoord.xy / resolution;
+  vec2 uv = gl_FragCoord.xy.xy / resolution;
 	vec2 uv = p*vec2(resolution.x/resolution.y,1.0);
     float time2 = time * speed;
     float q = fbm(uv * cloudscale * 0.2);
@@ -53,7 +53,7 @@ void main() {
     //ridged noise shape
 	float r = 0.0;
 	uv *= cloudscale;
-    uv -= q - time2*texelFetch( iChannel0, ivec2(fragCoord-0.5), 0 ).y;
+    uv -= q - time2*texelFetch( iChannel0, ivec2(gl_FragCoord.xy-0.5), 0 ).y;
     float weight = 0.8;
     for (int i=0; i<8; i++){
 		r += abs(weight*noise( uv ));
@@ -63,12 +63,12 @@ void main() {
 
     // Music fft
 
-    vec2 pr = fragCoord.xy/resolution.xy;
+    vec2 pr = gl_FragCoord.xy.xy/resolution.xy;
 
     vec3 col = texture( iChannel0, pr ).xyz;
-    //vec3 col = texelFetch( iChannel0, ivec2(fragCoord-0.5), 0 ).xyz;
+    //vec3 col = texelFetch( iChannel0, ivec2(gl_FragCoord.xy-0.5), 0 ).xyz;
 
-    col *= 0.5 + 0.5*pow( 16.0*pr.x*pr.y*(1.0-pr.x)*(1.0-pr.y), 0.05*texelFetch( iChannel0, ivec2(fragCoord-0.5), 0 ).x );
+    col *= 0.5 + 0.5*pow( 16.0*pr.x*pr.y*(1.0-pr.x)*(1.0-pr.y), 0.05*texelFetch( iChannel0, ivec2(gl_FragCoord.xy-0.5), 0 ).x );
 
     float fft = (((texture( iChannel0, vec2(pr.y+1.0, 1.0) ).x)) * 1.21);
 
@@ -121,5 +121,5 @@ void main() {
 
     vec3 result = mix(skycolour, clamp(skytint * skycolour + cloudcolour, 0.0, 1.0), clamp(f + c, 0.0, 1.0));
 
-	gl_fragColor = vec4( result, 1.0 );
+	fragColor = vec4( result, 1.0 );
 }

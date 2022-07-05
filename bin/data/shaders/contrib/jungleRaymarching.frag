@@ -28,32 +28,32 @@ vec3 smin(vec3 a, vec3 b)
 
 vec3 sabs(vec3 p)
 {
- 	return  p - 2.0 * smin(vec3(0), p);
+ 	return  p - 2.0 * smin(vec3(0), p); 
 }
 
 float map(in vec3 p)
-{
+{  
     float s = 3.7;
     float amp = 1.0/s;
     float c = 0.5;
-    p = sabs(mod(p, c * 2.0) - c);
+    p = sabs(mod(p, c * 2.0) - c); 
     float de = 50.;
     for(int i=0; i<3; i++){
         p.xy *= rotate(0.4+sin(iTime*0.2+ 0.3*sin(iTime*0.4))*0.2);
         p.yz *= rotate(0.4+sin(iTime*0.3+ 0.5*sin(iTime*0.5))*0.2);
-        p = sabs(p);
+        p = sabs(p); 
         p *= s;
         p -= vec3(0.2*p.z, 0.6*p.x, 0.4) * (s - 1.0);
 	    de = abs(length(p*amp) - 0.2) ;
         amp /= s;
-    }
+    }   
     return de + boxmap(p) * 0.02 - 0.01;
 }
 
 vec3 calcNormal(vec3 p){
   vec2 e = vec2(1, -1) * 0.001;
   return normalize(
-    e.xyy*map(p+e.xyy)+e.yyx*map(p+e.yyx)+
+    e.xyy*map(p+e.xyy)+e.yyx*map(p+e.yyx)+ 
     e.yxy*map(p+e.yxy)+e.xxx*map(p+e.xxx)
   );
 }
@@ -64,16 +64,16 @@ vec3 doColor(vec3 p){
 
 void main()
 {
-    vec2 p = (fragCoord * 2.0 - iResolution.xy) / iResolution.y;
+    vec2 p = (gl_FragCoord.xy * 2.0 - iResolution.xy) / iResolution.y;
     vec3 ro = vec3(0.2, 0.1, 0.5)+iTime*0.1;
     vec3 rd = normalize(vec3(p, 2));
     rd.xz *= rotate(sin(iTime*0.3)*0.6);
     rd.yz *= rotate(sin(iTime*0.2)*0.6);
-    rd.xy *= rotate(sin(iTime*0.05));
+    rd.xy *= rotate(sin(iTime*0.05));   
     vec3 col = mix(
         vec3(0.3, 0.7, 0.8),
         vec3(0.1, 0.1, 0.2),
-        smoothstep(0.3, 2.5, length(p)));
+        smoothstep(0.3, 2.5, length(p)));    
     float t = 0.1, d;
  	for(int i = 0; i < 100; i++)
   	{

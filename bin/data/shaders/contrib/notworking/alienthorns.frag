@@ -82,12 +82,12 @@ float Hash12(vec2 p)
 }
 
 //--------------------------------------------------------------------------------------------------
-vec4 Raymarch( in vec3 ro, in vec3 rd, in vec2 uv, in vec2 fragCoord, out float which)
+vec4 Raymarch( in vec3 ro, in vec3 rd, in vec2 uv, in vec2 gl_FragCoord.xy, out float which)
 {
 	float maxd = 40.0;
 	
     vec4 h = vec4(1.0);
-    float t = 0.+ Hash12(fragCoord.xy)*.2;
+    float t = 0.+ Hash12(gl_FragCoord.xy.xy)*.2;
     vec3 p;
     for (int i = 0; i < 110; i++)
     {
@@ -167,7 +167,7 @@ vec3 Path( float time )
 void main()
 {
 
-    vec2 q = fragCoord.xy / iResolution.xy;
+    vec2 q = gl_FragCoord.xy.xy / iResolution.xy;
 	vec2 p = (-1.0 + 2.0*q)*vec2(iResolution.x / iResolution.y, 1.0);
 	
     // Camera...
@@ -197,7 +197,7 @@ void main()
 
 	float sun = clamp( dot(rd, sunDir), 0.0, 1.0 );
 	float which;
-	vec4 ret = Raymarch(ro, rd, q, fragCoord, which);
+	vec4 ret = Raymarch(ro, rd, q, gl_FragCoord.xy, which);
     
     if(ret.w > 0.0)
 	{

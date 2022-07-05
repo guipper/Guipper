@@ -20,10 +20,10 @@ void main()
 	float e = poly(uv,vec2(0.5*fx,0.5),size,size,4,0.0);
 
 	vec2 puv = gl_FragCoord.xy;
-	vec4 fb =  texture(feedback, puv/resolution);
+	vec4 fb =  texture2D(feedback, puv/resolution);
 
 
 	vec3 fin = vec3(e);
 
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 }

@@ -69,9 +69,9 @@ vec3 background(vec3 d)
 
 void main()
 {
-    t = (iTime+noise(gl_FragCoord.xy).x*(1.0/24.0));
+    t = (iTime+noise(gl_FragCoord.xy.xy).x*(1.0/24.0));
     
-	vec2 uv = fragCoord.xy / iResolution.yy - vec2(.9,.5);
+	vec2 uv = gl_FragCoord.xy.xy / iResolution.yy - vec2(.9,.5);
 	
 	float t=iTime;
 	vec3 p = vec3(.0);

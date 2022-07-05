@@ -126,9 +126,9 @@ vec4 stars(vec2 pos){
   	return col;
 }
 
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
+void mainImage( out vec4 fragColor, in vec2 gl_FragCoord.xy )
 {
-	vec2 uv = fragCoord.xy / iResolution.xy;
+	vec2 uv = gl_FragCoord.xy.xy / iResolution.xy;
     
     
 	vec4 col = vec4(0.0);
@@ -185,7 +185,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
 
 void main(){
-    vec2 uv = gl_FragCoord.xy * iResolution.xy;
+    vec2 uv = gl_FragCoord.xy.xy * iResolution.xy;
     vec4 col;
 
     mainImage(col, uv);

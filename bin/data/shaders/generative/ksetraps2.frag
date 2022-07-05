@@ -43,7 +43,7 @@ vec3 fractal(vec2 uv) {
 void main()
 {
 		vec2 uv = gl_FragCoord.xy/resolution;
-		vec3 fback = texture(feedback,gl_FragCoord.xy/resolution).rgb;
+		vec3 fback = texture2D(feedback,gl_FragCoord.xy/resolution).rgb;
 		uv-=.5;
 		uv.x*=resolution.x/resolution.y;
 		vec3 c = fractal(uv);
@@ -51,5 +51,5 @@ void main()
 		c.xz*=rotate2d(color2*PI*2.);
 		c=pow(abs(c),vec3(mapr(contraste,1.,3.)));
 		c=mix(vec3(length(c)*.7),c,saturacion);
-		gl_FragColor = vec4(mix(c,fback,feedback_mix ? .993 : .5),1.);
+		fragColor = vec4(mix(c,fback,feedback_mix ? .993 : .5),1.);
 }

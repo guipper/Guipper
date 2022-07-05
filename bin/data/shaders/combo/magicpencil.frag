@@ -75,8 +75,8 @@ vec4 getcoords(void) {
 
 void main()
 {
-	vec2 uv = gl_FragCoord.xy / iResolution.xy*1./webcam_window_size; //webcam window
-	vec2 uvrot = gl_FragCoord.xy / iResolution.xy; //texture window
+	vec2 uv = fragCoord.xy / iResolution.xy*1./webcam_window_size; //webcam window
+	vec2 uvrot = fragCoord.xy / iResolution.xy; //texture window
 	uv.x=1.-uv.x; //webcam x mirror
 	uvrot.y=1.-uvrot.y; //texture y mirror
 	vec4 gpos=getcoords(); //get pencil coords
@@ -107,5 +107,5 @@ void main()
 	}
 
 
-	gl_FragColor = vec4(col, 1.0);
+	fragColor = vec4(col, 1.0);
 }

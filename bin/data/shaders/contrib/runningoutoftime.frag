@@ -25,7 +25,7 @@ mat2 rot (float a)
 {
 	float c = cos(a);
     float s = sin(a);
-    return mat2(c,s,-s,c);
+    return mat2(c,s,-s,c);    
 }
 
 float smin(float a, float b, float k) {
@@ -39,7 +39,7 @@ float stmin(float a, float b, float k, float n) {
 	return min(min(a, b), .5 * (u + a + abs((mod(u - a + s, 2. * s)) - s)));
 }
 
-vec2 path(float t)
+vec2 path(float t) 
 {
 	float a = sin(t*.2 + 1.5), b = sin(t*.2);
 	return vec2(a, a*b);
@@ -66,7 +66,7 @@ float adn (vec3 p)
     p.xz = moda(p.xz, 2.*3.141592/5.);
 
     p.x -= 2.;
-
+        
     return cyl(p.xz,.3);
 }
 
@@ -103,22 +103,22 @@ vec3 camera(vec3 ro, vec2 uv, vec3 ta) {
 void main()
 {
     // Normalized pixel coordinates (from 0 to 1)
-    vec2 uv = 2.*(fragCoord/iResolution.xy)-1.;
+    vec2 uv = 2.*(gl_FragCoord.xy/iResolution.xy)-1.;
 	uv.x *= iResolution.x/iResolution.y;
-
+    
     float dt = iTime * 3.;
 	vec3 ro = vec3(0.001, 0.5, -9. + dt);
 	vec3 ta = vec3(0, 0, dt);
     vec3 rd;
-
+    
 	ro.xy += path(ro.z);
 	ta.xy += path(ta.z);
 	rd = camera(ro, uv, ta);
-
+    
     vec3 p;
     float t;
 	float shad = 0.;
-
+    
     for (float i=0.;i<ITER; i++)
     {
         p = ro+rd*t;
@@ -130,7 +130,7 @@ void main()
         }
         t+=d*0.12;
     }
-
+    
     // Time varying pixel color
     vec3 col = vec3(1.-shad);
     vec3 palette = pal(uv.y*0.6,

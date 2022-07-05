@@ -63,7 +63,7 @@ vec3 march(vec3 from, vec3 dir)
             vec3 n = normal(p);
             dir = reflect(dir, n);
             d2 = .1;
-
+          
         }
         d = max(.01, abs(d2));
         p += d * dir;
@@ -83,5 +83,5 @@ void main()
     vec3 dir = normalize(vec3(uv, 1.));
     vec3 col = march(from, dir);
 
-    gl_FragColor = vec4(col,1.);
+    fragColor = vec4(col,1.);
 }

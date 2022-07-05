@@ -4,7 +4,7 @@
 // Thanks to wsmind, leon, XT95, lsdlive, lamogui, Coyhot, Alkama and YX for teaching me
 // Thanks LJ for giving me the love of shadercoding :3
 
-// Thanks to the Cookie Collective, which build a cozy and safe environment for me
+// Thanks to the Cookie Collective, which build a cozy and safe environment for me 
 // and other to sprout :)  https://twitter.com/CookieDemoparty
 
 float ITER = 100.;
@@ -38,8 +38,8 @@ float body (vec3 p)
 
 float neck (vec3 p)
 {
-    p.x += sin(p.y*2.)*0.2;
-    return cutesule (p-vec3(.9,.3,0.), vec3(0.), vec3(0.5,0.7,0.), 0.3, 0.45);
+    p.x += sin(p.y*2.)*0.2; 
+    return cutesule (p-vec3(.9,.3,0.), vec3(0.), vec3(0.5,0.7,0.), 0.3, 0.45); 
 }
 
 float face (vec3 p)
@@ -66,7 +66,7 @@ float mane (vec3 p)
     p.z = abs(p.z)-0.15;
     p -= vec3(.4,.5,0.);
     p.xy *= rot(-PI/4.);
-    p.x += sin(p.y*2.)*0.3;
+    p.x += sin(p.y*2.)*0.3; 
     float s1 = length(p-vec3(0.,1.,0.))-0.3;
     float s2 = length(p-vec3(0.,.6,0.))-0.25;
     float s3 = length(p-vec3(0.,.3,0.))-0.2;
@@ -78,7 +78,7 @@ float tail (vec3 p)
 {
     p += vec3(1.6,.8,0.);
     p.xy *= rot(-PI/4.);
-    p.x += sin(p.y*2.)*0.3;
+    p.x += sin(p.y*2.)*0.3; 
     float s1 = length(p-vec3(0.,1.,0.))-0.4;
     float s2 = length(p-vec3(0.,.4,0.))-0.35;
     float s3 = length(p-vec3(0.,.1,0.))-0.3;
@@ -143,8 +143,8 @@ float sdfStar5( in vec2 p )
 //vec4 out fragC
 void main()
 {
-    vec2 uv = vec2(gl_FragCoord.x / iResolution.x,
-	gl_FragCoord.y / iResolution.y);
+    vec2 uv = vec2(gl_FragCoord.xy.x / iResolution.x,
+	gl_FragCoord.xy.y / iResolution.y);
     uv.y = 1.-uv.y;
 	uv -= 0.5;
     uv /= vec2(iResolution.y / iResolution.x, 1);

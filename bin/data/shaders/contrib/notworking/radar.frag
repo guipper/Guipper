@@ -24,7 +24,7 @@ float point(vec2 coord,vec2 uv,float ang){
 }
 
 void main(){
-    vec2 uv = (fragCoord-iResolution.xy/2.)/iResolution.y;
+    vec2 uv = (gl_FragCoord.xy-iResolution.xy/2.)/iResolution.y;
 	float aa=float(AA)/iResolution.y;
 	
     //uv.x+=(rand(uv*iTime)-0.5)/100.*smoothstep(0.7,1.,hash(floor(iTime)));
@@ -56,7 +56,7 @@ void main(){
     fragColor = mix(vec4(0,col,0,0),vec4(0.055,0.089,0.0,0)/1.3,1.-sdist);
 	//o=o;
     
-    float l=cos(fragCoord.y);
+    float l=cos(gl_FragCoord.xy.y);
     l*=l;
     l/=3.;
     l+=0.6+rand(uv*iTime);

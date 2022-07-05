@@ -372,7 +372,7 @@ void main()
   vec2 canvas, uv, ori, ca, sa, vd;
   float el, az, tCyc, tt, a, vel;
   canvas = iResolution.xy;
-  uv = 2. * fragCoord.xy / canvas - 1.;
+  uv = 2. * gl_FragCoord.xy.xy / canvas - 1.;
   uv.x *= canvas.x / canvas.y;
   uv.y = -uv.y;
   tCur = iTime;

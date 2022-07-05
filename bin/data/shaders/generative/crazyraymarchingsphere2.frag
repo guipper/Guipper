@@ -79,9 +79,9 @@ float is_id(float id) {
 vec3 color() {
   vec3 col=vec3(0.);
   //col+=vec3(1.,0.,0.)*is_id(1.);
-
+  
   vec2 uv_shp = fract(psph.xy)*resolution*sph_texture_scale*2.;
-  col+=texture(sph_texture, uv_shp/resolution).rgb*is_id(1.);
+  col+=texture2D(sph_texture, uv_shp/resolution).rgb*is_id(1.);
   col+=vec3(0.,0.,1.)*is_id(2.);
   return col;
 }
@@ -124,10 +124,10 @@ vec3 march(vec3 from, vec3 dir) {
   } else {
     totdist=maxdist;
     p=from+dir*maxdist;
-    col=texture(background,abs(dir.xy-vec2(0.,.1))).rgb;
+    col=texture2D(background,abs(dir.xy-vec2(0.,.1))).rgb;
   }
   vec2 uvfloor=abs(resolution-mod(refp.xz*floor_texture_scale*resolution,resolution*2.));
-  vec3 floor_col=texture(floor_texture,uvfloor/resolution).rgb;
+  vec3 floor_col=texture2D(floor_texture,uvfloor/resolution).rgb;
   col=mix(col,floor_col,ref);
   return col;
 }
@@ -146,5 +146,5 @@ void main()
   vec3 target = vec3(-mouse.x+.5,mouse.y-.5,0.)*5.;
   dir=lookat(target-from,vec3(0.,1.,0.))*dir;
   vec3 col=march(from, dir);
-  gl_FragColor = vec4(col,1.);
+  fragColor = vec4(col,1.);
 }

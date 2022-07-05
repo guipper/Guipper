@@ -28,6 +28,6 @@ void main()
 				        mapscale2)*e);
 	
 	vec3 fin = vec3(e2);
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 
 }

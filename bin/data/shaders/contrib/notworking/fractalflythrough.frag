@@ -340,7 +340,7 @@ void main(){
    
     
 	// Screen coordinates.
-	vec2 u = (fragCoord - iResolution.xy*0.5)/iResolution.y;
+	vec2 u = (gl_FragCoord.xy - iResolution.xy*0.5)/iResolution.y;
     
     float speed = iTime*0.35 + 8.;
     

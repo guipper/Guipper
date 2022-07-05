@@ -14,12 +14,10 @@ uniform float faseb;
 uniform float speed;
 uniform float e_force;
 
-
-
 float desf(vec2 uv, float _fase){
 		
 	float e = 0.;
-	float mt = time * speed * 10.;//MAP TIME
+	float mt = time * speed * 10.;//MAP TIME 
 	
 	float ampmax = 5.0;
 	float mv1_amp = mapr(v1_amp,0.,ampmax);
@@ -46,9 +44,9 @@ void main()
 
 	vec2 coords = gl_FragCoord.xy ;
 	//coords.y = resolution.y -coords.y;
-	vec4 fb =  texture(feedback, coords/resolution);
+	vec4 fb =  texture2D(feedback, coords/resolution);
 	
-	float mt = time * speed * 10.;//MAP TIME
+	float mt = time * speed * 10.;//MAP TIME 
 	
 	
 	float m_faser = faser * pi * 2.;
@@ -58,14 +56,14 @@ void main()
 	float e1 = desf(uv,m_faser);
 	float e2 = desf(uv,m_faseg);
 	float e3 = desf(uv,m_faseb);
-			
+			  
 	vec3 dib = vec3(e1,e2,e3);
 	
 	vec3 fin = vec3(0);
 	
 	fin = dib * e_force;
 	
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0); 
 }
 
 

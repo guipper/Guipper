@@ -395,7 +395,7 @@ void main(){
 
     
     // Screen coordinates.
-	vec2 uv = (fragCoord - iResolution.xy*.5)/iResolution.y;
+	vec2 uv = (gl_FragCoord.xy - iResolution.xy*.5)/iResolution.y;
 	
 	// Camera Setup.
 	vec3 lk = vec3(0, -.5 - .125*.5, iTime + 1.);  // "Look At" position.

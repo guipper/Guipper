@@ -15,14 +15,14 @@ void main()
 
 	vec2 puv = gl_FragCoord.xy;
 
-	vec4 fb =  texture(feedback, puv/resolution);
-	vec4 t1 =  texture(texture1, gl_FragCoord.xy/resolution);
+	vec4 fb =  texture2D(feedback, puv/resolution);
+	vec4 t1 =  texture2D(texture1, gl_FragCoord.xy/resolution);
 	
 	vec3 fin = vec3(0.);
 	
 	
-	if(limit > abs(chromar-t1.r) ||
-	   limit > abs(chromag-t1.g) ||
+	if(limit > abs(chromar-t1.r) || 
+	   limit > abs(chromag-t1.g) || 
 	   limit > abs(chromab-t1.b)){
 		fin = t1.rgb;
 	}else{
@@ -32,5 +32,5 @@ void main()
 	//fin = mix(fb.rgb,t1.rgb,t1.rgb);
 		
 	
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 }

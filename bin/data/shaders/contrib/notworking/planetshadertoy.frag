@@ -1376,9 +1376,9 @@ void cameraPath( in float t, out vec3 ro, out vec3 ta, out vec3 up ) {
 //-----------------------------------------------------
 
 void main() {
-	vec2 uv = fragCoord.xy / iResolution.xy;
+	vec2 uv = gl_FragCoord.xy.xy / iResolution.xy;
     
-    vec2 p = -1.0 + 2.0 * (fragCoord.xy) / iResolution.xy;
+    vec2 p = -1.0 + 2.0 * (gl_FragCoord.xy.xy) / iResolution.xy;
     p.x *= iResolution.x/iResolution.y;
     
     vec3 col;

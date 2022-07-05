@@ -115,5 +115,5 @@ void main()
   //vec3 target = vec3(-mouse.x+.5,mouse.y-.5,0.)*5.;
   //dir=lookat(target-from,vec3(0.,1.,0.))*dir;
   vec4 col=march(from, dir);
-  gl_FragColor = col;
+  fragColor = col;
 }

@@ -26,11 +26,11 @@ void main()
 	e = fbm(vec2(uv.x*mapscalex+time*mapspeedx
 				,uv.y*mapscaley+time*mapspeedy),time*manimationspeed1+1.0)*1.0;
 	
-    // e=0.5;
+    // e=0.5;  
 	float e2 = fbm(vec2(mapscale2,
 				        mapscale2)*e,manimationspeed2*time+1000000.0);
 	
 	vec3 fin = vec3(e2);
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 
 }

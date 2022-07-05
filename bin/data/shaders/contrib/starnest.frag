@@ -6,12 +6,12 @@
 
 uniform float iterations;
 uniform float formuparam;
-//#define formuparam 0.53
+
 uniform float volsteps;
 uniform float stepsize;
-//#define stepsize 0.4
+
 uniform float zoom;
-//#define zoom   0.800
+
 uniform float tile;
 uniform float speedx;
 uniform float speedy;
@@ -23,14 +23,12 @@ uniform float distfading;
 uniform float saturation;
 uniform float ma1;
 uniform float ma2;
-//#define distfading 0.730
-//#define saturation 0.850
 
 
 void main()
 {
 	//get coords and direction
-	vec2 uv=fragCoord.xy/iResolution.xy-.5;
+	vec2 uv=gl_FragCoord.xy.xy/iResolution.xy-.5;
 	uv.y*=iResolution.y/iResolution.x;
 	vec3 dir=vec3(uv*zoom*5.0,1.);
 	//float time=iTime*speed+.25;
@@ -60,7 +58,7 @@ void main()
 		vec3 p=from+s*dir*.5;
 		p = abs(vec3(tile)-mod(p,vec3(tile*2.))); // tiling fold
 		float pa,a=pa=0.;
-		for (int i=0; i<mite; i++) {
+		for (int i=0; i<mite; i++) { 
 			p=abs(p)/dot(p,p)-formuparam; // the magic formula
 			a+=abs(length(p)-pa); // absolute sum of average change
 			pa=length(p);

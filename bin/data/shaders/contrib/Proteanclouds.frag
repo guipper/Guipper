@@ -90,8 +90,8 @@ vec3 iLerp(in vec3 a, in vec3 b, in float x)
 }
 
 void main(){
-	vec2 q = gl_FragCoord.xy/resolution.xy;
-	    vec2 p = (gl_FragCoord.xy - 0.5*resolution.xy)/resolution.y;
+	vec2 q = gl_FragCoord.xy.xy/resolution.xy;
+	    vec2 p = (gl_FragCoord.xy.xy - 0.5*resolution.xy)/resolution.y;
 	    bsMo = (0.5*resolution.xy)/resolution.y;
 
 	    float time2 = time*3.;
@@ -120,5 +120,5 @@ void main(){
 
 	    col *= pow( 16.0*q.x*q.y*(1.0-q.x)*(1.0-q.y), 0.12)*0.7+0.3; //Vign
 
-		gl_FragColor = vec4( col, 1.0 );
+		fragColor = vec4( col, 1.0 );
 }

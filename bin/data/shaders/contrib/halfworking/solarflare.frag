@@ -5,7 +5,7 @@ void main()
 {
     fragColor = vec4(0);
     //Centered coordinates.
-    vec2 P = (gl_FragCoord.xy-.5*iResolution.xy)*2.2/iResolution.y;
+    vec2 P = (gl_FragCoord.xy.xy-.5*iResolution.xy)*2.2/iResolution.y;
     //Iterate for radius.
     for(float i = 1.;i<1.7;i+=.01)
     {

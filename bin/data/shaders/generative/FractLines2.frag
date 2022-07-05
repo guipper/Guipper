@@ -21,7 +21,7 @@ void main(){
 	float mapmin = mapr(min,0.0,1.0);
 	
 	float mtime = maptime*time*1.0;
-	
+	 
 		d2 = abs(fract(uv.x*floor(10.0*f1)+mtime
 				+abs(fract(uv.y*floor(10.0*f2)+mtime
 				+abs(fract(uv.x*floor(10.0*f3)+mtime
@@ -38,7 +38,7 @@ void main(){
 		  d =mix(d,fract(d*200000.0),d*estatica);
 	vec3 fin = vec3(d
 	);
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0); 
 }
 
 

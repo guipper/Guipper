@@ -204,7 +204,7 @@ void main()
   vec2 canvas, uv, ori, ca, sa;
   float az, el;
   canvas = iResolution.xy;
-  uv = 2. * fragCoord.xy / canvas - 1.;
+  uv = 2. * gl_FragCoord.xy.xy / canvas - 1.;
   uv.x *= canvas.x / canvas.y;
   uv.y = -uv.y;
   tCur = iTime;
@@ -294,7 +294,7 @@ vec2 Hashv2v2 (vec2 p)
 float Noisefv2 (vec2 p)
 {
   vec2 t, ip, fp;
-  ip = floor (p);
+  ip = floor (p);  
   fp = fract (p);
   fp = fp * fp * (3. - 2. * fp);
   t = mix (Hashv2v2 (ip), Hashv2v2 (ip + vec2 (0., 1.)), fp.y);
@@ -318,11 +318,11 @@ float Fbmn (vec3 p, vec3 n)
 {
   vec3 s;
   float a;
-  s = vec3 (0.);
+  s = vec3 (0.);  
   a = 1.;
   for (int i = 0; i < 5; i ++) {
     s += a * vec3 (Noisefv2 (p.yz), Noisefv2 (p.zx), Noisefv2 (p.xy));
-    a *= 0.5;
+    a *= 0.5;  
     p *= 2.;
   }
   return dot (s, abs (n));

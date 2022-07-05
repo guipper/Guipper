@@ -20,7 +20,7 @@ vec2 offset=vec2(.5,.3);
 
 void main()
 {
-	vec2 uv = fragCoord.xy / iResolution.x;
+	vec2 uv = gl_FragCoord.xy.xy / iResolution.x;
 	float maptime = iTime * speed;
 	zoom +=-1.5+sin(maptime*.1)*1.6-1.6;
    // zoom +=-1.5+sin(iTime*.03)*.15;
@@ -77,8 +77,8 @@ void main()
 	color = vec4((rand*.75)+vec3(pow(v+.3,-.75)),1.)*vec4(.3,.5,1.,1.);
 	}
 	
-	//gl_FragColor=color;
-
-
+	//fragColor=color;
+    
+    
 	fragColor =color;
 }

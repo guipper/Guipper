@@ -10,19 +10,19 @@ uniform float umbral;
 uniform float diststr;
 void main()
 {	
-	vec2 uv = gl_FragCoord.xy / resolution;
+	vec2 uv = fragCoord.xy / resolution;
 	
-	vec4 t1 =  texture(textura1, gl_FragCoord.xy/resolution);
-	vec4 t2 =  texture(textura2, gl_FragCoord.xy/resolution);
+	vec4 t1 =  texture2D(textura1, fragCoord.xy/resolution);
+	vec4 t2 =  texture2D(textura2, fragCoord.xy/resolution);
 	
 	vec3 col1 = vec3(chromared,chromagreen,chromablue);
 	vec3 fin = t1.rgb;
 	
 	if(distance(col1,t1.rgb) < umbral){
-		 fin = mix(t2.rgb,t1.rgb,distance(col1,t1.rgb)*diststr*3.0);
+		 fin = mix(t2.rgb,t1.rgb,distance(col1,t1.rgb)*diststr*15.0);
 	}
 	
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0); 
 }
 
 

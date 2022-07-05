@@ -23,7 +23,7 @@ vec3 getNormal(vec3 p)
 
 void main()
 {
-	vec2 v = -1.0 + 2.0 * fragCoord.xy / iResolution.xy;
+	vec2 v = -1.0 + 2.0 * gl_FragCoord.xy.xy / iResolution.xy;
 	v.x *= iResolution.x/iResolution.y;
 	v.y = -v.y;
 	vec4 color = vec4(0.0);

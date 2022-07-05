@@ -222,5 +222,5 @@ void main()
     vec3 dir = normalize(vec3(uv, 10.));
     vec3 col = march(from, dir, uv);
 
-	gl_FragColor = vec4(col, 1.); 
+	fragColor = vec4(col, 1.); 
 }

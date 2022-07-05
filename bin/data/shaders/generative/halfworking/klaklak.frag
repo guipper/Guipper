@@ -40,5 +40,5 @@ void main()
 
 	vec3 fin = dib;
 
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 }

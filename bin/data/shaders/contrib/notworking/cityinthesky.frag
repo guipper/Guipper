@@ -507,7 +507,7 @@ Material getMaterial(in Hit hit)
 
 void main()
 {
-	vec2 uv = ((fragCoord.xy - iResolution.xy*.5) / iResolution.xy)*vec2(1.0, iResolution.y/iResolution.x);
+	vec2 uv = ((gl_FragCoord.xy.xy - iResolution.xy*.5) / iResolution.xy)*vec2(1.0, iResolution.y/iResolution.x);
     vec2 im = 4. * ((iMouse.xy / iResolution.xy) - vec2(0.5));
     fragColor = vec4(0.0);
     

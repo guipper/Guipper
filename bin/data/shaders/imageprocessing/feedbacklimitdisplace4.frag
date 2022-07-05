@@ -6,7 +6,6 @@ uniform float limit;
 uniform float force;
 uniform float speedx=0.5;
 uniform float speedy=0.5;
-uniform float fb_fract;
 uniform float sctx1=0.5;
 uniform float scty1=0.5;
 uniform float ttx1=0.5;
@@ -19,7 +18,7 @@ void main()
 	float mapsc = mapr(sc,0.99,1.01);
 	vec2 puv = gl_FragCoord.xy;
 	
-	vec4 t1 =  texture(texture1, gl_FragCoord.xy/resolution);
+	vec4 t1 =  texture2D(texture1, gl_FragCoord.xy/resolution);
 	
 	puv/=resolution;
 
@@ -40,12 +39,12 @@ void main()
 	puv+=vec2(0.5);
 	//puv = abs(.5-fract(puv*mapr(fb_fract,1.0,3.0)));
 	puv*=resolution;
-	vec4 fb =  texture(feedback, puv/resolution);
+	vec4 fb =  texture2D(feedback, puv/resolution);
 	vec3 fin = vec3(0.);
 	
 	
-	if(limit < t1.r &&
-	   limit < t1.g &&
+	if(limit < t1.r && 
+	   limit < t1.g && 
 	   limit < t1.b){
 		fin = t1.rgb;
 	}else{
@@ -56,5 +55,5 @@ void main()
 	//fin = mix(fb.rgb,t1.rgb,t1.rgb);
 		
 	
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 }

@@ -174,5 +174,5 @@ void main()
 	vec3 from = vec3(0.,perspective*2.,-10.);
 	vec3 dir = normalize(vec3(uv, .5));
 	vec3 col=march(from, dir);
-	gl_FragColor = vec4(col, 1.); 
+	fragColor = vec4(col, 1.); 
 }

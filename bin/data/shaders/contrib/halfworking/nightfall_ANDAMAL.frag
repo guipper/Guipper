@@ -181,7 +181,7 @@ float raymarch(vec3 ro, vec3 rd) {
 }
 
 void main() {
-	vec2 uv = (-iResolution.xy + 2.0*fragCoord.xy) / iResolution.y;
+	vec2 uv = (-iResolution.xy + 2.0*gl_FragCoord.xy.xy) / iResolution.y;
     uv.y = -uv.y;
     vec3 ro = vec3(0.0, 0.0, -0.2*iGT); ro.y = 0.15 + 1.2*fbmL(ro.xz);
     vec3 rd = normalize(vec3(uv, -1.0));

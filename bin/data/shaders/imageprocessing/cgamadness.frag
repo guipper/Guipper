@@ -1,11 +1,11 @@
 #pragma include "../common.frag"
 
 uniform sampler2D input_texture;
-uniform float effect_mix;
-uniform float effect_exp;
-uniform float color_mix;
-uniform float sample_size;
-uniform float saturation;
+uniform float effect_mix = 1.0;
+uniform float effect_exp = 0.74;
+uniform float color_mix = 0.57;
+uniform float sample_size = 0.75;
+uniform float saturation = 0.25;
 
 mat2 rot(float a) {
   float c=cos(a);
@@ -15,13 +15,13 @@ mat2 rot(float a) {
 
 void main()
 {
-    float size=1.+floor(sample_size*10.);
+    float size=1.+floor(sample_size*2.);
     float it=floor(size*size);
-    vec3 C=texture(input_texture,gl_FragCoord.xy/resolution).rgb;
+    vec3 C=texture2D(input_texture,gl_FragCoord.xy/resolution).rgb;
 	  vec3 R=vec3(0.);
     for(float i=0.; i<it; i++) {
     	vec2 p=vec2(mod(i,size),floor(i/size))-floor(size*.5);
-        vec3 aC=texture(input_texture,(gl_FragCoord.xy+p)/resolution).rgb;
+        vec3 aC=texture2D(input_texture,(gl_FragCoord.xy+p)/resolution).rgb;
   	    R+=normalize(cross(C,aC))*length(aC);
     };
     R/=it*.5;

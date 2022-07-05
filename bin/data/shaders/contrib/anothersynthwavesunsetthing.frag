@@ -5,7 +5,7 @@
 uniform sampler2D iChannel0;
 float amp(vec2 p){
     return smoothstep(1.,8.,abs(p.x));
-
+    
 }
 
 
@@ -68,19 +68,19 @@ vec2 intersect(vec3 ro,vec3 rd){
             return vec2(d,s.y);
         if(d>150.|| p.y>2.5) break;
     }
-
+    
     return vec2(-1);
 }
 
 
 vec3 sun(vec3 rd,vec3 ld,vec3 base){
-
+    
 	float sun = smoothstep(.21,.2,distance(rd,ld));
-
+    
     if(sun>0.){
         float yd = (rd.y-ld.y);
 
-        float a =sin(3.1*exp(-(yd)*14.));
+        float a =sin(3.1*exp(-(yd)*14.)); 
 
         sun*=smoothstep(-.8,0.,a);
 
@@ -93,34 +93,34 @@ vec3 gsky(vec3 rd,vec3 ld,bool mask){
     float st = mask?pow(texture(iChannel0,(rd.xy+vec2(300.1,100)*rd.z)*10.).r,500.)*(1.-min(haze,1.)):0.;
     vec3 col=clamp(mix(vec3(.4,.1,.7),vec3(.7,.1,.4),haze)+st,0.,1.);
     return mask?sun(rd,ld,col):col;
-
+   
 }
 
 void main()
 {
-    vec2 uv = (2.*fragCoord-iResolution.xy)/iResolution.x;
+    vec2 uv = (2.*gl_FragCoord.xy-iResolution.xy)/iResolution.x;
 	uv.y = -uv.y;
- //   float dt = fract(texture(iChannel0,fragCoord/resolution.xy).r-0.8);
+ //   float dt = fract(texture(iChannel0,gl_FragCoord.xy/resolution.xy).r-0.8); 
     vec3 ro = vec3(0.,1.0,(-2000.+iTime*0.1)*2.);
     vec3 rd = normalize(vec3(uv,.75));//vec3(uv,sqrt(1.-dot(uv,uv)));
-
+    
     vec2 i = intersect(ro,rd);
     float d = i.x;
-
+    
     vec3 ld = normalize(vec3(0,.125+.05*sin(.1*iTime),1));
 
     float fog = d>0.?exp2(-d*.14):0.;
     vec3 sky = gsky(rd,ld,d<0.);
-
+    
     vec3 p = ro+d*rd;
     vec3 n = normalize(grad(p));
-
+    
     float diff = dot(n,ld)+.1*n.y;
     vec3 col = vec3(.1,.11,.18)*diff;
-
-    vec3 rfd = reflect(rd,n);
+    
+    vec3 rfd = reflect(rd,n); 
     vec3 rfcol = gsky(rfd,ld,true);
-
+    
     col = mix(col,rfcol,.05+.95*pow(max(1.+dot(rd,n),0.),5.));
     #ifdef VAPORWAVE
     col = mix(col,vec3(.4,.5,1.),smoothstep(.05,.0,i.y));

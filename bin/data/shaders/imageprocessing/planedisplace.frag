@@ -90,5 +90,5 @@ void main()
   vec3 dir = normalize(vec3(uv,1.));
   vec3 from = vec3(0.,0.,-dist*5.);
   vec3 col=march(from, dir);
-  gl_FragColor = vec4(col,1.);
+  fragColor = vec4(col,1.);
 }

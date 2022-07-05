@@ -2,12 +2,16 @@
 
 
 uniform float v1;
+uniform float v8;
 uniform float v2;
+uniform float v5;
+uniform sampler2D koko;
 
 void main()
 {
 	vec2 uv = gl_FragCoord.xy / resolution;
 	
-	float f = sin(uv.y*20.+time*1.+sin(uv.x*200.*v2));
-	gl_FragColor = vec4(vec3(f),1.0);
+	
+	fragColor = vec4(1.0,0.0,1.0,1.0);
+
 }

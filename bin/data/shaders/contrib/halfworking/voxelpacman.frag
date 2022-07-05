@@ -203,7 +203,7 @@ vec3 hsv2rgb (in vec3 hsv) {
 void main() {
 
 	// Get the fragment
-	vec2 frag = (2.0 * fragCoord.xy - iResolution.xy) / iResolution.y;
+	vec2 frag = (2.0 * gl_FragCoord.xy.xy - iResolution.xy) / iResolution.y;
 	frag.y = -frag.y;
 	// Define the rendering mode
 	float modeTiming = iTime * 0.234;

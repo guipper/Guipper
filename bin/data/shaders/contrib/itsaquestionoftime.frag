@@ -17,10 +17,10 @@ The structure is called an apollonian packing (or gasket)
 https://en.m.wikipedia.org/wiki/Apollonian_gasket
 
 There is a lot of apollonians in shadertoy, but not many quite like the image above.
-This one by klems is really cool. He uses a technique called a soddy circle.
+This one by klems is really cool. He uses a technique called a soddy circle. 
 https://www.shadertoy.com/view/4s2czK
 
-This shader uses another technique called a Descartes Configuration.
+This shader uses another technique called a Descartes Configuration. 
 The only thing that makes this technique interesting is that it can be generalized to higher dimensions.
 */
 
@@ -64,15 +64,15 @@ vec3 apollonian(vec2 uv) {
         // if the point is in one of the starting circles we have already found our solution
         if (length(uv-dec[i].xy) < radius) return vec3(uv-dec[i].xy,radius);
     }
-
-    // Now that we have a starting DEC we are going to try to
+    
+    // Now that we have a starting DEC we are going to try to 
     // find the solution for the current point
     for(int i=0; i<7; i++) {
         // find the circle that is further away from the point uv, using euclidean distance
         int fi = 0;
         float d = distance(uv,dec[0].xy)-abs(1./dec[0].z);
         // for some reason, the euclidean distance doesn't work for the circle with negative bend
-        // can anyone with proper math skills, explain me why?
+        // can anyone with proper math skills, explain me why? 
         d *= dec[0].z < 0. ? -.5 : 1.; // just scale it to make it work...
         for(int i=1; i<4; i++) {
             float fd = distance(uv,dec[i].xy)-abs(1./dec[i].z);
@@ -106,18 +106,18 @@ vec3 apollonian(vec2 uv) {
 
 
 vec3 scene(vec2 uv, vec4 ms) {
-
+    
 	vec2 ci = vec2(.0);
 
     // drag your mouse to apply circle inversion
     if (ms.y != -2. && ms.w > -2.) {
         uv = inversion(uv,cos(radians(60.)));
         ci = ms.xy;
-    }
+    }    
 
     // remap uv to appolonian packing
     vec3 uvApo = apollonian(uv-ci);
-
+    
     float d = 6.2830/360.;
     float a = atan(uvApo.y,uvApo.x);
     float r = length(uvApo.xy);
@@ -126,22 +126,22 @@ vec3 scene(vec2 uv, vec4 ms) {
 	
     // background
 	vec3 c = length(uv)*pal(.7)*.2;
-
+    
     // drawing the clocks
     if (uvApo.z > .3) {
-    	c = mix(c,pal(.75-r*.1)*.8,fill(circle+.02,.01,1.)); // clock
+    	c = mix(c,pal(.75-r*.1)*.8,fill(circle+.02,.01,1.)); // clock 
     	c = mix(c,pal(.4+r*.1),stroke(circle+(uvApo.z*.03),uvApo.z*.01,.005,1.));// dial
 
         float h = stroke(mod(a+d*15.,d*30.)-d*15.,.02,0.01,1.);
     	c = mix(c,pal(.4+r*.1),h*stroke(circle+(uvApo.z*.16),uvApo.z*.25,.005,1.0));// hours
 
         float m = stroke(mod(a+d*15.,d*6.)-d*3.,.005,0.01,1.);
-    	c = mix(c,pal(.45+r*.1),(1.-h)*m*stroke(circle+(uvApo.z*.15),uvApo.z*.1,.005,1.0));// minutes,
+    	c = mix(c,pal(.45+r*.1),(1.-h)*m*stroke(circle+(uvApo.z*.15),uvApo.z*.1,.005,1.0));// minutes, 
     	
     	// needles rotation
     	vec2 uvrh = uvApo.xy*uvRotate(sign(cos(hash(vec2(uvApo.z))*d*180.))*d*iTime*(1./uvApo.z*10.)-d*90.);
     	vec2 uvrm = uvApo.xy*uvRotate(sign(cos(hash(vec2(uvApo.z)*4.)*d*180.))*d*iTime*(1./uvApo.z*120.)-d*90.);
-    	// draw needles
+    	// draw needles 
     	c = mix(c,pal(.85),stroke(sdfRect(uvrh+vec2(uvApo.z-(uvApo.z*.8),.0),uvApo.z*vec2(.4,.03)),uvApo.z*.01,0.005,1.));
     	c = mix(c,pal(.9),fill(sdfRect(uvrm+vec2(uvApo.z-(uvApo.z*.65),.0),uvApo.z*vec2(.5,.002)),0.005,1.));
     	c = mix(c,pal(.5+r*10.),fill(circle+uvApo.z-.02,0.005,1.)); // center
@@ -153,7 +153,7 @@ vec3 scene(vec2 uv, vec4 ms) {
         c = mix(c,pal(.55-r*.6),fill(circle+g*(uvApo.z*.2)+.01,.001,1.)*fill(circle+(uvApo.z*.6),.005,.0));
         c = mix(c,pal(.55-r*.6),fill(min(sdfRect(uvrg,size.xy),sdfRect(uvrg,size.yx)),.005,1.));
     // drawing the screws
-    } else {
+    } else { 
  	    vec2 size = uvApo.z * vec2(.5,.1);
  	    c = mix(c, pal(.85-(uvApo.z*2.)), fill(circle + 0.01,.007,1.));
  	    c = mix(c, pal(.8-(uvApo.z*3.)), fill(min(sdfRect(uvApo.xy,size.xy),sdfRect(uvApo.xy,size.yx)), .002, 1.));
@@ -162,7 +162,7 @@ vec3 scene(vec2 uv, vec4 ms) {
 }
 
 void main() {
-	vec2 uv = (fragCoord.xy - iResolution.xy * .5) / iResolution.y;
+	vec2 uv = (gl_FragCoord.xy.xy - iResolution.xy * .5) / iResolution.y;
 	vec4 ms = (vec4(0.1,0.,1.0,1.0) - iResolution.xyxy * .5 ) / iResolution.y ;
 	fragColor = vec4(scene(uv*4., ms*4.),1.0);
 }

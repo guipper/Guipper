@@ -22,8 +22,8 @@ void main()
 	}
 
 	vec2 uv2 = abs(resolution-mod(uv+resolution*.5,resolution*2.));
-	vec4 t1 =  texture(textura1, uv2/resolution);
+	vec4 t1 =  texture2D(textura1, uv2/resolution);
 	vec3 fin = t1.rgb;
 
-	gl_FragColor = vec4(fin,1.0);
+	fragColor = vec4(fin,1.0);
 }

@@ -12,7 +12,7 @@ uniform sampler2DRect iChannel2;
 #define clamp01(a) clamp(a,0.0,1.0)
 #define opS(d1,d2) max(-d1,d2)
 // union 2 objects carrying material info
-#define opU(a,b) ((a.x < b.x) ? a : b)
+#define opU(a,b) ((a.x < b.x) ? a : b) 
 
 
 uniform float boatspeed;
@@ -94,7 +94,7 @@ float noise2d(vec2 uv)
     // of the same set of blocky tiles.
     // we blend them together in x,y directions via
     // 3 mix operations
-    // a=mix h00, h10 across x axis,
+    // a=mix h00, h10 across x axis, 
     // b=mix h10, h11 across x axis
     // c=mix a,b across y axis
     // to get smooth clouds texture.
@@ -107,13 +107,13 @@ float noise2d(vec2 uv)
 
 float clouds(in vec3 rd)
 {
-    vec2 p=rd.xz/rd.y; // rd.xz/rd.y scales down farther in horizon
- 	float n = noise2d(p*1.0);
+    vec2 p=rd.xz/rd.y; // rd.xz/rd.y scales down farther in horizon 
+ 	float n = noise2d(p*1.0); 
     n += noise2d(p*2.0)*0.5;
     n += noise2d(p*4.0)*0.25;
     n += noise2d(p*8.0)*0.125;
-
-	// n = mix(n * 0.4, n, clamp01(abs(rd.y*3.)));  // fade clouds in distance
+    
+	// n = mix(n * 0.4, n, clamp01(abs(rd.y*3.)));  // fade clouds in distance    
     n = mix(n,0.4*n, clamp01(abs(rd.y*3.2)));  // clouds thicker farther away (personal pref)
     return n;
 }
@@ -140,8 +140,8 @@ float sdTriPrism( vec3 p, vec2 h )
     return max(q.z-h.y,max(q.x*0.866025+p.y*0.5,-p.y)-h.x*0.5);
 }
 
-float sdHouse(vec3 p, vec3 i, vec3 o, float h1, float h2)
-{
+float sdHouse(vec3 p, vec3 i, vec3 o, float h1, float h2) 
+{ 
     // implemented as the intersection of an inner
     // udroundbox and outer udroundbox rotated 45 degrees
     // i and o are the xyz scales, respectively.
@@ -154,22 +154,22 @@ vec2 sdvillage(in vec3 p, float seed)
 {
     vec3 R,q,q2; float d;
     vec3 scale=vec3(.5,1.,1.);
-
+    
     vec2 dm=vec2(1000.,ID_NONE);
     for (float i=0.; i<4.; i+=1.) {
         R=hash3(seed+i)-.5; // dx, dy, ry
         q=p-vec3(i*3.2-R.x,R.y,-R.x);
         // rotate
         q=rY(q,cos(R.z),sin(R.z));
-
+        
         d=sdHouse(q, vec3(1.,1.,1.), vec3(2.), -.6, 1.);
         dm=opU(dm,vec2(d,VILLAGE_MAT));
-
+        
         q.y-=1.1;
         float roof=opS(sdTriPrism((q-vec3(0.,-.1,0.))*scale,vec2(.8,1.4)),
                        sdTriPrism(q*scale,vec2(.8,1.3)));
         dm=opU(dm,vec2(roof,DOCKS_MAT));
-
+        
         // second story
         if (hash(seed+i)>0.3) {
             q2=q-vec3(0.,1.,0.);
@@ -179,9 +179,9 @@ vec2 sdvillage(in vec3 p, float seed)
             float roof=opS(sdTriPrism((q2-vec3(0.,-.1,0.))*scale,vec2(.8,1.4)),
                            sdTriPrism(q2*scale,vec2(.8,1.3)));
             dm=opU(dm,vec2(roof,DOCKS_MAT));
-        }
+        }    
     }
-
+    
     return dm;
 }
 
@@ -214,13 +214,13 @@ float sdBoardWalk(in vec3 p, in vec2 s)
 
 
 vec2 sddocks(in vec3 p)
-{
+{   
     vec2 s=vec2(.5,2.); // .5 wide, 4. long
     float d=10000.;
     float t, ry;
     float i=2.;
 
-
+    
 #if 0
         t=hash(i);
         ry=(t-.5)*.8;
@@ -235,23 +235,23 @@ vec2 sdboat(in vec3 p) // sanpan-style boat.
     // hull
     vec3 q=rZ(p,cos(.03),sin(.03));
     float d=sdTriPrism((q-vec3(0.,-1.2,0.))*vec3(1.,-1.,1.),vec2(3.,.5)); // size, z-thickness
-
+    
     vec2 offset=vec2(0.2,14.6);
     float cylinder= length(q.xy-offset)-14.5;
     d=opS(cylinder,d);
-
+    
     float inner=udRoundBox(q-vec3(0.,0.3,0.),vec3(2.4,.2,.4),.03);
     d=opS(inner,d);
-
+    
     // dude
    q=p-vec3(1.8,0.,0.2);
-   float d2=sdSphere(q-vec3(0.,1.04,0.),.15);
-
+   float d2=sdSphere(q-vec3(0.,1.04,0.),.15); 
+   
    float torso=sdEllipsoid( q-vec3(0.11,0.62,0.),vec3(.07,.2,.14) );
    torso=smin(torso,sdEllipsoid(q-vec3(0.05,0.45,0.),vec3(.09,.1,.15)),.12);
    d2=smin(d2,torso,.1);
    float legs=sdEllipsoid(q-vec3(0.11,0.14,.08), vec3(.03,.1,.03));
-    legs=min(sdEllipsoid(q-vec3(0.11,0.14,-.08), vec3(.03,.1,.03)),legs);
+    legs=min(sdEllipsoid(q-vec3(0.11,0.14,-.08), vec3(.03,.1,.03)),legs);    
    d2=smin(legs,d2,.1);
 
     // pole
@@ -259,11 +259,11 @@ vec2 sdboat(in vec3 p) // sanpan-style boat.
    float pole=sdCappedCylinder(rZ(q-vec3(1.2,0.,0.16),cos(-1.),sin(-1.)),vec2(.02,2.4));
 	d=min(d,pole);
 #endif
-
+    
     // straw stuff
     // roof
    vec3 q1=p-vec3(-0.5,0.,0.);
-
+   
    float roof=opS(
    	sdCappedCylinder(q1.yxz,vec2(.48,.9)),
    	sdCappedCylinder(q1.yxz,vec2(.5,.8 ))
@@ -275,17 +275,17 @@ vec2 sdboat(in vec3 p) // sanpan-style boat.
    float roof1=sdCappedCylinder(q1.yxz, vec2(.54,.5));
    roof1=opS(udRoundBox(q1-vec3(0.,-.85,0.),vec3(1.),0.01),roof1);
    roof=min(roof,roof1);
-
+    
    // hat
    vec3 q2=rX(q-vec3(0.,1.25,0.), cos(.1), sin(.1));
    float hat=sdCappedCone(q2,vec3(.2,.4,.18));
-
+    
 
    vec2 dude=vec2(d2,DUDE_MAT);
    vec2 wood=vec2(d,WOOD_MAT);
    vec2 straw=vec2(min(hat,roof),STRAW_MAT);
    vec2 tm=opU(dude,opU(wood,straw));
-
+    
 #if 1
    // fish (q3 is fish coordinates)
    float fs=1000.; float f; vec3 q3;
@@ -294,18 +294,18 @@ vec2 sdboat(in vec3 p) // sanpan-style boat.
     f=sdEllipsoid(q3,vec3(.3,.05,.15));
    	fs=min(f,fs);
    }
-
-    vec2 fish=vec2(fs,FISH_MAT);
+   
+    vec2 fish=vec2(fs,FISH_MAT);    
     tm=opU(fish,tm);
 #endif
-
+    
     return tm;
    	
-
+    
 }
 
 vec2 scene(in vec3 p)
-{
+{    
 #ifdef disable_village
     return vec2(10000.,ID_NONE);
 #endif
@@ -313,19 +313,19 @@ vec2 scene(in vec3 p)
 	vec2 v1= sdvillage(rY(p-vec3(-2.,1.,20.),cos(-2.),sin(-2.)),0.);
     vec2 v2= sdvillage(rY(p-vec3(16.,.5,25.),cos(2.),sin(2.)),221.);
     vec2 tm=opU(v1,v2);
-
+    
 #ifdef DOCKS
     // docks
     float ry=1.2;
     vec3 q1=rY(p-vec3(-1.4,0.3,7.),cos(ry),sin(ry));
   	vec2 docks=sddocks(q1);
-    tm=opU(docks,tm);
+    tm=opU(docks,tm); 
 #endif
-
+    
     // boat
     vec3 q2=rY(p-START_POS,cos(.3),sin(.3))-vec3(boat_dx,0.,0.); // boat coordinates
 	vec2 boat= sdboat(q2);
-
+    
     return opU(tm,boat);
 }
 
@@ -342,21 +342,21 @@ vec3 calcNormal( in vec3 p )
 vec3 background(in vec3 rd)
 {
         vec3 col;
-
+    
     // skycol fades into horizoncol closer to horizon
     vec3 skyCol = vec3( 0.49, 0.352, 0.294);
     vec3 horizonCol = vec3(0.866667, 0.47451, 0.270588);
     col=skyCol;
     col=mix(horizonCol,skyCol,clamp01(rd.y)*7.);
-
+    
     // sunlight
     float sunlight=clamp01(pow(dot(rd,sun_dir),4.));
-
+    
     // add sun
     //float sundot = smoothstep(.996,.999,sunlight);
     float sundot=1.-smoothstep(0.03,0.06,length(rd-sun_dir));
     col+=sundot*vec3(1.0,0.913725,0.458824);
-
+    
     // clouds
     vec3 cloudcol=vec3( 0.623529,  0.298039,  0.164706)*1.5;
 
@@ -364,20 +364,20 @@ vec3 background(in vec3 rd)
     //col=vec3(clouds(rd));
     //col=mix(col,cloudcol*sunlight,clouds(rd));
     col=mix(col,cloudcol,clouds(rd));
-    return clamp01(col);
-
+    return clamp01(col);  
+    
  #if 0
-
+    
     vec3 col=vec3( 0.49, 0.352, 0.294); // sky color
     // add sun
     float sundot=1.-smoothstep(0.03,0.06,length(rd-sun_dir));
     col+=sundot*vec3(1.0,0.913725,0.458824);
-
+   
     // clouds
-
+    
     vec3 cloudcol=vec3(0.772549, 0.388235, 0.211765);
     col=mix(col,cloudcol*sunlight,clouds(rd));
-
+    
     return col;
 #endif
 }
@@ -418,10 +418,10 @@ vec3 shade(vec3 p, float m)
     else if (m==DOCKS_MAT) {
         vec3 wood1=vec3(0.36, 0.275, 0.1625);
         vec3 wood2=vec3(0.152941,0.0627451,0.0392157);
-        col=mix(wood1,wood2,Hash2d(floor(p.xz*vec2(4.,1.))));
+        col=mix(wood1,wood2,Hash2d(floor(p.xz*vec2(4.,1.))));   
     }
     else if (m==STRAW_MAT) {
-
+        
         vec4 t=texture(iChannel1,q2.xz/2.);
         col=t.xyz;
     } else if (m==DUDE_MAT) {
@@ -433,7 +433,7 @@ vec3 shade(vec3 p, float m)
         // add windows
         vec3 wcol1=vec3(0.972549, 0.294118, 0.137255);
         vec3 wcol2=vec3( 1.0,0.709804,0.415686);
-
+        
         vec4 t=texture(iChannel1,.2+p.xy*vec2(.15,.05));
         //return vec3(1.-t.x*t.y);
         float w1=smoothstep(0.7,.8,1.-t.x); // cooler orange glow
@@ -446,8 +446,8 @@ vec3 shade(vec3 p, float m)
         col=mix(vec3( 0.459, 0.482, 0.514),vec3( 0.870588, 0.819608, 0.760784),shine);
         //col=vec3(pow(smooths(dot(n,vec3(0.,1.,0.))),4.));
     }
-
-    col*=1.1*clamp01( dot( n, sun_dir ) ); // phong lighting
+    
+    col*=1.1*clamp01( dot( n, sun_dir ) ); // phong lighting   
     return col;
 }
 
@@ -455,9 +455,9 @@ vec3 shade(vec3 p, float m)
 // this does shading calculations.
 int trace(in vec3 ro, in vec3 rd, out vec3 col, out vec3 p)
 {
-    int obj=ID_SKY;
+    int obj=ID_SKY;   
     col=background(rd); // default color = sky
-
+    
     // mountains
     // exponential jump + binary search refinement
     float h; float h2;
@@ -467,18 +467,18 @@ int trace(in vec3 ro, in vec3 rd, out vec3 col, out vec3 p)
         jump=0.05*t+0.1;
         t+=jump;
         p=ro+t*rd;
-
+        
         // foreground mountains
         float vwidth=0.7;// valley width
         float xscale=abs(rd.x-.2)*2.; // valley centered around sun
-		float zscale=abs(p.z)/15.; // river gets wider closer to camera
+		float zscale=abs(p.z)/15.; // river gets wider closer to camera        
         h=fbm2(p.xz*3.,.3)*xscale*zscale-.25;
-
+        
         // background mountains
         float zscale2=p.z/20.-.7; // only show up in background
         vec4 tex=texture(iChannel2,p.xz/140.);
         h2=((tex.x-.4)*zscale2*max(xscale+.15,0.)-.2)*30.;
-
+        
         // binary search refinement
         if (p.y <h || p.y<h2) {
             for (int j=0; j<5; j++) {
@@ -488,7 +488,7 @@ int trace(in vec3 ro, in vec3 rd, out vec3 col, out vec3 p)
                 p=ro+t*rd;
             }
         }
-
+        
         if (p.y<h) {
             col=vec3(0.180392, 0.0745098, 0.031372)*2.*(1.-sqrt(h));
             obj=ID_MOUNTAIN;
@@ -501,7 +501,7 @@ int trace(in vec3 ro, in vec3 rd, out vec3 col, out vec3 p)
             obj=ID_NONE;
         }
     }
-
+    
     // trace village
     t=0.1;
     vec2 dm;
@@ -523,7 +523,7 @@ int trace(in vec3 ro, in vec3 rd, out vec3 col, out vec3 p)
     if (p.y<0. && p2.y<0.){
         obj=ID_NONE;
     }
-
+    
 	return obj;
 }
 
@@ -535,12 +535,12 @@ vec3 render(in vec3 ro, in vec3 rd)
 {
     vec3 p; float d;
     vec3 col=vec3(0.);
-
+    
   	// intersect foreground
     int obj=trace(ro,rd,col,p);
     vec3 p2;
 
-    if (obj==ID_NONE) { // we must have hit water == ID_NONE
+    if (obj==ID_NONE) { // we must have hit water == ID_NONE   
         d=dPlane(ro,rd);
         float fresnel;// bool refl;
         p=ro+d*rd;
@@ -552,11 +552,11 @@ vec3 render(in vec3 ro, in vec3 rd)
         fresnel = pow(1.0-abs(dot(n,rd)),5.);
         rd = reflect( rd, n);
         ro=p;
-        trace(ro,rd,col,p2);
+        trace(ro,rd,col,p2);    
         vec3 watercol=vec3( 0.439216  ,0.270588 , 0.203922);
         col=mix(col,watercol,1.-fresnel);
     }
-
+    
     col=cheapFog(ro,rd,clamp01(col),p);
 	return col;
 }
@@ -568,24 +568,24 @@ void main()
     // alternate animation - boat sailing down the river
     //ry=-1.7+sin(iTime)*.01;
     //vec3 q2=rY(p-vec3(3.,0.,1.4),cos(ry),sin(ry))-vec3(-mod(iTime*BOAT_SPEED+8.,50.),0.,0.);
-    vec2  p = (-iResolution.xy+2.0*fragCoord.xy)/iResolution.y; // x=(-1.5,1.5), y=(1,1)
-    p.y = -p.y;
+    vec2  p = (-iResolution.xy+2.0*gl_FragCoord.xy.xy)/iResolution.y; // x=(-1.5,1.5), y=(1,1)
+    p.y = -p.y; 
     vec3 ro=vec3(0.,1.5,0.); // eye location
     vec3 ta=vec3(0.,3.,20.); // look location
     vec3 up = vec3( 0.0, 1.0, 0.0 ); // up axis of world
     float d = 2.5; // distance between eye and film plane
-
+    
     // build ray
     vec3 ww = normalize( ta - ro); // film plane normal
     vec3 uu = normalize(cross( up, ww )); // horizontal axis of film plane
     vec3 vv = normalize(cross(ww,uu)); // vertical axis of film plane
     vec3 rd = normalize( p.x*uu + p.y*vv + d*ww );
-
+    
     vec3 col=render(ro,rd);
-
+    
     // vignette
-    vec2 q = fragCoord.xy/iResolution.xy;
+    vec2 q = gl_FragCoord.xy.xy/iResolution.xy;
     col *= 0.5 + 0.5*pow(20.0*q.x*q.y*(1.0-q.x)*(1.0-q.y),0.4);
 
-    fragColor=vec4(col,1.);
+    fragColor=vec4(col,1.); 
 }
