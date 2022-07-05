@@ -1,8 +1,7 @@
 #include "ofApp.h"
 
 //--------------------------------------------------------------
-void ofApp::setup()
-{
+void ofApp::setup(){
 
 	font_p.loadFont("font/Montserrat-Regular.ttf", 11); // Inicio fuente.
 
@@ -92,7 +91,6 @@ void ofApp::setup()
 	// myTextureImage.loadImage("SpoutBox1.png");			// Load a texture image for the demo
 	boxes.load(savedirectory);
 }
-
 void ofApp::update()
 {
 	boxes.update();
@@ -149,7 +147,6 @@ void ofApp::update()
 		openloader.activeflag = false;
 	}*/
 }
-
 void ofApp::draw()
 {
 	boxes.draw_activerender(ofGetWidth(), ofGetHeight());
@@ -171,8 +168,12 @@ void ofApp::draw()
 	{
 		draw_opciones();
 	}
-}
 
+	
+
+	
+
+}
 void ofApp::draw_debugInfo()
 {
 
@@ -182,7 +183,6 @@ void ofApp::draw_debugInfo()
 	font_p.drawString("Boxes size : " + ofToString(boxes.getBoxesSize()), 30, posy -= sepy);
 	font_p.drawString("DIALOG BOX : " + ofToString(jp_constants::systemDialog_open), 30, posy -= sepy);
 }
-
 void ofApp::draw_instrucciones()
 {
 	float x = 100;
@@ -202,7 +202,6 @@ void ofApp::draw_instrucciones()
 	jp_constants::p_font.drawString("m: exportar imagen", x, y += sepy);
 	jp_constants::p_font.drawString("Para cargar archivo (todos) arrastrarlo hasta la ventana", x, y += sepy);
 }
-
 void ofApp::draw_opciones()
 {
 
@@ -225,7 +224,6 @@ void ofApp::drawRender()
 {
 	boxes.draw_activerender();
 }
-
 void ofApp::keyPressed(int key)
 {
 
@@ -393,7 +391,6 @@ void ofApp::keyPressed(int key)
 	}
 	prevKey = key;*/
 }
-
 void ofApp::keycodePressed(ofKeyEventArgs &e)
 {
 

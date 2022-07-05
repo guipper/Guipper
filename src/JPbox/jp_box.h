@@ -1,5 +1,6 @@
 #pragma once
 #include "ofMain.h"
+#include "defines.h"
 //#include "Shaderrender.h"
 #include "../JPutils/jp_parametergroup.h"
 #include "../JPutils/jp_fbohandler.h"

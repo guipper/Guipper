@@ -1,17 +1,16 @@
 /*
 	Made by JPUPPER vieja
-	Ultima modificaci�n : 10/5/2019
-
+	Ultima modificaci�n : 7/5/2021
 	Cambios a hacer :
-
-
 */
+
 
 #pragma once
 
 // ADDONS :
 // OTHERS:
 #include "ofMain.h"
+#include "defines.h"
 #include "JPbox/jp_box.h"
 #include "JPbox/jp_box_shader.h"
 #include "JPbox/JPboxgroup.h"
@@ -22,7 +21,8 @@
 #include "ofxNDI.h"
 //#include "RenderWindowApp.h"
 
-#define PORT 5000
+#define PORT 5000 
+
 
 class ofApp : public ofBaseApp
 {

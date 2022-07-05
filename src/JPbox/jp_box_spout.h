@@ -1,5 +1,5 @@
 #pragma once
-
+#include "defines.h"
 #include "ofMain.h"
 #include "jp_box.h"
 //#include "ofxSpout2Receiver.h"

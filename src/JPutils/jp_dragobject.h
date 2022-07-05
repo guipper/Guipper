@@ -1,4 +1,6 @@
 #pragma once
+
+#include "defines.h"
 #include "ofMain.h"
 // Esta clase es solo para trabajar los objetos que se agarran o no se agarran. CORTA LA BOCHEN
 class JPdragobject

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "defines.h"
 #include "ofMain.h"
 
 class JPParameter

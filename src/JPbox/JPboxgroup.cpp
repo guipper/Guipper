@@ -3,6 +3,7 @@
 JPboxgroup::JPboxgroup() {}
 JPboxgroup::~JPboxgroup() {}
 
+
 void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 {
 	font_p = &_font;
@@ -60,6 +61,10 @@ void JPboxgroup::draw()
 		ofDrawBitmapString(ofToString(i), x, y);
 	}
 	draw_paramswindow();
+
+
+	
+	
 }
 void JPboxgroup::draw_activerender()
 {

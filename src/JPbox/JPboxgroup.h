@@ -1,4 +1,7 @@
 #pragma once
+
+
+#include "defines.h"
 #include "ofMain.h"
 #include "jp_box_shader.h"
 #include "jp_box.h"

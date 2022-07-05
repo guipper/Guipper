@@ -1,4 +1,7 @@
 #pragma once
+
+
+#include "defines.h"
 #include "ofMain.h"
 #include "jp_constants.h"
 
