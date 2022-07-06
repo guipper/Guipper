@@ -716,12 +716,14 @@ void JPboxgroup::load(string _dirinput)
 		{
 			bx = new JPbox_cam();
 		}
+
 #ifdef SPOUT
 		else if (directory.getValue().find("spoutReceiver") != std::string::npos)
 		{
 			bx = new JPbox_spout();
 		}
 #endif
+
 		else if (directory.getValue().find(".xml") != std::string::npos)
 		{
 			bx = new JPbox_preset();
@@ -734,6 +736,9 @@ void JPboxgroup::load(string _dirinput)
 		bx->setup(directory.getValue(), nombre.getValue());
 		bx->setPos(x.getIntValue(), y.getIntValue());
 		bx->setonoff(!box.getChild("onoff").getBoolValue());
+
+
+
 
 		int index = 0;
 		auto parameters = box.getChild("parameters").getChildren();
@@ -766,6 +771,17 @@ void JPboxgroup::load(string _dirinput)
 			}
 			index++;
 		}
+#ifdef SPOUT
+
+		if (bx->getTipo() == 4) {
+			cout << "CAJA DE SPOUT " << endl;
+
+
+			bx->reload();
+		}
+
+#endif
+
 		boxes.push_back(bx);
 	}
 	// Una vez que cargo todas las cajitas les cargamos los links :
@@ -792,6 +808,10 @@ void JPboxgroup::load(string _dirinput)
 		index1++;
 	}
 	*activerender = xml.getChild("activerender").getIntValue();
+
+
+
+
 	//}
 	// activerender_loader.getIntValue();
 	// activerender = activerender_loader.getIntValue();

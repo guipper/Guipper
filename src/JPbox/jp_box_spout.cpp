@@ -28,7 +28,7 @@ void JPbox_spout::setup(string _dir, string _name)
 
 	bInitialized = false; // Spout receiver initialization
 	SenderName[0] = 0;	  // the name will be filled when the receiver connects to a sender
-
+	activesender = 0;
 	// Allocate a texture for shared texture transfers
 	// An openFrameWorks texture is used so that it can be drawn.
 }
@@ -130,29 +130,32 @@ void JPbox_spout::update_spout()
 
 	if (activesender_prev != activesender)
 	{
-		cout << "Cantidad de spout senders " << spoutreceiver.GetSenderCount() << endl;
-		for (int i = 0; i < spoutreceiver.GetSenderCount(); i++)
-		{
-			char *name = new char[256];
-			spoutreceiver.GetSenderName(i, name);
-			cout << "Spout sender " << i << ":" << name << endl;
-			// si detecta que cambio y que el sender que elegimos es ese:
-			if (i == activesender)
-			{
-				// SenderName = name;
-				spoutreceiver.ReleaseReceiver();
-				strcpy(SenderName, name);
-				bInitialized = false;
-			}
-		}
-		cout << "-------------------------------------" << endl;
-		cout << "activesender :" << activesender << endl;
-		cout << "Name active sender :" << SenderName << endl;
+		changeReciever(activesender);
 	}
-
-	// cout << "SENDER COUNT" << spoutreceiver.GetSenderCount() << endl;
-	// spoutreceiver.GetSenderCount();
 }
+
+void JPbox_spout::changeReciever(int _activesender) {
+	cout << "Cantidad de spout senders " << spoutreceiver.GetSenderCount() << endl;
+	for (int i = 0; i < spoutreceiver.GetSenderCount(); i++)
+	{
+		char* name = new char[256];
+		spoutreceiver.GetSenderName(i, name);
+		cout << "Spout sender " << i << ":" << name << endl;
+		// si detecta que cambio y que el sender que elegimos es ese:
+		if (i == _activesender)
+		{
+			// SenderName = name;
+			spoutreceiver.ReleaseReceiver();
+			strcpy(SenderName, name);
+			bInitialized = false;
+		}
+	}
+	cout << "-------------------------------------" << endl;
+	cout << "activesender :" << _activesender << endl;
+	cout << "Name active sender :" << SenderName << endl;
+
+}
+
 
 void JPbox_spout::update()
 {
@@ -238,6 +241,11 @@ void JPbox_spout::clear()
 	fbo.clear();
 	fbo.destroy();
 	fbohandlergroup.clear();
+}
+
+void JPbox_spout::reload() {
+	cout << "RELOAD DE SPOUT " << endl;
+	changeReciever(activesender);
 }
 
 #endif
