@@ -10,9 +10,9 @@ JPbox_spout::~JPbox_spout() {}
 void JPbox_spout::setup(string _dir, string _name)
 {
 
-	JPbox::setup(_dir, _name);
+	JPbox::setup(_dir, _name); 
 	// parameters.coutData();
-	name = "SPOUT";
+	name = _name;
 	dir = "spoutReceiver";
 	myTexture.allocate(int(jp_constants::renderWidth), int(jp_constants::renderHeight), GL_RGBA);
 

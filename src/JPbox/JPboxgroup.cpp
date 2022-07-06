@@ -743,19 +743,13 @@ void JPboxgroup::load(string _dirinput)
 		int index = 0;
 		auto parameters = box.getChild("parameters").getChildren();
 		// cout << "PARAMETER SIZE SB " << sb->parameters.getSize() << endl;
-		for (auto &param : parameters)
+
+		
+		for (auto &param : parameters) 
 		{
-			/*cout << "............" << endl;
-			cout << "nombre parametro:" << param.getChild("name").getValue() << endl;
-			cout << "min parametro:" << param.getChild("min").getFloatValue() << endl;
-			cout << "max parametro:" << param.getChild("max").getFloatValue() << endl;
-			cout << "value parametro:" << param.getChild("value").getValue() << endl;
-			cout << "movtype parametro:" << param.getChild("movtype").getIntValue() << endl;
-			cout << "speed parametro:" << param.getChild("speed").getFloatValue() << endl;*/
 
 			if (bx->parameters.getType(index) == bx->parameters.FLOAT)
 			{
-
 				bx->parameters.setName(param.getChild("name").getValue());
 				bx->parameters.setMin(param.getChild("min").getFloatValue(), index);
 				bx->parameters.setMax(param.getChild("max").getFloatValue(), index);
@@ -771,15 +765,13 @@ void JPboxgroup::load(string _dirinput)
 			}
 			index++;
 		}
+
+	
 #ifdef SPOUT
-
 		if (bx->getTipo() == 4) {
-			cout << "CAJA DE SPOUT " << endl;
-
-
+			cout << "RELOAD CAJA DE SPOUT " << endl;
 			bx->reload();
 		}
-
 #endif
 
 		boxes.push_back(bx);
@@ -788,6 +780,7 @@ void JPboxgroup::load(string _dirinput)
 	// Mira lo que esta este algoritmo para levantar los links entre cajitas papa !!!
 	int index1 = 0;
 	int index2 = 0;
+	cout << "COMIENZA LINKS DE LOS FBO " << endl;
 	for (auto &box : boxloader)
 	{
 		auto fboslinks = box.getChild("fboslinks").getChildren();
@@ -795,7 +788,10 @@ void JPboxgroup::load(string _dirinput)
 		for (auto &fbolink : fboslinks)
 		{
 			for (int i = 0; i < boxes.size(); i++)
-			{
+			{	
+
+				cout << "NOMBRE CAJA " << boxes[i]->name << endl ;
+				cout << "NOMBRE FBO " << fbolink.getValue() << endl;
 				if (boxes[i]->name == fbolink.getValue() && i != index1)
 				{
 					ofFbo *fbopointer = &boxes[i]->fbo;
@@ -808,7 +804,7 @@ void JPboxgroup::load(string _dirinput)
 		index1++;
 	}
 	*activerender = xml.getChild("activerender").getIntValue();
-
+	cout << "TERMINA LINKS DE LOS FBO " << endl;
 
 
 

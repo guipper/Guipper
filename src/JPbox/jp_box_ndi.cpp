@@ -12,7 +12,7 @@ void JPbox_ndi::setup(string _dir, string _name)
 
 	JPbox::setup(_dir, _name);
 	// parameters.coutData();
-	name = "NDI";
+	name = _name;
 	dir = "ndiReceiver";
 	myTexture.allocate(int(jp_constants::renderWidth), int(jp_constants::renderHeight), GL_RGBA);
 	// Limpiamos el buffer de la textura ?
