@@ -26,6 +26,8 @@ uniform float flush ;
 
 float snoise(vec2 v);
 float random (in vec2 _st);
+
+
 /*vec2 random2( vec2 p ) {
     return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);
 }*/
@@ -157,13 +159,13 @@ void main(void)
 
   //  float n = snoise(vec2(uv.x*100.*noisex,uv.y*100.*noisey+time*1)*0.002) ;
     const int cnt = 3;
-    for(int i=0; i<cnt; i++){
+    /*for(int i=0; i<cnt; i++){
         float fas = float(i)*PI*2./float(cnt);
         uv+=vec2(0.5);
         uv = scale(vec2(1.2))*uv;
         uv-=vec2(0.5);   
-    }
-    uv/=float(cnt);
+    }*/
+    //uv/=float(cnt);
 
 
 	float msc = mapr(sc,150.,300.);
@@ -191,10 +193,6 @@ void main(void)
 	
 	float mflush = mapr(flush,0.3,1.0);
 	e = sin(e*2.*mflush+time*.05)*5.;
-	
-	
-	
-	
 	vec3 col1 = vec3(sin(e*2.+r1*TWO_PI)*.5+.5,
 					 sin(e*2.+g1*TWO_PI)*.5+.5,
 					 sin(e*2.+b1*TWO_PI)*.5+.5);

@@ -7,8 +7,8 @@ uniform float speed;
 
 void main()
 {	
-	vec2 uv = fragCoord.xy / resolution;
-	vec2 uv2 = fragCoord.xy ;
+	vec2 uv = gl_FragCoord.xy / resolution;
+	vec2 uv2 = gl_FragCoord.xy ;
 	
 	vec4 t1 =  texture2D(textura1, uv2/resolution);	
 	vec4 t2 =  texture2D(textura2, uv2/resolution);	

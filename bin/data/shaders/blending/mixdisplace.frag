@@ -8,12 +8,12 @@ uniform float offsety;
 
 void main()
 {	
-	vec2 uv = fragCoord.xy / resolution;	
+	vec2 uv = gl_FragCoord.xy / resolution;	
 	
-	vec4 t2 =  texture2D(textura2, fragCoord.xy/resolution);
+	vec4 t2 =  texture2D(textura2, gl_FragCoord.xy/resolution);
 	float t2_f = (t2.r+t2.g+t2.b)/3.;
 	
-	vec2 uv2 = fragCoord.xy / resolution;
+	vec2 uv2 = gl_FragCoord.xy / resolution;
 	
 	float limit = 0.5;
 	float moffsetx = mapr(offsetx,-limit,limit);

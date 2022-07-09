@@ -527,12 +527,15 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		}
 		if (mouseButton == 2 && isDoubleClick)
 		{
+			cout << "DOBLE CLICK " << endl;
 			for (int i = 0; i < boxes[openguinumber]->parameters.getSize(); i++)
 			{
 				if (boxes[openguinumber]->parameters.getType(i) == boxes[openguinumber]->parameters.FLOAT)
 				{
 					float rdm = ofRandom(1);
 					boxes[openguinumber]->parameters.setFloatLerpValue(rdm, i);
+					boxes[openguinumber]->parameters.setFloatValue(rdm, i);
+
 				}
 			}
 			setControllers();
