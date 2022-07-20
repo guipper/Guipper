@@ -3,4 +3,4 @@
 
 #define NDI
 #define SPOUT
-#define TEST
+#define RELATIVEDIRS

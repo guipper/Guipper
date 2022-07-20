@@ -15,9 +15,7 @@ void main()
 	
 	
 	t.rg *=rotate2d(rd1*TWO_PI); 
-	
 	t.bg *=rotate2d(rd2*TWO_PI); 
-	
 	t.rb *=rotate2d(rd3*TWO_PI); 
 	
 	

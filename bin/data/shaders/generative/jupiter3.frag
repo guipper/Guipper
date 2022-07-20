@@ -177,25 +177,36 @@ void main(void){
     
     //e+=lines*cir1;
     
+	vec3 col1 = vec3(1.0,0.6,0.0)*cir1*1.2;
     vec3 col2 = vec3(1.0,1.0,1.0);                
-    vec3 col1 = vec3(1.0,0.6,0.0)*cir1*1.2;
     vec3 col3 = vec3(0.6,0.2,0.3);
 	
 	
-	if(palette > 0.3){
-		col1 = vec3(0.0,0.8,0.5)*cir1*1.2;
-		col2 = vec3(0.8,1.0,1.0);   
-		col3 = vec3(0.4,0.8,0.8);
-	}
+	vec3 col1_2 = vec3(0.0,0.8,0.5)*cir1*1.2;
+	vec3 col2_2 = vec3(0.8,1.0,1.0);   
+	vec3 col3_2 = vec3(0.4,0.8,0.8);
+	
+	vec3 col1_3 = vec3(0.0,0.7,1.0)*cir1*1.2;
+	vec3 col2_3 = vec3(1.0,1.0,1.0);   
+	vec3 col3_3 = vec3(0.5,0.5,1.0);
+	
+	float patron =mapr(palette,0.0,2.0);
+	
+	//vec3 fin = vec3(0.0);
+     if(patron <= 1.0){
+		col1 = mix(col1,col1_2,patron);
+		col2 = mix(col2,col2_2,patron);
+		col3= mix(col3,col3_2,patron);
+	 }
+	 if(patron > 1.0 && patron <=2.0){
+		col1 = mix(col1_2,col1_3,1.-patron);
+		col2 = mix(col2_2,col2_3,1.-patron);
+		col3 = mix(col2_2,col3_3,1.-patron);
+	 }
+	 
 
-	if(palette > 0.6){
-		col1 = vec3(0.0,0.7,1.0)*cir1*1.2;
-		col2 = vec3(1.0,1.0,1.0);   
-		col3 = vec3(0.5,0.5,1.0);
-	
-	}
-	
-	
+
+	col1 = mix(col1,col1_2,mapr(palette,0.0,0.33));
 	
     vec3 dib = mix(col1,col2,e)*0.9;
     

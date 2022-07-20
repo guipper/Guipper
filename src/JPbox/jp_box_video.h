@@ -30,6 +30,9 @@ public:
 	void updateFBO();
 	void draw();
 	void clear();
+
+	float auxpos; //Guardamos la posicion anterior del parametro.
+
 	/*void setPos(float _x, float _y) {
 		JPdragobject::setPos(_x, _y);
 		//setfbohandler_nodepos();

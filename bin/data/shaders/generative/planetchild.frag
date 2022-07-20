@@ -187,7 +187,7 @@ vec4 march(vec3 from, vec3 dir) {
 void main()
 {
     // Normalized pixel coordinates (from 0 to 1)
-    vec2 uv = (gl_FragCoord - iResolution.xy * .5) / iResolution.y;
+    vec2 uv = (gl_FragCoord.xy - iResolution.xy * .5) / iResolution.y;
 	float a, b;
     vec3 from = vec3(0., a, -10.);
 	vec3 dir = normalize(vec3(uv, min(1.1, iTime * .5)));

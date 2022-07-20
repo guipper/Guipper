@@ -36,10 +36,24 @@ void JPbox_video::updateFBO()
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		ofSetColor(255, 255);
 
+
+
+		if (auxpos != parameters.getFloatValue(6)) {
+			auxpos = parameters.getFloatValue(6);
+			//float pos = ofMap(parameters.getFloatValue(6), 0.0, 1.0, 0.0, movie.getTotalNumFrames());
+			movie.setPosition(parameters.getFloatValue(6));
+		}
+		else {
+			float position = ofMap(movie.getCurrentFrame(), 0.0, movie.getTotalNumFrames(), 0.0, 1.0);
+			parameters.setFloatValue(position, 6);
+			auxpos = parameters.getFloatValue(6);
+
+		}
+		
 		//float pos = ofMap(parameters.getFloatValue(6), 0.0, 1.0, 0.0, movie.getTotalNumFrames());
-		//movie.setPosition(pos);
-		float position = ofMap(movie.getCurrentFrame(), 0.0, movie.getTotalNumFrames(), 0.0, 1.0);
-		parameters.setFloatValue(position, 6);
+		/*float position = ofMap(movie.getCurrentFrame(), 0.0, movie.getTotalNumFrames(), 0.0, 1.0);
+		//parameters.setFloatValue(position, 6);
+		movie.setPosition(position);*/
 		//cout << "POSITION " << position << endl;
 
 		movie.setSpeed(ofMap(parameters.getFloatValue(5), 0.0, 1.0, .0, 4.0));

@@ -160,6 +160,9 @@
     <ClCompile Include="src\SpoutSDK\SpoutSharedMemory.cpp">
       <Filter>src\SpoutSDK</Filter>
     </ClCompile>
+    <ClCompile Include="src\JPutils\TransitionSR.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">
@@ -457,6 +460,9 @@
     </ClInclude>
     <ClInclude Include="src\defines.h">
       <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\TransitionSR.h">
+      <Filter>src\JPutils</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

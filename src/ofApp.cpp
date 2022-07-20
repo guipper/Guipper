@@ -218,7 +218,6 @@ void ofApp::draw_opciones()
 	font_p.drawString("osc PORT OUT " + ofToString(sender.getPort()), posx, posy += sepy);
 	font_p.drawString("osc IP OUT " + ofToString(sender.getHost()), posx, posy += sepy);
 }
-
 // Esta es la que se dibuja en la otra ventana
 void ofApp::drawRender()
 {
@@ -382,6 +381,9 @@ void ofApp::keyPressed(int key)
 			fbo.readToPixels(pix);
 			ofSaveImage(pix, "exportimgs/export" + txtname + ".png");
 		}
+		if (key == 'e'){
+			boxes.activeSequence = !boxes.activeSequence;
+		}
 	}
 	/*if (prevKey == OF_KEY_CONTROL && key == 's') {
 		cout << "lala" << endl;
@@ -495,6 +497,17 @@ void ofApp::dragEvent(ofDragInfo dragInfo)
 			indexx++;
 		}
 
+#ifdef RELATIVEDIRS
+		cout << "path " << path << endl;
+		if (path.find("data") != std::string::npos) {
+			cout << "IS INSIDE DATA FOLDER SO LETS CONVERT IT TO RELATIVE DIR" << endl;
+			path = path.substr(path.find("data"), path.size());
+			cout << "NEW PATH CONVERSION :" << path << endl;
+		}
+		else {
+			cout << "WARNING: OUTSIDE DATA FOLDER " << endl;
+		}
+#endif
 		cout << "path " << path << endl;
 
 		if (path.find(".xml") != std::string::npos &&
@@ -535,7 +548,6 @@ void ofApp::openRenderWindow()
 		ofAddListener(windows.back()->events().windowResized, this, &ofApp::window_resized);
 	}
 }
-
 void ofApp::loadSettings()
 {
 
@@ -565,6 +577,7 @@ void ofApp::loadSettings()
 	auto oscipout = settings.getChild("osc_ip_out");
 	auto oscout1 = settings.getChild("oscout_mode1");
 	auto oscout2 = settings.getChild("oscout_mode2");
+	auto durationgallery = settings.getChild("durationgallery");
 
 	cout << "/****************************************************/" << endl;
 	cout << "INITIAL VALUES FROM SETTINGS.XML " << endl;
@@ -584,12 +597,14 @@ void ofApp::loadSettings()
 #endif
 	cout << "oscout1 " << oscout1.getBoolValue() << endl;
 	cout << "oscout2 " << oscout2.getBoolValue() << endl;
+	cout << "durationgallery " << durationgallery.getFloatValue() << endl;
 	cout << "/****************************************************/" << endl;
 
 	jp_constants::init(renderwidthaux.getIntValue(),
 					   renderheightaux.getIntValue(),
 					   windowwidth.getIntValue(),
 					   windowheight.getIntValue());
+	jp_constants::setdurationgallery(durationgallery.getFloatValue());
 
 	cout << "window_width " << jp_constants::window_width << endl;
 
@@ -609,12 +624,10 @@ void ofApp::loadSettings()
 		openRenderWindow();
 	}
 }
-
 std::string toXmlString(const bool value)
 {
 	return value ? "true" : "false";
 }
-
 void ofApp::saveSettings()
 {
 	const auto settingsPath = ofToDataPath("settings.xml");
@@ -624,11 +637,16 @@ void ofApp::saveSettings()
 	auto settings = xml.appendChild("settings");
 	settings.appendChild("renderwidth").set(jp_constants::renderWidth);
 	settings.appendChild("renderheight").set(jp_constants::renderHeight);
+	settings.appendChild("durationgallery").set(jp_constants::durationgallery);
 	settings.appendChild("window_x").set(ceil(window_initialposx));
 	settings.appendChild("window_y").set(ceil(window_initialposy));
-	settings.appendChild("window_width").set(jp_constants::window_width);
-	settings.appendChild("window_height").set(jp_constants::window_height);
-	settings.appendChild("window_fullscreen").set(toXmlString(window_fullscreen));
+	//settings.appendChild("window_width").set(jp_constants::window_width);
+	//settings.appendChild("window_height").set(jp_constants::window_height)s;
+	//settings.appendChild("window_fullscreen").set(toXmlString(window_fullscreen));
+
+	settings.appendChild("window_width").set(600);
+	settings.appendChild("window_height").set(600);
+	settings.appendChild("window_fullscreen").set(false);
 	settings.appendChild("window_open").set(toXmlString(isRenderWindowOpen));
 #ifdef SPOUT
 	settings.appendChild("spouton").set(toXmlString(spoutActive));
@@ -641,9 +659,7 @@ void ofApp::saveSettings()
 
 	xml.save(settingsPath);
 }
-
-void ofApp::updateOSC()
-{
+void ofApp::updateOSC(){
 	// hide old messages
 
 	// RECEIVER
@@ -656,7 +672,7 @@ void ofApp::updateOSC()
 		boxes.listenToOsc(m.getAddress(), m.getArgAsFloat(0)); // Esta te levanta el OSC Digamos?
 		// cout << "ADDRES:" << m.getAddress() << endl;
 		// cout << "VALUE:" << m.getArgAsFloat(0) << endl;
-
+		cout << "LLEGA OSC  " << m.getAddress() << endl;
 		if (m.getAddress().find("load") != std::string::npos)
 		{
 			cout << "ENCONTRO LOAD " << endl;
@@ -669,48 +685,39 @@ void ofApp::updateOSC()
 			savedirectory = dirfinal;
 		}
 	}
-	// SENDER
 
+
+
+	// SENDER
 	// ESTO VA A HABER QUE CODEARLO MEJOR PERO VAMOS ASI POR AHORA:
 	// FORMA 1 : MANDA CON NOMBRE DE CAJA TODO EL TIEMPO TODAS LAS VECESSSS
-	if (oscout_mode1)
-	{
-		for (int i = 0; i < boxes.getBoxesSize(); i++)
-		{
-			for (int k = 0; k < boxes.boxes[i]->parameters.getSize(); k++)
-			{
+	if (oscout_mode1){
+		for (int i = 0; i < boxes.getBoxesSize(); i++){
+			for (int k = 0; k < boxes.boxes[i]->parameters.getSize(); k++){
 				ofxOscMessage m;
 				string mensajefinal = boxes.boxes[i]->name + "/" + boxes.boxes[i]->parameters.getName(k);
-
 				m.setAddress(mensajefinal);
-				if (boxes.boxes[i]->parameters.getType(k) == boxes.boxes[i]->parameters.BOOL)
-				{
+				if (boxes.boxes[i]->parameters.getType(k) == boxes.boxes[i]->parameters.BOOL){
 					m.addBoolArg(boxes.boxes[i]->parameters.getBoolValue(k));
 				}
-				else
-				{
+				else{
 					m.addFloatArg(boxes.boxes[i]->parameters.getFloatValue(k));
 				}
 				sender.sendMessage(m, false);
 			}
 		}
 	}
+
 	// FORMA 2: MANDA LOS NOMBRES COMO V1,V2,V3 Y SOLO DE LA CAJA DE LA INTERFAZ ACTIVA. :
-	if (oscout_mode2)
-	{
-		if (boxes.openguinumber != -1)
-		{
-			for (int k = 0; k < boxes.boxes[boxes.openguinumber]->parameters.getSize(); k++)
-			{
+	if (oscout_mode2){
+		if (boxes.openguinumber != -1){
+			for (int k = 0; k < boxes.boxes[boxes.openguinumber]->parameters.getSize(); k++){
 				ofxOscMessage m;
 				string mensajefinal = "v" + ofToString(k);
-
-				if (boxes.boxes[boxes.openguinumber]->parameters.getType(k) == boxes.boxes[boxes.openguinumber]->parameters.BOOL)
-				{
+				if (boxes.boxes[boxes.openguinumber]->parameters.getType(k) == boxes.boxes[boxes.openguinumber]->parameters.BOOL){
 					m.addBoolArg(boxes.boxes[boxes.openguinumber]->parameters.getBoolValue(k));
 				}
-				else
-				{
+				else{
 					m.addFloatArg(boxes.boxes[boxes.openguinumber]->parameters.getFloatValue(k));
 				}
 				m.setAddress(mensajefinal);
@@ -718,6 +725,7 @@ void ofApp::updateOSC()
 			}
 		}
 	}
+
 }
 // LISTENERS DE LAS VENTANAS:
 void ofApp::window_drawRender(ofEventArgs &args)

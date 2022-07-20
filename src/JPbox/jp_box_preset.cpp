@@ -59,6 +59,11 @@ void JPbox_preset::setup(string _directory, string _name)
 		{
 			bx = new JPbox_cam();
 		}
+#ifdef NDI
+		else if (directory.getValue().find("ndiReceiver") != std::string::npos) {
+			bx = new JPbox_ndi();
+		}
+#endif
 #ifdef SPOUT
 		else if (directory.getValue().find("spoutReceiver") != std::string::npos)
 		{

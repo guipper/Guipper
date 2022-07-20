@@ -67,7 +67,7 @@ void JPParameter::update()
 		}
 		if (movtype == RANDOM)
 		{
-			float n = ofMap(ofNoise(ofGetElapsedTimeMillis() * speed * absolutespeed + seed),
+			float n = ofMap(ofNoise(ofGetElapsedTimeMillis() * speed * absolutespeed *.01+ seed),
 							0.0, 1.0, min, max);
 			floatValue = n;
 			floatLerpValue = n;

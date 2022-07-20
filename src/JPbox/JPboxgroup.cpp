@@ -32,6 +32,10 @@ void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 	duration_mouseclick = 200;
 	isDoubleClick = false;
 	controllerselected = -1;
+
+	transition.setup();
+	lasttime_sequence = ofGetElapsedTimeMillis();
+	activeSequence = false;
 }
 void JPboxgroup::draw()
 {
@@ -71,16 +75,31 @@ void JPboxgroup::draw_activerender()
 	if (boxes.size() >= 1)
 	{
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		boxes[*activerender]->fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
+		//
+
+		//if (boxes.size() > 2){
+			transition.draw(0, 0, ofGetWidth() * 2., ofGetHeight() * 2.);
+		//}
+		//else {
+			//boxes[*activerender]->fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
+		//}
 	}
-	ofImage lala;
 }
 void JPboxgroup::draw_activerender(float _width, float _height)
 {
 	if (boxes.size() >= 1)
 	{
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		boxes[*activerender]->fbo.draw(0, 0, _width, _height);
+		//boxes[*activerender]->fbo.draw(0, 0, _width, _height);
+
+		//QUE ONDA QUE LO TENGO QUE DIBUJAR DIFERENTE!?
+		if (boxes.size() > 2) {
+			transition.draw(0, 0, _width, _height);
+		}
+		else {
+			boxes[*activerender]->fbo.draw(0, 0, _width, _height);
+		}
+		transition.draw(0, 0, _width, _height);
 	}
 }
 void JPboxgroup::draw_paramswindow()
@@ -163,19 +182,16 @@ void JPboxgroup::draw_conections()
 		}
 	}
 }
-void JPboxgroup::update()
-{
+void JPboxgroup::update(){
 
 	// bool unoagarrado = false;
 	update_paramswindow();
+	
 	float lerpAmount = 0.3;
-	for (int i = boxes.size() - 1; i >= 0; i--)
-	{
+	for (int i = boxes.size() - 1; i >= 0; i--){
 		boxes[i]->update();
-
 		// boxes[i]->parameters.update(); //La mutie y no paso nada
-		for (int k = boxes[i]->parameters.getSize() - 1; k >= 0; k--)
-		{
+		for (int k = boxes[i]->parameters.getSize() - 1; k >= 0; k--){
 		}
 		if (openguinumber == i)
 		{
@@ -188,16 +204,13 @@ void JPboxgroup::update()
 		// ESTO ES PARA QUE EL SLIDER QUE REPRESENTA LA BARRA DE TIEMPO DE LOS VIDEOS
 		// SE ACTUALICE
 		if (boxes[i]->getTipo() == boxes[i]->VIDEOBOX && openguinumber == i &&
-			!controllers.at(6)->mouseOver())
-		{
+			!controllers.at(6)->mouseOver()){
 			controllers.at(6)->value = boxes[i]->parameters.getFloatValue(6);
 		}
 
 		// PARA AGARRAR LAS CAJITAS :
-		if (ofGetMousePressed())
-		{
-			if (boxes[i]->mouseOverOutlet() && !ouletagarrado && !shaderboxagarrado)
-			{
+		if (ofGetMousePressed()){
+			if (boxes[i]->mouseOverOutlet() && !ouletagarrado && !shaderboxagarrado){
 				boxes[i]->activeFlag = false;
 				boxes[i]->outletActiveFlag = true;
 				ouletagarrado = true;
@@ -205,8 +218,7 @@ void JPboxgroup::update()
 				outlet_cualestaagarrado = i;
 				cualestaagarrado = -1;
 			}
-			else if (boxes[i]->mouseOver() && !ouletagarrado && !shaderboxagarrado)
-			{
+			else if (boxes[i]->mouseOver() && !ouletagarrado && !shaderboxagarrado){
 				cualestaagarrado = i;
 				outlet_cualestaagarrado = -1;
 				ouletagarrado = false;
@@ -215,13 +227,10 @@ void JPboxgroup::update()
 			}
 		}
 		// PARA QUE RECARGUE EL SHADER AUTOMATICAMENTE PAP�.
-		if (!jp_constants::systemDialog_open && boxes[i]->getTipo() == boxes[i]->SHADERBOX)
-		{
-			if (ofFile(boxes[i]->dir).exists())
-			{
+		if (!jp_constants::systemDialog_open && boxes[i]->getTipo() == boxes[i]->SHADERBOX){
+			if (ofFile(boxes[i]->dir).exists()){
 				time_t lasttimemodified = filesystem::last_write_time(boxes[i]->dir);
-				if (lasttimemodified != boxes[i]->datemodified)
-				{
+				if (lasttimemodified != boxes[i]->datemodified){
 					//	cout << "RELOAD SHADER " << endl;
 					// cout << "-------------------------------------" << endl;
 					boxes[i]->datemodified = lasttimemodified;
@@ -247,8 +256,7 @@ void JPboxgroup::update()
 					}*/
 					// cout << "CONTADOR DE UNIFORMS " << counter << endl;
 
-					if (openguinumber == i)
-					{
+					if (openguinumber == i){
 						setControllers();
 					}
 					cout << "-------------------------------------" << endl;
@@ -283,6 +291,36 @@ void JPboxgroup::update()
 			}
 		}
 	}
+
+	//if (boxes.size() > 2) {
+		transition.update(); //ACTUALIZO EL TRANSITION
+	//}
+		//activeSequence = true;
+		if (activeSequence && 
+			ofGetElapsedTimeMillis() - lasttime_sequence > jp_constants::durationgallery && 
+			boxes.size() > 2) {
+			lasttime_sequence = ofGetElapsedTimeMillis();
+			cout << "SEQ ACTIVADA. CAMBIO A " << *activerender << endl;
+			cout << "boxes.size() " << boxes.size() << endl;
+
+			int idx = *activerender + 1;
+			if (*activerender > boxes.size() - 2) {
+				idx = 0;
+			}
+			else {
+				idx = *activerender + 1;
+			}
+			updateTransition(idx);
+			for (int i = boxes.size() - 1; i >= 0; i--) {
+				if (i == idx) {
+					boxes[i]->setonoff(true);
+				}
+				else {
+					boxes[i]->setonoff(false);
+				}
+			}
+
+		}
 }
 void JPboxgroup::update_paramswindow()
 {
@@ -573,7 +611,8 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				}
 				if (isDoubleClick)
 				{
-					*activerender = i;
+					//*activerender = i;
+					updateTransition(i);
 				}
 			}
 		}
@@ -585,6 +624,21 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	if (openguinumber != -1)
 	{
 		setControllers();
+	}
+}
+void JPboxgroup::updateTransition(int _idx) {
+
+//	cout << "UPDATE TRANSITION " << endl;
+	if (boxes.size() >= 1) {
+		if (&boxes[*activerender]->fbo != 0) {
+			transition.setFboPointer1(&boxes[*activerender]->fbo);
+		}
+		*activerender = _idx;
+
+		if (&boxes[*activerender]->fbo != 0) {
+			transition.setFboPointer2(&boxes[*activerender]->fbo);
+		}
+		transition.setLerpValue(0);
 	}
 }
 void JPboxgroup::draw_cursorrect() {}
@@ -719,7 +773,11 @@ void JPboxgroup::load(string _dirinput)
 		{
 			bx = new JPbox_cam();
 		}
-
+#ifdef NDI
+		else if (directory.getValue().find("ndiReceiver") != std::string::npos) {
+			bx = new JPbox_ndi();
+		}
+#endif
 #ifdef SPOUT
 		else if (directory.getValue().find("spoutReceiver") != std::string::npos)
 		{
@@ -809,14 +867,13 @@ void JPboxgroup::load(string _dirinput)
 	*activerender = xml.getChild("activerender").getIntValue();
 	cout << "TERMINA LINKS DE LOS FBO " << endl;
 
-
+	updateTransition(*activerender);
 
 	//}
 	// activerender_loader.getIntValue();
 	// activerender = activerender_loader.getIntValue();
 }
-void JPboxgroup::setControllers()
-{
+void JPboxgroup::setControllers(){
 
 	for (int i = 0; i < controllers.size(); i++)
 	{
@@ -914,17 +971,14 @@ void JPboxgroup::setControllers()
 }
 void JPboxgroup::reloadActiveshader()
 {
-	if (boxes.size() > 0)
-	{
-		if (openguinumber != -1)
-		{
+	if (boxes.size() > 0){
+		if (openguinumber != -1){
 			// cout << "Active Render " << *activerender <<endl;
 			// cout << "Active Render " << *activerender << endl;
 			boxes[openguinumber]->reload();
 			setControllers();
 		}
-		else
-		{
+		else{
 			// cout << "Active Render " << *activerender << endl;
 			// cout << "Active Render " << *activerender << endl;
 			boxes[*activerender]->reload();
@@ -939,23 +993,39 @@ void JPboxgroup::listenToOsc(string _dir, float _val)
 	string shadername = _dir.substr(_dir.find_first_of("/") + 1, _dir.find_last_of("/") - 1);
 	string parametername = _dir.substr(_dir.find_last_of("/") + 1, _dir.size());
 
-	for (int i = 0; i < boxes.size(); i++)
-	{
-		if (boxes[i]->name == shadername)
-		{
-			// cout << "COINCIDE EL NOMBRE LOCO" << endl;
-			for (int k = 0; k < boxes[i]->parameters.getSize(); k++)
-			{
-				if (boxes[i]->parameters.getName(k) == parametername)
-				{
-					// cout << "COINCIDE EL PARAMETRO LOCO" << endl;
-					if (boxes[i]->parameters.getType(k) == boxes[i]->parameters.FLOAT)
-					{
-						boxes[i]->parameters.setFloatValue(_val, k);
+	//cout << _dir << endl;
+	if (_dir == "/setactiverender") {
+		//cout << "SETEA EL RENDER ACTIVO " << _val << endl;
+		if(_val < boxes.size()){
+			//*activerender = floor(_val);
+			updateTransition(floor(_val));
 
+		}
+	}
+
+	
+
+	//LEO POR NOMBRE DE EFECTO Y LE TIRO AL EFECTO ESE
+	for (int i = 0; i < boxes.size(); i++){
+		if (boxes[i]->name == shadername){	
+			//cout << "Parameter name " <<parametername << endl;
+			if (parametername == "onoff") {
+				//cout << "LLEGA ON OFF" << endl;
+				if (_val == 0) {
+					boxes[i]->setonoff(false);
+				}
+				else if (_val == 1) {
+					boxes[i]->setonoff(true);
+				}
+			}
+			// cout << "COINCIDE EL NOMBRE LOCO" << endl;
+			for (int k = 0; k < boxes[i]->parameters.getSize(); k++){
+				if (boxes[i]->parameters.getName(k) == parametername){
+					// cout << "COINCIDE EL PARAMETRO LOCO" << endl;
+					if (boxes[i]->parameters.getType(k) == boxes[i]->parameters.FLOAT){
+						boxes[i]->parameters.setFloatValue(_val, k);
 						// ESTO ES PARA QUE SOLO MODIFIQUE EL VALOR DEL SLIDER SOLO SI ESTA ABIERTO ESE COSO
-						if (openguinumber == i)
-						{
+						if (openguinumber == i){
 							controllers[k]->value = _val; // ACa la cantidad de controllers siempre va a ser igual a la cantidad de parameters size;
 						}
 					}
@@ -963,31 +1033,21 @@ void JPboxgroup::listenToOsc(string _dir, float _val)
 			}
 		}
 	}
-
-	if (shadername == "openguinumber")
-	{
-
+	//LEO POR NOMBRE DEL OPENGUIQUE ESTA ACTIVO
+	if (shadername == "openguinumber"){
 		string index = "NULL";
 		// cout << "parametername.size()" << parametername.size() << endl;
-
 		// NO TENGO NI PUTA IDEA QUE HACES ESTE CODIGO DE ACA :  ONDA . PORQUE SI ES IGUAL A 6 O A / O SEA QUE CARAJO
-		if (parametername.size() == 6)
-		{
+		if (parametername.size() == 6){
 			index = parametername.at(5);
 		}
-		if (parametername.size() == 7)
-		{
+		if (parametername.size() == 7){
 			index = parametername.at(5);
 			index.push_back(parametername.at(6));
 		}
 		int Intindex = ofToInt(index);
-		// cout << "INDEX " << Intindex << endl;
-
-		// cout << "VAL " << _val << endl;
-		// float finalvalue = ofMap(_val, 0, 127, 0, 1);
-		if (Intindex < controllers.size() && openguinumber != -1 && boxes[openguinumber]->parameters.getMovType(Intindex) == 0)
-		{
-
+		if (Intindex < controllers.size() && openguinumber != -1 && 
+			boxes[openguinumber]->parameters.getMovType(Intindex) == 0){
 			boxes[openguinumber]->parameters.setFloatValue(_val, Intindex);
 			boxes[openguinumber]->parameters.setFloatLerpValue(_val, Intindex);
 			controllers[Intindex]->value = _val;

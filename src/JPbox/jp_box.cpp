@@ -239,7 +239,7 @@ void JPbox::draw_outlet()
 }
 void JPbox::clear()
 {
-	cout << "JP_BOX clear" << endl;
+	//cout << "JP_BOX clear" << endl;
 	parameters.clear();
 	fbohandlergroup.clear();
 

@@ -184,6 +184,7 @@
     <PostBuildEvent />
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\JPutils\TransitionSR.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\ofApp.cpp" />
     <ClCompile Include="src\JPgui\jp_knob.cpp" />
@@ -240,6 +241,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\defines.h" />
+    <ClInclude Include="src\JPutils\TransitionSR.h" />
     <ClInclude Include="src\ofApp.h" />
     <ClInclude Include="src\JPgui\jp_knob.h" />
     <ClInclude Include="src\JPgui\jp_complexslider.h" />

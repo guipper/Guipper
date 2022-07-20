@@ -8,6 +8,7 @@
 #include "jp_box_image.h"
 #include "jp_box_video.h"
 #include "jp_box_cam.h"
+
 #ifdef SPOUT
 #include "jp_box_spout.h"
 #endif
@@ -24,6 +25,7 @@
 #include "../JPgui/jp_complexslider.h"
 // Esta clase como que va a manejar todos los shaderboxs y esas cosas:
 #include "../JPutils/jp_constants.h"
+#include "../JPutils/TransitionSR.h"
 class JPboxgroup
 {
 
@@ -42,6 +44,8 @@ public:
 	void update_resized(int w, int h);		   // Lo que hace cuando pinta resize
 	void update_mouseDragged(int mousebutton); // Lo que hace cuando arrastras en la pantalla.
 	void update_mousePressed(int mouseButton); // Lo que hace cada vez que haces click(ponele).
+
+	void updateTransition(int _i);
 
 	void save(string _diroutput);
 	void load2(string _dirinput);
@@ -83,6 +87,7 @@ public:
 
 	int openguinumber = -1;
 	int controllerselected; // ME INDICA QUE VARIABLE ESTA AGARRADA
+	bool activeSequence; //SECUENCIA ACTIVA
 private:
 	vector<JPTooglelist *> botones_modo;
 	vector<JPToogle *> botones_speed;
@@ -129,4 +134,13 @@ private:
 	bool isDoubleClick;
 	float lasttime_mouseclick;
 	float duration_mouseclick;
+	
+
+	//PARA LO DEL SHADER 
+	TransitionSR transition;
+
+	//MODO SECUENCIA 
+
+	float	lasttime_sequence;
+	//Transition shader render : 
 };

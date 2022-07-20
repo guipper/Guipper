@@ -16,12 +16,13 @@ public:
 
 	static void setwindow_mousex(int _window_mousex);
 	static void setwindow_mousey(int _window_mousey);
+	static void setdurationgallery(float _window_mousey);
 
 	static int renderWidth;
 	static int renderHeight;
 	static int window_width;
 	static int window_height;
-
+	static float durationgallery;
 	static int window_mousex;
 	static int window_mousey;
 

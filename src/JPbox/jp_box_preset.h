@@ -9,6 +9,9 @@
 #ifdef SPOUT
 #include "jp_box_spout.h"
 #endif
+#ifdef NDI
+#include "jp_box_ndi.h"
+#endif
 #include "jp_box_video.h"
 #include "jp_box_framedifference.h"
 //#include "ofxSpout2Receiver.h"

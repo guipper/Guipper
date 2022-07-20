@@ -11,7 +11,7 @@ uniform vec2 window_mouse;
 #define iFrame floor (time*60.)
 #define iResolution resolution
 #define iMouse mouse
-#define fragCoord fragCoord.xy
+#define fragCoord gl_FragCoord.xy
 
 vec3 verdejpupper(){return vec3(0.0,1.0,0.8);}
 

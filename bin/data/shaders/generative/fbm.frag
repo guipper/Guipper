@@ -7,6 +7,9 @@ uniform float scaley;
 uniform float flush;
 uniform float animationspeed1;
 uniform float animationspeed2;
+
+
+
 void main()
 {
 	vec2 uv = gl_FragCoord.xy / resolution;
@@ -26,7 +29,6 @@ void main()
 	e = fbm(vec2(uv.x*mapscalex+time*mapspeedx
 				,uv.y*mapscaley+time*mapspeedy),time*manimationspeed1+1.0)*1.0;
 	
-    // e=0.5;  
 	float e2 = fbm(vec2(mapscale2,
 				        mapscale2)*e,manimationspeed2*time+1000000.0);
 	

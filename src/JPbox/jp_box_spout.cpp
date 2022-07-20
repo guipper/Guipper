@@ -67,7 +67,7 @@ void JPbox_spout::update_spout()
 			}
 			myTexture.allocate(g_Width, g_Height, GL_RGBA);
 			name = SenderName;
-			cout << "CONECTA AL SENDER " << SenderName << endl;
+		//	cout << "CONECTA AL SENDER " << SenderName << endl;
 
 			bInitialized = true;
 			return; // quit for next round
@@ -135,12 +135,12 @@ void JPbox_spout::update_spout()
 }
 
 void JPbox_spout::changeReciever(int _activesender) {
-	cout << "Cantidad de spout senders " << spoutreceiver.GetSenderCount() << endl;
+	//cout << "Cantidad de spout senders " << spoutreceiver.GetSenderCount() << endl;
 	for (int i = 0; i < spoutreceiver.GetSenderCount(); i++)
 	{
 		char* name = new char[256];
 		spoutreceiver.GetSenderName(i, name);
-		cout << "Spout sender " << i << ":" << name << endl;
+	//	cout << "Spout sender " << i << ":" << name << endl;
 		// si detecta que cambio y que el sender que elegimos es ese:
 		if (i == _activesender)
 		{
@@ -150,9 +150,9 @@ void JPbox_spout::changeReciever(int _activesender) {
 			bInitialized = false;
 		}
 	}
-	cout << "-------------------------------------" << endl;
-	cout << "activesender :" << _activesender << endl;
-	cout << "Name active sender :" << SenderName << endl;
+	//cout << "-------------------------------------" << endl;
+	//cout << "activesender :" << _activesender << endl;
+	//cout << "Name active sender :" << SenderName << endl;
 
 }
 
@@ -237,14 +237,14 @@ void JPbox_spout::clear()
 	JPbox::clear();
 	spoutreceiver.ReleaseReceiver();
 	spoutreceiver.UnBindSharedTexture();
-	cout << "CORRE CLEAR SPOUT " << endl;
+	//cout << "CORRE CLEAR SPOUT " << endl;
 	fbo.clear();
 	fbo.destroy();
 	fbohandlergroup.clear();
 }
 
 void JPbox_spout::reload() {
-	cout << "RELOAD DE SPOUT " << endl;
+	//cout << "RELOAD DE SPOUT " << endl;
 	changeReciever(activesender);
 }
 
