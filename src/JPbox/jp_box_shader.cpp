@@ -158,11 +158,11 @@ void JPbox_shader::setup(ofTrueTypeFont &_font,
 	fbohandlergroup.setupdragobjects(x, y, outlet_size, outlet_size);
 	setfbohandler_nodepos();
 
-	if (!ofFile(dir).exists())
+	/*if (!ofFile(dir).exists())
 	{
 		cerr << dir << " does not exist!" << endl;
 		return;
-	}
+	}*/
 
 	datemodified = filesystem::last_write_time(dir);
 }

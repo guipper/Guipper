@@ -4,7 +4,7 @@
 #include "defines.h"
 #include "ofMain.h"
 #include "jp_constants.h"
-
+#include "../JPbox/JPboxgroup.h"
 // VAMOS A HACER 3 CLASES PARA MANEJAR ARCHIVOS.
 
 /*OpenShaderLoader : para abrir individualmente cada archivo.
@@ -12,6 +12,21 @@ OpenSaveFileLoader : para abrir archivo de savefile
 SaveAsSaver : Para guardar como.
 */
 
+
+
+
+
+class DirectoryManager {
+	public:
+		vector<vector<string>> directorys;
+		void loadDirectorys(); //CARGO TODOS LOS DIRECTORIOS PRINCIPALES 
+		void loadDirectory(string _dir);
+
+};
+
+
+
+//ESTO ESTA DEPRECATED CREO <.'¡'.>
 class OpenLoader : public ofThread
 {
 public:

@@ -1,0 +1,848 @@
+<?xml version="1.0"?>
+<activerender>22</activerender>
+<box>
+	<nombre>3</nombre>
+	<x>77</x>
+	<y>78</y>
+	<directory>data\savefiles\justvisuals\3.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab2</nombre>
+	<x>76</x>
+	<y>106</y>
+	<directory>data\savefiles\justvisuals\artlab2.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab3</nombre>
+	<x>77</x>
+	<y>134</y>
+	<directory>data\savefiles\justvisuals\artlab3.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab4</nombre>
+	<x>190</x>
+	<y>79</y>
+	<directory>data\savefiles\justvisuals\artlab4.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab5</nombre>
+	<x>193</x>
+	<y>111</y>
+	<directory>data\savefiles\justvisuals\artlab5.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab6</nombre>
+	<x>192</x>
+	<y>137</y>
+	<directory>data\savefiles\justvisuals\artlab6.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab7</nombre>
+	<x>192</x>
+	<y>168</y>
+	<directory>data\savefiles\justvisuals\artlab7.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab8</nombre>
+	<x>73</x>
+	<y>155</y>
+	<directory>data\savefiles\justvisuals\artlab8.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab9</nombre>
+	<x>75</x>
+	<y>199</y>
+	<directory>data\savefiles\justvisuals\artlab9.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab10</nombre>
+	<x>77</x>
+	<y>225</y>
+	<directory>data\savefiles\justvisuals\artlab10.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab11</nombre>
+	<x>195</x>
+	<y>195</y>
+	<directory>data\savefiles\justvisuals\artlab11.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>circulosespaciales</nombre>
+	<x>196</x>
+	<y>226</y>
+	<directory>data\savefiles\justvisuals\circulosespaciales.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>cofres</nombre>
+	<x>195</x>
+	<y>257</y>
+	<directory>data\savefiles\justvisuals\cofres.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>cosoboca</nombre>
+	<x>196</x>
+	<y>290</y>
+	<directory>data\savefiles\justvisuals\cosoboca.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>cuboscga2</nombre>
+	<x>77</x>
+	<y>259</y>
+	<directory>data\savefiles\justvisuals\cuboscga2.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>espacio1</nombre>
+	<x>77</x>
+	<y>333</y>
+	<directory>data\savefiles\justvisuals\espacio1.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>fractluna</nombre>
+	<x>206</x>
+	<y>507</y>
+	<directory>data\savefiles\justvisuals\fractluna.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>justvisuals4</nombre>
+	<x>197</x>
+	<y>320</y>
+	<directory>data\savefiles\justvisuals\justvisuals4.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>luna1</nombre>
+	<x>202</x>
+	<y>542</y>
+	<directory>data\savefiles\justvisuals\luna1.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>luna2</nombre>
+	<x>317</x>
+	<y>81</y>
+	<directory>data\savefiles\justvisuals\luna2.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>luna3</nombre>
+	<x>310</x>
+	<y>319</y>
+	<directory>data\savefiles\justvisuals\luna3.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>luna4</nombre>
+	<x>72</x>
+	<y>369</y>
+	<directory>data\savefiles\justvisuals\luna4.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>lunafeedback2</nombre>
+	<x>75</x>
+	<y>410</y>
+	<directory>data\savefiles\justvisuals\lunafeedback2.xml</directory>
+	<onoff>1</onoff>
+</box>
+<box>
+	<nombre>meteriotosfalopa</nombre>
+	<x>200</x>
+	<y>581</y>
+	<directory>data\savefiles\justvisuals\meteriotosfalopa.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>metrofeedback</nombre>
+	<x>202</x>
+	<y>610</y>
+	<directory>data\savefiles\justvisuals\metrofeedback.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>particulasespacio</nombre>
+	<x>313</x>
+	<y>125</y>
+	<directory>data\savefiles\justvisuals\particulasespacio.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>randomfbm</nombre>
+	<x>310</x>
+	<y>351</y>
+	<directory>data\savefiles\justvisuals\randomfbm.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>starnestvideosinte</nombre>
+	<x>310</x>
+	<y>160</y>
+	<directory>data\savefiles\justvisuals\starnestvideosinte.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tema1</nombre>
+	<x>72</x>
+	<y>437</y>
+	<directory>data\savefiles\justvisuals\tema1.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tema2</nombre>
+	<x>72</x>
+	<y>475</y>
+	<directory>data\savefiles\justvisuals\tema2.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tema3</nombre>
+	<x>71</x>
+	<y>499</y>
+	<directory>data\savefiles\justvisuals\tema3.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tema5</nombre>
+	<x>197</x>
+	<y>640</y>
+	<directory>data\savefiles\justvisuals\tema5.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tema6</nombre>
+	<x>308</x>
+	<y>193</y>
+	<directory>data\savefiles\justvisuals\tema6.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tema7</nombre>
+	<x>436</x>
+	<y>239</y>
+	<directory>data\savefiles\justvisuals\tema7.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>trim</nombre>
+	<x>437</x>
+	<y>300</y>
+	<directory>data\savefiles\justvisuals\trim.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tunelcubos</nombre>
+	<x>69</x>
+	<y>537</y>
+	<directory>data\savefiles\justvisuals\tunelcubos.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tunellisergia</nombre>
+	<x>75</x>
+	<y>583</y>
+	<directory>data\savefiles\justvisuals\tunellisergia.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>1</nombre>
+	<x>306</x>
+	<y>734</y>
+	<directory>data\savefiles\justvisuals\1.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>2</nombre>
+	<x>431</x>
+	<y>84</y>
+	<directory>data\savefiles\justvisuals\2.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>palos</nombre>
+	<x>567</x>
+	<y>362</y>
+	<directory>data\shaders\generative\palos.frag</directory>
+	<onoff>0</onoff>
+	<parameters>
+		<param>
+			<name>fxrand</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.0489212</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>subdiv</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.345561</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>width</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.543474</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>height</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.972777</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>huecos</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.721061</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>modo</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.873409</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+	</parameters>
+</box>
+<box>
+	<nombre>noisepartyfxhash</nombre>
+	<x>317</x>
+	<y>518</y>
+	<directory>data\shaders\generative\noisepartyfxhash.frag</directory>
+	<onoff>0</onoff>
+	<parameters>
+		<param>
+			<name>cnt</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.192022</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>ite_scale</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.590899</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>speedrdm</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.604266</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>speedx</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.5</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>speedy</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.5</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>speedrot</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.433485</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>amp2</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.357829</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>f1</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.759606</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>f2</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.171209</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+	</parameters>
+</box>
+<box>
+	<nombre>rxrpure</nombre>
+	<x>308</x>
+	<y>386</y>
+	<directory>data\shaders\generative\rxrpure.frag</directory>
+	<onoff>0</onoff>
+	<parameters>
+		<param>
+			<name>sc</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.139378</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>sc2</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.680741</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>seed</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.876296</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>r1</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.645185</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>g1</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.526667</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>b1</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.535556</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>flush</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.745926</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+	</parameters>
+</box>
+<box>
+	<nombre>redbullstarnestfxhash</nombre>
+	<x>439</x>
+	<y>544</y>
+	<directory>data\shaders\generative\redbullstarnestfxhash.frag</directory>
+	<onoff>0</onoff>
+	<parameters>
+		<param>
+			<name>speedx</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.39037</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>speedy</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.716296</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>animationspeed1</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.704444</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>iterations</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.95037</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>formuparam</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.686667</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>volsteps</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.48</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>stepsize</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.24</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>zoom</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.52</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>tile</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.8</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>darkmatter</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.62</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>distfading</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.31</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>saturation</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.42</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>displacey</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.1</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>fbmsc</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.965819</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>fbmseed</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.160588</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+	</parameters>
+</box>
+<box>
+	<nombre>jupiter3</nombre>
+	<x>571</x>
+	<y>88</y>
+	<directory>data\shaders\generative\jupiter3.frag</directory>
+	<onoff>0</onoff>
+	<parameters>
+		<param>
+			<name>scx1_lines</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.956296</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>scy1_lines</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.961486</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>rot_lines</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.771477</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>rxr_sc</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.521958</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>palette</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.713333</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+	</parameters>
+</box>
+<box>
+	<nombre>poster_fxhash</nombre>
+	<x>433</x>
+	<y>364</y>
+	<directory>data\shaders\generative\poster_fxhash.frag</directory>
+	<onoff>0</onoff>
+	<parameters>
+		<param>
+			<name>sc</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.434248</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>sc2</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.965361</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>fasex</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.226264</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>fasey</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.704978</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>flush</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.394848</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>seed</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.90173</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+	</parameters>
+</box>
+<box>
+	<nombre>xraymarching</nombre>
+	<x>432</x>
+	<y>424</y>
+	<directory>data\shaders\generative\xraymarching.frag</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>helados</nombre>
+	<x>569</x>
+	<y>500</y>
+	<directory>data\shaders\generative\helados.frag</directory>
+	<onoff>0</onoff>
+	<parameters>
+		<param>
+			<name>msmult</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.593707</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>defor</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.588889</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>freqx</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.0259259</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>ampx</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.756432</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+	</parameters>
+</box>
+<box>
+	<nombre>anillos3D</nombre>
+	<x>688</x>
+	<y>82</y>
+	<directory>data\shaders\generative\anillos3D.frag</directory>
+	<onoff>0</onoff>
+	<parameters>
+		<param>
+			<name>rotx1</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.48</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>roty1</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.61</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>size1</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.265926</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>tile1</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.414074</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>gordura</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.138519</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+	</parameters>
+</box>
+<box>
+	<nombre>baby</nombre>
+	<x>573</x>
+	<y>229</y>
+	<directory>data\shaders\generative\baby.frag</directory>
+	<onoff>0</onoff>
+	<parameters>
+		<param>
+			<name>startRandom</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.292593</value>
+			<movtype>0</movtype>
+			<speed>0</speed>
+		</param>
+	</parameters>
+</box>
+<box>
+	<nombre>dungeoncritter</nombre>
+	<x>689</x>
+	<y>214</y>
+	<directory>data\shaders\generative\dungeoncritter.frag</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>emerging</nombre>
+	<x>686</x>
+	<y>347</y>
+	<directory>data\shaders\generative\emerging.frag</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>fractalland</nombre>
+	<x>682</x>
+	<y>488</y>
+	<directory>data\shaders\generative\fractalland.frag</directory>
+	<onoff>0</onoff>
+</box>

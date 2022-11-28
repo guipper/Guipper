@@ -22,13 +22,10 @@ void JPbox_image::setup(string _dir, string _nombre)
 
 	tipo = IMAGEBOX;
 
-	if (img.isAllocated())
-	{
+	if (img.isAllocated()){
 		cout << "CARGO BIEN LA IMAGEN" << endl;
 	}
-	else
-	{
-
+	else{
 		cout << "CARGO COMO EL ORTO LA IMAGEN" << endl;
 	}
 	lasttime_autoreload = ofGetElapsedTimeMillis();

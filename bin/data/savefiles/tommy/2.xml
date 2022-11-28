@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<activerender>0</activerender>
+<box>
+	<nombre>circuloresolution</nombre>
+	<x>379</x>
+	<y>399</y>
+	<directory>data\shaders\generative\circuloresolution.frag</directory>
+	<onoff>1</onoff>
+	<parameters>
+		<param>
+			<name>size</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.210547</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>sizedif</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.722495</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>posx</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.696707</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>posy</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.331706</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+	</parameters>
+</box>

@@ -16,6 +16,10 @@ void ofApp::setup(){
 	ofSetWindowPosition(ofGetScreenWidth() / 2 - anchoventana / 2,
 						ofGetScreenHeight() / 2 - altoventana / 2);
 
+	/*ofSetWindowPosition(ofGetScreenWidth() / 2 - anchoventana / 2 - ofGetScreenWidth(),
+		ofGetScreenHeight() / 2 - altoventana / 2);
+	*/
+
 	jp_constants::init(ofGetScreenWidth(), ofGetScreenHeight(), 600, 600);
 	jp_constants::setwindow_mousex(300);
 	jp_constants::setwindow_mousex(300);
@@ -30,6 +34,11 @@ void ofApp::setup(){
 				  &ofApp::keycodePressed);
 
 	savedirectory = "savefiles/data.xml";
+
+
+	dirmanager.loadDirectorys();
+
+
 	receiver.setup(PORT);
 	oscout_mode1 = true;
 	oscout_mode2 = true;
@@ -87,9 +96,11 @@ void ofApp::setup(){
 	// 3D drawing setup for a sender
 	// glEnable(GL_DEPTH_TEST);							// enable depth comparisons and update the depth buffer
 	// glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations
-	ofDisableArbTex(); // needed for textures to work
+	//ofDisableArbTex(); // needed for textures to work
 	// myTextureImage.loadImage("SpoutBox1.png");			// Load a texture image for the demo
 	boxes.load(savedirectory);
+
+
 }
 void ofApp::update()
 {
@@ -384,6 +395,35 @@ void ofApp::keyPressed(int key)
 		if (key == 'e'){
 			boxes.activeSequence = !boxes.activeSequence;
 		}
+
+		if (key == 'z') {
+
+			//boxes.load(dirmanager.directorys[0][0]);
+			//boxes.addBox("data/shaders/generative/nubes.frag",300,400);
+			
+			cout << "DIRECTORIO LOCO " << dirmanager.directorys[0][0] << endl;
+			string rutita = "D:/of_v0.11.2_vs2017_release/apps/myApps/guipper3/bin/data/shaders/generative/nubes.frag";
+			if (rutita.find("data") != std::string::npos) {
+				cout << "IS INSIDE DATA FOLDER SO LETS CONVERT IT TO RELATIVE DIR" << endl;
+				rutita = rutita.substr(rutita.find("data"), rutita.size());
+				cout << "NEW PATH CONVERSION :" << rutita << endl;
+			}
+
+			boxes.addBox(rutita, ofGetWidth()/2, ofGetHeight()/2); //BUENO ESTO FUNCIONA.
+
+
+
+
+
+		}
+		if (key == 'x') {
+
+		
+		}
+		if(key == 'c'){
+		
+		}
+
 	}
 	/*if (prevKey == OF_KEY_CONTROL && key == 's') {
 		cout << "lala" << endl;
@@ -482,9 +522,7 @@ void ofApp::dragEvent(ofDragInfo dragInfo)
 	int indexy = 0;
 	for (int i = 0; i < dragInfo.files.size(); i++)
 	{
-
 		string path = dragInfo.files[i];
-
 		if (dragInfo.files.size() > 1)
 		{
 
@@ -496,7 +534,6 @@ void ofApp::dragEvent(ofDragInfo dragInfo)
 			}
 			indexx++;
 		}
-
 #ifdef RELATIVEDIRS
 		cout << "path " << path << endl;
 		if (path.find("data") != std::string::npos) {
@@ -509,17 +546,13 @@ void ofApp::dragEvent(ofDragInfo dragInfo)
 		}
 #endif
 		cout << "path " << path << endl;
-
 		if (path.find(".xml") != std::string::npos &&
-			!loadAspreset)
-		{
+			!loadAspreset){
 			boxes.load(path);
 		}
-		else
-		{
+		else{
 			boxes.addBox(path, xx, yy);
 		}
-
 		xx += sepx;
 	}
 }
@@ -676,7 +709,7 @@ void ofApp::updateOSC(){
 		if (m.getAddress().find("load") != std::string::npos)
 		{
 			cout << "ENCONTRO LOAD " << endl;
-			string dir(m.getAddress(), 6, (m.getAddress().size()));
+			string dir(m.getAddress(), 5, (m.getAddress().size()));
 			cout << "DIR : " << dir << endl;
 
 			string dirfinal = "savefiles/" + dir;
@@ -708,8 +741,8 @@ void ofApp::updateOSC(){
 		}
 	}
 
-	// FORMA 2: MANDA LOS NOMBRES COMO V1,V2,V3 Y SOLO DE LA CAJA DE LA INTERFAZ ACTIVA. :
-	if (oscout_mode2){
+	//FORMA 2: MANDA LOS NOMBRES COMO V1,V2,V3 Y SOLO DE LA CAJA DE LA INTERFAZ ACTIVA. :
+	if(oscout_mode2){
 		if (boxes.openguinumber != -1){
 			for (int k = 0; k < boxes.boxes[boxes.openguinumber]->parameters.getSize(); k++){
 				ofxOscMessage m;
@@ -727,6 +760,7 @@ void ofApp::updateOSC(){
 	}
 
 }
+
 // LISTENERS DE LAS VENTANAS:
 void ofApp::window_drawRender(ofEventArgs &args)
 {
@@ -766,7 +800,6 @@ void ofApp::window_resized(ofResizeEventArgs &args)
 	jp_constants::setwindow_width(args.width);
 	jp_constants::setwindow_height(args.height);
 }
-
 void ofApp::window_keyPressed(ofKeyEventArgs &e)
 {
 	cout << "KEYCODE ON WINDOWS : " << e.keycode << endl;

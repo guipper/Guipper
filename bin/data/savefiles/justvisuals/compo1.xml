@@ -1,0 +1,275 @@
+<?xml version="1.0"?>
+<activerender>3</activerender>
+<box>
+	<nombre>3</nombre>
+	<x>185</x>
+	<y>107</y>
+	<directory>data\savefiles\justvisuals\3.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab2</nombre>
+	<x>297</x>
+	<y>107</y>
+	<directory>data\savefiles\justvisuals\artlab2.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab3</nombre>
+	<x>409</x>
+	<y>107</y>
+	<directory>data\savefiles\justvisuals\artlab3.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab4</nombre>
+	<x>521</x>
+	<y>107</y>
+	<directory>data\savefiles\justvisuals\artlab4.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab5</nombre>
+	<x>633</x>
+	<y>107</y>
+	<directory>data\savefiles\justvisuals\artlab5.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab6</nombre>
+	<x>745</x>
+	<y>107</y>
+	<directory>data\savefiles\justvisuals\artlab6.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab7</nombre>
+	<x>857</x>
+	<y>107</y>
+	<directory>data\savefiles\justvisuals\artlab7.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab8</nombre>
+	<x>185</x>
+	<y>235</y>
+	<directory>data\savefiles\justvisuals\artlab8.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab9</nombre>
+	<x>297</x>
+	<y>235</y>
+	<directory>data\savefiles\justvisuals\artlab9.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab10</nombre>
+	<x>409</x>
+	<y>235</y>
+	<directory>data\savefiles\justvisuals\artlab10.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab11</nombre>
+	<x>521</x>
+	<y>235</y>
+	<directory>data\savefiles\justvisuals\artlab11.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>circulosespaciales</nombre>
+	<x>633</x>
+	<y>235</y>
+	<directory>data\savefiles\justvisuals\circulosespaciales.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>cofres</nombre>
+	<x>745</x>
+	<y>235</y>
+	<directory>data\savefiles\justvisuals\cofres.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>cosoboca</nombre>
+	<x>857</x>
+	<y>235</y>
+	<directory>data\savefiles\justvisuals\cosoboca.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>cuboscga2</nombre>
+	<x>185</x>
+	<y>363</y>
+	<directory>data\savefiles\justvisuals\cuboscga2.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>espacio1</nombre>
+	<x>297</x>
+	<y>363</y>
+	<directory>data\savefiles\justvisuals\espacio1.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>fractluna</nombre>
+	<x>409</x>
+	<y>363</y>
+	<directory>data\savefiles\justvisuals\fractluna.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>justvisuals4</nombre>
+	<x>521</x>
+	<y>363</y>
+	<directory>data\savefiles\justvisuals\justvisuals4.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>luna1</nombre>
+	<x>633</x>
+	<y>363</y>
+	<directory>data\savefiles\justvisuals\luna1.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>luna2</nombre>
+	<x>745</x>
+	<y>363</y>
+	<directory>data\savefiles\justvisuals\luna2.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>luna3</nombre>
+	<x>857</x>
+	<y>363</y>
+	<directory>data\savefiles\justvisuals\luna3.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>luna4</nombre>
+	<x>185</x>
+	<y>491</y>
+	<directory>data\savefiles\justvisuals\luna4.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>lunafeedback2</nombre>
+	<x>297</x>
+	<y>491</y>
+	<directory>data\savefiles\justvisuals\lunafeedback2.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>meteriotosfalopa</nombre>
+	<x>409</x>
+	<y>491</y>
+	<directory>data\savefiles\justvisuals\meteriotosfalopa.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>metrofeedback</nombre>
+	<x>521</x>
+	<y>491</y>
+	<directory>data\savefiles\justvisuals\metrofeedback.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>particulasespacio</nombre>
+	<x>633</x>
+	<y>491</y>
+	<directory>data\savefiles\justvisuals\particulasespacio.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>randomfbm</nombre>
+	<x>745</x>
+	<y>491</y>
+	<directory>data\savefiles\justvisuals\randomfbm.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>starnestvideosinte</nombre>
+	<x>857</x>
+	<y>491</y>
+	<directory>data\savefiles\justvisuals\starnestvideosinte.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tema1</nombre>
+	<x>185</x>
+	<y>619</y>
+	<directory>data\savefiles\justvisuals\tema1.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tema2</nombre>
+	<x>297</x>
+	<y>619</y>
+	<directory>data\savefiles\justvisuals\tema2.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tema3</nombre>
+	<x>409</x>
+	<y>619</y>
+	<directory>data\savefiles\justvisuals\tema3.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tema5</nombre>
+	<x>521</x>
+	<y>619</y>
+	<directory>data\savefiles\justvisuals\tema5.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tema6</nombre>
+	<x>633</x>
+	<y>619</y>
+	<directory>data\savefiles\justvisuals\tema6.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tema7</nombre>
+	<x>745</x>
+	<y>619</y>
+	<directory>data\savefiles\justvisuals\tema7.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>trim</nombre>
+	<x>857</x>
+	<y>619</y>
+	<directory>data\savefiles\justvisuals\trim.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tunelcubos</nombre>
+	<x>185</x>
+	<y>747</y>
+	<directory>data\savefiles\justvisuals\tunelcubos.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>tunellisergia</nombre>
+	<x>297</x>
+	<y>747</y>
+	<directory>data\savefiles\justvisuals\tunellisergia.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>1</nombre>
+	<x>409</x>
+	<y>747</y>
+	<directory>data\savefiles\justvisuals\1.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>2</nombre>
+	<x>521</x>
+	<y>747</y>
+	<directory>data\savefiles\justvisuals\2.xml</directory>
+	<onoff>0</onoff>
+</box>

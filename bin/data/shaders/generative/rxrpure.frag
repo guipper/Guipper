@@ -14,13 +14,13 @@ Colors palette are generated using a RGB shift.
 
 
 
-uniform float sc ;
-uniform float sc2 ;
-uniform float seed ;
-uniform float r1 ; 
-uniform float g1 ; 
-uniform float b1 ; 
-uniform float flush ; 
+uniform float sc;
+uniform float sc2;
+uniform float seed;
+uniform float r1; 
+uniform float g1; 
+uniform float b1; 
+uniform float flush; 
 
 
 

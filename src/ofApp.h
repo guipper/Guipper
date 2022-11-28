@@ -19,6 +19,7 @@
 #include "JPutils/jp_constants.h"
 #include "ofxOsc.h"
 #include "ofxNDI.h"
+
 //#include "RenderWindowApp.h"
 
 #define PORT 5000 
@@ -136,4 +137,7 @@ public:
 	bool oscout_mode2;
 
 	ofVec2f resolution_spoutext;
+
+	DirectoryManager dirmanager;
+
 };

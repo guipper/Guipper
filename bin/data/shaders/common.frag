@@ -425,7 +425,7 @@ float fbm (in vec2 uv) {
                     -sin(0.5), cos(0.50));
     // Loop of octaves
     for (int i = 0; i < 16; i++) {
-        value += amplitude * noise(uv,time);
+        value += amplitude * noise(uv,time*.0);
         uv = rot2 * uv * 2.0 + shift;
         amplitude *= .5;
     }

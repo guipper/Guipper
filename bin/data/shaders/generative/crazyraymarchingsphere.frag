@@ -19,7 +19,7 @@ float de(vec3 p) {
   psph.xz*=rotate2d(time);
   psph+=vec3(1.5,0.5,0.);
   float sph=sphere(psph,1.)+length(sin(psph*freq_sph*10.))*mapr(extrude_sph,-.5,.5);
-  sph*=.5;
+  //sph*=.5;
   float pla=-p.y+1.-length(cos(p*5))*.2;
   float d=min(sph,pla);
   obj_id=step(sph,d)+step(pla,d)*2.;

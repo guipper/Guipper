@@ -51,27 +51,6 @@ void main()
 	float cnt_cols = 5.;
 	float indexcolor= mapr(palette,0.0,float(cnt_cols));
 			
-		 //1
-		// col1 = vec3(1.0,1.0,sin(e*10.)*1.5);
-		 //col2 = vec3(0.0,sin(e*10.)*1.5,0.0);
-			
-		 //2
-		 //col1 = vec3(sin(e*10.)*1.5,0.0,0.5);
-		 //col2 = vec3(sin(e*10.+time)*0.5,sin(e*10.)*1.5,0.0);
-			
-			
-		//3
-		 //col1 = hsb2rgb(vec3(sin(e*10.),1.0,1.0));
-		 //col2 = hsb2rgb(vec3(cos(e*10.),1.0,1.0));
-		 
-		 //3
-		 //col1 = hsb2rgb(vec3(.2,sin(e*10.),1.0));
-		 //col2 = hsb2rgb(vec3(sin(e*10.),1.0,sin(e*10.)));
-			
-				
-		//	 col1 = hsb2rgb(vec3(0.49,1.0,1.0));
-		//	 col2 = hsb2rgb(vec3(0.97,1.0,1.0));
-		
 		if(indexcolor < 1.){
 			 col1 = vec3(1.0,sin(e*10.)*.5+.5,sin(e*10.)*1.5)*.8;
 			 col2 = vec3(0.4,sin(e*10.)*0.5,0.0)*.8;
@@ -80,22 +59,15 @@ void main()
 			 
 			col1 = vec3(sin(e*10.)*1.5,0.0,0.5);
 			col2 = vec3(sin(e*10.+time)*0.5,sin(e*10.)*1.5,0.0);
-			
-			
-			
 		}else if(indexcolor < 3.){
-				
 			col1 = hsb2rgb(vec3(sin(e*4.+time*.1),1.0,1.0));
 			col2 = hsb2rgb(vec3(cos(e*1.+time*.1),1.0,1.0));
 		}else if(indexcolor <4.){
-				
 			col1 = hsb2rgb(vec3(.2,sin(e*10.),1.0))*.8;
 			col2 = hsb2rgb(vec3(sin(e*10.)*.5+.5,1.0,sin(e*10.)*.5+.5))*.8;
 		}else if(indexcolor <5.){
-				
 			col1 = vec3(sin(e*10.),sin(e*10.),sin(e*10.));
 			col2 = vec3(sin(e*10.),sin(e*10.),sin(e*10.));
-			//obj1_col1 = vec3(0.8,.6,0.4);
 		}
 		
 		

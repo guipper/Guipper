@@ -28,7 +28,7 @@ void main(){
 	
 	vec4 t1 =  texture2D(textura1, uv2/resolution);
 		
-	float v = 0;
+	float v = 0.0;
 
 	if(quadvignette){
 		if(respectaspectradio){
@@ -48,6 +48,12 @@ void main(){
 	}else{
 		v = (1.-smoothstep(mapsize,mapsize+mapdifuse,r));
 	}
+	
+		v = smoothstep(mapsize,mapsize+mapdifuse,uv.x) *
+				smoothstep(mapsize,mapsize+mapdifuse,1.-uv.x) *
+				smoothstep(mapsize,mapsize+mapdifuse,1.-uv.y) *
+				smoothstep(mapsize,mapsize+mapdifuse,uv.y)
+			;
 	
 	vec3 fin = t1.rgb * v;
 	//fin = vec3(cir(uv,vec2(0.5*fx,0.5),0.4,0.0));

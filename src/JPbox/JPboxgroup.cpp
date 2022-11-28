@@ -798,14 +798,10 @@ void JPboxgroup::load(string _dirinput)
 		bx->setPos(x.getIntValue(), y.getIntValue());
 		bx->setonoff(!box.getChild("onoff").getBoolValue());
 
-
-
-
 		int index = 0;
 		auto parameters = box.getChild("parameters").getChildren();
 		// cout << "PARAMETER SIZE SB " << sb->parameters.getSize() << endl;
 
-		
 		for (auto &param : parameters) 
 		{
 
@@ -864,7 +860,13 @@ void JPboxgroup::load(string _dirinput)
 		}
 		index1++;
 	}
-	*activerender = xml.getChild("activerender").getIntValue();
+
+
+
+
+
+	//CLAUSULA DE SEGURIDAD : 
+	*activerender = int(ofClamp(xml.getChild("activerender").getIntValue(),0,boxes.size()-1));
 	cout << "TERMINA LINKS DE LOS FBO " << endl;
 
 	updateTransition(*activerender);
@@ -985,14 +987,11 @@ void JPboxgroup::reloadActiveshader()
 		}
 	}
 }
-void JPboxgroup::listenToOsc(string _dir, float _val)
-{
-
+void JPboxgroup::listenToOsc(string _dir, float _val){
 	// string nombre = dir.substr(dir.find_last_of("/\\") + 1, dir.size());
 	// string dir = _dir;
 	string shadername = _dir.substr(_dir.find_first_of("/") + 1, _dir.find_last_of("/") - 1);
 	string parametername = _dir.substr(_dir.find_last_of("/") + 1, _dir.size());
-
 	//cout << _dir << endl;
 	if (_dir == "/setactiverender") {
 		//cout << "SETEA EL RENDER ACTIVO " << _val << endl;
@@ -1002,9 +1001,6 @@ void JPboxgroup::listenToOsc(string _dir, float _val)
 
 		}
 	}
-
-	
-
 	//LEO POR NOMBRE DE EFECTO Y LE TIRO AL EFECTO ESE
 	for (int i = 0; i < boxes.size(); i++){
 		if (boxes[i]->name == shadername){	
@@ -1018,10 +1014,10 @@ void JPboxgroup::listenToOsc(string _dir, float _val)
 					boxes[i]->setonoff(true);
 				}
 			}
-			// cout << "COINCIDE EL NOMBRE LOCO" << endl;
+			// cout << "COINCIDE EL NOMBRE " << endl;
 			for (int k = 0; k < boxes[i]->parameters.getSize(); k++){
 				if (boxes[i]->parameters.getName(k) == parametername){
-					// cout << "COINCIDE EL PARAMETRO LOCO" << endl;
+					// cout << "COINCIDE EL PARAMETRO " << endl;
 					if (boxes[i]->parameters.getType(k) == boxes[i]->parameters.FLOAT){
 						boxes[i]->parameters.setFloatValue(_val, k);
 						// ESTO ES PARA QUE SOLO MODIFIQUE EL VALOR DEL SLIDER SOLO SI ESTA ABIERTO ESE COSO

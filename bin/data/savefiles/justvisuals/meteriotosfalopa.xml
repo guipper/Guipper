@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<activerender>0</activerender>
+<box>
+	<nombre>metioritosfalopa</nombre>
+	<x>119</x>
+	<y>134</y>
+	<directory>data\shaders\generative\metioritosfalopa.frag</directory>
+	<onoff>1</onoff>
+</box>

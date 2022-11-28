@@ -12,7 +12,7 @@ uniform float offsetx = 0.5;
 uniform float offsety = 0.5;
 uniform float force1;
 uniform float force2;
-
+uniform float speed;
 
 void main()
 {
@@ -31,12 +31,12 @@ void main()
 	uv2+=vec2(t2_f*moffsetx,t2_f*moffsety);
 	
 	uv2+=vec2(.5);
-	uv2*=scale(vec2(1.0+sin(t2_f*10.+time*2.)*mapr(force1,0.0,0.8)));
+	uv2*=scale(vec2(1.0+sin(t2_f*10.+time*2.*speed)*mapr(force1,0.0,0.8)));
 	uv2-=vec2(.5);
 	
 	
 	uv2+=vec2(.5);
-	uv2*=scale(vec2(1.0+sin(t2_f*10.+time)*mapr(force2,0.0,0.8)));
+	uv2*=scale(vec2(1.0+sin(t2_f*10.+time*speed)*mapr(force2,0.0,0.8)));
 	uv2-=vec2(.5);
 	
 

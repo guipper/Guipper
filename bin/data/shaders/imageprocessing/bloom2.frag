@@ -5,8 +5,9 @@ uniform sampler2D texture1;
 uniform float force;
 uniform float sm1 ;
 uniform float sm2 ;
+uniform float it ;
 const float max_rad=.05;
-const float it=80.;
+//const float it=80.;
 
 
 mat2 rot(float a){
@@ -31,20 +32,22 @@ void main()
 	mat2 spin=rot(2.39996);
     vec2 p=vec2(0.,1.);
     vec3 res=vec3(0.);
-    float rad_step=max_rad/it+hash(uv+time)*.001;
+	float mit = mapr(it,0.0,30.0);
+    float rad_step=max_rad/mit+hash(uv+time)*.001;
 	float rad=0.;
     float ti=mod(time,10.);
     float vhs=step(.92,hash(uv.yy+ti))*(1.+sin(uv.y*5.+ti))*step(.5,hash(uv.xy+ti))*smoothstep(0.,1.,uv.y);
     //vec4 col=texture2D(tx,uv+.05*step(.98,hash(uv2.yy+floor(time*10.)))*step(.5,hash(uv2.xx+time))*.7);
     //uv.y+=vhs*.3;
+	
 	vec4 col=texture2D(texture1,uv);
-    for (float i=0.;i<it; i++) {
+    for (float i=0.;i<mit; i++) {
         rad+=rad_step;
         p*=spin;
         vec4 col=texture2D(texture1,uv+p*rad);
         res+=smoothstep(.6,.8,col.rgb)*3.5;
     };
-    res/=it;
+    res/=mit;
 	
 	res = smoothstep(sm1,sm2,res);
 	vec3 fin = col.rgb+res*mapr(force,0.0,2.0);

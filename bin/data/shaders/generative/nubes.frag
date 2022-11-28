@@ -82,7 +82,7 @@ void main( ) {
     weight = 0.4;
     for (int i=0; i<7; i++){
 		c += weight*noise2( uv );
-        uv = m*uv + time;
+        uv = m*uv + time *speed;
 		weight *= 0.6;
     }
     
@@ -104,7 +104,7 @@ void main( ) {
     vec3 skycolour = mix(skycolour2, skycolour1, p.y);
     vec3 cloudcolour = vec3(1.1, 1.1, 0.9) * clamp((clouddark + cloudlight*c), 0.0, 1.0);
    
-    f = cloudcover + cloudalpha*f*r;
+    f = cloudcover + mapr(cloudalpha,0.0,8.0)*f*r;
     
     vec3 result = mix(skycolour, clamp(skytint * skycolour + cloudcolour, 0.0, 1.0), clamp(f + c, 0.0, 1.0));
     
