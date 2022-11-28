@@ -200,18 +200,52 @@ void ofApp::draw_instrucciones()
 	float y = 100;
 	float sepy = 30;
 
+
+
+	ofSetColor(0);
+	ofDrawRectangle(0, 0, ofGetWidth() / 2, ofGetHeight());
 	ofSetColor(255);
-	jp_constants::p_font.drawString("t : Cambia ente cargar un xml como preset o como compo", x, y += sepy);
-	jp_constants::p_font.drawString("w : Abre ventana aparte", x, y += sepy);
-	jp_constants::p_font.drawString("f sobre la ventana aparte abierta : FullScreen", x, y += sepy);
-	jp_constants::p_font.drawString("s : guardar sobre el xml actual : " + savedirectory, x, y += sepy);
-	jp_constants::p_font.drawString("crtl+s : Genera un nuevo archivo XML(guardarlo con la extension correcta)", x, y += sepy);
-	jp_constants::p_font.drawString("d: muestra los datos de debug", x, y += sepy);
-	jp_constants::p_font.drawString("r: recarga el shader activo", x, y += sepy);
-	jp_constants::p_font.drawString("h : agrega caja SPOUT INPUT", x, y += sepy);
-	jp_constants::p_font.drawString("c : agrega caja camara", x, y += sepy);
-	jp_constants::p_font.drawString("m: exportar imagen", x, y += sepy);
-	jp_constants::p_font.drawString("Para cargar archivo (todos) arrastrarlo hasta la ventana", x, y += sepy);
+	if (ofGetMousePressed()) {
+		if (language == 0) {
+			language = 1;
+		}
+		else if (language == 1) {
+			language = 0;
+		}
+	}
+	if (language == 0){
+		jp_constants::p_font.drawString("INSTRUCCIONES : ", x, y += sepy);
+		jp_constants::p_font.drawString("Para cargar archivo (todos) arrastrarlo hasta la ventana", x, y += sepy);
+		jp_constants::p_font.drawString("TECLAS : ", x, y += sepy);
+		jp_constants::p_font.drawString("t : Cambia ente cargar un xml como preset o como compo", x, y += sepy);
+		jp_constants::p_font.drawString("w : Abre ventana aparte", x, y += sepy);
+		jp_constants::p_font.drawString("f : Sobre la ventana aparte abierta : FullScreen", x, y += sepy);
+		jp_constants::p_font.drawString("s : Guardar sobre el xml actual : " + savedirectory, x, y += sepy);
+		jp_constants::p_font.drawString("ctrl+s : Genera un nuevo archivo XML(guardarlo con la extension correcta)", x, y += sepy);
+		jp_constants::p_font.drawString("d : Muestra los datos de debug", x, y += sepy);
+		jp_constants::p_font.drawString("h : Agrega caja SPOUT INPUT", x, y += sepy);
+		jp_constants::p_font.drawString("c : Agrega caja camara", x, y += sepy);
+		jp_constants::p_font.drawString("m : Exportar imagen", x, y += sepy);
+		jp_constants::p_font.drawString("e : Activar modo secuencia", x, y += sepy);
+	}
+
+	if (language == 1) {
+		jp_constants::p_font.drawString("INSTRUCTIONS : ", x, y += sepy);
+		jp_constants::p_font.drawString("To load any file drag it to this window(any kind)", x, y += sepy);
+		jp_constants::p_font.drawString("KEYS : ", x, y += sepy);
+		jp_constants::p_font.drawString("t : Change between loading a box as a preset or as a full compo", x, y += sepy);
+		jp_constants::p_font.drawString("w : Opens another window", x, y += sepy);
+		jp_constants::p_font.drawString("f : Click over the another window to make it fullscreen", x, y += sepy);
+		jp_constants::p_font.drawString("s : Save on the actual XML : " + savedirectory, x, y += sepy);
+		jp_constants::p_font.drawString("ctrl+s : Generates a new XML (save it with the correct extension please)", x, y += sepy);
+		jp_constants::p_font.drawString("d : Show debug data", x, y += sepy);
+		jp_constants::p_font.drawString("h : Add spout input box", x, y += sepy);
+		jp_constants::p_font.drawString("c : Add Camera box", x, y += sepy);
+		jp_constants::p_font.drawString("m : Export image to exportimgs folder", x, y += sepy);
+		jp_constants::p_font.drawString("e : Activate sequence mode", x, y += sepy);
+	}
+
+	
 }
 void ofApp::draw_opciones()
 {

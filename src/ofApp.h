@@ -140,4 +140,15 @@ public:
 
 	DirectoryManager dirmanager;
 
+
+
+
+
+	//ACA PARA AGREGAR MAS LENGUAJES EVENTUALMENTE SUPONGO : 
+	//0 INSTRUCCIONES EN INGLES.
+	//1 INSTRUCCIONES EN ESPAÑOL.
+	int language = 0; 
+
+
+
 };
