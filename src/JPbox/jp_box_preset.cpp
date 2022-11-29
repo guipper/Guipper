@@ -139,7 +139,8 @@ void JPbox_preset::setup(string _directory, string _name)
 		}
 		index1++;
 	}
-	activeRender = xml.getChild("activerender").getIntValue();
+	//activeRender = xml.getChild("activerender").getIntValue();
+	activeRender = int(ofClamp(xml.getChild("activerender").getIntValue(), 0, boxes.size() - 1));
 }
 
 void JPbox_preset::update()

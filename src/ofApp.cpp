@@ -196,23 +196,18 @@ void ofApp::draw_debugInfo()
 }
 void ofApp::draw_instrucciones()
 {
-	float x = 100;
-	float y = 100;
+	float x = 30;
+	float y = 30;
 	float sepy = 30;
 
-
+	float x2 = 30;
+	float y2 = 30;
 
 	ofSetColor(0);
-	ofDrawRectangle(0, 0, ofGetWidth() / 2, ofGetHeight());
+	ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight());
 	ofSetColor(255);
-	if (ofGetMousePressed()) {
-		if (language == 0) {
-			language = 1;
-		}
-		else if (language == 1) {
-			language = 0;
-		}
-	}
+	
+	//AGREGAR BOTON EN ALGUN MOMENTO
 	if (language == 0){
 		jp_constants::p_font.drawString("INSTRUCCIONES : ", x, y += sepy);
 		jp_constants::p_font.drawString("Para cargar archivo (todos) arrastrarlo hasta la ventana", x, y += sepy);
@@ -227,8 +222,10 @@ void ofApp::draw_instrucciones()
 		jp_constants::p_font.drawString("c : Agrega caja camara", x, y += sepy);
 		jp_constants::p_font.drawString("m : Exportar imagen", x, y += sepy);
 		jp_constants::p_font.drawString("e : Activar modo secuencia", x, y += sepy);
-	}
 
+	
+	
+	}
 	if (language == 1) {
 		jp_constants::p_font.drawString("INSTRUCTIONS : ", x, y += sepy);
 		jp_constants::p_font.drawString("To load any file drag it to this window(any kind)", x, y += sepy);
@@ -243,6 +240,11 @@ void ofApp::draw_instrucciones()
 		jp_constants::p_font.drawString("c : Add Camera box", x, y += sepy);
 		jp_constants::p_font.drawString("m : Export image to exportimgs folder", x, y += sepy);
 		jp_constants::p_font.drawString("e : Activate sequence mode", x, y += sepy);
+		jp_constants::p_font.drawString("OSC COMMANDS ", x, y += sepy);
+		jp_constants::p_font.drawString("/load/(dir) : load directory of a savefile", x, y += sepy);
+		jp_constants::p_font.drawString("/setactiverender/(num) : set active render", x, y += sepy);
+		jp_constants::p_font.drawString("/openguinumber/(value) : control de active", x, y += sepy);
+		jp_constants::p_font.drawString("/(name of shader)/(name of param) : to control using by name", x, y += sepy);
 	}
 
 	
@@ -518,6 +520,14 @@ void ofApp::mousePressed(int x, int y, int button)
 		jp_constants::set_mousePressedPos(ofVec2f(ofGetMouseX(), ofGetMouseY()));
 		boxes.update_mousePressed(button);
 	}
+	if (pantallaActiva == TUTORIAL) {
+		if (language == 0) {
+			language = 1;
+		}
+		else if (language == 1) {
+			language = 0;
+		}
+	}
 }
 void ofApp::windowResized(int w, int h)
 {
@@ -582,9 +592,11 @@ void ofApp::dragEvent(ofDragInfo dragInfo)
 		cout << "path " << path << endl;
 		if (path.find(".xml") != std::string::npos &&
 			!loadAspreset){
+			savedirectory = path;
 			boxes.load(path);
 		}
 		else{
+			
 			boxes.addBox(path, xx, yy);
 		}
 		xx += sepx;

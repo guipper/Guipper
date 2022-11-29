@@ -853,7 +853,26 @@ void JPboxgroup::load(string _dirinput)
 				{
 					ofFbo *fbopointer = &boxes[i]->fbo;
 					string *fbopointername = &boxes[i]->name;
-					boxes[index1]->fbohandlergroup.setFboPointer(fbopointer, fbopointername, index2);
+					//if(fbopointer != nullptr){
+					
+					
+
+					bool existe = false;
+
+
+					for(int k = 0; k < boxes.size(); k++){
+						if (boxes[k]->name ==  *fbopointername) {
+							existe = true;
+						}
+					}
+					
+
+					//aca tendria que comparar que tipo si lee que tiene un link el shader tendria que tener esa misma cantidad de entradas
+					//porque si tipo modificas el shader y le sacas un buffer e intentas levantar un archivo de guardado que tiene un buffer crashea
+					//entonces le pongo lo de > 0 pero en realidad tendría que ser que 
+					if (existe && boxes[index1]->fbohandlergroup.getSize() > 0) {
+						boxes[index1]->fbohandlergroup.setFboPointer(fbopointer, fbopointername, index2);
+					}
 				}
 			}
 			index2++;
@@ -861,19 +880,21 @@ void JPboxgroup::load(string _dirinput)
 		index1++;
 	}
 
-
-
-
-
 	//CLAUSULA DE SEGURIDAD : 
 	*activerender = int(ofClamp(xml.getChild("activerender").getIntValue(),0,boxes.size()-1));
 	cout << "TERMINA LINKS DE LOS FBO " << endl;
 
 	updateTransition(*activerender);
 
+
+
+
 	//}
 	// activerender_loader.getIntValue();
 	// activerender = activerender_loader.getIntValue();
+
+
+
 }
 void JPboxgroup::setControllers(){
 
@@ -1166,7 +1187,7 @@ void JPboxgroup::addBox(string directory)
 {
 	addBox(directory, ofGetMouseX(), ofGetMouseY());
 }
-/*DEPRECATED : */
+/*DEPRECATED:*/
 void JPboxgroup::setupShaderRendersFromDataFolder()
 {
 

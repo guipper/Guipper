@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<activerender>1</activerender>
+<activerender>0</activerender>
 <box>
 	<nombre>polysuperfractal</nombre>
 	<x>102</x>
@@ -19,7 +19,7 @@
 			<name>posx</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.9109</value>
+			<value>0.381252</value>
 			<movtype>1</movtype>
 			<speed>0.33</speed>
 		</param>
@@ -27,7 +27,7 @@
 			<name>posy</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.632799</value>
+			<value>0.8317</value>
 			<movtype>1</movtype>
 			<speed>0.51</speed>
 		</param>
