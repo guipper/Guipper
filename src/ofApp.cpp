@@ -190,9 +190,11 @@ void ofApp::draw_debugInfo()
 
 	float sepy = 20;
 	float posy = ofGetHeight();
-	font_p.drawString("FRAMERATE :" + ofToString(ofGetFrameRate()), 30, posy -= sepy);
+	font_p.drawString("Active Render :" + ofToString(activerender), 30, posy -= sepy);
+	font_p.drawString("FPS :" + ofToString(ofGetFrameRate()), 30, posy -= sepy);
 	font_p.drawString("Boxes size : " + ofToString(boxes.getBoxesSize()), 30, posy -= sepy);
-	font_p.drawString("DIALOG BOX : " + ofToString(jp_constants::systemDialog_open), 30, posy -= sepy);
+	font_p.drawString("Active Sequence : " + ofToString(boxes.activeSequence), 30, posy -= sepy);
+	//font_p.drawString("DIALOG BOX : " + ofToString(jp_constants::systemDialog_open), 30, posy -= sepy);
 }
 void ofApp::draw_instrucciones()
 {
@@ -748,7 +750,7 @@ void ofApp::updateOSC(){
 		// get the next message
 		ofxOscMessage m;
 		receiver.getNextMessage(&m);
-		boxes.listenToOsc(m.getAddress(), m.getArgAsFloat(0)); // Esta te levanta el OSC Digamos?
+		boxes.listenToOsc(m.getAddress(), m.getArgAsFloat(0)); // ACA PROCESA TODO EL OSC DE LAS CAJAS BASICAMENTE TODO
 		// cout << "ADDRES:" << m.getAddress() << endl;
 		// cout << "VALUE:" << m.getArgAsFloat(0) << endl;
 		cout << "LLEGA OSC  " << m.getAddress() << endl;

@@ -1022,6 +1022,33 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 
 		}
 	}
+
+	if (_dir == "/nextshader") {
+		int val = openguinumber +1;
+		if(val > boxes.size()-1){
+			val = 0;
+		}
+		openguinumber = val;
+		setControllers();
+	}
+
+	if (_dir == "/prevshader") {
+		int val = openguinumber - 1;
+		if (val < 0) {
+			val = boxes.size()-1;
+		}
+		openguinumber = val;
+		setControllers();
+	}
+
+	if (_dir == "/setactiveshader") {
+		updateTransition(floor(openguinumber));
+	}
+
+	if (_dir == "/setactivecycle") {
+		activeSequence = !activeSequence;
+	}
+
 	//LEO POR NOMBRE DE EFECTO Y LE TIRO AL EFECTO ESE
 	for (int i = 0; i < boxes.size(); i++){
 		if (boxes[i]->name == shadername){	
@@ -1265,6 +1292,8 @@ void JPboxgroup::deleteSelectedShader()
 		boxes[i]->fbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
 	}*/
 
+
+	//ACA HAY QUE AGREGAR QUE SI BORRAS EL ULTIMO SETEE EN EL TRANSITION SHADER EL OTRO BUFFER.
 	int index = 0;
 	for (int i = 0; i < boxes.size(); i++)
 	{
@@ -1278,8 +1307,7 @@ void JPboxgroup::deleteSelectedShader()
 				{
 					// cout << "NUM: " << l << "  NAME : " << boxes[k]->fbohandlergroup.getFboName(l) << endl;
 					if (boxes[k]->fbohandlergroup.getFboName(l) ==
-						boxes[i]->name)
-					{
+						boxes[i]->name){
 						boxes[k]->fbohandlergroup.deleteFboPointer(l);
 					}
 				}
@@ -1290,8 +1318,7 @@ void JPboxgroup::deleteSelectedShader()
 
 			boxes.erase(boxes.begin() + i);
 			index = i;
-			if (i == openguinumber)
-			{
+			if (i == openguinumber){
 				// openguinumber = -1;
 				//*activerender = 0;
 			}
@@ -1304,6 +1331,12 @@ void JPboxgroup::deleteSelectedShader()
 	if (index == *activerender && getBoxesSize() > 0 && index == getBoxesSize())
 	{
 		*activerender = index - 1;
+
+		//PARA SETEAR LOS TRANSITION SHADERS : 
+		//transition.setFboPointer1(&boxes[*activerender]->fbo);
+		//transition.setFboPointer2(&boxes[*activerender]->fbo);
+		updateTransition(*activerender);
+
 	}
 	/*if(index == 1)
 	else  {
@@ -1335,6 +1368,9 @@ ofFbo *JPboxgroup::getActiverender()
 		// boxes[*activerender]->shaderrender.fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
 	}
 	return nullptr;
+}
+int JPboxgroup::getActiverenderNum() {
+	return *activerender;
 }
 /*ofFbo JPboxgroup::getActiverender() {
 	if (boxes.size() >= 1) {

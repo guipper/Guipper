@@ -67,6 +67,7 @@ public:
 	ofColor textcolor;
 	*/
 	ofFbo *getActiverender();
+	int getActiverenderNum();
 	void reloadActiveshader();
 	void listenToOsc(string _dir, float _val);
 
