@@ -167,13 +167,28 @@ void JPboxgroup::draw_conections()
 					boxes[i]->name)
 				{
 
-					boxes[i]->triangleangle = atan2(boxes[k]->fbohandlergroup.getPosY(l) - boxes[i]->outlet_y,
-													boxes[k]->fbohandlergroup.getPosX(l) - boxes[i]->outlet_x);
+					
 
 					// boxes[i]->triangleangle+= 1;
+
+					//Es muy caro llamar atan2 todos los frames por todas las cajitas? 
+					//Creo que hay una manera de optimizar este codigo
+					if (boxes[i]->outletActiveFlag) {
+						boxes[i]->triangleangle = atan2(ofGetMouseY() - boxes[i]->outlet_y,
+						ofGetMouseX() - boxes[i]->outlet_x);
+					}else{
+						if(boxes[k]->fbohandlergroup.getSize() > 0){
+							boxes[i]->triangleangle = atan2(boxes[k]->fbohandlergroup.getPosY(l) - boxes[i]->outlet_y,
+							boxes[k]->fbohandlergroup.getPosX(l) - boxes[i]->outlet_x);
+						}else {
+							boxes[i]->triangleangle = atan2(ofGetMouseY() - boxes[i]->outlet_y,
+								ofGetMouseX() - boxes[i]->outlet_x);
+						}
+					}
+
 					ofDrawLine(boxes[k]->fbohandlergroup.getPosX(l),
-							   boxes[k]->fbohandlergroup.getPosY(l),
-							   boxes[i]->outlet_x + boxes[i]->outlet_size / 2, boxes[i]->outlet_y);
+						boxes[k]->fbohandlergroup.getPosY(l),
+						boxes[i]->outlet_x + boxes[i]->outlet_size / 2, boxes[i]->outlet_y);
 				}
 				else
 				{
@@ -311,17 +326,33 @@ void JPboxgroup::update(){
 				idx = *activerender + 1;
 			}
 			updateTransition(idx);
-			for (int i = boxes.size() - 1; i >= 0; i--) {
+			/*for (int i = boxes.size() - 1; i >= 0; i--) {
 				if (i == idx) {
 					boxes[i]->setonoff(true);
 				}
 				else {
 					boxes[i]->setonoff(false);
 				}
-			}
+			}*/
 
+			setActiveOnlyBox(idx);
 		}
 }
+
+
+void JPboxgroup::setActiveOnlyBox(int _val) {
+
+	for (int i = boxes.size() - 1; i >= 0; i--) {
+		if (i == _val) {
+			boxes[i]->setonoff(true);
+		}
+		else {
+			boxes[i]->setonoff(false);
+		}
+	}
+
+}
+
 void JPboxgroup::update_paramswindow()
 {
 
@@ -1040,6 +1071,33 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 		openguinumber = val;
 		setControllers();
 	}
+
+
+	if (_dir == "/nextshader_gallerymode") {
+		int val = openguinumber + 1;
+		if (val > boxes.size() - 1) {
+			val = 0;
+		}
+		openguinumber = val;
+		setControllers();
+		updateTransition(floor(openguinumber));
+
+		setActiveOnlyBox(openguinumber);
+	}
+
+	if (_dir == "/prevshader_gallerymode") {
+		int val = openguinumber - 1;
+		if (val < 0) {
+			val = boxes.size() - 1;
+		}
+		openguinumber = val;
+		setControllers();
+		updateTransition(floor(openguinumber));
+
+		setActiveOnlyBox(openguinumber);
+	}
+
+
 
 	if (_dir == "/setactiveshader") {
 		updateTransition(floor(openguinumber));

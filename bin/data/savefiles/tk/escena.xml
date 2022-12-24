@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<activerender>6</activerender>
+<box>
+	<nombre>k5</nombre>
+	<x>90</x>
+	<y>90</y>
+	<directory>D:\of_v0.11.2_vs2017_release\apps\myApps\guipper3\bin\data\savefiles\tk\k5.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>k6</nombre>
+	<x>92</x>
+	<y>169</y>
+	<directory>D:\of_v0.11.2_vs2017_release\apps\myApps\guipper3\bin\data\savefiles\tk\k6.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>k7</nombre>
+	<x>99</x>
+	<y>373</y>
+	<directory>D:\of_v0.11.2_vs2017_release\apps\myApps\guipper3\bin\data\savefiles\tk\k7.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>k8</nombre>
+	<x>97</x>
+	<y>445</y>
+	<directory>D:\of_v0.11.2_vs2017_release\apps\myApps\guipper3\bin\data\savefiles\tk\k8.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>k9</nombre>
+	<x>104</x>
+	<y>574</y>
+	<directory>D:\of_v0.11.2_vs2017_release\apps\myApps\guipper3\bin\data\savefiles\tk\k9.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>k14</nombre>
+	<x>108</x>
+	<y>653</y>
+	<directory>D:\of_v0.11.2_vs2017_release\apps\myApps\guipper3\bin\data\savefiles\tk\k14.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>k15</nombre>
+	<x>90</x>
+	<y>245</y>
+	<directory>D:\of_v0.11.2_vs2017_release\apps\myApps\guipper3\bin\data\savefiles\tk\k15.xml</directory>
+	<onoff>0</onoff>
+</box>

@@ -40,6 +40,7 @@ public:
 	void draw_activerender(float _width, float _height);
 
 	void update();
+	void setActiveOnlyBox(int _val);
 	void update_paramswindow();
 	void update_resized(int w, int h);		   // Lo que hace cuando pinta resize
 	void update_mouseDragged(int mousebutton); // Lo que hace cuando arrastras en la pantalla.

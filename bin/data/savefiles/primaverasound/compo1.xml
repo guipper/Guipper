@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<activerender>8</activerender>
+<box>
+	<nombre>artlab9</nombre>
+	<x>576</x>
+	<y>254</y>
+	<directory>data\savefiles\primaverasound\artlab9.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab10</nombre>
+	<x>688</x>
+	<y>254</y>
+	<directory>data\savefiles\primaverasound\artlab10.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab11</nombre>
+	<x>800</x>
+	<y>254</y>
+	<directory>data\savefiles\primaverasound\artlab11.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab2</nombre>
+	<x>912</x>
+	<y>254</y>
+	<directory>data\savefiles\primaverasound\artlab2.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab3</nombre>
+	<x>576</x>
+	<y>381</y>
+	<directory>data\savefiles\primaverasound\artlab3.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab4</nombre>
+	<x>688</x>
+	<y>382</y>
+	<directory>data\savefiles\primaverasound\artlab4.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab5</nombre>
+	<x>800</x>
+	<y>382</y>
+	<directory>data\savefiles\primaverasound\artlab5.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab6</nombre>
+	<x>912</x>
+	<y>382</y>
+	<directory>data\savefiles\primaverasound\artlab6.xml</directory>
+	<onoff>0</onoff>
+</box>
+<box>
+	<nombre>artlab7</nombre>
+	<x>576</x>
+	<y>510</y>
+	<directory>data\savefiles\primaverasound\artlab7.xml</directory>
+	<onoff>1</onoff>
+</box>
+<box>
+	<nombre>artlab8</nombre>
+	<x>688</x>
+	<y>510</y>
+	<directory>data\savefiles\primaverasound\artlab8.xml</directory>
+	<onoff>0</onoff>
+</box>

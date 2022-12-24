@@ -117,8 +117,14 @@ void JPbox::draw()
 	ofSetLineWidth(3);
 	ofSetColor(0);
 	ofRectRounded(x, y, width, height, 10);
-	ofSetColor(200);
-	ofFill();
+	if (mouseOver() || activeFlag){
+		ofSetColor(200);
+		ofFill(); 
+	}
+	else {
+		ofSetColor(150);
+		ofFill();
+	}
 	ofRectRounded(x, y, width, height, 10);
 
 	ofSetColor(Cfront);
@@ -152,6 +158,7 @@ void JPbox::draw()
 
 	if (outletActiveFlag)
 	{
+		ofSetColor(ofColor(0, 255,0).getLerped(ofColor(255),sin(ofGetElapsedTimeMillis()*0.01)*.5+.5));
 		ofDrawLine(outlet_x, outlet_y, ofGetMouseX(), ofGetMouseY());
 	}
 	// JPbox::draw_outlet();
@@ -212,19 +219,20 @@ void JPbox::draw_outlet()
 	ofPushMatrix();
 	ofTranslate(outlet_x + outlet_size / 2, outlet_y);
 	ofRotate(ofRadToDeg(triangleangle) + 90);
-	if (mouseOverOutlet())
-	{
+	if (mouseOverOutlet()){
+		//ofSetColor(255, 217, 15, 255);
+		ofSetColor(ofColor(255, 217, 15, 250).getLerped(ofColor(255), 0.75));
+	}
+	else{
 		ofSetColor(255, 217, 15, 255);
+		//ofSetColor(ofColor(255, 217, 15, 250).getLerped(ofColor(0),0.5));
 	}
-	else
-	{
-		ofSetColor(255, 217, 15, 250);
-	}
-	// ofTranslate(-outlet_size / 2, -outlet_size / 2);
+
+	//DIBUJO TRIANGULO SIN IMAGEN. ESTE CODIGO SIRVE PARA DEBUGEAR : 
+	//ofTranslate(-outlet_size / 2, -outlet_size / 2);
 	/*ofDrawTriangle(xtri, ytri,
 		outlet_size+ xtri, outlet_size/2+ytri,
 		0+ xtri, outlet_size+ ytri);*/
-
 	// ofDrawEllipse(outlet_size / 2, outlet_size / 2, spheresize, spheresize);
 
 	float gotasize = 0.2;
@@ -247,8 +255,15 @@ void JPbox::clear()
 	// fbo = nullptr;
 }
 bool JPbox::mouseOverOutlet()
-{
-	if (ofGetMouseX() > outlet_x - outlet_size / 2 && ofGetMouseX() < outlet_x + outlet_size / 2 && ofGetMouseY() > outlet_y - outlet_size / 2 && ofGetMouseY() < outlet_y + outlet_size / 2)
+{	
+
+
+	float auxoutletsize = outlet_size ;
+
+	if (ofGetMouseX() > outlet_x - auxoutletsize &&
+		ofGetMouseX() < outlet_x + auxoutletsize &&
+		ofGetMouseY() > outlet_y - auxoutletsize &&
+		ofGetMouseY() < outlet_y + auxoutletsize)
 	{
 		return true;
 	}
