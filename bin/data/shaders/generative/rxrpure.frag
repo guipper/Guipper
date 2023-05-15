@@ -21,7 +21,7 @@ uniform float r1;
 uniform float g1; 
 uniform float b1; 
 uniform float flush; 
-
+uniform float speed; 
 
 
 float snoise(vec2 v);
@@ -157,7 +157,7 @@ void main(void)
     
     vec3 color = vec3(0.0);
 
-  //  float n = snoise(vec2(uv.x*100.*noisex,uv.y*100.*noisey+time*1)*0.002) ;
+  //  float n = snoise(vec2(uv.x*100.*noisex,uv.y*100.*noisey+time*speed*2.*1)*0.002) ;
     const int cnt = 3;
     /*for(int i=0; i<cnt; i++){
         float fas = float(i)*PI*2./float(cnt);
@@ -192,7 +192,7 @@ void main(void)
 	
 	
 	float mflush = mapr(flush,0.3,1.0);
-	e = sin(e*2.*mflush+time*.05)*5.;
+	e = sin(e*2.*mflush+time*speed*2.*.05)*5.;
 	vec3 col1 = vec3(sin(e*2.+r1*TWO_PI)*.5+.5,
 					 sin(e*2.+g1*TWO_PI)*.5+.5,
 					 sin(e*2.+b1*TWO_PI)*.5+.5);
@@ -202,7 +202,7 @@ void main(void)
 	vec3 col2 = mix(col1,vec3(0.),cos(e*8.));
 		//  col2 = vec3(r2,g2,b2);
     
-    e = sin(e*5.+time*0.1);
+    e = sin(e*5.+time*speed*2.*0.1);
     
     vec3 fin = mix(col1,col2,e);
 

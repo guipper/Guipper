@@ -256,15 +256,10 @@ void main(){
 	vec3 starnest = generateStarnest();
 	float stprom = (starnest.r+starnest.g+starnest.b)/3.;
 
-		uv.y-=clamp(mapr(displacey,2.,5.0)*stprom,-1.0,1.5);
+	uv.y-=clamp(mapr(displacey,2.,5.0)*stprom,-1.0,1.5);
 	
-
 	//vec2 uv_d = vec2(uv.x+mapr(mouse.x,-.4,.4),uv.y-mapr(mouse.y,-.4,.4));	
 	//uv = mix(uv,uv_d,lerpm);
-		
-	
-	
-	
 	//if(rdm(fbmseed+4213.) > .5){
 	//uv+=vec2(0.5,.5);
 	//uv*=scale(vec2(sin(stprom*10.+time*.001)*.2+.2+.6));

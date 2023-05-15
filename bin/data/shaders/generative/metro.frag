@@ -1,6 +1,6 @@
 #pragma include "../common.frag" //ESta linea tiene todas las definiciones de las funciones globales
 
-const float BPM = 146.;
+const float BPM = 110.;
 uniform bool invertbpm;
 uniform float ss ;
 uniform float dif ; 

@@ -3,6 +3,8 @@
 uniform float r;
 uniform float g;
 uniform float b;
+uniform float mivariable;
+
 
 void main()
 {	
@@ -10,5 +12,7 @@ void main()
 	
 	vec3 fin = vec3(r,g,b);
 	
-	fragColor = vec4(fin,1.0); 
+	
+	float e = sin(uv.x*10.+time)*.5+.5;
+	fragColor = vec4(uv.x,e,0.0,1.0); 
 }
