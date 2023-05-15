@@ -2,7 +2,6 @@
 
 
 ROAD MAP :
-- Resolver CRASH cuando lee mal los archivos (que aparezca en la caja que no pudo leerlo). 
 - IDE interno para livecoding.
 - Sistema de patches (ver tema de seleccion de parametros y tabs). 
 - Sistema de carga de shaders (aparte de Drag and drop, interno). 
@@ -17,7 +16,6 @@ ROAD MAP :
 - Limpiar las funciones que estan en el .common 
 - Sistema de branchs o versionado del mismo shader dentro de la interfaz ( tener ide interno andando para esto).
 - Interfaz de triggers a lo resolume. GRILLA.
-- Crossfading entre cajas . 
 
 
 INTERFAZ : 
