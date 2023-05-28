@@ -5,19 +5,19 @@
 Guipper es un software desarrollado para la realización de visuales en tiempo real utilizando GLSL fragment shaders. Permite ejecutar visuales parametrizados y generativos con un peso extremadamente bajo, además de brindar la posibilidad de agregar nuevos shaders.
 
 ## Características principales
-Ejecución de visuales en tiempo real utilizando GLSL fragment shaders.
-Visuales parametrizados y generativos.
-Peso extremadamente bajo para un rendimiento óptimo.
-Posibilidad de agregar nuevos shaders para ampliar la biblioteca.
-Comunicación con otros programas mediante NDI y SPOUT.
-Automatización de parámetros para crear animaciones fluidas.
-Control OSC para establecer conexiones con interfaces externas.
-Soporte para imágenes, videos y cámara web como fuentes visuales.
-Randomización de parámetros para obtener resultados visuales sorprendentes.
-Agradecimientos especiales a Kali Shade por contribuir con una amplia cantidad de shaders a la biblioteca oficial.
-Diseño del software realizado por Lautaro Nuñez Muller.
-Requisitos del sistema
-Indica los requisitos necesarios para ejecutar Guipper en un entorno determinado. Asegúrate de mencionar las versiones compatibles de GLSL, así como cualquier otra dependencia o configuración adicional necesaria.
+<ul>
+  <li>Ejecución de visuales en tiempo real utilizando GLSL fragment shaders.</li>
+  <li>Visuales parametrizados y generativos.</li>
+  <li>Peso extremadamente bajo para un rendimiento óptimo.</li>
+  <li>Posibilidad de agregar nuevos shaders para ampliar la biblioteca.</li>
+  <li>Comunicación con otros programas mediante NDI y SPOUT.</li>
+  <li>Automatización de parámetros para crear animaciones fluidas.</li>
+  <li>Control OSC para establecer conexiones con interfaces externas.</li>
+  <li>Soporte para imágenes, videos y cámara web como fuentes visuales.</li>
+  <li>Randomización de parámetros para obtener resultados visuales sorprendentes.</li>
+  <li>Agradecimientos especiales a Kali Shade por contribuir con una amplia cantidad de shaders a la biblioteca oficial.</li>
+  <li>Diseño del software realizado por Lautaro Nuñez Muller.</li>
+</ul>
 
 ## Instalación
 Proporciona instrucciones paso a paso sobre cómo instalar y configurar Guipper. Incluye información sobre cómo descargar y compilar el código fuente, así como cualquier configuración adicional requerida.
