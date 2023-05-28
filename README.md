@@ -1,5 +1,9 @@
 
 # Guipper Real-time Visual Software
+
+
+<img src="https://github.com/guipper/Guipper/blob/main/muchosnodos.png" width="800" height="450">
+
 ## Brief Project Description and Purpose
 Guipper is a software developed for real-time visual creation using GLSL fragment shaders. It allows for the execution of parameterized and generative visuals with extremely low overhead, while also providing the ability to add new shaders.
 
