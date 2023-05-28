@@ -1,8 +1,10 @@
-<h1>Guipper - Software para Visuales en Tiempo Real</h1>
+#  Software para Visuales en Tiempo Real
 
-<h2>Breve descripción del proyecto y su propósito. <h2> <h3>Guipper es un software desarrollado para la realización de visuales en tiempo real utilizando GLSL fragment shaders. Permite ejecutar visuales parametrizados y generativos con un peso extremadamente bajo, además de brindar la posibilidad de agregar nuevos shaders.</h3>
+## Breve descripción del proyecto y su propósito.
 
-<h2>Características principales<h2>
+Guipper es un software desarrollado para la realización de visuales en tiempo real utilizando GLSL fragment shaders. Permite ejecutar visuales parametrizados y generativos con un peso extremadamente bajo, además de brindar la posibilidad de agregar nuevos shaders.
+
+## Características principales
 Ejecución de visuales en tiempo real utilizando GLSL fragment shaders.
 Visuales parametrizados y generativos.
 Peso extremadamente bajo para un rendimiento óptimo.
@@ -17,34 +19,35 @@ Diseño del software realizado por Lautaro Nuñez Muller.
 Requisitos del sistema
 Indica los requisitos necesarios para ejecutar Guipper en un entorno determinado. Asegúrate de mencionar las versiones compatibles de GLSL, así como cualquier otra dependencia o configuración adicional necesaria.
 
-<h2>Instalación<h2>
+## Instalación
 Proporciona instrucciones paso a paso sobre cómo instalar y configurar Guipper. Incluye información sobre cómo descargar y compilar el código fuente, así como cualquier configuración adicional requerida.
 
-<h2>Guía de uso<h2>
+## Guía de uso
 Ofrece una guía detallada sobre cómo utilizar Guipper de manera efectiva. Incluye ejemplos de código, explicaciones de las funciones clave y capturas de pantalla o videos para mostrar los resultados visuales que se pueden lograr.
 
-<h2>Contribuciones<h2>
+## Contribuciones
 Si deseas invitar a otros desarrolladores a contribuir al proyecto Guipper, describe cómo pueden hacerlo. Proporciona información sobre cómo clonar el repositorio, configurar el entorno de desarrollo y enviar solicitudes de extracción.
 
-<h2>Licencia<h2>
+## Licencia
 Este programa se distribuye bajo la Licencia MIT. Asegúrate de incluir una copia de la licencia en tu repositorio.
 
-<h2>Contacto<h2>
+## Contacto
 Proporciona información de contacto para consultas o soporte adicional. Puedes incluir tu dirección de correo electrónico, enlaces a perfiles en redes sociales o un canal de comunicación específico para el proyecto.
 
-<h2>Roadmap<h2>
-
-IDE interno para livecoding.
-Sistema de patches (tema de selección de parámetros y pestañas).
-Sistema de carga de shaders interno (además del arrastrar y soltar).
-Servidor para subir y descargar shaders hechos por la comunidad.
-Adaptación de shadertoys.
-Revisión y limpieza de shaders existentes y agregar nuevos.
-Finalizar la versión multiplataforma para LINUX, MAC y WINDOWS.
-Agregar soporte Syphon a la versión de MAC.
-Agregar soporte audiorítmico a los parámetros mediante FFT.
-Agregar sistema de MIDI para controlar los parámetros.
-Implementar un sistema de uniforms para vec2, vec3 y vec4.
-Limpiar las funciones que están en el archivo .common.
-Implementar un sistema de branches o versionado del mismo shader dentro de la interfaz (requiere tener el IDE interno funcionando).
-Interfaz de triggers similar a la de Resolume, con una grilla.
+## Roadmap
+<ul>
+  <li>IDE interno para livecoding.</li>
+  <li>Sistema de patches (tema de selección de parámetros y pestañas).</li>
+  <li>Sistema de carga de shaders interno (además del arrastrar y soltar).</li>
+  <li>Servidor para subir y descargar shaders hechos por la comunidad.</li>
+  <li>Adaptación de shadertoys.</li>
+  <li>Revisión y limpieza de shaders existentes y agregar nuevos.</li>
+  <li>Finalizar la versión multiplataforma para LINUX, MAC y WINDOWS.</li>
+  <li>Agregar soporte Syphon a la versión de MAC.</li>
+  <li>Agregar soporte audiorítmico a los parámetros mediante FFT.</li>
+  <li>Agregar sistema de MIDI para controlar los parámetros.</li>
+  <li>Implementar un sistema de uniforms para vec2, vec3 y vec4.</li>
+  <li>Limpiar las funciones que están en el archivo .common.</li>
+  <li>Implementar un sistema de branches o versionado del mismo shader dentro de la interfaz (requiere tener el IDE interno funcionando).</li>
+  <li>Interfaz de triggers similar a la de Resolume, con una grilla.</li>
+</ul>
