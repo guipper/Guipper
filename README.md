@@ -1,9 +1,10 @@
-Guipper - Software para Visuales en Tiempo Real
-Logo de Guipper (Si tienes un logo, inclúyelo aquí)
+#Guipper - Software para Visuales en Tiempo Real
 
-Breve descripción del proyecto y su propósito. Guipper es un software desarrollado para la realización de visuales en tiempo real utilizando GLSL fragment shaders. Permite ejecutar visuales parametrizados y generativos con un peso extremadamente bajo, además de brindar la posibilidad de agregar nuevos shaders.
+##Breve descripción del proyecto y su propósito. 
 
-Características principales
+Guipper es un software desarrollado para la realización de visuales en tiempo real utilizando GLSL fragment shaders. Permite ejecutar visuales parametrizados y generativos con un peso extremadamente bajo, además de brindar la posibilidad de agregar nuevos shaders.
+
+##Características principales
 Ejecución de visuales en tiempo real utilizando GLSL fragment shaders.
 Visuales parametrizados y generativos.
 Peso extremadamente bajo para un rendimiento óptimo.
@@ -18,23 +19,22 @@ Diseño del software realizado por Lautaro Nuñez Muller.
 Requisitos del sistema
 Indica los requisitos necesarios para ejecutar Guipper en un entorno determinado. Asegúrate de mencionar las versiones compatibles de GLSL, así como cualquier otra dependencia o configuración adicional necesaria.
 
-Instalación
+##Instalación
 Proporciona instrucciones paso a paso sobre cómo instalar y configurar Guipper. Incluye información sobre cómo descargar y compilar el código fuente, así como cualquier configuración adicional requerida.
 
-Guía de uso
+##Guía de uso
 Ofrece una guía detallada sobre cómo utilizar Guipper de manera efectiva. Incluye ejemplos de código, explicaciones de las funciones clave y capturas de pantalla o videos para mostrar los resultados visuales que se pueden lograr.
 
-Contribuciones
+##Contribuciones
 Si deseas invitar a otros desarrolladores a contribuir al proyecto Guipper, describe cómo pueden hacerlo. Proporciona información sobre cómo clonar el repositorio, configurar el entorno de desarrollo y enviar solicitudes de extracción.
 
-Licencia
+##Licencia
 Este programa se distribuye bajo la Licencia MIT. Asegúrate de incluir una copia de la licencia en tu repositorio.
 
-Contacto
+##Contacto
 Proporciona información de contacto para consultas o soporte adicional. Puedes incluir tu dirección de correo electrónico, enlaces a perfiles en redes sociales o un canal de comunicación específico para el proyecto.
 
-Roadmap
-Aquí está el roadmap actualizado para el desarrollo futuro de Guipper:
+##Roadmap
 
 IDE interno para livecoding.
 Sistema de patches (tema de selección de parámetros y pestañas).
