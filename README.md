@@ -1,4 +1,4 @@
-#Guipper - Software para Visuales en Tiempo Real
+<h1>Guipper - Software para Visuales en Tiempo Real</h1>
 
 ##Breve descripción del proyecto y su propósito. 
 
