@@ -28,14 +28,13 @@ Proporciona instrucciones paso a paso sobre cómo instalar y configurar Guipper.
 Ofrece una guía detallada sobre cómo utilizar Guipper de manera efectiva. Incluye ejemplos de código, explicaciones de las funciones clave y capturas de pantalla o videos para mostrar los resultados visuales que se pueden lograr.
 
 ## Contribuciones
-Si deseas invitar a otros desarrolladores a contribuir al proyecto Guipper, describe cómo pueden hacerlo. Proporciona información sobre cómo clonar el repositorio, configurar el entorno de desarrollo y enviar solicitudes de extracción.
+(COMPLETAR)
 
 ## Licencia
 Este programa se distribuye bajo la Licencia MIT. Asegúrate de incluir una copia de la licencia en tu repositorio.
 
 ## Contacto
-Proporciona información de contacto para consultas o soporte adicional. Puedes incluir tu dirección de correo electrónico, enlaces a perfiles en redes sociales o un canal de comunicación específico para el proyecto.
-
+Escribime al mail : julian.d.puppo@gmail.com
 ## Roadmap
 <ul>
   <li>IDE interno para livecoding.</li>
