@@ -4,6 +4,9 @@
 
 Guipper es un software desarrollado para la realización de visuales en tiempo real utilizando GLSL fragment shaders. Permite ejecutar visuales parametrizados y generativos con un peso extremadamente bajo, además de brindar la posibilidad de agregar nuevos shaders.
 
+Agradecimientos especiales a Kali Shade por contribuir con una amplia cantidad de shaders a la biblioteca oficial.
+Diseño del software realizado por Lautaro Nuñez Muller.
+
 ## Características principales
 <ul>
   <li>Ejecución de visuales en tiempo real utilizando GLSL fragment shaders.</li>
@@ -15,8 +18,7 @@ Guipper es un software desarrollado para la realización de visuales en tiempo r
   <li>Control OSC para establecer conexiones con interfaces externas.</li>
   <li>Soporte para imágenes, videos y cámara web como fuentes visuales.</li>
   <li>Randomización de parámetros para obtener resultados visuales sorprendentes.</li>
-  <li>Agradecimientos especiales a Kali Shade por contribuir con una amplia cantidad de shaders a la biblioteca oficial.</li>
-  <li>Diseño del software realizado por Lautaro Nuñez Muller.</li>
+  
 </ul>
 
 ## Instalación
