@@ -1,4 +1,58 @@
-#  Software para Visuales en Tiempo Real
+
+# Guipper .Real-time Visual Software
+## Brief Project Description and Purpose
+Guipper is a software developed for real-time visual creation using GLSL fragment shaders. It allows for the execution of parameterized and generative visuals with extremely low overhead, while also providing the ability to add new shaders.
+
+Special thanks to Kali Shade for contributing a wide range of shaders to the official library. Software design by Lautaro Nuñez Muller.
+
+# Key Features
+
+<ul>
+  <li>Real-time execution of visuals using GLSL fragment shaders.</li>
+  <li>Parameterized and generative visuals.</li>
+  <li>Extremely lightweight for optimal performance.</li>
+  <li>Possibility to add new shaders to expand the library.</li>
+  <li>Communication with other programs through NDI and SPOUT.</li>
+  <li>Parameter automation for creating smooth animations.</li>
+  <li>OSC control for connections with external interfaces.</li>
+  <li>Support for images, videos, and webcam as visual sources.</li>
+  <li>Parameter randomization for surprising visual results.</li>
+</ul>
+
+## Installation
+Provide step-by-step instructions on how to install and configure Guipper. Include information on how to download and compile the source code, as well as any additional required configurations.
+
+## User Guide
+Offer a detailed guide on effectively using Guipper. Include code examples, explanations of key functions, and screenshots or videos showcasing the visual results that can be achieved.
+
+## Contributions
+(TO BE COMPLETED)
+
+## License
+This program is distributed under the MIT License. Be sure to include a copy of the license in your repository.
+
+## Contact
+You can reach me at julian.d.puppo@gmail.com.
+
+## Roadmap
+<ul>
+  <li>Internal IDE for live coding.</li>
+  <li>Patches system (parameter selection and tabs).</li>
+  <li>Internal shader loading system (in addition to drag and drop).</li>
+  <li>Server for uploading and downloading shaders created by the community.</li>
+  <li>Adaptation of Shadertoys.</li>
+  <li>Reviewing and cleaning up existing shaders and adding new ones.</li>
+  <li>Finalizing the multi-platform version for LINUX, MAC, and WINDOWS.</li>
+  <li>Adding Syphon support to the MAC version.</li>
+  <li>Adding audio-reactivity to parameters using FFT.</li>
+  <li>Adding a MIDI system for parameter control.</li>
+  <li>Implementing a system of uniforms for vec2, vec3, and vec4.</li>
+  <li>Cleaning up functions in the .common file.</li>
+  <li>Implementing a system of branches or versioning for the same shader within the interface (requires the internal IDE to be functional).</li>
+</ul>
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#  Guipper.Software para Visuales en Tiempo Real
 
 ## Breve descripción del proyecto y su propósito.
 
@@ -52,3 +106,5 @@ Escribime al mail : julian.d.puppo@gmail.com
   <li>Implementar un sistema de branches o versionado del mismo shader dentro de la interfaz (requiere tener el IDE interno funcionando).</li>
   <li>Interfaz de triggers similar a la de Resolume, con una grilla.</li>
 </ul>
+
+
