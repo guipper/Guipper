@@ -2,7 +2,7 @@
 
 <h2>Breve descripción del proyecto y su propósito. <h2>
 
-Guipper es un software desarrollado para la realización de visuales en tiempo real utilizando GLSL fragment shaders. Permite ejecutar visuales parametrizados y generativos con un peso extremadamente bajo, además de brindar la posibilidad de agregar nuevos shaders.
+<p>Guipper es un software desarrollado para la realización de visuales en tiempo real utilizando GLSL fragment shaders. Permite ejecutar visuales parametrizados y generativos con un peso extremadamente bajo, además de brindar la posibilidad de agregar nuevos shaders.</p>
 
 <h2>Características principales<h2>
 Ejecución de visuales en tiempo real utilizando GLSL fragment shaders.
