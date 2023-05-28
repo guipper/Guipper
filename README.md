@@ -50,7 +50,7 @@ You can reach me at julian.d.puppo@gmail.com.
   <li>Cleaning up functions in the .common file.</li>
   <li>Implementing a system of branches or versioning for the same shader within the interface (requires the internal IDE to be functional).</li>
 </ul>
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #  Guipper.Software para Visuales en Tiempo Real
 
