@@ -1,7 +1,5 @@
 #pragma once
 
-
-#include "defines.h"
 #include "ofMain.h"
 #include "jp_constants.h"
 #include "../JPbox/JPboxgroup.h"
@@ -12,21 +10,15 @@ OpenSaveFileLoader : para abrir archivo de savefile
 SaveAsSaver : Para guardar como.
 */
 
-
-
-
-
-class DirectoryManager {
-	public:
-		vector<vector<string>> directorys;
-		void loadDirectorys(); //CARGO TODOS LOS DIRECTORIOS PRINCIPALES 
-		void loadDirectory(string _dir);
-
+class DirectoryManager
+{
+public:
+	vector<vector<string>> directorys;
+	void loadDirectorys(); // CARGO TODOS LOS DIRECTORIOS PRINCIPALES
+	void loadDirectory(string _dir);
 };
 
-
-
-//ESTO ESTA DEPRECATED CREO <.'¡'.>
+// ESTO ESTA DEPRECATED CREO <.'ï¿½'.>
 class OpenLoader : public ofThread
 {
 public:
@@ -75,8 +67,8 @@ private:
 				// boxes->load(path);
 			}
 			else if (path.find(".png") != std::string::npos ||
-					 path.find(".jpg") != std::string::npos ||
-					 path.find(".JPEG") != std::string::npos)
+							 path.find(".jpg") != std::string::npos ||
+							 path.find(".JPEG") != std::string::npos)
 			{
 				cout << "LOAD IMAGE FILE" << endl;
 				activeFiletype = IMAGE;
@@ -84,11 +76,11 @@ private:
 			}
 
 			else if (path.find(".mov") != std::string::npos ||
-					 path.find(".mkv") != std::string::npos ||
-					 path.find(".mp4") != std::string::npos ||
-					 path.find(".flv") != std::string::npos ||
-					 path.find(".vob") != std::string::npos ||
-					 path.find(".avi") != std::string::npos)
+							 path.find(".mkv") != std::string::npos ||
+							 path.find(".mp4") != std::string::npos ||
+							 path.find(".flv") != std::string::npos ||
+							 path.find(".vob") != std::string::npos ||
+							 path.find(".avi") != std::string::npos)
 			{
 				activeFiletype = VIDEO;
 			}

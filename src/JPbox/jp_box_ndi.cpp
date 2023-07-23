@@ -1,6 +1,5 @@
 
 
-#include "defines.h"
 #ifdef NDI
 #include "jp_box_ndi.h"
 
@@ -29,7 +28,7 @@ void JPbox_ndi::setup(string _dir, string _name)
 	/************************************************************************************/
 
 	bInitialized = false; // Spout receiver initialization
-	SenderName[0] = 0;	  // the name will be filled when the receiver connects to a sender
+	SenderName[0] = 0;		// the name will be filled when the receiver connects to a sender
 
 	// Allocate a texture for shared texture transfers
 	// An openFrameWorks texture is used so that it can be drawn.
@@ -89,12 +88,12 @@ void JPbox_ndi::updateFBO()
 		float mscalex = ofMap(parameters.getFloatValue(0), 0.0, 1.0, 0.0, jp_constants::renderWidth);
 		float mscaley = ofMap(parameters.getFloatValue(1), 0.0, 1.0, 0.0, jp_constants::renderHeight);
 		float moffsetx = ofMap(parameters.getFloatValue(2), 0.0, 1.0,
-							   -jp_constants::renderWidth / 2 - mscalex / 2,
-							   jp_constants::renderWidth / 2 + mscalex / 2);
+													 -jp_constants::renderWidth / 2 - mscalex / 2,
+													 jp_constants::renderWidth / 2 + mscalex / 2);
 
 		float moffsety = ofMap(parameters.getFloatValue(3), 0.0, 1.0,
-							   -jp_constants::renderHeight / 2 - mscaley / 2,
-							   jp_constants::renderHeight / 2 + mscaley / 2);
+													 -jp_constants::renderHeight / 2 - mscaley / 2,
+													 jp_constants::renderHeight / 2 + mscaley / 2);
 
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		ofSetColor(255, 255);
@@ -106,9 +105,9 @@ void JPbox_ndi::updateFBO()
 			ofDrawRectangle(0, 0, jp_constants::renderWidth, jp_constants::renderHeight);
 			ofSetColor(255, 255);
 			myTexture.draw(jp_constants::renderWidth / 2 - mscalex / 2 + moffsetx,
-						   jp_constants::renderHeight / 2 - mscaley / 2 + moffsety,
-						   mscalex,
-						   mscaley);
+										 jp_constants::renderHeight / 2 - mscaley / 2 + moffsety,
+										 mscalex,
+										 mscaley);
 		}
 		else
 		{

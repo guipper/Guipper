@@ -1,5 +1,4 @@
 
-#include "defines.h"
 #include "jp_box.h"
 #include "../ofApp.h"
 
@@ -19,8 +18,8 @@ void JPbox::setup(ofTrueTypeFont &_font)
 	triangleangle = 0;
 
 	JPdragobject::setup(ofGetWidth() / 2, ofGetHeight() / 2,
-						fbowidth + padding_leftright,
-						fboheight + padding_top + padding_bottom);
+											fbowidth + padding_leftright,
+											fboheight + padding_top + padding_bottom);
 
 	Cfront = ofColor(0, 120);
 	border = ofColor(0, 200, 200, 120);
@@ -52,8 +51,8 @@ void JPbox::setup(string _directory, string _name)
 	triangleangle = 0;
 
 	JPdragobject::setup(ofGetWidth() / 2, ofGetHeight() / 2,
-						fbowidth + padding_leftright,
-						fboheight + padding_top + padding_bottom);
+											fbowidth + padding_leftright,
+											fboheight + padding_top + padding_bottom);
 
 	Cfront = ofColor(0, 120);
 	border = ofColor(0, 200, 200, 120);
@@ -78,7 +77,7 @@ void JPbox::update()
 	parameters.update();
 	// onoff.update();
 	onoff.setPos(x + width / 2 - outlet_size / 2,
-				 y - height / 2 + outlet_size * .4);
+							 y - height / 2 + outlet_size * .4);
 	// updateFBO();
 
 	outlet_x = x + width / 2 - outlet_size / 2;
@@ -117,11 +116,13 @@ void JPbox::draw()
 	ofSetLineWidth(3);
 	ofSetColor(0);
 	ofRectRounded(x, y, width, height, 10);
-	if (mouseOver() || activeFlag){
+	if (mouseOver() || activeFlag)
+	{
 		ofSetColor(200);
-		ofFill(); 
+		ofFill();
 	}
-	else {
+	else
+	{
 		ofSetColor(150);
 		ofFill();
 	}
@@ -148,8 +149,8 @@ void JPbox::draw()
 	}
 
 	jp_constants::p_font.drawString(shortname,
-									x - width / 2 + sepsize,
-									y - height / 2 + padding_top * 2 / 3);
+																	x - width / 2 + sepsize,
+																	y - height / 2 + padding_top * 2 / 3);
 
 	// BOTON SET ACTIVE RENDER :
 
@@ -158,7 +159,7 @@ void JPbox::draw()
 
 	if (outletActiveFlag)
 	{
-		ofSetColor(ofColor(0, 255,0).getLerped(ofColor(255),sin(ofGetElapsedTimeMillis()*0.01)*.5+.5));
+		ofSetColor(ofColor(0, 255, 0).getLerped(ofColor(255), sin(ofGetElapsedTimeMillis() * 0.01) * .5 + .5));
 		ofDrawLine(outlet_x, outlet_y, ofGetMouseX(), ofGetMouseY());
 	}
 	// JPbox::draw_outlet();
@@ -219,17 +220,19 @@ void JPbox::draw_outlet()
 	ofPushMatrix();
 	ofTranslate(outlet_x + outlet_size / 2, outlet_y);
 	ofRotate(ofRadToDeg(triangleangle) + 90);
-	if (mouseOverOutlet()){
-		//ofSetColor(255, 217, 15, 255);
+	if (mouseOverOutlet())
+	{
+		// ofSetColor(255, 217, 15, 255);
 		ofSetColor(ofColor(255, 217, 15, 250).getLerped(ofColor(255), 0.75));
 	}
-	else{
+	else
+	{
 		ofSetColor(255, 217, 15, 255);
-		//ofSetColor(ofColor(255, 217, 15, 250).getLerped(ofColor(0),0.5));
+		// ofSetColor(ofColor(255, 217, 15, 250).getLerped(ofColor(0),0.5));
 	}
 
-	//DIBUJO TRIANGULO SIN IMAGEN. ESTE CODIGO SIRVE PARA DEBUGEAR : 
-	//ofTranslate(-outlet_size / 2, -outlet_size / 2);
+	// DIBUJO TRIANGULO SIN IMAGEN. ESTE CODIGO SIRVE PARA DEBUGEAR :
+	// ofTranslate(-outlet_size / 2, -outlet_size / 2);
 	/*ofDrawTriangle(xtri, ytri,
 		outlet_size+ xtri, outlet_size/2+ytri,
 		0+ xtri, outlet_size+ ytri);*/
@@ -237,8 +240,8 @@ void JPbox::draw_outlet()
 
 	float gotasize = 0.2;
 	jp_constants_img::outlet_img.draw(0, 0,
-									  jp_constants_img::outlet_img.getWidth() * gotasize,
-									  jp_constants_img::outlet_img.getHeight() * gotasize);
+																		jp_constants_img::outlet_img.getWidth() * gotasize,
+																		jp_constants_img::outlet_img.getHeight() * gotasize);
 
 	ofPopMatrix();
 
@@ -247,7 +250,7 @@ void JPbox::draw_outlet()
 }
 void JPbox::clear()
 {
-	//cout << "JP_BOX clear" << endl;
+	// cout << "JP_BOX clear" << endl;
 	parameters.clear();
 	fbohandlergroup.clear();
 
@@ -255,15 +258,14 @@ void JPbox::clear()
 	// fbo = nullptr;
 }
 bool JPbox::mouseOverOutlet()
-{	
+{
 
-
-	float auxoutletsize = outlet_size ;
+	float auxoutletsize = outlet_size;
 
 	if (ofGetMouseX() > outlet_x - auxoutletsize &&
-		ofGetMouseX() < outlet_x + auxoutletsize &&
-		ofGetMouseY() > outlet_y - auxoutletsize &&
-		ofGetMouseY() < outlet_y + auxoutletsize)
+			ofGetMouseX() < outlet_x + auxoutletsize &&
+			ofGetMouseY() > outlet_y - auxoutletsize &&
+			ofGetMouseY() < outlet_y + auxoutletsize)
 	{
 		return true;
 	}
