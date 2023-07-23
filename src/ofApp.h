@@ -17,7 +17,10 @@
 #include "JPutils/jp_fileloader.h"
 #include "JPutils/jp_constants.h"
 #include "ofxOsc.h"
+
+#ifdef NDI
 #include "ofxNDI.h"
+#endif
 
 // #include "RenderWindowApp.h"
 
