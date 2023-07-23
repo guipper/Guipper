@@ -5,7 +5,7 @@
 // #include "ofxSpout2Receiver.h"
 #include "../JPutils/jp_parametergroup.h"
 #include "../JPutils/jp_fbohandler.h"
-#include "ofxNDI.h" // Spout SDK
+#include "ofxNDI.h"
 // #include "Shaderrender.h"
 
 // #include "JPbox/JPboxgroup.h"
