@@ -10,12 +10,12 @@ void JPbox_ndi::setup(string _dir, string _name)
 {
 
 	JPbox::setup(_dir, _name);
+
 	// parameters.coutData();
 	name = _name;
 	dir = "ndiReceiver";
+
 	myTexture.allocate(int(jp_constants::renderWidth), int(jp_constants::renderHeight), GL_RGBA);
-	// Limpiamos el buffer de la textura ?
-	glClearTexImage(myTexture.getTextureData().textureID, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 
 	parameters.addFloatValue(0.5, "scalex");
 	parameters.addFloatValue(0.5, "scaley");
@@ -34,6 +34,7 @@ void JPbox_ndi::setup(string _dir, string _name)
 	// An openFrameWorks texture is used so that it can be drawn.
 	activesender = 0;
 }
+
 void JPbox_ndi::update()
 {
 	JPbox::update();
