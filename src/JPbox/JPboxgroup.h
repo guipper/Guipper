@@ -1,7 +1,5 @@
 #pragma once
 
-
-#include "defines.h"
 #include "ofMain.h"
 #include "jp_box_shader.h"
 #include "jp_box.h"
@@ -42,7 +40,7 @@ public:
 	void update();
 	void setActiveOnlyBox(int _val);
 	void update_paramswindow();
-	void update_resized(int w, int h);		   // Lo que hace cuando pinta resize
+	void update_resized(int w, int h);				 // Lo que hace cuando pinta resize
 	void update_mouseDragged(int mousebutton); // Lo que hace cuando arrastras en la pantalla.
 	void update_mousePressed(int mouseButton); // Lo que hace cada vez que haces click(ponele).
 
@@ -84,12 +82,12 @@ public:
 	ofVec2f lastMouseClick;
 
 	vector<JPcontroller *> controllers; // ESTE ARRAY ES DINAMICO , QUIERE DECIR QUE DEPENDE DE CUANDO CAMBIEN LOS COSOS
-										// ESTO ES SOLO PARA QUE LERPEE LOS VALORES HACIA ESTO.
-	vector<JPbox *> boxes;				// TODOS LOS SHADERRENDERS QUE TIENE EL OBJETO.
+																			// ESTO ES SOLO PARA QUE LERPEE LOS VALORES HACIA ESTO.
+	vector<JPbox *> boxes;							// TODOS LOS SHADERRENDERS QUE TIENE EL OBJETO.
 
 	int openguinumber = -1;
 	int controllerselected; // ME INDICA QUE VARIABLE ESTA AGARRADA
-	bool activeSequence; //SECUENCIA ACTIVA
+	bool activeSequence;		// SECUENCIA ACTIVA
 private:
 	vector<JPTooglelist *> botones_modo;
 	vector<JPToogle *> botones_speed;
@@ -112,8 +110,8 @@ private:
 	float inspectorwindow_y;
 	float inspectorwindow_sepy; // Esta es para el espacio que hay entre distintos sliders.
 
-	JPBang inspectorsetactive;			 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA
-	JPBang inspectorreload;				 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA
+	JPBang inspectorsetactive;					 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA
+	JPBang inspectorreload;							 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA
 	float inspectorwindow_setactivesize; // Para el size del setactive:
 
 	void draw_conections();
@@ -136,13 +134,12 @@ private:
 	bool isDoubleClick;
 	float lasttime_mouseclick;
 	float duration_mouseclick;
-	
 
-	//PARA LO DEL SHADER 
+	// PARA LO DEL SHADER
 	TransitionSR transition;
 
-	//MODO SECUENCIA 
+	// MODO SECUENCIA
 
-	float	lasttime_sequence;
-	//Transition shader render : 
+	float lasttime_sequence;
+	// Transition shader render :
 };

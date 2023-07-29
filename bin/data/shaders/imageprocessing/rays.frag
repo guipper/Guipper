@@ -15,33 +15,30 @@ uniform float brightness_threshold;
 uniform float orig_mix;
 uniform sampler2D textura1;
 
-void main()
-{
+void main() {
 	vec2 uv = gl_FragCoord.xy;
 
-	vec3 t1 =  texture2D(textura1, gl_FragCoord.xy/resolution).rgb;
+	vec3 t1 = texture(textura1, gl_FragCoord.xy / resolution).rgb;
 
 	vec3 res = vec3(0.);
 
-	float sc=1.;
+	float sc = 1.;
 
-	vec3 ray_color=normalize(vec3(ray_r,ray_g,ray_b));
+	vec3 ray_color = normalize(vec3(ray_r, ray_g, ray_b));
 
-	vec3 chroma=normalize(vec3(chroma_r,chroma_g,chroma_b));
+	vec3 chroma = normalize(vec3(chroma_r, chroma_g, chroma_b));
 
-	vec2 p=gl_FragCoord.xy-resolution*.5;
+	vec2 p = gl_FragCoord.xy - resolution * .5;
 
-	float iter=rays_samples*50.;
+	float iter = rays_samples * 50.;
 
-	for (float i=0.; i<iter; i++) {
-		vec3 c = texture2D(textura1, (p*sc+resolution*.5)/resolution).rgb;
-		sc*=mapr(1.-ray_step,.9,1.);
-		res+=step(color_threshold,1.-max(0.,dot(1.-chroma,normalize(c))))
-		*step(brightness_threshold*2.,length(c))
-		*exp(-i*ray_fade*.2);
+	for(float i = 0.; i < iter; i++) {
+		vec3 c = texture(textura1, (p * sc + resolution * .5) / resolution).rgb;
+		sc *= mapr(1. - ray_step, .9, 1.);
+		res += step(color_threshold, 1. - max(0., dot(1. - chroma, normalize(c)))) * step(brightness_threshold * 2., length(c)) * exp(-i * ray_fade * .2);
 	}
-	res/=iter;
-	res=res*ray_color*ray_brightness*10.+t1*orig_mix;
+	res /= iter;
+	res = res * ray_color * ray_brightness * 10. + t1 * orig_mix;
 
-	fragColor = vec4(res,1.0);
+	fragColor = vec4(res, 1.0);
 }

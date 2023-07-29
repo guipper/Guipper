@@ -5,13 +5,14 @@ addons/
 bin/*.dll
 bin/*.so
 bin/data/exportimgs/*
+bin/data/rgba2yuv
 bin/data/savefiles/*.xml
 bin/data/settings.xml
 bin/data/video/*
 bin/guipper
+bin/guipper.*
+bin/guipper.app/
 bin/guipper_debug
 bin/guipper_debug.*
 bin/guipper_debug.app/
-bin/guipper.*
-bin/guipper.app/
 obj/

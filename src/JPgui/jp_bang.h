@@ -1,5 +1,5 @@
 #pragma once
-#include "defines.h"
+
 #include "ofMain.h"
 #include "jp_controller.h"
 #include "../JPutils/jp_constants.h"

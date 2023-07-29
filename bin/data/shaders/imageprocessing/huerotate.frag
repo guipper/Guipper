@@ -3,18 +3,15 @@
 uniform sampler2D textura1;
 uniform float hue;
 
-void main()
-{	
+void main() {
 	vec2 uv = gl_FragCoord.xy / resolution;
-	vec2 uv2 = gl_FragCoord.xy ;
-	
-	vec4 t1 =  texture2D(textura1, uv2/resolution);	
-	
+	vec2 uv2 = gl_FragCoord.xy;
+
+	vec4 t1 = texture(textura1, uv2 / resolution);
+
 	vec3 rgbahsb = rgb2hsb(t1.rgb);
-	
-	vec3 fin = hsb2rgb(vec3(fract(rgbahsb.r+hue),
-							rgbahsb.g,
-							rgbahsb.b));
-	
-	fragColor = vec4(fin,1.0); 
+
+	vec3 fin = hsb2rgb(vec3(fract(rgbahsb.r + hue), rgbahsb.g, rgbahsb.b));
+
+	fragColor = vec4(fin, 1.0);
 }

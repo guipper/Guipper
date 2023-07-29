@@ -1,5 +1,5 @@
 #pragma once
-#include "defines.h"
+
 #include "ofMain.h"
 #include "jp_slider.h"
 #include "jp_knob.h"
@@ -37,10 +37,10 @@ public:
 	ofColor testcol;
 
 	void setup(float _x,
-			   float _y,
-			   float _width,
-			   float _height,
-			   JPParameter *_parameters);
+						 float _y,
+						 float _width,
+						 float _height,
+						 JPParameter *_parameters);
 
 	float getValue();
 

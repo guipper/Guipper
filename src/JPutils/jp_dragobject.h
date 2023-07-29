@@ -1,6 +1,5 @@
 #pragma once
 
-#include "defines.h"
 #include "ofMain.h"
 // Esta clase es solo para trabajar los objetos que se agarran o no se agarran. CORTA LA BOCHEN
 class JPdragobject
@@ -25,7 +24,7 @@ public:
 
 	virtual bool mouseOver(); // Si esta encima del slider
 	virtual bool mouseGrab(); // Si esta agarrado
-							  // bool mouseClick();
+														// bool mouseClick();
 protected:
 	float isGrabbed2;
 };

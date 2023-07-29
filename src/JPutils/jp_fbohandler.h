@@ -1,6 +1,5 @@
 #pragma once
 
-#include "defines.h"
 #include "ofMain.h"
 #include "../JPutils/jp_dragobject.h"
 #include "../JPutils/jp_constants.h"

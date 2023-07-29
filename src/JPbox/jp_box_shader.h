@@ -1,14 +1,13 @@
 #pragma once
 
-#include "defines.h"
 #include "ofMain.h"
 #include "jp_box.h"
 #include "../JPutils/jp_parametergroup.h"
 #include "../JPutils/jp_fbohandler.h"
-//#include "Shaderrender.h"
+// #include "Shaderrender.h"
 
-//#include "JPbox/JPboxgroup.h"
-// Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
+// #include "JPbox/JPboxgroup.h"
+//  Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
 
 class JPbox_shader : public JPbox
 {
@@ -26,8 +25,8 @@ public:
 	void setup2(string _dir, string _nombre);
 	void setup(string _dir, string _nombre);
 	void setup(ofTrueTypeFont &_font,
-			   string dir,
-			   string _nombre);
+						 string dir,
+						 string _nombre);
 	void update();
 	void draw();
 	void updateFBO();

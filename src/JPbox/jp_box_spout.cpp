@@ -1,5 +1,3 @@
-
-#include "defines.h"
 #ifdef SPOUT
 
 #include "jp_box_spout.h"
@@ -10,7 +8,7 @@ JPbox_spout::~JPbox_spout() {}
 void JPbox_spout::setup(string _dir, string _name)
 {
 
-	JPbox::setup(_dir, _name); 
+	JPbox::setup(_dir, _name);
 	// parameters.coutData();
 	name = _name;
 	dir = "spoutReceiver";
@@ -27,7 +25,7 @@ void JPbox_spout::setup(string _dir, string _name)
 	/************************************************************************************/
 
 	bInitialized = false; // Spout receiver initialization
-	SenderName[0] = 0;	  // the name will be filled when the receiver connects to a sender
+	SenderName[0] = 0;		// the name will be filled when the receiver connects to a sender
 	activesender = 0;
 	// Allocate a texture for shared texture transfers
 	// An openFrameWorks texture is used so that it can be drawn.
@@ -67,11 +65,11 @@ void JPbox_spout::update_spout()
 			}
 			myTexture.allocate(g_Width, g_Height, GL_RGBA);
 			name = SenderName;
-		//	cout << "CONECTA AL SENDER " << SenderName << endl;
+			//	cout << "CONECTA AL SENDER " << SenderName << endl;
 
 			bInitialized = true;
 			return; // quit for next round
-		}			// receiver was initialized
+		}					// receiver was initialized
 		else
 		{
 			sprintf(str, "No sender detected");
@@ -90,7 +88,7 @@ void JPbox_spout::update_spout()
 
 		// Try to receive into the local the texture at the current size
 		if (spoutreceiver.ReceiveTexture(SenderName, width, height,
-										 myTexture.getTextureData().textureID, myTexture.getTextureData().textureTarget))
+																		 myTexture.getTextureData().textureID, myTexture.getTextureData().textureTarget))
 		{
 
 			//	If the width and height are changed, the local texture has to be resized.
@@ -134,13 +132,14 @@ void JPbox_spout::update_spout()
 	}
 }
 
-void JPbox_spout::changeReciever(int _activesender) {
-	//cout << "Cantidad de spout senders " << spoutreceiver.GetSenderCount() << endl;
+void JPbox_spout::changeReciever(int _activesender)
+{
+	// cout << "Cantidad de spout senders " << spoutreceiver.GetSenderCount() << endl;
 	for (int i = 0; i < spoutreceiver.GetSenderCount(); i++)
 	{
-		char* name = new char[256];
+		char *name = new char[256];
 		spoutreceiver.GetSenderName(i, name);
-	//	cout << "Spout sender " << i << ":" << name << endl;
+		//	cout << "Spout sender " << i << ":" << name << endl;
 		// si detecta que cambio y que el sender que elegimos es ese:
 		if (i == _activesender)
 		{
@@ -150,12 +149,10 @@ void JPbox_spout::changeReciever(int _activesender) {
 			bInitialized = false;
 		}
 	}
-	//cout << "-------------------------------------" << endl;
-	//cout << "activesender :" << _activesender << endl;
-	//cout << "Name active sender :" << SenderName << endl;
-
+	// cout << "-------------------------------------" << endl;
+	// cout << "activesender :" << _activesender << endl;
+	// cout << "Name active sender :" << SenderName << endl;
 }
-
 
 void JPbox_spout::update()
 {
@@ -172,12 +169,12 @@ void JPbox_spout::updateFBO()
 		float mscalex = ofMap(parameters.getFloatValue(0), 0.0, 1.0, 0.0, jp_constants::renderWidth);
 		float mscaley = ofMap(parameters.getFloatValue(1), 0.0, 1.0, 0.0, jp_constants::renderHeight);
 		float moffsetx = ofMap(parameters.getFloatValue(2), 0.0, 1.0,
-							   -jp_constants::renderWidth / 2 - mscalex / 2,
-							   jp_constants::renderWidth / 2 + mscalex / 2);
+													 -jp_constants::renderWidth / 2 - mscalex / 2,
+													 jp_constants::renderWidth / 2 + mscalex / 2);
 
 		float moffsety = ofMap(parameters.getFloatValue(3), 0.0, 1.0,
-							   -jp_constants::renderHeight / 2 - mscaley / 2,
-							   jp_constants::renderHeight / 2 + mscaley / 2);
+													 -jp_constants::renderHeight / 2 - mscaley / 2,
+													 jp_constants::renderHeight / 2 + mscaley / 2);
 
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		ofSetColor(255, 255);
@@ -189,9 +186,9 @@ void JPbox_spout::updateFBO()
 			ofDrawRectangle(0, 0, jp_constants::renderWidth, jp_constants::renderHeight);
 			ofSetColor(255, 255);
 			myTexture.draw(jp_constants::renderWidth / 2 - mscalex / 2 + moffsetx,
-						   jp_constants::renderHeight / 2 - mscaley / 2 + moffsety,
-						   mscalex,
-						   mscaley);
+										 jp_constants::renderHeight / 2 - mscaley / 2 + moffsety,
+										 mscalex,
+										 mscaley);
 		}
 		else
 		{
@@ -237,14 +234,15 @@ void JPbox_spout::clear()
 	JPbox::clear();
 	spoutreceiver.ReleaseReceiver();
 	spoutreceiver.UnBindSharedTexture();
-	//cout << "CORRE CLEAR SPOUT " << endl;
+	// cout << "CORRE CLEAR SPOUT " << endl;
 	fbo.clear();
 	fbo.destroy();
 	fbohandlergroup.clear();
 }
 
-void JPbox_spout::reload() {
-	//cout << "RELOAD DE SPOUT " << endl;
+void JPbox_spout::reload()
+{
+	// cout << "RELOAD DE SPOUT " << endl;
 	changeReciever(activesender);
 }
 
