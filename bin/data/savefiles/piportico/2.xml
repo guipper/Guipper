@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<activerender>1</activerender>
+<box>
+	<nombre>flyingintodigitaltunnel</nombre>
+	<x>134</x>
+	<y>117</y>
+	<directory>data\shaders\contrib\flyingintodigitaltunnel.frag</directory>
+	<onoff>1</onoff>
+	<parameters>
+		<param>
+			<name>speed</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.405185</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+	</parameters>
+</box>
+<box>
+	<nombre>smoothstep</nombre>
+	<x>289</x>
+	<y>89</y>
+	<directory>data\shaders\imageprocessing\smoothstep.frag</directory>
+	<onoff>1</onoff>
+	<parameters>
+		<param>
+			<name>min</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>max</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.600741</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+	</parameters>
+	<fboslinks>
+		<textura1>flyingintodigitaltunnel</textura1>
+	</fboslinks>
+</box>

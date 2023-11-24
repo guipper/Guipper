@@ -126,10 +126,8 @@ void JPbox::draw()
 		ofFill();
 	}
 	ofRectRounded(x, y, width, height, 10);
-
 	ofSetColor(Cfront);
 	ofSetColor(0);
-
 	float sepsize = 10; // SEPARACION ENTRE LA LINEA Y LA CAJA Y LA ALINEACION DEL TEXTO.
 	float linewidth = width / 2 - sepsize;
 	float lineheight = 2;
@@ -146,23 +144,19 @@ void JPbox::draw()
 		shortname = shortname.substr(0, numberofdisplayletter);
 		shortname += "...";
 	}
-
 	jp_constants::p_font.drawString(shortname,
 									x - width / 2 + sepsize,
 									y - height / 2 + padding_top * 2 / 3);
-
 	// BOTON SET ACTIVE RENDER :
-
 	// DIBUJAR CABLECITO.
 	ofSetColor(255);
-
 	if (outletActiveFlag)
 	{
 		ofSetColor(ofColor(0, 255,0).getLerped(ofColor(255),sin(ofGetElapsedTimeMillis()*0.01)*.5+.5));
 		ofDrawLine(outlet_x, outlet_y, ofGetMouseX(), ofGetMouseY());
 	}
-	// JPbox::draw_outlet();
 
+	// JPbox::draw_outlet();
 	ofSetRectMode(OF_RECTMODE_CENTER);
 	onoff.draw();
 	ofSetColor(255, 255, 255, 255);
