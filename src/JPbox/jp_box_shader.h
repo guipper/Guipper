@@ -48,6 +48,9 @@ public:
 	// ofFbo fbo;
 	ofShader shader;
 
+	//LIVECODING THINGS : 
+	bool showCode;
+	ofBuffer buffer;
 private:
 	bool hasMoreThan1Param = false;
 };

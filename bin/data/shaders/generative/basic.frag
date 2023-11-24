@@ -3,7 +3,8 @@
 void main()
 {	
 	vec2 uv = gl_FragCoord.xy / resolution;
-
+	
+	float e = sin(uv.x*10.+time)*.5+.5;
 	fragColor = vec4(1.0,0.5,1.0,1.0); 
 }
 

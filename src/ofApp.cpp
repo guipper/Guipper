@@ -869,7 +869,6 @@ void ofApp::drawSpout()
 
 	char str[256];
 	ofSetColor(255);
-
 	// ====== SPOUT =====
 	// A render window must be available for Spout initialization and might not be
 	// available in "update" so do it now when there is definitely a render window.
@@ -883,29 +882,16 @@ void ofApp::drawSpout()
 	//ofDrawRectangle(0, 0, resolution_spoutext.x, resolution_spoutext.y);
 	//ofSetColor(255, 255);
 	//ofDrawRectangle(0, 0, ofGetWidth() * .9, ofGetHeight() * .9);
-
 	//boxes.draw_activerender(resolution_spoutext.x, resolution_spoutext.y);
 
 	// ====== SPOUT =====
 	if (bInitialized)
 	{
-
 		if (ofGetWidth() > 0 && ofGetHeight() > 0)
 		{ // protect against user minimize
-
 			ofFbo& fbo = *boxes.getActiverender();
-			
-			fbo.begin();
-			ofPushMatrix();
-			ofScale(1, -1, 1); // Invierte el eje Y
-			ofTranslate(0, -fbo.getHeight()); // Desplaza para compensar la inversión
-			// ... dibuja tu contenido aquí ...
-			ofPopMatrix();
-			fbo.end();
-
 			GLuint texID = fbo.getTexture().getTextureData().textureID;
 			spoutsender.SendTexture(texID, GL_TEXTURE_2D, resolution_spoutext.x, resolution_spoutext.y);
-
 		}
 	}
 }
