@@ -49,7 +49,7 @@ public:
 	ofShader shader;
 
 	//LIVECODING THINGS : 
-	bool showCode;
+	//bool showCode;
 	ofBuffer buffer;
 private:
 	bool hasMoreThan1Param = false;

@@ -450,13 +450,10 @@ void ofApp::keyPressed(int key)
 			boxes.addBox(rutita, ofGetWidth()/2, ofGetHeight()/2); //BUENO ESTO FUNCIONA.
 
 
-
-
-
 		}
 		if (key == 'x') {
 
-		
+			boxes.triggerCodeOnActiveShader();
 		}
 		if(key == 'c'){
 		

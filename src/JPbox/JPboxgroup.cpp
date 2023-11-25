@@ -347,8 +347,6 @@ void JPboxgroup::update(){
 			setActiveOnlyBox(idx);
 		}
 }
-
-
 void JPboxgroup::setActiveOnlyBox(int _val) {
 
 	for (int i = boxes.size() - 1; i >= 0; i--) {
@@ -1280,6 +1278,20 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 void JPboxgroup::addBox(string directory)
 {
 	addBox(directory, ofGetMouseX(), ofGetMouseY());
+}
+void JPboxgroup::triggerCodeOnActiveShader() {
+
+	if (openguinumber != -1){
+		boxes[openguinumber]->showCode = !boxes[openguinumber]->showCode;
+	}
+	/*for (int i = 0; i < boxes.size(); i++) {
+
+		if (*activerender == i) {
+
+			boxes[*activerender]->showCode = !boxes[*activerender]->showCode;
+
+		}
+	}*/
 }
 /*DEPRECATED:*/
 void JPboxgroup::setupShaderRendersFromDataFolder()

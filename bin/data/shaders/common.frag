@@ -903,5 +903,27 @@ vec3 blendMode( int mode, vec3 base, vec3 blend ,float opacity){
 }
 
 
+float opSmoothUnion( float d1, float d2, float k )
+{
+    float h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );
+    return mix( d2, d1, h ) - k*h*(1.0-h);
+}
+
+float opSmoothSubtraction( float d1, float d2, float k )
+{
+    float h = clamp( 0.5 - 0.5*(d2+d1)/k, 0.0, 1.0 );
+    return mix( d2, -d1, h ) + k*h*(1.0-h);
+}
+
+float opSmoothIntersection( float d1, float d2, float k )
+{
+    float h = clamp( 0.5 - 0.5*(d2-d1)/k, 0.0, 1.0 );
+    return mix( d2, d1, h ) + k*h*(1.0-h);
+}
 
 
+float sdVerticalCapsule( vec3 p, float h, float r )
+{
+  p.y -= clamp( p.y, 0.0, h );
+  return length( p ) - r;
+}
