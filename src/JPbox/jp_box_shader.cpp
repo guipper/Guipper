@@ -121,6 +121,7 @@ void JPbox_shader::reload()
 	fbohandlergroup.setupdragobjects(x, y, outlet_size, outlet_size);
 	setfbohandler_nodepos();
 	frameNum = 0;
+	
 }
 void JPbox_shader::reloadShaderonly()
 {
@@ -136,7 +137,7 @@ void JPbox_shader::setup(ofTrueTypeFont &_font,
 	// parameters.coutData();
 	name = _nombre;
 	dir = _dir;
-
+	showCode = true;
 	try
 	{
 		shader.load("shaders/default.vert", dir);
@@ -318,8 +319,27 @@ void JPbox_shader::updateFBO()
 		shader.begin();
 		update_globalUniforms();
 		update_NonglobalUniforms();
+		ofSetColor(255, 0, 0);
 		ofRect(0, 0, fbo.getWidth(), fbo.getHeight());
+		
 		shader.end();
+		fbo.end();
+
+		fbo.begin();
+		//ofSetColor(255, 0, 0);
+		//ofDrawEllipse(ofGetMouseX(), ofGetMouseY(), 50, 50);
+		if (showCode) {
+			// Consigue el texto del buffer
+			std::string text = buffer.getText();
+			float textHeight = jp_constants::h_font.stringHeight(text) ; // Asumiendo que el texto es multilinea
+			//float visibleHeight = ofGetHeight() - 200; // Altura visible donde el texto se muestra
+
+			//ofDrawBitmapString(text, 0, 0);
+			jp_constants::h_font.drawString(text,
+				50,
+				sin(ofGetElapsedTimeMillis() * 0.00001) * textHeight/2 -textHeight/2 );
+			
+		}
 		fbo.end();
 	}
 	else
@@ -339,13 +359,13 @@ void JPbox_shader::setUniforms(JPParameterGroup &_parameters,
 	// auxfbohandler.clear();
 
 	vector<string> linesOfTheFile;
-	ofBuffer buffer = ofBufferFromFile(_dir);
+	 buffer = ofBufferFromFile(_dir);
 	for (auto line : buffer.getLines())
 	{
 		linesOfTheFile.push_back(line);
 	}
 
-	hasMoreThan1Param = linesOfTheFile.size() > 0;
+	bool hasMoreThan1Param = linesOfTheFile.size() > 0;
 
 	_parameters.setName(_name);
 	for (int l = 0; l < linesOfTheFile.size(); l++)

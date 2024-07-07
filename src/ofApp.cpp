@@ -85,12 +85,12 @@ void ofApp::setup(){
 	// InitGLtexture(sendertexture, jp_constants::renderWidth, jp_constants::renderHeight); //!?!??!!?
 	// InitGLtexture(sendertexture, jp_constants::renderWidth, jp_constants::renderHeight); //!?!??!!?
 
-	resolution_spoutext = ofVec2f(ofGetWidth(), ofGetHeight());
+	resolution_spoutext = ofVec2f(jp_constants::renderWidth, jp_constants::renderHeight);
 	// resolution_spoutext = ofVec2f(ofGetWidth(),ofGetHeight());
 
 	// LA RECONCHA DEL PATO, NO HAY MANERA POSIBLE PARA QUE PASE EL SPOUT EN UNA RESOLUCION
 	// MAS GRANDE QUE EN LA VENTANA DEL ORTO!??!?!?!?!?!
-	InitGLtexture(sendertexture, resolution_spoutext.x, resolution_spoutext.y); //!?!??!!?
+	//InitGLtexture(sendertexture,1920, 1080); //!?!??!!?
 #endif
 
 	// 3D drawing setup for a sender
@@ -450,13 +450,10 @@ void ofApp::keyPressed(int key)
 			boxes.addBox(rutita, ofGetWidth()/2, ofGetHeight()/2); //BUENO ESTO FUNCIONA.
 
 
-
-
-
 		}
 		if (key == 'x') {
 
-		
+			boxes.triggerCodeOnActiveShader();
 		}
 		if(key == 'c'){
 		
@@ -808,6 +805,10 @@ void ofApp::updateOSC(){
 	}
 
 }
+void ofApp::exit() {
+	//cout << "LALA" << endl;
+	//windows.back()->close();
+}
 
 // LISTENERS DE LAS VENTANAS:
 void ofApp::window_drawRender(ofEventArgs &args)
@@ -817,14 +818,13 @@ void ofApp::window_drawRender(ofEventArgs &args)
 void ofApp::exit(ofEventArgs &e)
 {
 	cout << "EXIT WINDOW " << endl;
-
 	// Save settings before exiting
 	saveSettings();
 
 	// Ni idea que hacia este if ??? Pero si lo comento crashea
 	if (isRenderWindowOpen)
 	{
-		// windows.back()->close();
+		//windows.back()->close();
 	}
 	windows.clear();
 	window_fullscreen = false;
@@ -866,7 +866,6 @@ void ofApp::drawSpout()
 
 	char str[256];
 	ofSetColor(255);
-
 	// ====== SPOUT =====
 	// A render window must be available for Spout initialization and might not be
 	// available in "update" so do it now when there is definitely a render window.
@@ -876,36 +875,20 @@ void ofApp::drawSpout()
 		bInitialized = spoutsender.CreateSender(sendername, resolution_spoutext.x, resolution_spoutext.y);
 	}
 
-	ofSetColor(255, 255, 0, 255);
-	ofDrawRectangle(0, 0, resolution_spoutext.x, resolution_spoutext.y);
-	ofSetColor(255, 255);
-	ofDrawRectangle(0, 0, ofGetWidth() * .9, ofGetHeight() * .9);
-
-	boxes.draw_activerender(resolution_spoutext.x, resolution_spoutext.y);
+	//ofSetColor(255, 255, 0, 255);
+	//ofDrawRectangle(0, 0, resolution_spoutext.x, resolution_spoutext.y);
+	//ofSetColor(255, 255);
+	//ofDrawRectangle(0, 0, ofGetWidth() * .9, ofGetHeight() * .9);
+	//boxes.draw_activerender(resolution_spoutext.x, resolution_spoutext.y);
 
 	// ====== SPOUT =====
 	if (bInitialized)
 	{
-
 		if (ofGetWidth() > 0 && ofGetHeight() > 0)
 		{ // protect against user minimize
-
-			// Grab the screen into the local spout texture
-			glBindTexture(GL_TEXTURE_2D, sendertexture);
-			glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, resolution_spoutext.x, resolution_spoutext.y);
-			glBindTexture(GL_TEXTURE_2D, 0);
-
-			// Send the texture out for all receivers to use
-			spoutsender.SendTexture(sendertexture, GL_TEXTURE_2D, resolution_spoutext.x, resolution_spoutext.y);
-
-			// Show what it is sending
-			ofSetColor(255);
-			sprintf(str, "Sending as : [%s]", sendername);
-			ofDrawBitmapString(str, 20, 20);
-
-			// Show fps
-			sprintf(str, "fps: %3.3d", (int)ofGetFrameRate());
-			ofDrawBitmapString(str, ofGetWidth() - 120, 20);
+			ofFbo& fbo = *boxes.getActiverender();
+			GLuint texID = fbo.getTexture().getTextureData().textureID;
+			spoutsender.SendTexture(texID, GL_TEXTURE_2D, resolution_spoutext.x, resolution_spoutext.y);
 		}
 	}
 }

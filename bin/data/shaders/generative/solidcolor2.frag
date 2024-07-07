@@ -1,4 +1,4 @@
-//#pragma include "../common.frag" //ESta linea tiene todas las definiciones de las funciones globales
+#pragma include "../common.frag" //ESta linea tiene todas las definiciones de las funciones globales
 
 uniform vec2 resolution;
 uniform float r;

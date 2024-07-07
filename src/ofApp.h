@@ -57,7 +57,8 @@ public:
 	void windowResized(int w, int h);
 	void dragEvent(ofDragInfo dragInfo);
 	void gotMessage(ofMessage msg);
-
+	
+	void exit();
 	// ofxKFW2::Device kinect;
 
 	ofTrueTypeFont font_p; // Titulo de compo

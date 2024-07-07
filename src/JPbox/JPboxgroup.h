@@ -54,6 +54,7 @@ public:
 	void addBox(string directory, float _x, float _y);
 
 	void addBox(string dir);
+	void triggerCodeOnActiveShader();
 	void deleteSelectedShader();
 
 	// ACA ESTA TODO LO QUE TENGA QUE VER CON EL INSPECTOR PANEL DIGAMOS :

@@ -58,10 +58,19 @@ void JPboxgroup::draw()
 	}*/
 
 	for (int i = 0; i < boxes.size(); i++)
-	{
-		boxes[i]->draw();
+	{	
+
 		float x = boxes[i]->x;
 		float y = boxes[i]->y + boxes[i]->height / 2 - 8;
+		ofSetRectMode(OF_RECTMODE_CENTER);
+		if (*activerender == i) {
+			ofSetColor(200,200,150, 225);
+			ofRectMode(CENTER);
+			ofRectRounded(x, y - boxes[i]->height / 2+10, boxes[i]->width*1.1, boxes[i]->height*1.1,10);
+		}
+		boxes[i]->draw();
+		
+
 		ofDrawBitmapString(ofToString(i), x, y);
 	}
 	draw_paramswindow();
@@ -338,8 +347,6 @@ void JPboxgroup::update(){
 			setActiveOnlyBox(idx);
 		}
 }
-
-
 void JPboxgroup::setActiveOnlyBox(int _val) {
 
 	for (int i = boxes.size() - 1; i >= 0; i--) {
@@ -1271,6 +1278,20 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 void JPboxgroup::addBox(string directory)
 {
 	addBox(directory, ofGetMouseX(), ofGetMouseY());
+}
+void JPboxgroup::triggerCodeOnActiveShader() {
+
+	if (openguinumber != -1){
+		boxes[openguinumber]->showCode = !boxes[openguinumber]->showCode;
+	}
+	/*for (int i = 0; i < boxes.size(); i++) {
+
+		if (*activerender == i) {
+
+			boxes[*activerender]->showCode = !boxes[*activerender]->showCode;
+
+		}
+	}*/
 }
 /*DEPRECATED:*/
 void JPboxgroup::setupShaderRendersFromDataFolder()

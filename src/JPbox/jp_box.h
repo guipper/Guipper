@@ -74,6 +74,8 @@ public:
 	bool getonoff();
 	JPToogle onoff;
 
+	//SHOWCODE
+	bool showCode = false;
 protected:
 	int tipo; // Habra una manera menos cacuija de hacer esto? no se, pero ya me pudrio si, esta bien o mal me la chupa.
 
