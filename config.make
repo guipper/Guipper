@@ -37,8 +37,7 @@ OF_ROOT = ../../..
 #
 #   Note: Leave a leading space when adding list items with the += operator
 ################################################################################
-# Uncomment to enable Spout SDK compiling (only Windows)
-#PROJECT_EXTERNAL_SOURCE_PATHS = $(PROJECT_ROOT)/vendor/SpoutSDK
+# PROJECT_EXTERNAL_SOURCE_PATHS = 
 
 ################################################################################
 # PROJECT EXCLUSIONS
@@ -62,7 +61,7 @@ OF_ROOT = ../../..
 #
 #   Note: Leave a leading space when adding list items with the += operator
 ################################################################################
-#PROJECT_EXCLUSIONS = 
+# PROJECT_EXCLUSIONS =
 
 ################################################################################
 # PROJECT LINKER FLAGS
@@ -91,9 +90,6 @@ OF_ROOT = ../../..
 ################################################################################
 # Possible defines: NDI (requires ofxNDI addon), SPOUT (only Windows), TEST (para probar a ver si dibuja)
 PROJECT_DEFINES = NDI
-
-#define TEST true
-
 
 
 ################################################################################
@@ -146,3 +142,7 @@ PROJECT_DEFINES = NDI
 ################################################################################
 # PROJECT_CXX = 
 # PROJECT_CC = 
+
+# Uncomment/comment below to switch between C++11 and C++17 ( or newer ). On macOS C++17 needs 10.15 or above.
+export MAC_OS_MIN_VERSION = 10.15
+export MAC_OS_CPP_VER = -std=c++17
