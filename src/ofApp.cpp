@@ -608,6 +608,7 @@ void ofApp::openRenderWindow()
 		isRenderWindowOpen = true;
 		ofGLFWWindowSettings settings;
 
+    settings.setGLVersion(3, 2);
 		settings.setSize(jp_constants::window_width, jp_constants::window_height);
 		settings.setPosition(ofVec2f(window_initialposx, window_initialposy));
 		settings.resizable = true;
