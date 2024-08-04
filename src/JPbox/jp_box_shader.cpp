@@ -1,4 +1,5 @@
 #include "jp_box_shader.h"
+#include "jp_time.h"
 
 JPbox_shader::JPbox_shader() {}
 JPbox_shader::~JPbox_shader() {}
@@ -165,7 +166,7 @@ void JPbox_shader::setup(ofTrueTypeFont &_font,
 		return;
 	}*/
 
-	datemodified = filesystem::last_write_time(dir);
+  datemodified = to_time_t(filesystem::last_write_time(dir));
 }
 
 void JPbox_shader::setup2(string _dir,
@@ -205,7 +206,7 @@ void JPbox_shader::setup2(string _dir,
 		return;
 	}
 
-	datemodified = filesystem::last_write_time(dir);
+  datemodified = to_time_t(filesystem::last_write_time(dir));
 }
 
 void JPbox_shader::setup(string _dir,
@@ -244,7 +245,7 @@ void JPbox_shader::setup(string _dir,
 		return;
 	}
 
-	datemodified = filesystem::last_write_time(dir);
+  datemodified = to_time_t(filesystem::last_write_time(dir));
 }
 
 void JPbox_shader::draw()

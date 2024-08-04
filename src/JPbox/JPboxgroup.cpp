@@ -1,4 +1,5 @@
 #include "JPboxgroup.h"
+#include "jp_time.h"
 
 JPboxgroup::JPboxgroup() {}
 JPboxgroup::~JPboxgroup() {}
@@ -232,7 +233,8 @@ void JPboxgroup::update() {
     if (!jp_constants::systemDialog_open &&
         boxes[i]->getTipo() == boxes[i]->SHADERBOX) {
       if (ofFile(boxes[i]->dir).exists()) {
-        time_t lasttimemodified = filesystem::last_write_time(boxes[i]->dir);
+        time_t lasttimemodified =
+            to_time_t(filesystem::last_write_time(boxes[i]->dir));
         if (lasttimemodified != boxes[i]->datemodified) {
           //	cout << "RELOAD SHADER " << endl;
           // cout << "-------------------------------------" << endl;
