@@ -2,13 +2,12 @@
 
 #include "ofMain.h"
 #include "jp_box.h"
-#include "defines.h"
 #include "../JPutils/jp_parametergroup.h"
 #include "../JPutils/jp_fbohandler.h"
-//#include "Shaderrender.h"
+// #include "Shaderrender.h"
 
-//#include "JPbox/JPboxgroup.h"
-// Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
+// #include "JPbox/JPboxgroup.h"
+//  Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
 
 class JPbox_image : public JPbox
 {

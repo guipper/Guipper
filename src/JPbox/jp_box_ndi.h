@@ -2,15 +2,14 @@
 
 #include "ofMain.h"
 #include "jp_box.h"
-//#include "ofxSpout2Receiver.h"
-#include "defines.h"
+// #include "ofxSpout2Receiver.h"
 #include "../JPutils/jp_parametergroup.h"
 #include "../JPutils/jp_fbohandler.h"
-#include "ofxNDI.h" // Spout SDK
-//#include "Shaderrender.h"
+#include "ofxNDI.h"
+// #include "Shaderrender.h"
 
-//#include "JPbox/JPboxgroup.h"
-// Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
+// #include "JPbox/JPboxgroup.h"
+//  Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
 
 class JPbox_ndi : public JPbox
 {
@@ -21,11 +20,11 @@ public:
 	// ofxSpout2::Receiver spoutReceiver;
 
 	ofxNDIreceiver ndiReceiver; // NDI receiver
-	ofTexture myTexture;		// Texture used for texture share transfers
+	ofTexture myTexture;				// Texture used for texture share transfers
 
-	char SenderName[256];  // Sender name used by a receiver
+	char SenderName[256];	 // Sender name used by a receiver
 	int g_Width, g_Height; // Used for checking sender size change
-	bool bInitialized;	   // Initialization result
+	bool bInitialized;		 // Initialization result
 
 	int activesender; // ESTA ES MI VARIABLE QUE USO PARA ELEGIR EL COSO.
 	// string dir;

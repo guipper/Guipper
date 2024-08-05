@@ -6,26 +6,23 @@ uniform sampler2D textura2;
 uniform float offsetx;
 uniform float offsety;
 
-void main()
-{	
-	vec2 uv = gl_FragCoord.xy / resolution;	
-	
-	vec4 t2 =  texture2D(textura2, gl_FragCoord.xy/resolution);
-	float t2_f = (t2.r+t2.g+t2.b)/3.;
-	
+void main() {
+	vec2 uv = gl_FragCoord.xy / resolution;
+
+	vec4 t2 = texture(textura2, gl_FragCoord.xy / resolution);
+	float t2_f = (t2.r + t2.g + t2.b) / 3.;
+
 	vec2 uv2 = gl_FragCoord.xy / resolution;
-	
+
 	float limit = 0.5;
-	float moffsetx = mapr(offsetx,-limit,limit);
-	float moffsety = mapr(offsety,-limit,limit);
-	
-	uv2+=vec2(t2_f*moffsetx,t2_f*moffsety);
-	uv2*=resolution;
-	vec4 t1 =  texture2D(textura1, uv2/resolution);
-	
-	
-	
+	float moffsetx = mapr(offsetx, -limit, limit);
+	float moffsety = mapr(offsety, -limit, limit);
+
+	uv2 += vec2(t2_f * moffsetx, t2_f * moffsety);
+	uv2 *= resolution;
+	vec4 t1 = texture(textura1, uv2 / resolution);
+
 	vec3 fin = t1.rgb;
-	
-	fragColor = vec4(fin,1.0); 
+
+	fragColor = vec4(fin, 1.0);
 }

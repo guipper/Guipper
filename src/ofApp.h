@@ -4,26 +4,27 @@
 	Cambios a hacer :
 */
 
-
 #pragma once
 
 // ADDONS :
 // OTHERS:
 #include "ofMain.h"
-#include "defines.h"
+
 #include "JPbox/jp_box.h"
 #include "JPbox/jp_box_shader.h"
 #include "JPbox/JPboxgroup.h"
-//#include "JPbox/Shaderrender.h"
+// #include "JPbox/Shaderrender.h"
 #include "JPutils/jp_fileloader.h"
 #include "JPutils/jp_constants.h"
 #include "ofxOsc.h"
+
+#ifdef NDI
 #include "ofxNDI.h"
+#endif
 
-//#include "RenderWindowApp.h"
+// #include "RenderWindowApp.h"
 
-#define PORT 5000 
-
+#define PORT 5000
 
 class ofApp : public ofBaseApp
 {
@@ -81,8 +82,8 @@ public:
 #ifdef SPOUT
 	// SPOUT SENDER:
 	SpoutSender spoutsender; // A sender object
-	GLuint sendertexture;	 // Local OpenGL texture used for sharing
-	bool bInitialized;		 // Initialization result
+	GLuint sendertexture;		 // Local OpenGL texture used for sharing
+	bool bInitialized;			 // Initialization result
 	ofImage myTextureImage;	 // Texture image for the 3D demo
 	float rotX, rotY;
 	void drawSpout();
@@ -92,7 +93,7 @@ public:
 #ifdef NDI
 	// NDI SENDER:
 	ofxNDIsender ndiSender; // NDI sender
-	ofFbo ndiFbo;			// Fbo used for graphics and sending
+	ofFbo ndiFbo;						// Fbo used for graphics and sending
 #endif
 
 	// WINDOW MANAGMENT:
@@ -141,15 +142,8 @@ public:
 
 	DirectoryManager dirmanager;
 
-
-
-
-
-	//ACA PARA AGREGAR MAS LENGUAJES EVENTUALMENTE SUPONGO : 
-	//0 INSTRUCCIONES EN INGLES.
-	//1 INSTRUCCIONES EN ESPAÑOL.
-	int language = 0; 
-
-
-
+	// ACA PARA AGREGAR MAS LENGUAJES EVENTUALMENTE SUPONGO :
+	// 0 INSTRUCCIONES EN INGLES.
+	// 1 INSTRUCCIONES EN ESPAÑOL.
+	int language = 0;
 };
