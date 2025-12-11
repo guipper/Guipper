@@ -21,7 +21,7 @@ void main()
 
   float mapsize = mapr(size,0.0,0.5);
 	float mapsizedif = mapr(sizedif,0.0,0.5);
-	uv = fract(vec2(uv.x*filas*20.,uv.y*columnas*20.)+speed*time);
+	uv = fract(vec2(uv.x*filas*200.,uv.y*columnas*200.)+speed*time);
 	float e = poly(uv,vec2(0.5,0.5),mapsize,mapsizedif,puntas,mapr(rotspeed,0.0,5.0)*time);
 
 	vec2 puv = gl_FragCoord.xy;

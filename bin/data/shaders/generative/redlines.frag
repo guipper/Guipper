@@ -32,21 +32,15 @@ float line2(vec2 _uv,vec2 _p1,vec2 _p2){
 void main()
 {
 	vec2 uv = gl_FragCoord.xy / resolution;
-	vec3 c1 = vec3(r1,g1,b1);
-	vec3 c2 = vec3(r2,g2,b2);
+	vec3 c1 = vec3(0.0);
+	vec3 c2 = vec3(1.0,0.0,0.0);
 	
 	float e = 0.0;
 
 	vec2 uv2 = fract(uv*4.);
-	e+=line2(uv2,vec2(0.0,0.),vec2(1.0,1.0));
-	e+=line2(uv2,vec2(0.0,1.0),vec2(1.0,0.0));
 	e = sin(e+time)*.5+.5;
-	//e+=line2(uv,vec2(0.0,0.0),vec2(1.0,1.0));
-	//e+=line2(uv,vec2(0.0,0.0),vec2(1.0,1.0));
-	//e = sin(uv.y*4.+time*.1)*.5+.5+e*.1;
-	//e = smoothstep(0.02,0.1,e);
 	vec3 dib = vec3(e);
 	
 	vec3 fin = mix(c1,c2,dib);
-	fragColor = vec4(fin,1.0);
+	fragColor = vec4(.9,0.5,0.0,1.0);
 }

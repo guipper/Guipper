@@ -1,19 +1,6 @@
 #pragma include "../common.frag" //ESta linea tiene todas las definiciones de las funciones globales
 
 
-
-//shader, glsl, animation, move, rgbshift, colorfull, sine, cosine,rxr,noise,random,snoise,voronoi,p5js,processing,buffer,backbuffers,minerals,medicine,cellular,celular,
-/*P U R E R X R  
-
-/*This is the raw implementation a visualization of rxr algorithm. 
-This was the core algorithm used in other of myh artworks like Cave dreams,
-rxr planets, rxr poster. 
-
-Colors palette are generated using a RGB shift. 
-*/
-
-
-
 uniform float sc;
 uniform float sc2;
 uniform float seed;

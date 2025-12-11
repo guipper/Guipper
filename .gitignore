@@ -5,7 +5,6 @@ addons/
 bin/*.dll
 bin/*.so
 bin/data/exportimgs/*
-bin/data/savefiles/*.xml
 bin/data/settings.xml
 bin/data/video/*
 bin/guipper

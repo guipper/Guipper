@@ -49,12 +49,18 @@ void controllerChange(int channel, int number, int value) {
   println("Value:"+value);
 
   lastmidivalue = value;
-  lastmidicontroller =number;
+  lastmidicontroller = number;
   for (int i = 0; i< midi_number.length; i++) {
     if (number == midi_number[i]) {
       println("MIDI NUMBER: " + i);
       String send = "/openguinumber/param"+str(i);
+      
       float valuetosend = map(value, 0, 127, 0, 1);
+      
+      //ESTO ES PORQUE SE ROMPIO UN POTE EN MI NANOKONTROL Y SU VALOR SOLO VA DE O a 30:(
+      if(number == 0){
+        valuetosend = map(value, 0, 31, 0, 1);
+      }
       sendToGuipper(valuetosend, send);
     }
   }

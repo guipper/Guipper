@@ -8,11 +8,11 @@ uniform float mivariable;
 
 void main()
 {	
-	vec2 uv = gl_FragCoord.xy / resolution;
+	vec2 uv = gl_FragCoord.xy / resolution.xy;
 	
 	vec3 fin = vec3(r,g,b);
 	
 	
 	float e = sin(uv.x*10.+time)*.5+.5;
-	fragColor = vec4(uv.x,e,0.0,1.0); 
+	fragColor = vec4(r,g,b,1.0); 
 }

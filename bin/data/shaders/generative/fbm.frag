@@ -14,15 +14,15 @@ void main()
 {
 	vec2 uv = gl_FragCoord.xy / resolution;
 
-	float mapspeedx = mapr(speedx,-1.,1.0);
-	float mapspeedy = mapr(speedy,-1.,1.0);
+	float mapspeedx = mapr(speedx,-.25,.25);
+	float mapspeedy = mapr(speedy,-.25,.25);
 	
-	float mapscalex = mapr(scalex,0.0,30.0);
-	float mapscaley = mapr(scaley,0.0,30.0);
+	float mapscalex = mapr(scalex,0.0,10.0);
+	float mapscaley = mapr(scaley,0.0,10.0);
 	float mapscale2 = mapr(flush,1.0,100.0);
 	
-	float manimationspeed1 = mapr(animationspeed1,0.0,5.0);
-	float manimationspeed2 = mapr(animationspeed2,0.0,5.0);
+	float manimationspeed1 = mapr(animationspeed1,0.0,0.5);
+	float manimationspeed2 = mapr(animationspeed2,0.0,0.5);
 	
 	
 	float e = 0;

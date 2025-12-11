@@ -12,10 +12,6 @@ OpenSaveFileLoader : para abrir archivo de savefile
 SaveAsSaver : Para guardar como.
 */
 
-
-
-
-
 class DirectoryManager {
 	public:
 		vector<vector<string>> directorys;
@@ -23,8 +19,6 @@ class DirectoryManager {
 		void loadDirectory(string _dir);
 
 };
-
-
 
 //ESTO ESTA DEPRECATED CREO <.'¡'.>
 class OpenLoader : public ofThread

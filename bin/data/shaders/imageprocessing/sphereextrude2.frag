@@ -88,8 +88,6 @@ float de(vec3 p)
 	float prom = length(txtx);
 	
 
-	float def = length(sin(p*5.+time*2.))*.1;
-		  def = snoise(p.xy+time)*10.;
 		  
 		  
     float sph = sphere(psph, 10.3*size+prom*extrude*4.);

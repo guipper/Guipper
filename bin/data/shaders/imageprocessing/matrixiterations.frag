@@ -41,7 +41,7 @@ void main()
 		uv2.y+=time*sin(index2*pi*2.)*.0001;
 		
 		
-		
+		//uv2-=10.9;
 		uv2-=vec2(0.5*fix,0.5);
 		uv2*= scale(vec2(zoom+index2));
 		uv2+= vec2(0.5*fix,0.5);

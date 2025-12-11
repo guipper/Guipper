@@ -224,9 +224,11 @@ void ofApp::draw_instrucciones()
 		jp_constants::p_font.drawString("c : Agrega caja camara", x, y += sepy);
 		jp_constants::p_font.drawString("m : Exportar imagen", x, y += sepy);
 		jp_constants::p_font.drawString("e : Activar modo secuencia", x, y += sepy);
-
-	
-	
+		jp_constants::p_font.drawString("COMANDOS OSC ", x, y += sepy);
+		jp_constants::p_font.drawString("/load/(dir) : Cargar archivo especifico", x, y += sepy);
+		jp_constants::p_font.drawString("/setactiverender/(num) : set active render", x, y += sepy);
+		jp_constants::p_font.drawString("/openguinumber/(value) : control de active", x, y += sepy);
+		jp_constants::p_font.drawString("/(name of shader)/(name of param) : to control using by name", x, y += sepy);
 	}
 	if (language == 1) {
 		jp_constants::p_font.drawString("INSTRUCTIONS : ", x, y += sepy);
@@ -452,7 +454,7 @@ void ofApp::keyPressed(int key)
 
 		}
 		if (key == 'x') {
-
+			cout << "Trigger CODE " << endl;
 			boxes.triggerCodeOnActiveShader();
 		}
 		if(key == 'c'){
