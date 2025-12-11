@@ -51,6 +51,4 @@ public:
 	//LIVECODING THINGS : 
 	//bool showCode;
 	ofBuffer buffer;
-private:
-	bool hasMoreThan1Param = false;
 };

@@ -30,12 +30,12 @@ void JPbox_shader::reload()
 	// OSEA TECNICAMENTE EXISTE LA POSIBILIDAD 0.00000000000000000001% DE QUE NUNCA CARGUE BIEN Y ENTRE EN UN LOOP INFINITO DE MUERTE Y DESTRUCCION.
 	// OSEA AHORA AL MENOS CARGA BIEN SIEMPRE. LO QUE NO PUEDO HACER ES QUE ME VUELVA A CARGAR LOS VALORES QUE TENIA CON LOS RENDER QUE TENIA.
 
-	do
-	{
+
+
+	do {
 		setUniforms(parameters, fbohandlergroup, dir, name);
 		cout << "CANTIDAD PARAMETROS :  " << parameters.getSize() << endl;
-		// cout << "hasMoreThan1Param :  " << hasMoreThan1Param << endl;
-	} while (parameters.getSize() == 0 && !hasMoreThan1Param);
+	} while (parameters.getSize() == 0 && fbohandlergroup.getSize() == 0 && buffer.size() == 0);
 	// cout << "param size D " << parameters.getSize() << endl;
 
 	/*cout << "----------------------------------"; endl;
@@ -364,8 +364,6 @@ void JPbox_shader::setUniforms(JPParameterGroup &_parameters,
 	{
 		linesOfTheFile.push_back(line);
 	}
-
-	bool hasMoreThan1Param = linesOfTheFile.size() > 0;
 
 	_parameters.setName(_name);
 	for (int l = 0; l < linesOfTheFile.size(); l++)

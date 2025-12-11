@@ -205,7 +205,7 @@ void ofApp::draw_instrucciones()
 	float x2 = 30;
 	float y2 = 30;
 
-	ofSetColor(0);
+	ofSetColor(0,100);
 	ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight());
 	ofSetColor(255);
 	
@@ -477,9 +477,9 @@ void ofApp::keycodePressed(ofKeyEventArgs &e)
 
 	// CUANDO APRETAS CONTROL TE TOMA COMO DOS INPUTS EN EL MOMENTO.
 	cout << "-------------------------------------" << endl;
-	cout << "PREVKEYCODE " << prevKey << endl;
-	cout << "KEYCODE : " << e.keycode << endl;
-	cout << "KEY : " << e.key << endl;
+	//cout << "PREVKEYCODE " << prevKey << endl;
+	//cout << "KEYCODE : " << e.keycode << endl;
+	//cout << "KEY : " << e.key << endl;
 	// Como que esto solo sucede cuando apretas el control y despues el save. LO SACAMOS VIENDO VALORES EN CONSOLA. NO ME PREGUNTES LA LOGICA.
 
 	// if (prevKey == 19) {
