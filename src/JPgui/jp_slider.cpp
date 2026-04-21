@@ -3,6 +3,42 @@
 JPSlider::JPSlider() {}
 JPSlider::~JPSlider() {}
 
+namespace {
+std::string blendModeNameFromValue(float normalizedValue)
+{
+	const int mode = static_cast<int>(ofMap(normalizedValue, 0.0f, 1.0f, 0.0f, 25.0f, true));
+	switch (mode)
+	{
+	case 1: return "ADD";
+	case 2: return "AVERAGE";
+	case 3: return "COLOR_BURN";
+	case 4: return "COLOR_DODGE";
+	case 5: return "DARKEN";
+	case 6: return "DIFFERENCE";
+	case 7: return "EXCLUSION";
+	case 8: return "GLOW";
+	case 9: return "HARD_LIGHT";
+	case 10: return "HARD_MIX";
+	case 11: return "LIGHTEN";
+	case 12: return "LINEAR_BURN";
+	case 13: return "LINEAR_DODGE";
+	case 14: return "LINEAR_LIGHT";
+	case 15: return "MULTIPLY";
+	case 16: return "NEGATION";
+	case 17: return "NORMAL";
+	case 18: return "OVERLAY";
+	case 19: return "PHOENIX";
+	case 20: return "PIN_LIGHT";
+	case 21: return "REFLECT";
+	case 22: return "SCREEN";
+	case 23: return "SOFT_LIGHT";
+	case 24: return "SUBTRACT";
+	case 25: return "VIVID_LIGHT";
+	default: return "NONE";
+	}
+}
+}
+
 void JPSlider::setup(float _x, float _y, float _width, float _height, float _min, float _max, float _value, string _name)
 {
 	setup(_x, _y, _width, _height, _min, _max, _value);
@@ -91,6 +127,10 @@ void JPSlider::draw()
 		if (showtext)
 		{
 			string Strvalue = name + " " + ofToString(parameters->floatValue, 2);
+			if (name == "blendmode")
+			{
+				Strvalue = name + " " + blendModeNameFromValue(parameters->floatValue);
+			}
 			jp_constants::p_font.drawString(Strvalue,
 											x - jp_constants::p_font.stringWidth(Strvalue) / 2,
 											y + jp_constants::p_font.stringHeight(Strvalue) / 2);
