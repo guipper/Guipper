@@ -3,6 +3,8 @@ import netP5.*;
 import themidibus.*; //Import the library
 import ddf.minim.*; //Librería de sonido.
 import controlP5.*;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 
 //SONIDO
@@ -40,6 +42,7 @@ Recorrido recorrido;
 
 
 boolean guipperActive = true;
+boolean sendTestNoteEachFrame = false;
 
 
 void setup() {
@@ -65,7 +68,9 @@ void setup() {
 
 
 void draw() {
-  myBus.sendNoteOn(1, 60, 100);
+  if (sendTestNoteEachFrame) {
+    myBus.sendNoteOn(1, 60, 100);
+  }
 
   // in.mix.get(250);
   float freq = abs(in.mix.get(250)*1024);
@@ -141,6 +146,23 @@ void draw() {
   }
 }
 void keyPressed() {
+  if (key == 'm' || key == 'M') {
+    midiDebugEnabled = !midiDebugEnabled;
+    println("[MIDI] Debug " + (midiDebugEnabled ? "ON" : "OFF"));
+  }
+  if (key == 'l' || key == 'L') {
+    midiLearnMode = !midiLearnMode;
+    println("[MIDI] Learn mode " + (midiLearnMode ? "ON" : "OFF"));
+  }
+  if (key == 'p' || key == 'P') {
+    printMidiLearnSummary();
+  }
+  if (key == 'c' || key == 'C') {
+    learnedCC.clear();
+    learnedNotes.clear();
+    println("[MIDI] Cleared learned CC/NOTE lists");
+  }
+
   if (key == 'k') {
     recorrido.puntos.clear();
     recorrido.ppos =0;
@@ -152,5 +174,9 @@ void keyPressed() {
 
   if (key == 'q') {
     guipperActive =!guipperActive;
+  }
+  if (key == 't' || key == 'T') {
+    sendTestNoteEachFrame = !sendTestNoteEachFrame;
+    println("[MIDI] test note sender " + (sendTestNoteEachFrame ? "ON" : "OFF"));
   }
 }

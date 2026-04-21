@@ -71,6 +71,18 @@ void JPboxgroup::draw()
 			ofRectRounded(x, y - boxes[i]->height / 2+10, boxes[i]->width*1.1, boxes[i]->height*1.1,10);
 		}
 		boxes[i]->draw();
+
+		// OSC preview selection (used by /nextshader and /prevshader before /setactiveshader)
+		if (openguinumber == i)
+		{
+			ofPushStyle();
+			ofSetRectMode(OF_RECTMODE_CENTER);
+			ofNoFill();
+			ofSetLineWidth(3);
+			ofSetColor(0, 220, 255, 255);
+			ofDrawRectRounded(x, y - boxes[i]->height / 2 + 10, boxes[i]->width * 1.22, boxes[i]->height * 1.22, 10);
+			ofPopStyle();
+		}
 		
 
 		ofDrawBitmapString(ofToString(i), x, y);
@@ -1056,7 +1068,7 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 	//cout << _dir << endl;
 	if (_dir == "/setactiverender") {
 		//cout << "SETEA EL RENDER ACTIVO " << _val << endl;
-		if(_val < boxes.size()){
+		if(!boxes.empty() && _val < boxes.size() && _val >= 0){
 			//*activerender = floor(_val);
 			updateTransition(floor(_val));
 
@@ -1064,16 +1076,33 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 	}
 
 	if (_dir == "/nextshader") {
-		int val = openguinumber +1;
+		if (boxes.empty()) {
+			return;
+		}
+
+		int base = openguinumber;
+		if (base < 0 || base > boxes.size() - 1) {
+			base = *activerender;
+		}
+		int val = base + 1;
 		if(val > boxes.size()-1){
 			val = 0;
 		}
+
 		openguinumber = val;
 		setControllers();
 	}
 
 	if (_dir == "/prevshader") {
-		int val = openguinumber - 1;
+		if (boxes.empty()) {
+			return;
+		}
+
+		int base = openguinumber;
+		if (base < 0 || base > boxes.size() - 1) {
+			base = *activerender;
+		}
+		int val = base - 1;
 		if (val < 0) {
 			val = boxes.size()-1;
 		}
@@ -1083,6 +1112,10 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 
 
 	if (_dir == "/nextshader_gallerymode") {
+		if (boxes.empty()) {
+			return;
+		}
+
 		int val = openguinumber + 1;
 		if (val > boxes.size() - 1) {
 			val = 0;
@@ -1095,6 +1128,10 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 	}
 
 	if (_dir == "/prevshader_gallerymode") {
+		if (boxes.empty()) {
+			return;
+		}
+
 		int val = openguinumber - 1;
 		if (val < 0) {
 			val = boxes.size() - 1;
@@ -1109,7 +1146,9 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 
 
 	if (_dir == "/setactiveshader") {
-		updateTransition(floor(openguinumber));
+		if (!boxes.empty() && openguinumber >= 0 && openguinumber < boxes.size()) {
+			updateTransition(floor(openguinumber));
+		}
 	}
 
 	if (_dir == "/setactivecycle") {
