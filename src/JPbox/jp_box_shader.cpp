@@ -1,4 +1,8 @@
 #include "jp_box_shader.h"
+#include <iostream>
+#include <sstream>
+#include <filesystem>
+
 
 JPbox_shader::JPbox_shader() {}
 JPbox_shader::~JPbox_shader() {}
@@ -161,11 +165,11 @@ void JPbox_shader::setup(ofTrueTypeFont &_font,
 
 	/*if (!ofFile(dir).exists())
 	{
-		cerr << dir << " does not exist!" << endl;
+		std::cerr << dir << " does not exist!" << std::endl;
 		return;
 	}*/
 
-	datemodified = filesystem::last_write_time(dir);
+	datemodified = std::filesystem::last_write_time(dir);
 }
 
 void JPbox_shader::setup2(string _dir,
@@ -201,11 +205,11 @@ void JPbox_shader::setup2(string _dir,
 
 	if (!ofFile(dir).exists())
 	{
-		cerr << dir << " does not exist!" << endl;
+		std::cerr << dir << " does not exist!" << std::endl;
 		return;
 	}
 
-	datemodified = filesystem::last_write_time(dir);
+	datemodified = std::filesystem::last_write_time(dir);
 }
 
 void JPbox_shader::setup(string _dir,
@@ -240,11 +244,11 @@ void JPbox_shader::setup(string _dir,
 
 	if (!ofFile(_dir).exists())
 	{
-		cerr << _dir << " does not exist!" << endl;
+		std::cerr << _dir << " does not exist!" << std::endl;
 		return;
 	}
 
-	datemodified = filesystem::last_write_time(dir);
+	datemodified = std::filesystem::last_write_time(dir);
 }
 
 void JPbox_shader::draw()
@@ -400,7 +404,7 @@ void JPbox_shader::setUniforms(JPParameterGroup &_parameters,
 				// Nos aseguramos de formatearla bien, para formatearla bien tiene que estar todo separado en palabras
 
 				// Metemos el coso en el objeto raro ese llamado istringstream para separarlo en palabras:
-				istringstream ss(fraseEntrada);
+				std::istringstream ss(fraseEntrada);
 				// Traverse through all words
 				// int counter = 0;
 				// int total=0;

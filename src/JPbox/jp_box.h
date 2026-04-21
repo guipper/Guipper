@@ -1,5 +1,7 @@
 #pragma once
 #include "ofMain.h"
+#include <filesystem>
+
 #include "defines.h"
 //#include "Shaderrender.h"
 #include "../JPutils/jp_parametergroup.h"
@@ -68,7 +70,7 @@ public:
 	};
 
 	int getTipo();
-	time_t datemodified; // La pongo aca porque necesito que me recorra la cosa dentro del for. Aunque sea solo para los shaders.
+	std::filesystem::file_time_type datemodified; // La pongo aca porque necesito que me recorra la cosa dentro del for. Aunque sea solo para los shaders.
 
 	// Me perturba que el nombre de la variable sea tan verga.
 	void setonoff(bool _val);

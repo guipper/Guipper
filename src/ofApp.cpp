@@ -1,4 +1,6 @@
 #include "ofApp.h"
+#include <iostream>
+
 
 //--------------------------------------------------------------
 void ofApp::setup(){
@@ -309,7 +311,7 @@ void ofApp::keyPressed(int key)
 #ifdef SPOUT
 			boxes.addBox("spoutReceiver");
 #else
-			cerr << "Spout not supported" << endl;
+			std::cerr << "Spout not supported" << std::endl;
 #endif
 		}
 		if (key == 'i')
@@ -326,7 +328,7 @@ void ofApp::keyPressed(int key)
 #ifdef NDI
 			boxes.addBox("ndiReceiver");
 #else
-			cerr << "NDI not supported" << endl;
+			std::cerr << "NDI not supported" << std::endl;
 #endif
 		}
 
@@ -567,7 +569,7 @@ void ofApp::dragEvent(ofDragInfo dragInfo)
 	int indexy = 0;
 	for (int i = 0; i < dragInfo.files.size(); i++)
 	{
-		string path = dragInfo.files[i];
+		string path = dragInfo.files[i].string();
 		if (dragInfo.files.size() > 1)
 		{
 
