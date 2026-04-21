@@ -26,14 +26,17 @@ MidiKeymap midiKeymap = buildMpkMini2Keymap();
 MidiKeymap buildMpkMini2Keymap() {
   MidiKeymap keymap = new MidiKeymap(new int[]{1, 2, 3, 4, 8, 7, 6, 5, 20, 21, 22, 23, 19, 18, 17, 16}); //MPKmini II PARA ESTE.
 
-  keymap.setKey("nextShader", 48); //SETEA LA VENTANA ABIERTA DE LA DERECHA.
-  keymap.setKey("prevShader", 49); //SETEA LA VENTANA ABIERTA DE IZQUIERDA.
+  keymap.setKey("nextShader", 49); //SETEA LA VENTANA ABIERTA DE LA DERECHA.
+  keymap.setKey("prevShader", 48); //SETEA LA VENTANA ABIERTA DE IZQUIERDA.
   keymap.setKey("setActiveShader", 44); //EL RENDER DE SALIDA.
-  keymap.setKey("cycleOnOff", 51); //SI PRENDE EL CYCLEONOFF.
 
-  //ESTA ES LA DE LAS FLECHITAS DE LA ESQUINA SUPERIOR IZQUIERDA PARA QUE PASEN APENAS TOCAS DIRECTAMENTE :
-  keymap.setKey("nextShaderGallery", 46);
-  keymap.setKey("prevShaderGallery", 47);
+  //gallery mode
+  keymap.setKey("disableGalleryMode", 36); //DESACTIVA GALLERY MODE.
+  keymap.setKey("cycleOnOff", 32); //TOGGLE CYCLE ON/OFF.
+  keymap.setKey("nextShaderGallery", 35);
+  keymap.setKey("prevShaderGallery", 34);
+  
+  keymap.setKey("addMirrorSquad", 71); //ANADE UN MIRRORQUAD SHADER BOX.
 
   return keymap;
 }
@@ -41,6 +44,7 @@ MidiKeymap buildMpkMini2Keymap() {
 // MIDI debug / learn mode (for new devices)
 boolean midiDebugEnabled = true;
 boolean midiLearnMode = true;
+boolean cycleModeEnabled = false;
 ArrayList<Integer> learnedCC = new ArrayList<Integer>();
 ArrayList<Integer> learnedNotes = new ArrayList<Integer>();
 
@@ -67,9 +71,20 @@ void sendMappedSliderIfAny(int number, int value) {
     return;
   }
 
+  float valuetosend = mapControllerValueToUnitRange(number, value);
+
+  // While cycle is ON, first knob controls gallery duration (0..4200 ms)
+  if (cycleModeEnabled && mappedIndex == 0) {
+    float durationMs = map(valuetosend, 0, 1, 0, 4200);
+    sendToGuipper(durationMs, "/setdurationgalleryms");
+    if (midiDebugEnabled) {
+      println("[MIDI] cycle duration ms=" + durationMs);
+    }
+    return;
+  }
+
   println("MIDI NUMBER: " + mappedIndex);
   String send = "/openguinumber/param" + str(mappedIndex);
-  float valuetosend = mapControllerValueToUnitRange(number, value);
   sendToGuipper(valuetosend, send);
 }
 
@@ -92,7 +107,13 @@ void handleActionButtons(int number, int value) {
   }
 
   if (number == midiKeymap.getKey("cycleOnOff")) {
+    cycleModeEnabled = !cycleModeEnabled;
     sendToGuipper(0, "/setactivecycle");
+  }
+
+  if (number == midiKeymap.getKey("disableGalleryMode")) {
+    cycleModeEnabled = false;
+    sendToGuipper(0, "/disablegallerymode");
   }
 
   if (number == midiKeymap.getKey("nextShaderGallery")) {
@@ -101,6 +122,10 @@ void handleActionButtons(int number, int value) {
 
   if (number == midiKeymap.getKey("prevShaderGallery")) {
     sendToGuipper(0, "/prevshader_gallerymode");
+  }
+
+  if (number == midiKeymap.getKey("addMirrorSquad")) {
+    sendToGuipper(0, "/addmirrorsquad");
   }
 }
 
@@ -169,3 +194,4 @@ void controllerChange(int channel, int number, int value) {
   sendMappedSliderIfAny(number, value);
   handleActionButtons(number, value);
 }
+

@@ -86,7 +86,7 @@ void JPSlider::draw()
 	{
 		activeFlag = true;
 	}
-	if (!ofGetMousePressed)
+	if (!ofGetMousePressed())
 	{
 		activeFlag = false;
 	}
@@ -95,6 +95,7 @@ void JPSlider::draw()
 		// cout << "MUEVE SLIDER " << endl;
 		value = ofMap(ofGetMouseX(), x - width / 2, x + width / 2, min, max);
 		value = ofClamp(value, min, max);
+		parameters->floatValue = value;
 		parameters->floatLerpValue = value;
 	}
 	if (parameters->movtype == 0)

@@ -72,6 +72,8 @@ public:
 	int getActiverenderNum();
 	void reloadActiveshader();
 	void listenToOsc(string _dir, float _val);
+	void setDurationGalleryMs(float _ms);
+	float getDurationGalleryMs() const;
 
 	bool mouseOverGui();
 
@@ -106,6 +108,8 @@ private:
 
 	void setinspectorsetactiveparams();
 	void draw_paramswindow(); // Dibuja la ventanita del inspector.
+	void setupGalleryDurationSlider();
+	void drawGalleryDurationSlider();
 
 	float inspectorwindow_width;
 	float inspectorwindow_height;
@@ -145,5 +149,8 @@ private:
 	//MODO SECUENCIA 
 
 	float	lasttime_sequence;
+	float durationGalleryMs;
 	//Transition shader render : 
+	JPParameter galleryDurationParam;
+	JPSlider galleryDurationSlider;
 };

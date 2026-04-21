@@ -686,7 +686,7 @@ void ofApp::loadSettings()
 					   renderheightaux.getIntValue(),
 					   windowwidth.getIntValue(),
 					   windowheight.getIntValue());
-	jp_constants::setdurationgallery(durationgallery.getFloatValue());
+	boxes.setDurationGalleryMs(durationgallery.getFloatValue());
 
 	cout << "window_width " << jp_constants::window_width << endl;
 
@@ -719,7 +719,7 @@ void ofApp::saveSettings()
 	auto settings = xml.appendChild("settings");
 	settings.appendChild("renderwidth").set(jp_constants::renderWidth);
 	settings.appendChild("renderheight").set(jp_constants::renderHeight);
-	settings.appendChild("durationgallery").set(jp_constants::durationgallery);
+	settings.appendChild("durationgallery").set(boxes.getDurationGalleryMs());
 	settings.appendChild("window_x").set(ceil(window_initialposx));
 	settings.appendChild("window_y").set(ceil(window_initialposy));
 	//settings.appendChild("window_width").set(jp_constants::window_width);

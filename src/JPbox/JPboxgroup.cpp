@@ -1,5 +1,6 @@
 #include "JPboxgroup.h"
 #include <filesystem>
+#include <algorithm>
 
 
 JPboxgroup::JPboxgroup() {}
@@ -38,6 +39,8 @@ void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 	transition.setup();
 	lasttime_sequence = ofGetElapsedTimeMillis();
 	activeSequence = false;
+	durationGalleryMs = 1200.0f;
+	setupGalleryDurationSlider();
 }
 void JPboxgroup::draw()
 {
@@ -88,10 +91,49 @@ void JPboxgroup::draw()
 		ofDrawBitmapString(ofToString(i), x, y);
 	}
 	draw_paramswindow();
-
+	drawGalleryDurationSlider();
 
 	
 	
+	
+}
+void JPboxgroup::setupGalleryDurationSlider()
+{
+	const float sliderWidth = 320.0f;
+	const float sliderHeight = 20.0f;
+	const float sliderX = sliderWidth * 0.5f + 30.0f;
+	const float sliderY = 28.0f;
+
+	const float clampedDuration = ofClamp(durationGalleryMs, 0.0f, 4200.0f);
+	galleryDurationParam.setup(clampedDuration, "durationgallery_ms");
+	galleryDurationParam.min = 0.0f;
+	galleryDurationParam.max = 4200.0f;
+	galleryDurationParam.movtype = JPParameter::STANDART;
+
+	galleryDurationSlider.setup(sliderX, sliderY, sliderWidth, sliderHeight,
+		0.0f, 4200.0f, clampedDuration, "durationgallery_ms");
+	galleryDurationSlider.setParametersPointer(&galleryDurationParam);
+	galleryDurationSlider.activable2 = true;
+}
+void JPboxgroup::drawGalleryDurationSlider()
+{
+	if (!activeSequence)
+	{
+		return;
+	}
+
+	if (!galleryDurationSlider.activeFlag)
+	{
+		const float clampedDuration = ofClamp(durationGalleryMs, 0.0f, 4200.0f);
+		galleryDurationParam.floatValue = clampedDuration;
+		galleryDurationParam.floatLerpValue = clampedDuration;
+	}
+
+	galleryDurationSlider.activable2 = true;
+	galleryDurationSlider.draw();
+
+	const float newDuration = ofClamp(galleryDurationParam.floatValue, 0.0f, 4200.0f);
+	durationGalleryMs = newDuration;
 }
 void JPboxgroup::draw_activerender()
 {
@@ -334,8 +376,9 @@ void JPboxgroup::update(){
 		transition.update(); //ACTUALIZO EL TRANSITION
 	//}
 		//activeSequence = true;
+		const float sequenceIntervalMs = std::max(durationGalleryMs, 16.0f);
 		if (activeSequence && 
-			ofGetElapsedTimeMillis() - lasttime_sequence > jp_constants::durationgallery && 
+			ofGetElapsedTimeMillis() - lasttime_sequence > sequenceIntervalMs && 
 			boxes.size() > 2) {
 			lasttime_sequence = ofGetElapsedTimeMillis();
 			cout << "SEQ ACTIVADA. CAMBIO A " << *activerender << endl;
@@ -349,17 +392,19 @@ void JPboxgroup::update(){
 				idx = *activerender + 1;
 			}
 			updateTransition(idx);
-			/*for (int i = boxes.size() - 1; i >= 0; i--) {
-				if (i == idx) {
-					boxes[i]->setonoff(true);
-				}
-				else {
-					boxes[i]->setonoff(false);
-				}
-			}*/
-
-			setActiveOnlyBox(idx);
+			// Keep all boxes running in cycle mode so animated sources don't "freeze"
+			// while waiting to become active again.
 		}
+}
+void JPboxgroup::setDurationGalleryMs(float _ms)
+{
+	durationGalleryMs = ofClamp(_ms, 0.0f, 4200.0f);
+	galleryDurationParam.floatValue = durationGalleryMs;
+	galleryDurationParam.floatLerpValue = durationGalleryMs;
+}
+float JPboxgroup::getDurationGalleryMs() const
+{
+	return durationGalleryMs;
 }
 void JPboxgroup::setActiveOnlyBox(int _val) {
 
@@ -429,6 +474,7 @@ void JPboxgroup::update_resized(int w, int h)
 	inspectorwindow_sepy = 30;
 	inspectorwindow_height = 0;
 	setinspectorsetactiveparams();
+	setupGalleryDurationSlider();
 
 	// int i = controllers.size()-1; i >= 0; i--
 	for (int i = 0; i < controllers.size(); i++)
@@ -1153,6 +1199,26 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 
 	if (_dir == "/setactivecycle") {
 		activeSequence = !activeSequence;
+		if (activeSequence) {
+			for (int i = 0; i < boxes.size(); i++) {
+				boxes[i]->setonoff(true);
+			}
+		}
+	}
+
+	if (_dir == "/disablegallerymode") {
+		activeSequence = false;
+		for (int i = 0; i < boxes.size(); i++) {
+			boxes[i]->setonoff(true);
+		}
+	}
+
+	if (_dir == "/addmirrorsquad") {
+		addBox("data/shaders/imageprocessing/mirrorquad.frag");
+	}
+
+	if (_dir == "/setdurationgalleryms") {
+		setDurationGalleryMs(_val);
 	}
 
 	//LEO POR NOMBRE DE EFECTO Y LE TIRO AL EFECTO ESE
