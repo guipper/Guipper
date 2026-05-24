@@ -3,6 +3,47 @@
 #include "jp_box.h"
 #include "../ofApp.h"
 
+namespace
+{
+	void updateHoverStart(bool isMouseOver, uint64_t &hoverStartMillis)
+	{
+		if (isMouseOver)
+		{
+			if (hoverStartMillis == 0)
+			{
+				hoverStartMillis = ofGetElapsedTimeMillis();
+			}
+		}
+		else
+		{
+			hoverStartMillis = 0;
+		}
+	}
+
+	bool shouldShowTooltip(uint64_t hoverStartMillis)
+	{
+		return hoverStartMillis != 0 && ofGetElapsedTimeMillis() - hoverStartMillis >= 1000;
+	}
+
+	void drawTooltip(const string &text, float anchorX, float anchorY)
+	{
+		float padX = 6;
+		float padY = 4;
+		float tooltipWidth = jp_constants::p_font.stringWidth(text) + padX * 2;
+		float tooltipHeight = jp_constants::p_font.stringHeight(text) + padY * 2;
+		float tooltipX = anchorX + tooltipWidth / 2;
+		float tooltipY = anchorY - tooltipHeight / 2 - 8;
+
+		ofSetRectMode(OF_RECTMODE_CENTER);
+		ofSetColor(20, 230);
+		ofRectRounded(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 3);
+		ofSetColor(255);
+		jp_constants::p_font.drawString(text,
+										tooltipX - tooltipWidth / 2 + padX,
+										tooltipY + jp_constants::p_font.stringHeight(text) / 2);
+	}
+}
+
 JPbox::JPbox() {}
 JPbox::~JPbox() {}
 void JPbox::reloadShaderonly() {}
@@ -36,13 +77,17 @@ void JPbox::setup(ofTrueTypeFont &_font)
 
 	inlet_size = 20;
 
-	onoff.setup(outlet_x, outlet_y, outlet_size / 2, outlet_size / 2);
+	float topButtonSize = outlet_size * 0.42;
+	onoff.setup(outlet_x, outlet_y, topButtonSize, topButtonSize);
 	onoff.boolValue = false;
-	bypass.setup(outlet_x - outlet_size * 1.1, outlet_y, outlet_size / 2, outlet_size / 2);
+	bypass.setup(outlet_x - topButtonSize, outlet_y, topButtonSize, topButtonSize);
 	bypass.boolValue = false;
 	bypass.value = false;
 	bypass.activeFlag = false;
 	bypass.paleta = 1;
+	titleHoverStartMillis = 0;
+	bypassHoverStartMillis = 0;
+	onoffHoverStartMillis = 0;
 	fbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
 }
 void JPbox::setup(string _directory, string _name)
@@ -71,13 +116,17 @@ void JPbox::setup(string _directory, string _name)
 
 	inlet_size = 20;
 
-	onoff.setup(outlet_x, outlet_y, outlet_size / 2, outlet_size / 2);
+	float topButtonSize = outlet_size * 0.42;
+	onoff.setup(outlet_x, outlet_y, topButtonSize, topButtonSize);
 	onoff.boolValue = false;
-	bypass.setup(outlet_x - outlet_size * 1.1, outlet_y, outlet_size / 2, outlet_size / 2);
+	bypass.setup(outlet_x - topButtonSize, outlet_y, topButtonSize, topButtonSize);
 	bypass.boolValue = false;
 	bypass.value = false;
 	bypass.activeFlag = false;
 	bypass.paleta = 1;
+	titleHoverStartMillis = 0;
+	bypassHoverStartMillis = 0;
+	onoffHoverStartMillis = 0;
 	fbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
 
 	name = _name;
@@ -87,10 +136,17 @@ void JPbox::update()
 {
 	parameters.update();
 	// onoff.update();
-	onoff.setPos(x + width / 2 - outlet_size / 2,
-				 y - height / 2 + outlet_size * .4);
-	bypass.setPos(x + width / 2 - outlet_size / 2 - outlet_size * 1.1,
-				  y - height / 2 + outlet_size * .4);
+	float topButtonSize = outlet_size * 0.42;
+	float topButtonGap = 4;
+	float topButtonY = y - height / 2 + padding_top * 0.42;
+	float rightButtonX = x + width / 2 - 8 - topButtonSize / 2;
+
+	onoff.width = topButtonSize;
+	onoff.height = topButtonSize;
+	bypass.width = topButtonSize;
+	bypass.height = topButtonSize;
+	onoff.setPos(rightButtonX, topButtonY);
+	bypass.setPos(rightButtonX - topButtonSize - topButtonGap, topButtonY);
 	// updateFBO();
 
 	outlet_x = x + width / 2 - outlet_size / 2;
@@ -143,22 +199,37 @@ void JPbox::draw()
 	float sepsize = 10; // SEPARACION ENTRE LA LINEA Y LA CAJA Y LA ALINEACION DEL TEXTO.
 	float linewidth = width / 2 - sepsize;
 	float lineheight = 2;
+	float titleY = y - height / 2 + padding_top * 0.58;
+	float dividerY = y - height / 2 + padding_top * 0.76;
+	float nameX = x - width / 2 + sepsize;
+	float nameMaxWidth = bypass.x - bypass.width / 2 - 4 - nameX;
 
 	// LINEA DEBAJO DEL TEXTO :
 	ofSetLineWidth(lineheight);
-	ofDrawLine(x - linewidth, y - height / 2 + padding_top * 2 / 3 + lineheight, x + linewidth, y - height / 2 + padding_top * 2 / 3 + lineheight);
+	ofSetColor(35);
+	ofDrawLine(x - linewidth, dividerY, x + linewidth, dividerY);
 
 	// TEXTO :
 	string shortname = name;
-	int numberofdisplayletter = 6;
-	if (name.size() > numberofdisplayletter)
+	if (jp_constants::p_font.stringWidth(shortname) > nameMaxWidth)
 	{
-		shortname = shortname.substr(0, numberofdisplayletter);
-		shortname += "...";
+		string dots = "...";
+		while (!shortname.empty() && jp_constants::p_font.stringWidth(shortname + dots) > nameMaxWidth)
+		{
+			shortname.pop_back();
+		}
+		shortname += dots;
 	}
+	float nameTextWidth = jp_constants::p_font.stringWidth(shortname);
+	bool titleMouseOver = ofGetMouseX() >= nameX &&
+						  ofGetMouseX() <= nameX + nameTextWidth &&
+						  ofGetMouseY() >= titleY - jp_constants::p_font.stringHeight(shortname) &&
+						  ofGetMouseY() <= titleY + 3;
+	updateHoverStart(titleMouseOver, titleHoverStartMillis);
+	ofSetColor(20);
 	jp_constants::p_font.drawString(shortname,
-									x - width / 2 + sepsize,
-									y - height / 2 + padding_top * 2 / 3);
+									nameX,
+									titleY);
 	// BOTON SET ACTIVE RENDER :
 	// DIBUJAR CABLECITO.
 	ofSetColor(255);
@@ -170,17 +241,48 @@ void JPbox::draw()
 
 	// JPbox::draw_outlet();
 	ofSetRectMode(OF_RECTMODE_CENTER);
+	bool bypassMouseOver = bypass.mouseOver();
+	bool onoffMouseOver = onoff.mouseOver();
+	updateHoverStart(bypassMouseOver, bypassHoverStartMillis);
+	updateHoverStart(onoffMouseOver, onoffHoverStartMillis);
+
 	bypass.draw();
 	ofSetRectMode(OF_RECTMODE_CENTER);
-	ofSetColor(bypass.boolValue ? ofColor(255, 0, 0, 255) : ofColor(100, 0, 0, 255));
+	ofColor bypassColor = bypass.boolValue ? ofColor(255, 0, 0, 255) : ofColor(100, 0, 0, 255);
+	if (bypassMouseOver)
+	{
+		bypassColor = bypassColor.getLerped(ofColor(255), 0.35);
+	}
+	ofSetColor(bypassColor);
 	ofDrawRectangle(bypass.x, bypass.y, bypass.width, bypass.height);
-	if (bypass.boolValue)
+	if (bypass.boolValue || bypassMouseOver)
 	{
 		ofNoFill();
+		ofSetColor(bypass.boolValue ? ofColor(255, 180, 180, 255) : ofColor(255, 120, 120, 220));
 		ofDrawRectangle(bypass.x, bypass.y, bypass.width, bypass.height);
 		ofFill();
 	}
 	onoff.draw();
+	if (onoffMouseOver)
+	{
+		ofNoFill();
+		ofSetColor(255, 255, 255, 220);
+		ofSetLineWidth(1);
+		ofDrawRectangle(onoff.x, onoff.y, onoff.width, onoff.height);
+		ofFill();
+	}
+	if (shouldShowTooltip(titleHoverStartMillis))
+	{
+		drawTooltip(name, nameX + nameTextWidth / 2, titleY - 8);
+	}
+	if (shouldShowTooltip(bypassHoverStartMillis))
+	{
+		drawTooltip("Bypass", bypass.x, bypass.y - bypass.height / 2);
+	}
+	if (shouldShowTooltip(onoffHoverStartMillis))
+	{
+		drawTooltip("Pause", onoff.x, onoff.y - onoff.height / 2);
+	}
 	ofSetColor(255, 255, 255, 255);
 }
 void JPbox::updateFBO()

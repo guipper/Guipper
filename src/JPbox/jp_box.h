@@ -86,6 +86,10 @@ public:
 protected:
 	int tipo; // Habra una manera menos cacuija de hacer esto? no se, pero ya me pudrio si, esta bien o mal me la chupa.
 
+	uint64_t titleHoverStartMillis = 0;
+	uint64_t bypassHoverStartMillis = 0;
+	uint64_t onoffHoverStartMillis = 0;
+
 	float padding_top;
 	float padding_leftright;
 	float padding_bottom;
