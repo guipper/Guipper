@@ -38,6 +38,10 @@ void JPbox_framedifference::update()
 }
 void JPbox_framedifference::updateFBO()
 {
+	if (tryPassThroughFBO())
+	{
+		return;
+	}
 	if (onoff.boolValue)
 	{
 		ofSetRectMode(OF_RECTMODE_CORNER);

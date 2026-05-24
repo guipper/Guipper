@@ -38,6 +38,11 @@ void JPbox::setup(ofTrueTypeFont &_font)
 
 	onoff.setup(outlet_x, outlet_y, outlet_size / 2, outlet_size / 2);
 	onoff.boolValue = false;
+	bypass.setup(outlet_x - outlet_size * 1.1, outlet_y, outlet_size / 2, outlet_size / 2);
+	bypass.boolValue = false;
+	bypass.value = false;
+	bypass.activeFlag = false;
+	bypass.paleta = 1;
 	fbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
 }
 void JPbox::setup(string _directory, string _name)
@@ -68,6 +73,11 @@ void JPbox::setup(string _directory, string _name)
 
 	onoff.setup(outlet_x, outlet_y, outlet_size / 2, outlet_size / 2);
 	onoff.boolValue = false;
+	bypass.setup(outlet_x - outlet_size * 1.1, outlet_y, outlet_size / 2, outlet_size / 2);
+	bypass.boolValue = false;
+	bypass.value = false;
+	bypass.activeFlag = false;
+	bypass.paleta = 1;
 	fbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
 
 	name = _name;
@@ -79,6 +89,8 @@ void JPbox::update()
 	// onoff.update();
 	onoff.setPos(x + width / 2 - outlet_size / 2,
 				 y - height / 2 + outlet_size * .4);
+	bypass.setPos(x + width / 2 - outlet_size / 2 - outlet_size * 1.1,
+				  y - height / 2 + outlet_size * .4);
 	// updateFBO();
 
 	outlet_x = x + width / 2 - outlet_size / 2;
@@ -158,6 +170,16 @@ void JPbox::draw()
 
 	// JPbox::draw_outlet();
 	ofSetRectMode(OF_RECTMODE_CENTER);
+	bypass.draw();
+	ofSetRectMode(OF_RECTMODE_CENTER);
+	ofSetColor(bypass.boolValue ? ofColor(255, 0, 0, 255) : ofColor(100, 0, 0, 255));
+	ofDrawRectangle(bypass.x, bypass.y, bypass.width, bypass.height);
+	if (bypass.boolValue)
+	{
+		ofNoFill();
+		ofDrawRectangle(bypass.x, bypass.y, bypass.width, bypass.height);
+		ofFill();
+	}
 	onoff.draw();
 	ofSetColor(255, 255, 255, 255);
 }
@@ -278,4 +300,34 @@ void JPbox::setonoff(bool _val)
 bool JPbox::getonoff()
 {
 	return onoff.boolValue;
+}
+void JPbox::setBypass(bool _val)
+{
+	bypass.boolValue = _val;
+	bypass.value = _val;
+	bypass.activeFlag = false;
+}
+bool JPbox::getBypass()
+{
+	return bypass.boolValue;
+}
+bool JPbox::tryPassThroughFBO()
+{
+	if (!bypass.boolValue)
+	{
+		return false;
+	}
+	for (int i = 0; i < fbohandlergroup.getSize(); i++)
+	{
+		if (fbohandlergroup.getisPointerSet(i))
+		{
+			ofSetRectMode(OF_RECTMODE_CORNER);
+			ofSetColor(255, 255);
+			fbo.begin();
+			fbohandlergroup.getFboPointer(i).draw(0, 0, fbo.getWidth(), fbo.getHeight());
+			fbo.end();
+			return true;
+		}
+	}
+	return false;
 }

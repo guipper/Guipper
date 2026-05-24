@@ -757,6 +757,7 @@ void JPboxgroup::save(string outputPath)
 		data.appendChild("y").set(boxes[i]->y);
 		data.appendChild("directory").set(boxes[i]->dir);
 		data.appendChild("onoff").set(boxes[i]->getonoff());
+		data.appendChild("bypass").set(boxes[i]->getBypass());
 		// boxes[i]->parameters.coutData();
 		if (boxes[i]->parameters.getSize() > 0)
 		{
@@ -842,6 +843,7 @@ void JPboxgroup::load(string _dirinput)
 		auto y = box.getChild("y");
 		auto directory = box.getChild("directory");
 		auto onoff = box.getChild("onoff");
+		auto bypass = box.getChild("bypass");
 		// cout << "Nombre : " << nombre.getValue() << endl;
 		// cout << "y : " << x.getValue() << endl;
 		// cout << "x : " << y.getValue() << endl;
@@ -895,6 +897,7 @@ void JPboxgroup::load(string _dirinput)
 		bx->setup(directory.getValue(), nombre.getValue());
 		bx->setPos(x.getIntValue(), y.getIntValue());
 		bx->setonoff(!box.getChild("onoff").getBoolValue());
+		bx->setBypass(bypass ? bypass.getBoolValue() : false);
 
 		int index = 0;
 		auto parameters = box.getChild("parameters").getChildren();

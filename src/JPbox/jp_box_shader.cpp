@@ -315,6 +315,10 @@ void JPbox_shader::update()
 void JPbox_shader::updateFBO()
 {
 	// SHADER RENDER UPDATE
+	if (tryPassThroughFBO())
+	{
+		return;
+	}
 	if (onoff.boolValue)
 	{
 		ofSetRectMode(OF_RECTMODE_CORNER);

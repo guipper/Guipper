@@ -76,6 +76,10 @@ public:
 	void setonoff(bool _val);
 	bool getonoff();
 	JPToogle onoff;
+	void setBypass(bool _val);
+	bool getBypass();
+	bool tryPassThroughFBO();
+	JPToogle bypass;
 
 	//SHOWCODE
 	bool showCode = false;
