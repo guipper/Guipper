@@ -74,6 +74,17 @@ public:
 	void listenToOsc(string _dir, float _val);
 	void setDurationGalleryMs(float _ms);
 	float getDurationGalleryMs() const;
+	vector<string> getBoxNames() const;
+	bool hasBoxName(string boxName) const;
+	bool toggleBypassForBox(string boxName);
+	bool togglePauseForBox(string boxName);
+	bool setBypassForBox(string boxName, bool value);
+	bool setPauseForBox(string boxName, bool value);
+	bool selectOpenBoxByName(string boxName);
+	bool selectOpenBoxByIndex(int index);
+	int getMaxParameterCount() const;
+	bool setOpenBoxParameterAtIndex(int parameterIndex, float value);
+	bool setLastBoxOnOff(bool value);
 
 	bool mouseOverGui();
 
@@ -103,6 +114,8 @@ private:
 	void draw_cursorrect();
 	void setControllers();
 	void setupShaderRendersFromDataFolder(); // Esta es para que levante todos
+	int findBoxIndexByName(string boxName) const;
+	JPbox *findBoxByName(string boxName) const;
 
 	ofTrueTypeFont *font_p;
 

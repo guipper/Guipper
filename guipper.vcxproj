@@ -100,7 +100,7 @@
       <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);src;src\JPbox;src\JPgui;src\JPutils;..\..\..\addons\ofxNDI\libs\NDI\include;..\..\..\addons\ofxNDI\src;..\..\..\addons\ofxOsc\libs;..\..\..\addons\ofxOsc\libs\oscpack;..\..\..\addons\ofxOsc\libs\oscpack\src;..\..\..\addons\ofxOsc\libs\oscpack\src\ip;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\posix;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32;..\..\..\addons\ofxOsc\libs\oscpack\src\osc;..\..\..\addons\ofxOsc\src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);src;src\JPbox;src\JPgui;src\JPutils;..\..\..\addons\ofxMidi\src;..\..\..\addons\ofxMidi\libs\rtmidi;..\..\..\addons\ofxNDI\libs\NDI\include;..\..\..\addons\ofxNDI\src;..\..\..\addons\ofxOsc\libs;..\..\..\addons\ofxOsc\libs\oscpack;..\..\..\addons\ofxOsc\libs\oscpack\src;..\..\..\addons\ofxOsc\libs\oscpack\src\ip;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\posix;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32;..\..\..\addons\ofxOsc\libs\oscpack\src\osc;..\..\..\addons\ofxOsc\src</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <PreprocessorDefinitions>OSC_HOST_LITTLE_ENDIAN</PreprocessorDefinitions>
@@ -109,7 +109,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);winmm.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent />
@@ -121,7 +121,7 @@
       <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);src;src\JPbox;src\JPgui;src\JPutils;..\..\..\addons\ofxNDI\libs\NDI\include;..\..\..\addons\ofxNDI\src;..\..\..\addons\ofxOsc\libs;..\..\..\addons\ofxOsc\libs\oscpack;..\..\..\addons\ofxOsc\libs\oscpack\src;..\..\..\addons\ofxOsc\libs\oscpack\src\ip;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\posix;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32;..\..\..\addons\ofxOsc\libs\oscpack\src\osc;..\..\..\addons\ofxOsc\src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);src;src\JPbox;src\JPgui;src\JPutils;..\..\..\addons\ofxMidi\src;..\..\..\addons\ofxMidi\libs\rtmidi;..\..\..\addons\ofxNDI\libs\NDI\include;..\..\..\addons\ofxNDI\src;..\..\..\addons\ofxOsc\libs;..\..\..\addons\ofxOsc\libs\oscpack;..\..\..\addons\ofxOsc\libs\oscpack\src;..\..\..\addons\ofxOsc\libs\oscpack\src\ip;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\posix;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32;..\..\..\addons\ofxOsc\libs\oscpack\src\osc;..\..\..\addons\ofxOsc\src</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
@@ -131,7 +131,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);winmm.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent />
@@ -142,7 +142,7 @@
       <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);src;src\JPbox;src\JPgui;src\JPutils;..\..\..\addons\ofxNDI\libs\NDI\include;..\..\..\addons\ofxNDI\src;..\..\..\addons\ofxOsc\libs;..\..\..\addons\ofxOsc\libs\oscpack;..\..\..\addons\ofxOsc\libs\oscpack\src;..\..\..\addons\ofxOsc\libs\oscpack\src\ip;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\posix;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32;..\..\..\addons\ofxOsc\libs\oscpack\src\osc;..\..\..\addons\ofxOsc\src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);src;src\JPbox;src\JPgui;src\JPutils;..\..\..\addons\ofxMidi\src;..\..\..\addons\ofxMidi\libs\rtmidi;..\..\..\addons\ofxNDI\libs\NDI\include;..\..\..\addons\ofxNDI\src;..\..\..\addons\ofxOsc\libs;..\..\..\addons\ofxOsc\libs\oscpack;..\..\..\addons\ofxOsc\libs\oscpack\src;..\..\..\addons\ofxOsc\libs\oscpack\src\ip;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\posix;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32;..\..\..\addons\ofxOsc\libs\oscpack\src\osc;..\..\..\addons\ofxOsc\src</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
@@ -155,7 +155,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);winmm.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent />
@@ -166,7 +166,7 @@
       <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);src;src\JPbox;src\JPgui;src\JPutils;..\..\..\addons\ofxNDI\libs\NDI\include;..\..\..\addons\ofxNDI\src;..\..\..\addons\ofxOsc\libs;..\..\..\addons\ofxOsc\libs\oscpack;..\..\..\addons\ofxOsc\libs\oscpack\src;..\..\..\addons\ofxOsc\libs\oscpack\src\ip;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\posix;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32;..\..\..\addons\ofxOsc\libs\oscpack\src\osc;..\..\..\addons\ofxOsc\src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);src;src\JPbox;src\JPgui;src\JPutils;..\..\..\addons\ofxMidi\src;..\..\..\addons\ofxMidi\libs\rtmidi;..\..\..\addons\ofxNDI\libs\NDI\include;..\..\..\addons\ofxNDI\src;..\..\..\addons\ofxOsc\libs;..\..\..\addons\ofxOsc\libs\oscpack;..\..\..\addons\ofxOsc\libs\oscpack\src;..\..\..\addons\ofxOsc\libs\oscpack\src\ip;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\posix;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32;..\..\..\addons\ofxOsc\libs\oscpack\src\osc;..\..\..\addons\ofxOsc\src</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <PreprocessorDefinitions>OSC_HOST_LITTLE_ENDIAN</PreprocessorDefinitions>
@@ -178,13 +178,14 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);winmm.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent />
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\JPutils\TransitionSR.cpp" />
+    <ClCompile Include="src\JPutils\jp_midi_keymap.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\ofApp.cpp" />
     <ClCompile Include="src\JPgui\jp_knob.cpp" />
@@ -209,6 +210,18 @@
     <ClCompile Include="src\JPutils\jp_fileloader.cpp" />
     <ClCompile Include="src\JPutils\jp_fbohandler.cpp" />
     <ClCompile Include="src\JPutils\jp_constants.cpp" />
+    <ClCompile Include="..\..\..\addons\ofxMidi\src\ofxBaseMidi.cpp" />
+    <ClCompile Include="..\..\..\addons\ofxMidi\src\ofxMidi.cpp" />
+    <ClCompile Include="..\..\..\addons\ofxMidi\src\ofxMidiClock.cpp" />
+    <ClCompile Include="..\..\..\addons\ofxMidi\src\ofxMidiIn.cpp" />
+    <ClCompile Include="..\..\..\addons\ofxMidi\src\ofxMidiMessage.cpp">
+      <ForcedIncludeFiles>sstream;%(ForcedIncludeFiles)</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\..\..\addons\ofxMidi\src\ofxMidiOut.cpp" />
+    <ClCompile Include="..\..\..\addons\ofxMidi\src\ofxMidiTimecode.cpp" />
+    <ClCompile Include="..\..\..\addons\ofxMidi\src\desktop\ofxRtMidiIn.cpp" />
+    <ClCompile Include="..\..\..\addons\ofxMidi\src\desktop\ofxRtMidiOut.cpp" />
+    <ClCompile Include="..\..\..\addons\ofxMidi\libs\rtmidi\RtMidi.cpp" />
     <ClCompile Include="..\..\..\addons\ofxNDI\src\ofxNDIreceive.cpp" />
     <ClCompile Include="..\..\..\addons\ofxNDI\src\ofxNDIsender.cpp" />
     <ClCompile Include="..\..\..\addons\ofxNDI\src\ofxNDIsend.cpp" />
@@ -242,6 +255,7 @@
   <ItemGroup>
     <ClInclude Include="src\defines.h" />
     <ClInclude Include="src\JPutils\TransitionSR.h" />
+    <ClInclude Include="src\JPutils\jp_midi_keymap.h" />
     <ClInclude Include="src\ofApp.h" />
     <ClInclude Include="src\JPgui\jp_knob.h" />
     <ClInclude Include="src\JPgui\jp_complexslider.h" />
@@ -265,6 +279,18 @@
     <ClInclude Include="src\JPutils\jp_fbohandler.h" />
     <ClInclude Include="src\JPutils\jp_dragobject.h" />
     <ClInclude Include="src\JPutils\jp_parametergroup.h" />
+    <ClInclude Include="..\..\..\addons\ofxMidi\src\ofxBaseMidi.h" />
+    <ClInclude Include="..\..\..\addons\ofxMidi\src\ofxMidi.h" />
+    <ClInclude Include="..\..\..\addons\ofxMidi\src\ofxMidiClock.h" />
+    <ClInclude Include="..\..\..\addons\ofxMidi\src\ofxMidiConstants.h" />
+    <ClInclude Include="..\..\..\addons\ofxMidi\src\ofxMidiIn.h" />
+    <ClInclude Include="..\..\..\addons\ofxMidi\src\ofxMidiMessage.h" />
+    <ClInclude Include="..\..\..\addons\ofxMidi\src\ofxMidiOut.h" />
+    <ClInclude Include="..\..\..\addons\ofxMidi\src\ofxMidiTimecode.h" />
+    <ClInclude Include="..\..\..\addons\ofxMidi\src\ofxMidiTypes.h" />
+    <ClInclude Include="..\..\..\addons\ofxMidi\src\desktop\ofxRtMidiIn.h" />
+    <ClInclude Include="..\..\..\addons\ofxMidi\src\desktop\ofxRtMidiOut.h" />
+    <ClInclude Include="..\..\..\addons\ofxMidi\libs\rtmidi\RtMidi.h" />
     <ClInclude Include="..\..\..\addons\ofxNDI\src\ofxNDI.h" />
     <ClInclude Include="..\..\..\addons\ofxNDI\src\ofxNDIreceive.h" />
     <ClInclude Include="..\..\..\addons\ofxNDI\src\ofxNDIsender.h" />

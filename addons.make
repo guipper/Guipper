@@ -1,2 +1,3 @@
 ofxNDI
 ofxOsc
+ofxMidi

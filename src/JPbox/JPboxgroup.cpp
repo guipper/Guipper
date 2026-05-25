@@ -896,7 +896,7 @@ void JPboxgroup::load(string _dirinput)
 
 		bx->setup(directory.getValue(), nombre.getValue());
 		bx->setPos(x.getIntValue(), y.getIntValue());
-		bx->setonoff(!box.getChild("onoff").getBoolValue());
+		bx->setonoff(onoff ? onoff.getBoolValue() : true);
 		bx->setBypass(bypass ? bypass.getBoolValue() : false);
 
 		int index = 0;
@@ -1272,6 +1272,151 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 			controllers[Intindex]->value = _val;
 		}
 	}
+}
+vector<string> JPboxgroup::getBoxNames() const
+{
+	vector<string> names;
+	for (int i = 0; i < boxes.size(); i++)
+	{
+		names.push_back(boxes[i]->name);
+	}
+	return names;
+}
+int JPboxgroup::findBoxIndexByName(string boxName) const
+{
+	for (int i = 0; i < boxes.size(); i++)
+	{
+		if (boxes[i]->name == boxName)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+JPbox *JPboxgroup::findBoxByName(string boxName) const
+{
+	int index = findBoxIndexByName(boxName);
+	if (index >= 0)
+	{
+		return boxes[index];
+	}
+	return nullptr;
+}
+bool JPboxgroup::hasBoxName(string boxName) const
+{
+	return findBoxByName(boxName) != nullptr;
+}
+bool JPboxgroup::toggleBypassForBox(string boxName)
+{
+	JPbox *box = findBoxByName(boxName);
+	if (box != nullptr)
+	{
+		box->setBypass(!box->getBypass());
+		return true;
+	}
+	return false;
+}
+bool JPboxgroup::togglePauseForBox(string boxName)
+{
+	JPbox *box = findBoxByName(boxName);
+	if (box != nullptr)
+	{
+		box->setonoff(!box->getonoff());
+		return true;
+	}
+	return false;
+}
+bool JPboxgroup::setBypassForBox(string boxName, bool value)
+{
+	JPbox *box = findBoxByName(boxName);
+	if (box != nullptr)
+	{
+		box->setBypass(value);
+		return true;
+	}
+	return false;
+}
+bool JPboxgroup::setPauseForBox(string boxName, bool value)
+{
+	JPbox *box = findBoxByName(boxName);
+	if (box != nullptr)
+	{
+		box->setonoff(value);
+		return true;
+	}
+	return false;
+}
+bool JPboxgroup::selectOpenBoxByName(string boxName)
+{
+	int index = findBoxIndexByName(boxName);
+	if (index >= 0)
+	{
+		openguinumber = index;
+		setControllers();
+		return true;
+	}
+	return false;
+}
+bool JPboxgroup::selectOpenBoxByIndex(int index)
+{
+	if (index >= 0 && index < boxes.size())
+	{
+		openguinumber = index;
+		setControllers();
+		return true;
+	}
+	return false;
+}
+int JPboxgroup::getMaxParameterCount() const
+{
+	int maxCount = 0;
+	for (int b = 0; b < boxes.size(); b++)
+	{
+		maxCount = std::max(maxCount, boxes[b]->parameters.getSize());
+	}
+	return maxCount;
+}
+bool JPboxgroup::setOpenBoxParameterAtIndex(int parameterIndex, float value)
+{
+	if (openguinumber < 0 || openguinumber >= boxes.size() ||
+		parameterIndex < 0 ||
+		parameterIndex >= boxes[openguinumber]->parameters.getSize())
+	{
+		return false;
+	}
+
+	int type = boxes[openguinumber]->parameters.getType(parameterIndex);
+	if (type == boxes[openguinumber]->parameters.FLOAT)
+	{
+		boxes[openguinumber]->parameters.setFloatValue(value, parameterIndex);
+		boxes[openguinumber]->parameters.setFloatLerpValue(value, parameterIndex);
+		if (parameterIndex < controllers.size())
+		{
+			controllers[parameterIndex]->value = value;
+		}
+		return true;
+	}
+	if (type == boxes[openguinumber]->parameters.BOOL)
+	{
+		bool boolValue = value > 0.5f;
+		boxes[openguinumber]->parameters.setBoolValue(boolValue, parameterIndex);
+		if (parameterIndex < controllers.size())
+		{
+			controllers[parameterIndex]->boolValue = boolValue;
+			controllers[parameterIndex]->activeFlag = false;
+		}
+		return true;
+	}
+	return false;
+}
+bool JPboxgroup::setLastBoxOnOff(bool value)
+{
+	if (boxes.empty())
+	{
+		return false;
+	}
+	boxes.back()->setonoff(value);
+	return true;
 }
 bool JPboxgroup::mouseOverGui()
 {

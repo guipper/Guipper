@@ -17,6 +17,7 @@
 //#include "JPbox/Shaderrender.h"
 #include "JPutils/jp_fileloader.h"
 #include "JPutils/jp_constants.h"
+#include "JPutils/jp_midi_keymap.h"
 #include "ofxOsc.h"
 #include "ofxNDI.h"
 
@@ -51,6 +52,7 @@ public:
 	void mouseDragged(int x, int y, int button);
 	void mousePressed(int x, int y, int button);
 	void mouseReleased(int x, int y, int button);
+	void mouseScrolled(int x, int y, float scrollX, float scrollY);
 	void mouseEntered(int x, int y);
 	void mouseExited(int x, int y);
 	void windowResized(int w, int h);
@@ -106,6 +108,8 @@ public:
 
 	void loadSettings();
 	void saveSettings();
+	void saveSession(string path);
+	void loadSession(string path);
 
 	float window_initialposx;
 	float window_initialposy;
@@ -118,6 +122,7 @@ public:
 	int mouseX, mouseY;
 	char mouseButtonState[128];
 	void updateOSC();
+	JPMidiKeymap midiKeymap;
 
 	// Esto ser�a mejor en uno tal vez ? por ahora lo dejamos con 2.
 	OpenLoader openloader;

@@ -18,7 +18,7 @@ void JPToogle::setup(float _x, float _y, float _width, float _height)
 	height = _height;
 	// cout << "WIDTH " << width << endl;
 	// cout << "HEIGHT" << height << endl;
-	activeFlag = true;
+	activeFlag = false;
 	boolValue = true;
 
 	showtext = false;
@@ -142,6 +142,10 @@ void JPToogle::draw()
 	{
 		activeFlag = false;
 		boolValue = !boolValue;
+		if (!useTexture && parameters != nullptr && parameters->variabletype == JPParameter::BOOL)
+		{
+			parameters->boolValue = boolValue;
+		}
 		ofSetColor(jp_constants::Cactive[paleta]);
 		// cout << "TRIGGER" << endl ;
 	}
@@ -154,19 +158,19 @@ void JPToogle::draw()
 	{
 		if (boolValue)
 		{
-			ofSetColor(jp_constants::Cback[paleta]);
+			ofSetColor(jp_constants::Cactive[paleta]);
 		}
 		else
 		{
-			ofSetColor(jp_constants::Cactive[paleta]);
+			ofSetColor(jp_constants::Cback[paleta]);
 		}
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		ofRect(x, y, width, height);
-		ofSetColor(ofColor::white);
 	}
 	if (showtext)
 	{
 		string Strvalue = name;
+		ofSetColor(boolValue ? ofColor(0) : ofColor(255));
 		jp_constants::p_font.drawString(Strvalue,
 										x - jp_constants::p_font.stringWidth(Strvalue) / 2,
 										y + jp_constants::p_font.stringHeight(Strvalue) / 2);

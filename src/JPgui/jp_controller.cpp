@@ -4,6 +4,7 @@ JPcontroller::JPcontroller()
 {
 	paleta = 0;
 	useTexture = false;
+	parameters = nullptr;
 	//	cout << " ASLDDASD " << endl;
 }
 JPcontroller::~JPcontroller()

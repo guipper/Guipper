@@ -44,6 +44,7 @@ void ofApp::setup(){
 	receiver.setup(PORT);
 	oscout_mode1 = true;
 	oscout_mode2 = true;
+	midiKeymap.setup(&boxes);
 
 	loadSettings();
 
@@ -100,13 +101,14 @@ void ofApp::setup(){
 	// glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations
 	//ofDisableArbTex(); // needed for textures to work
 	// myTextureImage.loadImage("SpoutBox1.png");			// Load a texture image for the demo
-	boxes.load(savedirectory);
+	loadSession(savedirectory);
 
 
 }
 void ofApp::update()
 {
 	boxes.update();
+	midiKeymap.update();
 
 #ifdef SPOUT
 	if (spoutActive && boxes.getBoxesSize() > 0)
@@ -129,7 +131,7 @@ void ofApp::update()
 	{
 		savedirectory = saveas_saver.path;
 		cout << "Save session to " << savedirectory << endl;
-		boxes.save(savedirectory);
+		saveSession(savedirectory);
 		saveas_saver.activeflag = false;
 	}
 
@@ -181,6 +183,8 @@ void ofApp::draw()
 	{
 		draw_opciones();
 	}
+	midiKeymap.drawMappingTargets();
+	midiKeymap.draw();
 
 	
 
@@ -224,6 +228,7 @@ void ofApp::draw_instrucciones()
 		jp_constants::p_font.drawString("d : Muestra los datos de debug", x, y += sepy);
 		jp_constants::p_font.drawString("h : Agrega caja SPOUT INPUT", x, y += sepy);
 		jp_constants::p_font.drawString("c : Agrega caja camara", x, y += sepy);
+		jp_constants::p_font.drawString("k : Abre/cierra el panel MIDI Keymap", x, y += sepy);
 		jp_constants::p_font.drawString("m : Exportar imagen", x, y += sepy);
 		jp_constants::p_font.drawString("e : Activar modo secuencia", x, y += sepy);
 		jp_constants::p_font.drawString("COMANDOS OSC ", x, y += sepy);
@@ -244,6 +249,7 @@ void ofApp::draw_instrucciones()
 		jp_constants::p_font.drawString("d : Show debug data", x, y += sepy);
 		jp_constants::p_font.drawString("h : Add spout input box", x, y += sepy);
 		jp_constants::p_font.drawString("c : Add Camera box", x, y += sepy);
+		jp_constants::p_font.drawString("k : Open/close the MIDI Keymap panel", x, y += sepy);
 		jp_constants::p_font.drawString("m : Export image to exportimgs folder", x, y += sepy);
 		jp_constants::p_font.drawString("e : Activate sequence mode", x, y += sepy);
 		jp_constants::p_font.drawString("OSC COMMANDS ", x, y += sepy);
@@ -279,6 +285,11 @@ void ofApp::drawRender()
 void ofApp::keyPressed(int key)
 {
 
+	if (midiKeymap.keyPressed(key))
+	{
+		return;
+	}
+
 	// keyIsDown[key] = true;
 
 	if (key == '1')
@@ -294,6 +305,10 @@ void ofApp::keyPressed(int key)
 	if (key == '3')
 	{
 		pantallaActiva = TUTORIAL;
+	}
+	if (key == 'k')
+	{
+		midiKeymap.togglePanel();
 	}
 
 	if (pantallaActiva == NODOS)
@@ -394,12 +409,12 @@ void ofApp::keyPressed(int key)
 		if (key == 's')
 		{
 			cout << "Save session to " << savedirectory << endl;
-			boxes.save(savedirectory);
+			saveSession(savedirectory);
 		}
 		if (key == 'l')
 		{
 			cout << "Load session from " << savedirectory << endl;
-			boxes.load(savedirectory);
+			loadSession(savedirectory);
 		}
 		if (key == 'd')
 		{
@@ -509,6 +524,7 @@ void ofApp::keycodePressed(ofKeyEventArgs &e)
 }
 void ofApp::mouseDragged(int x, int y, int button)
 {
+	midiKeymap.mouseDragged(x, y, button);
 	if (pantallaActiva == NODOS)
 	{
 		// jp_constants::set_mousePressedPos(ofVec2f(ofGetMouseX(), ofGetMouseY()));
@@ -517,6 +533,14 @@ void ofApp::mouseDragged(int x, int y, int button)
 }
 void ofApp::mousePressed(int x, int y, int button)
 {
+	if (midiKeymap.mousePressed(x, y, button))
+	{
+		return;
+	}
+	if (midiKeymap.captureFunctionClick(x, y, button))
+	{
+		return;
+	}
 
 	if (pantallaActiva == NODOS)
 	{
@@ -535,7 +559,7 @@ void ofApp::mousePressed(int x, int y, int button)
 void ofApp::windowResized(int w, int h)
 {
 
-	// El resize lo hace solo para mover la interfaz. Los tama�os de render se mantienen igual
+	// El resize lo hace solo para mover la interfaz. Los tamaos de render se mantienen igual
 	boxes.update_resized(ofGetWidth(), ofGetHeight());
 	// InitGLtexture(sendertexture, ofGetWidth(), ofGetHeight()); //!?!??!!?
 	//	boxes.update_resized(jp_constants::renderWidth, jp_constants::renderHeight);
@@ -544,9 +568,17 @@ void ofApp::keyReleased(int key) {}
 void ofApp::mouseMoved(int x, int y) {}
 void ofApp::mouseReleased(int x, int y, int button)
 {
+	midiKeymap.mouseReleased(x, y, button);
 	if (button == 0)
 	{
 		// mouseButton_left = false;
+	}
+}
+void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY)
+{
+	if (midiKeymap.mouseScrolled(x, y, scrollX, scrollY))
+	{
+		return;
 	}
 }
 void ofApp::mouseEntered(int x, int y) {}
@@ -596,7 +628,7 @@ void ofApp::dragEvent(ofDragInfo dragInfo)
 		if (path.find(".xml") != std::string::npos &&
 			!loadAspreset){
 			savedirectory = path;
-			boxes.load(path);
+			loadSession(path);
 		}
 		else{
 			
@@ -741,6 +773,16 @@ void ofApp::saveSettings()
 
 	xml.save(settingsPath);
 }
+void ofApp::saveSession(string path)
+{
+	boxes.save(path);
+	midiKeymap.saveToSession(path);
+}
+void ofApp::loadSession(string path)
+{
+	boxes.load(path);
+	midiKeymap.loadFromSession(path);
+}
 void ofApp::updateOSC(){
 	// hide old messages
 
@@ -763,7 +805,7 @@ void ofApp::updateOSC(){
 
 			string dirfinal = "savefiles/" + dir;
 			cout << "DIR FINNAL : " << dirfinal << endl;
-			boxes.load(dirfinal);
+			loadSession(dirfinal);
 			savedirectory = dirfinal;
 		}
 	}
@@ -812,6 +854,7 @@ void ofApp::updateOSC(){
 void ofApp::exit() {
 	//cout << "LALA" << endl;
 	//windows.back()->close();
+	midiKeymap.exit();
 }
 
 // LISTENERS DE LAS VENTANAS:
@@ -824,6 +867,7 @@ void ofApp::exit(ofEventArgs &e)
 	cout << "EXIT WINDOW " << endl;
 	// Save settings before exiting
 	saveSettings();
+	midiKeymap.exit();
 
 	// Ni idea que hacia este if ??? Pero si lo comento crashea
 	if (isRenderWindowOpen)

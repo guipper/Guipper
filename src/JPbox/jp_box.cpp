@@ -263,10 +263,18 @@ void JPbox::draw()
 		ofFill();
 	}
 	onoff.draw();
+	ofSetRectMode(OF_RECTMODE_CENTER);
+	ofColor onoffColor = onoff.boolValue ? ofColor(100, 100, 100, 255) : ofColor(255, 255, 255, 255);
+	if (onoffMouseOver)
+	{
+		onoffColor = onoffColor.getLerped(ofColor(255), 0.25);
+	}
+	ofSetColor(onoffColor);
+	ofDrawRectangle(onoff.x, onoff.y, onoff.width, onoff.height);
 	if (onoffMouseOver)
 	{
 		ofNoFill();
-		ofSetColor(255, 255, 255, 220);
+		ofSetColor(onoff.boolValue ? ofColor(255, 255, 255, 220) : ofColor(30, 30, 30, 220));
 		ofSetLineWidth(1);
 		ofDrawRectangle(onoff.x, onoff.y, onoff.width, onoff.height);
 		ofFill();
