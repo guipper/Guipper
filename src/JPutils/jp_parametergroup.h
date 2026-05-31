@@ -45,6 +45,11 @@ private:
 class JPParameterGroup
 {
 public:
+	JPParameterGroup();
+	~JPParameterGroup();
+	JPParameterGroup(const JPParameterGroup& other);
+	JPParameterGroup& operator=(const JPParameterGroup& other);
+
 	enum VariableType
 	{
 		BOOL,

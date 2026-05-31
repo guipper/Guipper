@@ -1527,6 +1527,7 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 	} while (existenombre);
 
 	bx->setup(directory, nombre);
+	bx->setonoff(true);
 	bx->setPos(_x, _y);
 	boxes.push_back(bx);
 }
@@ -1591,14 +1592,14 @@ void JPboxgroup::clear()
 	for (int i = boxes.size() - 1; i >= 0; i--)
 	{
 		boxes[i]->clear();
+		delete boxes[i];
 		boxes[i] = nullptr;
-		delete boxes.at(i);
 	}
 
-	for (int i = 0; i < controllers.size(); i++)
+	for (size_t i = 0; i < controllers.size(); i++)
 	{
+		delete controllers[i];
 		controllers[i] = nullptr;
-		delete controllers.at(i);
 	}
 
 	openguinumber = -1;
@@ -1627,58 +1628,42 @@ void JPboxgroup::deleteSelectedShader()
 	}*/
 
 
-	//ACA HAY QUE AGREGAR QUE SI BORRAS EL ULTIMO SETEE EN EL TRANSITION SHADER EL OTRO BUFFER.
-	int index = 0;
 	for (int i = 0; i < boxes.size(); i++)
 	{
 		if (boxes[i]->mouseOver())
 		{
-			int numbergrab = i;
 			for (int k = boxes.size() - 1; k >= 0; k--)
 			{
-				// cout << "FBO HANDLER GROUP NAMES OF " << boxes[k]->name << endl;
 				for (int l = 0; l < boxes[k]->fbohandlergroup.getSize(); l++)
 				{
-					// cout << "NUM: " << l << "  NAME : " << boxes[k]->fbohandlergroup.getFboName(l) << endl;
-					if (boxes[k]->fbohandlergroup.getFboName(l) ==
-						boxes[i]->name){
+					if (boxes[k]->fbohandlergroup.getFboName(l) == boxes[i]->name)
+					{
 						boxes[k]->fbohandlergroup.deleteFboPointer(l);
 					}
 				}
 			}
 			boxes[i]->clear();
+			delete boxes[i];
 			boxes[i] = nullptr;
-			delete (boxes[i]);
 
 			boxes.erase(boxes.begin() + i);
-			index = i;
-			if (i == openguinumber){
-				// openguinumber = -1;
-				//*activerender = 0;
+
+			// Safely adjust active render index when box is deleted
+			if (i == *activerender)
+			{
+				*activerender = std::max(0, i - 1);
+				updateTransition(*activerender);
 			}
+			else if (*activerender > i)
+			{
+				(*activerender)--;
+			}
+
+			// Decrement loop variable to account for vector shift
+			i--;
 		}
 	}
 
-	// ESTO ES PARA QUE SI EL QUE BORRAMOS ES EL ULTIMO AGREGADO DE LA LISTA.
-	//  Y SI ESE ULTIMO AGREGADO TAMBIEN RESULTA EL RENDER ACTIVO
-	//  Y QUE SI SI LA CANTIDAD DE CAJAS ES MAYOR A 0 :
-	if (index == *activerender && getBoxesSize() > 0 && index == getBoxesSize())
-	{
-		*activerender = index - 1;
-
-		//PARA SETEAR LOS TRANSITION SHADERS : 
-		//transition.setFboPointer1(&boxes[*activerender]->fbo);
-		//transition.setFboPointer2(&boxes[*activerender]->fbo);
-		updateTransition(*activerender);
-
-	}
-	/*if(index == 1)
-	else  {
-		*activerender = 0;
-	}*/
-
-	// ESTO VA A ESTAR ASI HASTA QUE COMPROBEMOS QUE NO CRASHEA POR MUCHO TIEMPO.
-	//*activerender = 0;
 	openguinumber = -1;
 }
 ofTexture *JPboxgroup::getActiveTexture()

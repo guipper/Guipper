@@ -92,8 +92,50 @@ void JPParameterGroup::addBoolValue(bool _var, string _name)
 	param->setup(_var, _name);
 	parameters.push_back(param);
 }
+JPParameterGroup::JPParameterGroup() {}
+
+JPParameterGroup::~JPParameterGroup()
+{
+	clear();
+}
+
+JPParameterGroup::JPParameterGroup(const JPParameterGroup& other)
+{
+	name = other.name;
+	for (size_t i = 0; i < other.parameters.size(); i++)
+	{
+		if (other.parameters[i] != nullptr)
+		{
+			JPParameter* newParam = new JPParameter(*other.parameters[i]);
+			parameters.push_back(newParam);
+		}
+	}
+}
+
+JPParameterGroup& JPParameterGroup::operator=(const JPParameterGroup& other)
+{
+	if (this != &other)
+	{
+		clear();
+		name = other.name;
+		for (size_t i = 0; i < other.parameters.size(); i++)
+		{
+			if (other.parameters[i] != nullptr)
+			{
+				JPParameter* newParam = new JPParameter(*other.parameters[i]);
+				parameters.push_back(newParam);
+			}
+		}
+	}
+	return *this;
+}
+
 void JPParameterGroup::clear()
 {
+	for (size_t i = 0; i < parameters.size(); i++)
+	{
+		delete parameters[i];
+	}
 	parameters.clear();
 }
 void JPParameterGroup::coutData()

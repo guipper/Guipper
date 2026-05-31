@@ -187,8 +187,8 @@ void JPbox_preset::clear()
 	for (int i = boxes.size() - 1; i >= 0; i--)
 	{
 		boxes[i]->clear();
+		delete boxes[i];
 		boxes[i] = nullptr;
-		delete boxes.at(i);
 	}
 
 	boxes.clear();

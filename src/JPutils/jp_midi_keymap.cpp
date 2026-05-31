@@ -109,6 +109,19 @@ namespace
 		}), value.end());
 		return value;
 	}
+
+	bool isAbsolutePath(string path)
+	{
+		return path.find(":/") != string::npos ||
+			   path.find(":\\") != string::npos ||
+			   path.find("/") == 0 ||
+			   path.find("\\") == 0;
+	}
+
+	bool shaderPathExists(string path)
+	{
+		return !path.empty() && (ofFile::doesFileExist(path) || ofFile::doesFileExist(ofToDataPath(path)));
+	}
 }
 
 void JPMidiKeymap::setup(JPboxgroup *_boxes)
@@ -126,6 +139,8 @@ void JPMidiKeymap::exit()
 void JPMidiKeymap::openInputs()
 {
 	closeInputs();
+	inputsOpen = true;
+	ccHighState.clear();
 
 	ofxMidiIn midiProbe;
 	int numPorts = midiProbe.getNumInPorts();
@@ -142,17 +157,28 @@ void JPMidiKeymap::openInputs()
 
 void JPMidiKeymap::closeInputs()
 {
+	if (!inputsOpen && midiInputs.empty())
+	{
+		return;
+	}
+
 	for (int i = 0; i < midiInputs.size(); i++)
 	{
-		midiInputs[i]->removeListener(this);
-		midiInputs[i]->closePort();
-		delete midiInputs[i];
+		if (midiInputs[i] != nullptr)
+		{
+			midiInputs[i]->removeListener(this);
+			midiInputs[i]->closePort();
+			delete midiInputs[i];
+		}
 	}
 	midiInputs.clear();
+	inputsOpen = false;
 }
 
 void JPMidiKeymap::update()
 {
+	processPendingShaderAdds();
+
 	vector<MidiKey> keys;
 	{
 		std::lock_guard<std::mutex> lock(pendingMutex);
@@ -234,15 +260,9 @@ void JPMidiKeymap::learnKey(const MidiKey &key)
 {
 	removeBindingForKey(key);
 
-	if (boxes == nullptr ||
-		(selectedAction != PARAMETER &&
-		 selectedAction != ADD_SHADER_BOX &&
-		 !isGlobalAction(selectedAction) &&
-		 selectedBoxName.empty()) ||
-		(selectedAction == ADD_SHADER_BOX && addShaderQuery.empty()))
+	if (!hasLearnTarget())
 	{
-		learning = false;
-		rebindIndex = -1;
+		cancelLearning();
 		return;
 	}
 
@@ -253,6 +273,10 @@ void JPMidiKeymap::learnKey(const MidiKey &key)
 	binding.parameterIndex = selectedParameterIndex;
 	binding.shaderQuery = selectedAction == ADD_SHADER_BOX ? addShaderQuery : "";
 	binding.shaderPath = selectedAction == ADD_SHADER_BOX ? getAddShaderRowPath(addShaderQuery) : "";
+	if (selectedAction == ADD_SHADER_BOX && binding.shaderPath.empty())
+	{
+		binding.shaderPath = resolveShaderQuery(addShaderQuery);
+	}
 
 	if (rebindIndex >= 0 && rebindIndex < bindings.size())
 	{
@@ -281,6 +305,58 @@ void JPMidiKeymap::armLearn(const Binding &binding, int existingIndex)
 	learning = true;
 	panelOpen = true;
 	editMode = true;
+}
+
+void JPMidiKeymap::cancelLearning()
+{
+	learning = false;
+	rebindIndex = -1;
+}
+
+bool JPMidiKeymap::hasLearnTarget() const
+{
+	if (boxes == nullptr)
+	{
+		return false;
+	}
+	if (selectedAction == PARAMETER)
+	{
+		return selectedParameterIndex >= 0 && selectedParameterIndex < getGlobalParameterIndexCount();
+	}
+	if (selectedAction == ADD_SHADER_BOX)
+	{
+		return !addShaderQuery.empty();
+	}
+	if (isGlobalAction(selectedAction))
+	{
+		return true;
+	}
+	return !selectedBoxName.empty();
+}
+
+bool JPMidiKeymap::isBindingLoadable(const Binding &binding) const
+{
+	if (binding.key.messageType != "note" && binding.key.messageType != "cc")
+	{
+		return false;
+	}
+	if (binding.key.channel < 0 || binding.key.number < 0)
+	{
+		return false;
+	}
+	if (binding.action == PARAMETER)
+	{
+		return binding.parameterIndex >= 0;
+	}
+	if (binding.action == ADD_SHADER_BOX)
+	{
+		return !binding.shaderQuery.empty() || !binding.shaderPath.empty();
+	}
+	if (isGlobalAction(binding.action))
+	{
+		return true;
+	}
+	return !binding.boxName.empty();
 }
 
 void JPMidiKeymap::applyBinding(const Binding &binding, float midiValue)
@@ -346,21 +422,38 @@ void JPMidiKeymap::applyBinding(const Binding &binding, float midiValue)
 	}
 	else if (binding.action == ADD_SHADER_BOX)
 	{
-		string shaderPath = binding.shaderPath.empty() ? resolveShaderQuery(binding.shaderQuery) : binding.shaderPath;
-		if (!shaderPath.empty() &&
-			((shaderPath.find(":") == string::npos &&
-			  shaderPath.find("/") != 0 &&
-			  shaderPath.find("\\") != 0) ||
-			 shaderPath.find(":/") != string::npos))
-		{
-			shaderPath = resolveShaderQuery(binding.shaderQuery);
-		}
+		string shaderPath = getShaderPathForAddBinding(binding);
 		if (!shaderPath.empty())
 		{
-			boxes->addBox(shaderPath);
-			boxes->setLastBoxOnOff(true);
+			queueShaderAdd(shaderPath);
 		}
 	}
+}
+
+void JPMidiKeymap::processPendingShaderAdds()
+{
+	if (boxes == nullptr || pendingShaderAdds.empty())
+	{
+		return;
+	}
+
+	string shaderPath = pendingShaderAdds.front();
+	pendingShaderAdds.erase(pendingShaderAdds.begin());
+	boxes->addBox(shaderPath);
+	boxes->setLastBoxOnOff(true);
+}
+
+void JPMidiKeymap::queueShaderAdd(string shaderPath)
+{
+	if (!shaderPathExists(shaderPath))
+	{
+		return;
+	}
+	if (std::find(pendingShaderAdds.begin(), pendingShaderAdds.end(), shaderPath) != pendingShaderAdds.end())
+	{
+		return;
+	}
+	pendingShaderAdds.push_back(shaderPath);
 }
 
 void JPMidiKeymap::removeBindingForKey(const MidiKey &key)
@@ -627,6 +720,19 @@ string JPMidiKeymap::getAddShaderRowPath(string query) const
 		{
 			return addShaderResolvedPaths[i];
 		}
+	}
+	return "";
+}
+
+string JPMidiKeymap::getShaderPathForAddBinding(const Binding &binding) const
+{
+	if (shaderPathExists(binding.shaderPath))
+	{
+		return binding.shaderPath;
+	}
+	if (shaderPathExists(binding.shaderQuery))
+	{
+		return binding.shaderQuery;
 	}
 	return "";
 }
@@ -1124,7 +1230,8 @@ void JPMidiKeymap::drawPanelHeader(float x, float y, float w)
 {
 	ofSetColor(255);
 	jp_constants::h_font.drawString("MIDI Keymap", x, y + 18);
-	drawButton(x + w - 174, y + 4, 82, 24, editMode ? "Map On" : "Map Off", editMode);
+	drawButton(x + w - 264, y + 4, 82, 24, editMode ? "Map On" : "Map Off", editMode);
+	drawButton(x + w - 174, y + 4, 82, 24, "Rescan", false);
 	drawButton(x + w - 84, y + 4, 84, 24, learning ? "Learning" : "Learn", learning);
 
 	jp_constants::p_font.drawString("Inputs: " + ofToString(midiInputs.size()), x, y + 46);
@@ -1421,19 +1528,33 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 	}
 
 	// Check header buttons
-	if (pointInRect(x, y, layout.innerX + layout.innerW - 174, layout.headerY + 4, 82, 24))
+	if (pointInRect(x, y, layout.innerX + layout.innerW - 264, layout.headerY + 4, 82, 24))
 	{
 		editMode = !editMode;
-		learning = false;
-		rebindIndex = -1;
+		cancelLearning();
+		targetBoxSelectOpen = false;
+		actionSelectOpen = false;
+		return true;
+	}
+	if (pointInRect(x, y, layout.innerX + layout.innerW - 174, layout.headerY + 4, 82, 24))
+	{
+		openInputs();
+		cancelLearning();
 		targetBoxSelectOpen = false;
 		actionSelectOpen = false;
 		return true;
 	}
 	if (pointInRect(x, y, layout.innerX + layout.innerW - 84, layout.headerY + 4, 84, 24))
 	{
-		learning = !learning;
-		rebindIndex = -1;
+		if (learning || !hasLearnTarget())
+		{
+			cancelLearning();
+		}
+		else
+		{
+			learning = true;
+			rebindIndex = -1;
+		}
 		targetBoxSelectOpen = false;
 		actionSelectOpen = false;
 		return true;
@@ -1943,8 +2064,12 @@ void JPMidiKeymap::saveToSession(string path)
 void JPMidiKeymap::loadFromSession(string path)
 {
 	bindings.clear();
-	learning = false;
-	rebindIndex = -1;
+	addShaderRows.clear();
+	addShaderResolvedPaths.clear();
+	addShaderSearched.clear();
+	focusedAddShaderRow = -1;
+	addShaderQuery = "";
+	cancelLearning();
 
 	ofXml xml;
 	if (!xml.load(path))
@@ -1974,7 +2099,14 @@ void JPMidiKeymap::loadFromSession(string path)
 		binding.shaderQuery = shaderQuery ? shaderQuery.getValue() : "";
 		auto shaderPath = bindingNode.getChild("shaderpath");
 		binding.shaderPath = shaderPath ? shaderPath.getValue() : "";
-		bindings.push_back(binding);
+		if (binding.action == ADD_SHADER_BOX && binding.shaderPath.empty() && !binding.shaderQuery.empty())
+		{
+			binding.shaderPath = resolveShaderQuery(binding.shaderQuery);
+		}
+		if (isBindingLoadable(binding))
+		{
+			bindings.push_back(binding);
+		}
 	}
 	syncAddShaderRowsFromBindings();
 }

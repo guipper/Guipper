@@ -91,6 +91,7 @@ private:
 	vector<ofxMidiIn *> midiInputs;
 	vector<Binding> bindings;
 	vector<MidiKey> pendingKeys;
+	vector<string> pendingShaderAdds;
 	map<string, bool> ccHighState;
 	std::mutex pendingMutex;
 
@@ -113,6 +114,7 @@ private:
 	Action selectedAction = BYPASS;
 	MidiKey lastKey;
 	bool hasLastKey = false;
+	bool inputsOpen = false;
 
 	// Scroll and drag variables
 	float targetBoxScrollY = 0.0f;
@@ -124,8 +126,13 @@ private:
 	void closeInputs();
 	void processKey(const MidiKey &key);
 	void applyBinding(const Binding &binding, float midiValue);
+	void processPendingShaderAdds();
+	void queueShaderAdd(string shaderPath);
 	void learnKey(const MidiKey &key);
 	void armLearn(const Binding &binding, int existingIndex = -1);
+	void cancelLearning();
+	bool hasLearnTarget() const;
+	bool isBindingLoadable(const Binding &binding) const;
 	void removeBindingForKey(const MidiKey &key);
 	int findBindingForKey(const MidiKey &key) const;
 	bool hasBindingForAction(Action action, string boxName = "", int parameterIndex = -1) const;
@@ -141,6 +148,7 @@ private:
 	void ensureAddShaderDraftRow();
 	bool resolveAddShaderRow(int rowIndex);
 	string getAddShaderRowPath(string query) const;
+	string getShaderPathForAddBinding(const Binding &binding) const;
 	string resolveShaderQuery(string query) const;
 	void collectShaderMatches(string directory, string normalizedQuery, vector<string> &exactMatches, vector<string> &containsMatches) const;
 	JPbox *getSelectedParameterBox() const;
