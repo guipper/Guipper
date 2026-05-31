@@ -1177,6 +1177,7 @@ void JPMidiKeymap::drawMappingTargets()
 
 void JPMidiKeymap::drawBoxMappingTargets()
 {
+	JPdragobject::setMouseOverride(boxes->screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY())));
 	for (int i = 0; i < boxes->boxes.size(); i++)
 	{
 		JPbox *box = boxes->boxes[i];
@@ -1186,25 +1187,30 @@ void JPMidiKeymap::drawBoxMappingTargets()
 		bool boxBound = hasBindingForAction(SELECT_OPEN_BOX, box->name);
 		bool bypassBound = hasBindingForAction(BYPASS, box->name);
 		bool pauseBound = hasBindingForAction(PAUSE, box->name);
+		ofVec2f boxPos = boxes->canvasToScreen(ofVec2f(box->x, box->y));
+		ofVec2f bypassPos = boxes->canvasToScreen(ofVec2f(box->bypass.x, box->bypass.y));
+		ofVec2f pausePos = boxes->canvasToScreen(ofVec2f(box->onoff.x, box->onoff.y));
+		float zoom = boxes->viewportZoom;
 
 		ofNoFill();
 		ofSetLineWidth((boxOver || boxBound) ? 3 : 2);
 		ofSetColor(boxBound ? ofColor(0, 255, 120, boxOver ? 255 : 220) :
 							  (boxOver ? ofColor(255, 255, 0, 230) : ofColor(255, 255, 0, 120)));
 		ofSetRectMode(OF_RECTMODE_CENTER);
-		ofDrawRectRounded(box->x, box->y, box->width + 8, box->height + 8, 8.0f);
+		ofDrawRectRounded(boxPos.x, boxPos.y, (box->width + 8) * zoom, (box->height + 8) * zoom, 8.0f * zoom);
 
 		ofSetLineWidth((bypassOver || bypassBound) ? 3 : 2);
 		ofSetColor(bypassBound ? ofColor(0, 255, 120, bypassOver ? 255 : 220) :
 								 (bypassOver ? ofColor(255, 80, 80, 255) : ofColor(255, 80, 80, 170)));
-		ofDrawRectRounded(box->bypass.x, box->bypass.y, box->bypass.width + 8, box->bypass.height + 8, 4.0f);
+		ofDrawRectRounded(bypassPos.x, bypassPos.y, (box->bypass.width + 8) * zoom, (box->bypass.height + 8) * zoom, 4.0f * zoom);
 
 		ofSetLineWidth((pauseOver || pauseBound) ? 3 : 2);
 		ofSetColor(pauseBound ? ofColor(0, 255, 120, pauseOver ? 255 : 220) :
 							   (pauseOver ? ofColor(255, 255, 255, 255) : ofColor(255, 255, 255, 170)));
-		ofDrawRectRounded(box->onoff.x, box->onoff.y, box->onoff.width + 8, box->onoff.height + 8, 4.0f);
+		ofDrawRectRounded(pausePos.x, pausePos.y, (box->onoff.width + 8) * zoom, (box->onoff.height + 8) * zoom, 4.0f * zoom);
 		ofFill();
 	}
+	JPdragobject::clearMouseOverride();
 }
 
 void JPMidiKeymap::drawInspectorMappingTargets()
@@ -1992,6 +1998,7 @@ bool JPMidiKeymap::captureFunctionClick(int x, int y, int button)
 
 bool JPMidiKeymap::tryCaptureBoxFunctionClick(int x, int y)
 {
+	JPdragobject::setMouseOverride(boxes->screenToCanvas(ofVec2f(x, y)));
 	for (int i = int(boxes->boxes.size()) - 1; i >= 0; i--)
 	{
 		JPbox *box = boxes->boxes[i];
@@ -1999,23 +2006,27 @@ bool JPMidiKeymap::tryCaptureBoxFunctionClick(int x, int y)
 		binding.boxName = box->name;
 		if (box->bypass.mouseOver())
 		{
+			JPdragobject::clearMouseOverride();
 			binding.action = BYPASS;
 			armLearn(binding);
 			return true;
 		}
 		if (box->onoff.mouseOver())
 		{
+			JPdragobject::clearMouseOverride();
 			binding.action = PAUSE;
 			armLearn(binding);
 			return true;
 		}
 		if (box->mouseOver())
 		{
+			JPdragobject::clearMouseOverride();
 			binding.action = SELECT_OPEN_BOX;
 			armLearn(binding);
 			return true;
 		}
 	}
+	JPdragobject::clearMouseOverride();
 	return false;
 }
 

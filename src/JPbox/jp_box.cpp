@@ -221,10 +221,12 @@ void JPbox::draw()
 		shortname += dots;
 	}
 	float nameTextWidth = jp_constants::p_font.stringWidth(shortname);
-	bool titleMouseOver = ofGetMouseX() >= nameX &&
-						  ofGetMouseX() <= nameX + nameTextWidth &&
-						  ofGetMouseY() >= titleY - jp_constants::p_font.stringHeight(shortname) &&
-						  ofGetMouseY() <= titleY + 3;
+	float mouseX = JPdragobject::getMouseX();
+	float mouseY = JPdragobject::getMouseY();
+	bool titleMouseOver = mouseX >= nameX &&
+						  mouseX <= nameX + nameTextWidth &&
+						  mouseY >= titleY - jp_constants::p_font.stringHeight(shortname) &&
+						  mouseY <= titleY + 3;
 	updateHoverStart(titleMouseOver, titleHoverStartMillis);
 	ofSetColor(20);
 	jp_constants::p_font.drawString(shortname,
@@ -236,7 +238,7 @@ void JPbox::draw()
 	if (outletActiveFlag)
 	{
 		ofSetColor(ofColor(0, 255,0).getLerped(ofColor(255),sin(ofGetElapsedTimeMillis()*0.01)*.5+.5));
-		ofDrawLine(outlet_x, outlet_y, ofGetMouseX(), ofGetMouseY());
+		ofDrawLine(outlet_x, outlet_y, mouseX, mouseY);
 	}
 
 	// JPbox::draw_outlet();
@@ -386,10 +388,12 @@ bool JPbox::mouseOverOutlet()
 
 	float auxoutletsize = outlet_size ;
 
-	if (ofGetMouseX() > outlet_x - auxoutletsize &&
-		ofGetMouseX() < outlet_x + auxoutletsize &&
-		ofGetMouseY() > outlet_y - auxoutletsize &&
-		ofGetMouseY() < outlet_y + auxoutletsize)
+	float mouseX = JPdragobject::getMouseX();
+	float mouseY = JPdragobject::getMouseY();
+	if (mouseX > outlet_x - auxoutletsize &&
+		mouseX < outlet_x + auxoutletsize &&
+		mouseY > outlet_y - auxoutletsize &&
+		mouseY < outlet_y + auxoutletsize)
 	{
 		return true;
 	}

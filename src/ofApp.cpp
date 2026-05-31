@@ -511,6 +511,9 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 	if (midiKeymap.mouseScrolled(x, y, scrollX, scrollY)) {
 		return;
 	}
+	if (pantallaActiva == NODOS) {
+		boxes.mouseScrolled(x, y, scrollX, scrollY);
+	}
 }
 void ofApp::mouseEntered(int x, int y) { }
 void ofApp::mouseExited(int x, int y) { }
@@ -524,8 +527,10 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
 	float sepx = 80 * 1.4;
 	float sepy = 80 * 1.6;
 
-	float xx = dragInfo.position.x;
-	float yy = dragInfo.position.y;
+	ofVec2f dropPosition = boxes.screenToCanvas(ofVec2f(dragInfo.position.x, dragInfo.position.y));
+	ofVec2f dropSpacing = boxes.screenDeltaToCanvas(ofVec2f(sepx, sepy));
+	float xx = dropPosition.x;
+	float yy = dropPosition.y;
 
 	int indexx = 0;
 	int indexy = 0;
@@ -535,8 +540,8 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
 
 			if (indexx >= ceil(sqrt(dragInfo.files.size()))) {
 				indexx = 0;
-				xx = dragInfo.position.x;
-				yy += sepy;
+				xx = dropPosition.x;
+				yy += dropSpacing.y;
 			}
 			indexx++;
 		}
@@ -558,7 +563,7 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
 
 			boxes.addBox(path, xx, yy);
 		}
-		xx += sepx;
+		xx += dropSpacing.x;
 	}
 }
 void ofApp::openRenderWindow() {

@@ -23,9 +23,16 @@ public:
 
 	bool activeFlag;
 
+	static void setMouseOverride(const ofVec2f &_mouse);
+	static void clearMouseOverride();
+	static float getMouseX();
+	static float getMouseY();
+
 	virtual bool mouseOver(); // Si esta encima del slider
 	virtual bool mouseGrab(); // Si esta agarrado
 							  // bool mouseClick();
 protected:
 	float isGrabbed2;
+	static bool useMouseOverride;
+	static ofVec2f mouseOverride;
 };

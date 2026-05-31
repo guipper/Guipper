@@ -46,6 +46,7 @@ public:
 	void update_mouseDragged(int mousebutton); // Lo que hace cuando arrastras en la pantalla.
 	void update_mousePressed(int mouseButton); // Lo que hace cada vez que haces click(ponele).
 	void update_mouseReleased(int mouseButton);
+	bool mouseScrolled(int x, int y, float scrollX, float scrollY);
 
 	void updateTransition(int _i);
 
@@ -88,6 +89,9 @@ public:
 	bool setLastBoxOnOff(bool value);
 
 	bool mouseOverGui();
+	ofVec2f screenToCanvas(const ofVec2f &screen) const;
+	ofVec2f canvasToScreen(const ofVec2f &canvas) const;
+	ofVec2f screenDeltaToCanvas(const ofVec2f &screenDelta) const;
 
 	// void setVideoGrabberPointer(ofVideoGrabber &_ofvideograb);
 	void clear();
@@ -97,6 +101,9 @@ public:
 
 	bool draw_SelectionRect = false;
 	ofVec2f lastMouseClick;
+	float viewportZoom = 1.0f;
+	ofVec2f viewportPan = ofVec2f(0, 0);
+	bool viewportPanning = false;
 
 	vector<JPcontroller *> controllers; // ESTE ARRAY ES DINAMICO , QUIERE DECIR QUE DEPENDE DE CUANDO CAMBIEN LOS COSOS
 										// ESTO ES SOLO PARA QUE LERPEE LOS VALORES HACIA ESTO.
@@ -126,6 +133,8 @@ private:
 	void drawGalleryDurationSlider();
 	void clearSelection();
 	void updateBoxSelection();
+	void zoomViewport(const ofVec2f &screenAnchor, float zoomFactor);
+	void panViewport(const ofVec2f &screenDelta);
 	bool boxIntersectsSelection(JPbox *box) const;
 	bool isBoxSelected(int index) const;
 	bool deleteBoxAtIndex(int index);

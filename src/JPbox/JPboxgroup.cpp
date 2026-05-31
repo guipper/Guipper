@@ -7,6 +7,33 @@
 JPboxgroup::JPboxgroup() {}
 JPboxgroup::~JPboxgroup() {}
 
+ofVec2f JPboxgroup::screenToCanvas(const ofVec2f &screen) const
+{
+	return (screen - viewportPan) / viewportZoom;
+}
+
+ofVec2f JPboxgroup::canvasToScreen(const ofVec2f &canvas) const
+{
+	return canvas * viewportZoom + viewportPan;
+}
+
+ofVec2f JPboxgroup::screenDeltaToCanvas(const ofVec2f &screenDelta) const
+{
+	return screenDelta / viewportZoom;
+}
+
+void JPboxgroup::zoomViewport(const ofVec2f &screenAnchor, float zoomFactor)
+{
+	ofVec2f canvasAnchor = screenToCanvas(screenAnchor);
+	viewportZoom = ofClamp(viewportZoom * zoomFactor, 0.25f, 3.0f);
+	viewportPan = screenAnchor - canvasAnchor * viewportZoom;
+}
+
+void JPboxgroup::panViewport(const ofVec2f &screenDelta)
+{
+	viewportPan += screenDelta;
+}
+
 
 void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 {
@@ -27,6 +54,9 @@ void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 
 	offsetx = 0;
 	offsety = 0;
+	viewportZoom = 1.0f;
+	viewportPan = ofVec2f(0, 0);
+	viewportPanning = false;
 
 	shaderboxagarrado = false;
 	ouletagarrado = false;
@@ -47,6 +77,10 @@ void JPboxgroup::draw()
 {
 	// boxesdrawing.draw(0, 0, ofGetWidth(), ofGetHeight());
 	// boxesdrawing.draw(offsetx, offsety, ofGetWidth(), ofGetHeight());
+	ofPushMatrix();
+	ofTranslate(viewportPan.x, viewportPan.y);
+	ofScale(viewportZoom, viewportZoom);
+	JPdragobject::setMouseOverride(screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY())));
 	draw_conections();
 
 	if (draw_SelectionRect) {
@@ -107,6 +141,8 @@ void JPboxgroup::draw()
 
 		ofDrawBitmapString(ofToString(i), x, y);
 	}
+	JPdragobject::clearMouseOverride();
+	ofPopMatrix();
 	draw_paramswindow();
 	drawGalleryDurationSlider();
 
@@ -256,15 +292,15 @@ void JPboxgroup::draw_conections()
 					//Es muy caro llamar atan2 todos los frames por todas las cajitas? 
 					//Creo que hay una manera de optimizar este codigo
 					if (boxes[i]->outletActiveFlag) {
-						boxes[i]->triangleangle = atan2(ofGetMouseY() - boxes[i]->outlet_y,
-						ofGetMouseX() - boxes[i]->outlet_x);
+						boxes[i]->triangleangle = atan2(JPdragobject::getMouseY() - boxes[i]->outlet_y,
+						JPdragobject::getMouseX() - boxes[i]->outlet_x);
 					}else{
 						if(boxes[k]->fbohandlergroup.getSize() > 0){
 							boxes[i]->triangleangle = atan2(boxes[k]->fbohandlergroup.getPosY(l) - boxes[i]->outlet_y,
 							boxes[k]->fbohandlergroup.getPosX(l) - boxes[i]->outlet_x);
 						}else {
-							boxes[i]->triangleangle = atan2(ofGetMouseY() - boxes[i]->outlet_y,
-								ofGetMouseX() - boxes[i]->outlet_x);
+							boxes[i]->triangleangle = atan2(JPdragobject::getMouseY() - boxes[i]->outlet_y,
+								JPdragobject::getMouseX() - boxes[i]->outlet_x);
 						}
 					}
 
@@ -283,6 +319,7 @@ void JPboxgroup::update(){
 
 	// bool unoagarrado = false;
 	update_paramswindow();
+	ofVec2f canvasMouse = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
 	
 	float lerpAmount = 0.3;
 	for (int i = boxes.size() - 1; i >= 0; i--){
@@ -306,7 +343,8 @@ void JPboxgroup::update(){
 		}
 
 		// PARA AGARRAR LAS CAJITAS :
-		if (ofGetMousePressed() && !draw_SelectionRect){
+		if (ofGetMousePressed() && !draw_SelectionRect && !viewportPanning){
+			JPdragobject::setMouseOverride(canvasMouse);
 			if (boxes[i]->mouseOverOutlet() && !ouletagarrado && !shaderboxagarrado){
 				boxes[i]->activeFlag = false;
 				boxes[i]->outletActiveFlag = true;
@@ -322,6 +360,7 @@ void JPboxgroup::update(){
 				shaderboxagarrado = true;
 				boxes[i]->activeFlag = true;
 			}
+			JPdragobject::clearMouseOverride();
 		}
 		// PARA QUE RECARGUE EL SHADER AUTOMATICAMENTE PAP�.
 		if (!jp_constants::systemDialog_open && boxes[i]->getTipo() == boxes[i]->SHADERBOX){
@@ -369,7 +408,8 @@ void JPboxgroup::update(){
 		cualestaagarrado = -1;
 		outlet_cualestaagarrado = -1;
 		draw_SelectionRect = false;
-		lastMouseClick = ofVec2f(ofGetMouseX(), ofGetMouseY());
+		viewportPanning = false;
+		lastMouseClick = canvasMouse;
 	}
 	// ESTO HABLA DE LO MAL QUE PROGRAMAS : MIRA MIRA LO QUE ES ESTO SE FUE A LA MEIRDA EL CODIGO :
 	// LA VARIABLE NEEDSUPDATE DETERMINA SI EL BOTON FUE APRETADO Y SI NECEITA ACTUALIZARSE LO HACE Y LA VUELVE A SETEAR A FALSE
@@ -527,9 +567,21 @@ void JPboxgroup::setinspectorsetactiveparams()
 }
 void JPboxgroup::update_mouseDragged(int mousebutton)
 {
+	ofVec2f screenMouse(ofGetMouseX(), ofGetMouseY());
+	ofVec2f previousScreenMouse(ofGetPreviousMouseX(), ofGetPreviousMouseY());
+	ofVec2f canvasMouse = screenToCanvas(screenMouse);
+	ofVec2f previousCanvasMouse = screenToCanvas(previousScreenMouse);
+
+	if (mousebutton == OF_MOUSE_BUTTON_MIDDLE || mousebutton == OF_MOUSE_BUTTON_RIGHT)
+	{
+		viewportPanning = true;
+		panViewport(screenMouse - previousScreenMouse);
+		return;
+	}
+
 	if (draw_SelectionRect && mousebutton == OF_MOUSE_BUTTON_LEFT)
 	{
-		selectionEnd = ofVec2f(ofGetMouseX(), ofGetMouseY());
+		selectionEnd = canvasMouse;
 		updateBoxSelection();
 		return;
 	}
@@ -537,8 +589,8 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 	// Para hacer las conexiones :
 	if (cualestaagarrado != -1 && boxes[cualestaagarrado]->activeFlag)
 	{
-		float deltaX = ofGetMouseX() - ofGetPreviousMouseX();
-		float deltaY = ofGetMouseY() - ofGetPreviousMouseY();
+		float deltaX = canvasMouse.x - previousCanvasMouse.x;
+		float deltaY = canvasMouse.y - previousCanvasMouse.y;
 		if (!selectedBoxIndices.empty() && isBoxSelected(cualestaagarrado))
 		{
 			for (int i = 0; i < selectedBoxIndices.size(); i++)
@@ -557,6 +609,7 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 											boxes[cualestaagarrado]->y + deltaY);
 		}
 	}
+	JPdragobject::setMouseOverride(canvasMouse);
 	for (int i = boxes.size() - 1; i >= 0; i--)
 	{
 		for (int k = boxes.size() - 1; k >= 0; k--)
@@ -572,6 +625,7 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 			}
 		}
 	}
+	JPdragobject::clearMouseOverride();
 	// Para los sliders :
 	if (!shaderboxagarrado && !ouletagarrado && cualestaagarrado == -1 && outlet_cualestaagarrado == -1 && openguinumber != -1)
 	{
@@ -637,6 +691,7 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 void JPboxgroup::update_mousePressed(int mouseButton)
 {
 	////SET OPEN GUI NUMBER :
+	ofVec2f canvasMouse = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
 
 	float dif = ofGetSystemTimeMillis() - lasttime_mouseclick;
 	// cout << "Diference " << dif << endl;
@@ -644,6 +699,12 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	lasttime_mouseclick = ofGetSystemTimeMillis();
 	draw_SelectionRect = false;
 	bool arafue = false; // POR SI NO TOCO NINGUN ELEMENTO;
+
+	if ((mouseButton == OF_MOUSE_BUTTON_MIDDLE || mouseButton == OF_MOUSE_BUTTON_RIGHT) && !mouseOverGui())
+	{
+		viewportPanning = true;
+		return;
+	}
 
 	// SI EL MOUSE ESTA DENTRO DEL INSPECTOR WINDOW PAPA.
 	if (mouseOverGui() && openguinumber != -1)
@@ -732,6 +793,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	{
 		randomcnt = 0;
 		arafue = false;
+		JPdragobject::setMouseOverride(canvasMouse);
 		for (int i = boxes.size() - 1; i >= 0; i--)
 		{
 			// Esto esta raro:
@@ -765,6 +827,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				}
 			}
 		}
+		JPdragobject::clearMouseOverride();
 	}
 	if (!arafue)
 	{
@@ -773,7 +836,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		{
 			clearSelection();
 			draw_SelectionRect = true;
-			lastMouseClick = ofVec2f(ofGetMouseX(), ofGetMouseY());
+			lastMouseClick = canvasMouse;
 			selectionEnd = lastMouseClick;
 		}
 	}
@@ -784,12 +847,29 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 }
 void JPboxgroup::update_mouseReleased(int mouseButton)
 {
+	if (mouseButton == OF_MOUSE_BUTTON_MIDDLE || mouseButton == OF_MOUSE_BUTTON_RIGHT)
+	{
+		viewportPanning = false;
+		return;
+	}
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT && draw_SelectionRect)
 	{
-		selectionEnd = ofVec2f(ofGetMouseX(), ofGetMouseY());
+		selectionEnd = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
 		updateBoxSelection();
 		draw_SelectionRect = false;
 	}
+}
+bool JPboxgroup::mouseScrolled(int x, int y, float scrollX, float scrollY)
+{
+	if (scrollY == 0 || mouseOverGui())
+	{
+		return false;
+	}
+
+	float zoomFactor = scrollY > 0 ? 1.1f : 1.0f / 1.1f;
+	float oldZoom = viewportZoom;
+	zoomViewport(ofVec2f(x, y), zoomFactor);
+	return viewportZoom != oldZoom;
 }
 void JPboxgroup::updateTransition(int _idx) {
 
@@ -1600,7 +1680,8 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 }
 void JPboxgroup::addBox(string directory)
 {
-	addBox(directory, ofGetMouseX(), ofGetMouseY());
+	ofVec2f canvasMouse = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
+	addBox(directory, canvasMouse.x, canvasMouse.y);
 }
 void JPboxgroup::triggerCodeOnActiveShader() {
 
@@ -1833,11 +1914,14 @@ void JPboxgroup::deleteSelectedShader()
 
 	for (int i = 0; i < boxes.size(); i++)
 	{
+		JPdragobject::setMouseOverride(screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY())));
 		if (boxes[i]->mouseOver())
 		{
+			JPdragobject::clearMouseOverride();
 			deleteBoxAtIndex(i);
 			break;
 		}
+		JPdragobject::clearMouseOverride();
 	}
 
 	openguinumber = -1;
