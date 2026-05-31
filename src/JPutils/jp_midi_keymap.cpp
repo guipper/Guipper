@@ -127,6 +127,7 @@ namespace
 void JPMidiKeymap::setup(JPboxgroup *_boxes)
 {
 	boxes = _boxes;
+	globalKeymapPath = ofToDataPath("midi_keymap.xml");
 	ensureAddShaderDraftRow();
 	openInputs();
 }
@@ -258,13 +259,13 @@ void JPMidiKeymap::processKey(const MidiKey &key)
 
 void JPMidiKeymap::learnKey(const MidiKey &key)
 {
-	removeBindingForKey(key);
-
 	if (!hasLearnTarget())
 	{
 		cancelLearning();
 		return;
 	}
+
+	removeBindingForKey(key, false);
 
 	Binding binding;
 	binding.key = key;
@@ -290,6 +291,7 @@ void JPMidiKeymap::learnKey(const MidiKey &key)
 	learning = false;
 	rebindIndex = -1;
 	ensureAddShaderDraftRow();
+	saveGlobal();
 }
 
 void JPMidiKeymap::armLearn(const Binding &binding, int existingIndex)
@@ -311,6 +313,15 @@ void JPMidiKeymap::cancelLearning()
 {
 	learning = false;
 	rebindIndex = -1;
+}
+
+void JPMidiKeymap::saveGlobal()
+{
+	if (globalKeymapPath.empty())
+	{
+		globalKeymapPath = ofToDataPath("midi_keymap.xml");
+	}
+	save(globalKeymapPath);
 }
 
 bool JPMidiKeymap::hasLearnTarget() const
@@ -456,7 +467,7 @@ void JPMidiKeymap::queueShaderAdd(string shaderPath)
 	pendingShaderAdds.push_back(shaderPath);
 }
 
-void JPMidiKeymap::removeBindingForKey(const MidiKey &key)
+void JPMidiKeymap::removeBindingForKey(const MidiKey &key, bool saveChange)
 {
 	int index = findBindingForKey(key);
 	if (index >= 0)
@@ -469,6 +480,10 @@ void JPMidiKeymap::removeBindingForKey(const MidiKey &key)
 		else if (rebindIndex > index)
 		{
 			rebindIndex--;
+		}
+		if (saveChange)
+		{
+			saveGlobal();
 		}
 	}
 }
@@ -706,6 +721,7 @@ bool JPMidiKeymap::resolveAddShaderRow(int rowIndex)
 	{
 		bindings[bindingIndex].shaderQuery = addShaderRows[rowIndex];
 		bindings[bindingIndex].shaderPath = addShaderResolvedPaths[rowIndex];
+		saveGlobal();
 	}
 	return !addShaderResolvedPaths[rowIndex].empty();
 }
@@ -1704,6 +1720,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 				if (bindingIndex >= 0)
 				{
 					bindings.erase(bindings.begin() + bindingIndex);
+					saveGlobal();
 				}
 				learning = false;
 				rebindIndex = -1;
@@ -1740,6 +1757,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 				if (bindingIndex >= 0)
 				{
 					bindings.erase(bindings.begin() + bindingIndex);
+					saveGlobal();
 				}
 				learning = false;
 				rebindIndex = -1;
@@ -1790,6 +1808,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 				if (bindingIndex >= 0)
 				{
 					bindings.erase(bindings.begin() + bindingIndex);
+					saveGlobal();
 				}
 				addShaderRows.erase(addShaderRows.begin() + i);
 				if (i < addShaderResolvedPaths.size())
@@ -1846,6 +1865,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		if (pointInRect(x, y, layout.innerX + layout.innerW - 38, rowY + 2, 32, ROW_H - 4))
 		{
 			bindings.erase(bindings.begin() + i);
+			saveGlobal();
 			learning = false;
 			rebindIndex = -1;
 			return true;
@@ -2032,15 +2052,10 @@ bool JPMidiKeymap::isPanelOpen() const
 	return panelOpen;
 }
 
-void JPMidiKeymap::saveToSession(string path)
+void JPMidiKeymap::save(string path)
 {
 	ofXml xml;
-	if (!xml.load(path))
-	{
-		return;
-	}
 
-	xml.removeChild("midikeymap");
 	auto keymap = xml.appendChild("midikeymap");
 	for (int i = 0; i < bindings.size(); i++)
 	{
@@ -2058,10 +2073,11 @@ void JPMidiKeymap::saveToSession(string path)
 			binding.appendChild("shaderpath").set(bindings[i].shaderPath);
 		}
 	}
+	ofFilePath::createEnclosingDirectory(path);
 	xml.save(path);
 }
 
-void JPMidiKeymap::loadFromSession(string path)
+void JPMidiKeymap::load(string path)
 {
 	bindings.clear();
 	addShaderRows.clear();

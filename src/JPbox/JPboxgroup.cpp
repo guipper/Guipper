@@ -1,6 +1,7 @@
 #include "JPboxgroup.h"
 #include <filesystem>
 #include <algorithm>
+#include <functional>
 
 
 JPboxgroup::JPboxgroup() {}
@@ -48,19 +49,22 @@ void JPboxgroup::draw()
 	// boxesdrawing.draw(offsetx, offsety, ofGetWidth(), ofGetHeight());
 	draw_conections();
 
-	/*if (draw_SelectionRect) {
-		ofSetColor(0,100,100);
+	if (draw_SelectionRect) {
+		ofSetColor(0, 180, 220, 45);
 		ofSetRectMode(OF_RECTMODE_CENTER);
-		ofNoFill();
-		ofSetLineWidth(5);
-		ofVec2f center = ofVec2f((ofGetMouseX()+ lastMouseClick.x)/2, (ofGetMouseY()+ lastMouseClick.y)/2);
-		float w = abs(ofGetMouseX() - lastMouseClick.x) ;
-		float h = abs(ofGetMouseY() - lastMouseClick.y) ;
+		ofFill();
+		ofVec2f center = ofVec2f((selectionEnd.x + lastMouseClick.x) / 2, (selectionEnd.y + lastMouseClick.y) / 2);
+		float w = abs(selectionEnd.x - lastMouseClick.x);
+		float h = abs(selectionEnd.y - lastMouseClick.y);
 		ofDrawRectangle(center.x, center.y,w, h);
-		ofSetColor(0, 0, 255);
-		ofDrawLine(ofGetMouseX(), ofGetMouseY(), lastMouseClick.x, lastMouseClick.y);
+		ofNoFill();
+		ofSetLineWidth(2);
+		ofSetColor(0, 220, 255, 210);
+		ofDrawRectangle(center.x, center.y, w, h);
+		ofFill();
+		ofSetLineWidth(1);
 		ofSetRectMode(OF_RECTMODE_CORNER);
-	}*/
+	}
 
 	for (int i = 0; i < boxes.size(); i++)
 	{	
@@ -73,7 +77,20 @@ void JPboxgroup::draw()
 			ofRectMode(CENTER);
 			ofRectRounded(x, y - boxes[i]->height / 2+10, boxes[i]->width*1.1, boxes[i]->height*1.1,10);
 		}
+		boxes[i]->bypass.activable2 = !draw_SelectionRect;
+		boxes[i]->onoff.activable2 = !draw_SelectionRect;
 		boxes[i]->draw();
+		if (isBoxSelected(i))
+		{
+			ofPushStyle();
+			ofSetRectMode(OF_RECTMODE_CENTER);
+			ofNoFill();
+			ofSetLineWidth(4);
+			ofSetColor(0, 220, 255, 255);
+			ofDrawRectRounded(boxes[i]->x, boxes[i]->y, boxes[i]->width + 14, boxes[i]->height + 14, 10);
+			ofFill();
+			ofPopStyle();
+		}
 
 		// OSC preview selection (used by /nextshader and /prevshader before /setactiveshader)
 		if (openguinumber == i)
@@ -289,7 +306,7 @@ void JPboxgroup::update(){
 		}
 
 		// PARA AGARRAR LAS CAJITAS :
-		if (ofGetMousePressed()){
+		if (ofGetMousePressed() && !draw_SelectionRect){
 			if (boxes[i]->mouseOverOutlet() && !ouletagarrado && !shaderboxagarrado){
 				boxes[i]->activeFlag = false;
 				boxes[i]->outletActiveFlag = true;
@@ -372,9 +389,10 @@ void JPboxgroup::update(){
 		}
 	}
 
-	//if (boxes.size() > 2) {
+	if (!boxes.empty())
+	{
 		transition.update(); //ACTUALIZO EL TRANSITION
-	//}
+	}
 		//activeSequence = true;
 		const float sequenceIntervalMs = std::max(durationGalleryMs, 16.0f);
 		if (activeSequence && 
@@ -509,13 +527,35 @@ void JPboxgroup::setinspectorsetactiveparams()
 }
 void JPboxgroup::update_mouseDragged(int mousebutton)
 {
+	if (draw_SelectionRect && mousebutton == OF_MOUSE_BUTTON_LEFT)
+	{
+		selectionEnd = ofVec2f(ofGetMouseX(), ofGetMouseY());
+		updateBoxSelection();
+		return;
+	}
 
 	// Para hacer las conexiones :
 	if (cualestaagarrado != -1 && boxes[cualestaagarrado]->activeFlag)
 	{
-		float distx = boxes[cualestaagarrado]->x - (ofGetPreviousMouseX() - ofGetMouseX());
-		float disty = boxes[cualestaagarrado]->y - (ofGetPreviousMouseY() - ofGetMouseY());
-		boxes[cualestaagarrado]->setPos(distx, disty);
+		float deltaX = ofGetMouseX() - ofGetPreviousMouseX();
+		float deltaY = ofGetMouseY() - ofGetPreviousMouseY();
+		if (!selectedBoxIndices.empty() && isBoxSelected(cualestaagarrado))
+		{
+			for (int i = 0; i < selectedBoxIndices.size(); i++)
+			{
+				int selectedIndex = selectedBoxIndices[i];
+				if (selectedIndex >= 0 && selectedIndex < boxes.size())
+				{
+					boxes[selectedIndex]->setPos(boxes[selectedIndex]->x + deltaX,
+												 boxes[selectedIndex]->y + deltaY);
+				}
+			}
+		}
+		else
+		{
+			boxes[cualestaagarrado]->setPos(boxes[cualestaagarrado]->x + deltaX,
+											boxes[cualestaagarrado]->y + deltaY);
+		}
 	}
 	for (int i = boxes.size() - 1; i >= 0; i--)
 	{
@@ -602,8 +642,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	// cout << "Diference " << dif << endl;
 	isDoubleClick = (ofGetSystemTimeMillis() - lasttime_mouseclick < duration_mouseclick);
 	lasttime_mouseclick = ofGetSystemTimeMillis();
-	draw_SelectionRect = true;
-	lastMouseClick = ofVec2f(ofGetMouseX(), ofGetMouseY());
+	draw_SelectionRect = false;
 	bool arafue = false; // POR SI NO TOCO NINGUN ELEMENTO;
 
 	// SI EL MOUSE ESTA DENTRO DEL INSPECTOR WINDOW PAPA.
@@ -698,10 +737,22 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			// Esto esta raro:
 			if (boxes[i]->mouseOverOutlet())
 			{
+				arafue = true;
+				clearSelection();
+				boxes[i]->activeFlag = false;
+				boxes[i]->outletActiveFlag = true;
+				ouletagarrado = true;
+				shaderboxagarrado = false;
+				outlet_cualestaagarrado = i;
+				cualestaagarrado = -1;
 			}
 			else if (boxes[i]->mouseOver())
 			{
 				arafue = true;
+				if (!isBoxSelected(i))
+				{
+					clearSelection();
+				}
 				openguinumber = i;
 				if (!mouseOverGui())
 				{
@@ -718,10 +769,26 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	if (!arafue)
 	{
 		openguinumber = -1;
+		if (mouseButton == OF_MOUSE_BUTTON_LEFT)
+		{
+			clearSelection();
+			draw_SelectionRect = true;
+			lastMouseClick = ofVec2f(ofGetMouseX(), ofGetMouseY());
+			selectionEnd = lastMouseClick;
+		}
 	}
 	if (openguinumber != -1)
 	{
 		setControllers();
+	}
+}
+void JPboxgroup::update_mouseReleased(int mouseButton)
+{
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT && draw_SelectionRect)
+	{
+		selectionEnd = ofVec2f(ofGetMouseX(), ofGetMouseY());
+		updateBoxSelection();
+		draw_SelectionRect = false;
 	}
 }
 void JPboxgroup::updateTransition(int _idx) {
@@ -1588,6 +1655,10 @@ void JPboxgroup::setupShaderRendersFromDataFolder()
 }
 void JPboxgroup::clear()
 {
+	clearSelection();
+	transition.setFboPointer1(nullptr);
+	transition.setFboPointer2(nullptr);
+	activeSequence = false;
 
 	for (int i = boxes.size() - 1; i >= 0; i--)
 	{
@@ -1607,8 +1678,140 @@ void JPboxgroup::clear()
 	boxes.clear();
 	controllers.clear();
 }
+
+void JPboxgroup::clearSelection()
+{
+	selectedBoxIndices.clear();
+	draw_SelectionRect = false;
+}
+
+bool JPboxgroup::boxIntersectsSelection(JPbox *box) const
+{
+	if (box == nullptr)
+	{
+		return false;
+	}
+	float selectionLeft = std::min(lastMouseClick.x, selectionEnd.x);
+	float selectionRight = std::max(lastMouseClick.x, selectionEnd.x);
+	float selectionTop = std::min(lastMouseClick.y, selectionEnd.y);
+	float selectionBottom = std::max(lastMouseClick.y, selectionEnd.y);
+	float boxLeft = box->x - box->width / 2;
+	float boxRight = box->x + box->width / 2;
+	float boxTop = box->y - box->height / 2;
+	float boxBottom = box->y + box->height / 2;
+	return selectionLeft <= boxRight &&
+		   selectionRight >= boxLeft &&
+		   selectionTop <= boxBottom &&
+		   selectionBottom >= boxTop;
+}
+
+void JPboxgroup::updateBoxSelection()
+{
+	selectedBoxIndices.clear();
+	for (int i = 0; i < boxes.size(); i++)
+	{
+		if (boxIntersectsSelection(boxes[i]))
+		{
+			selectedBoxIndices.push_back(i);
+		}
+	}
+}
+
+bool JPboxgroup::isBoxSelected(int index) const
+{
+	return std::find(selectedBoxIndices.begin(), selectedBoxIndices.end(), index) != selectedBoxIndices.end();
+}
+
+bool JPboxgroup::deleteBoxAtIndex(int index)
+{
+	if (index < 0 || index >= boxes.size())
+	{
+		return false;
+	}
+
+	string deletedName = boxes[index]->name;
+	for (int k = boxes.size() - 1; k >= 0; k--)
+	{
+		if (k == index)
+		{
+			continue;
+		}
+		for (int l = 0; l < boxes[k]->fbohandlergroup.getSize(); l++)
+		{
+			if (boxes[k]->fbohandlergroup.getFboName(l) == deletedName)
+			{
+				boxes[k]->fbohandlergroup.deleteFboPointer(l);
+			}
+		}
+	}
+
+	boxes[index]->clear();
+	delete boxes[index];
+	boxes[index] = nullptr;
+	boxes.erase(boxes.begin() + index);
+
+	if (boxes.empty())
+	{
+		openguinumber = -1;
+		*activerender = 0;
+		activeSequence = false;
+		transition.setFboPointer1(nullptr);
+		transition.setFboPointer2(nullptr);
+	}
+	else
+	{
+		if (openguinumber == index)
+		{
+			openguinumber = -1;
+			for (int i = 0; i < controllers.size(); i++)
+			{
+				delete controllers[i];
+				controllers[i] = nullptr;
+			}
+			controllers.clear();
+		}
+		else if (openguinumber > index)
+		{
+			openguinumber--;
+		}
+
+		if (*activerender == index)
+		{
+			*activerender = std::min(index, int(boxes.size()) - 1);
+		}
+		else if (*activerender > index)
+		{
+			(*activerender)--;
+		}
+		*activerender = ofClamp(*activerender, 0, int(boxes.size()) - 1);
+		updateTransition(*activerender);
+	}
+	return true;
+}
+
+bool JPboxgroup::deleteSelectedBoxes()
+{
+	if (selectedBoxIndices.empty())
+	{
+		return false;
+	}
+	std::sort(selectedBoxIndices.begin(), selectedBoxIndices.end(), std::greater<int>());
+	selectedBoxIndices.erase(std::unique(selectedBoxIndices.begin(), selectedBoxIndices.end()), selectedBoxIndices.end());
+	for (int i = 0; i < selectedBoxIndices.size(); i++)
+	{
+		deleteBoxAtIndex(selectedBoxIndices[i]);
+	}
+	clearSelection();
+	return true;
+}
+
 void JPboxgroup::deleteSelectedShader()
 {
+	if (deleteSelectedBoxes())
+	{
+		return;
+	}
+
 
 	// YA LO ENCONTRAMOS ESE BUG :
 	/*Vamos a dejar esto aca por las dudas, que me reinicie todos los dibujos cuando limpio uno.
@@ -1632,35 +1835,8 @@ void JPboxgroup::deleteSelectedShader()
 	{
 		if (boxes[i]->mouseOver())
 		{
-			for (int k = boxes.size() - 1; k >= 0; k--)
-			{
-				for (int l = 0; l < boxes[k]->fbohandlergroup.getSize(); l++)
-				{
-					if (boxes[k]->fbohandlergroup.getFboName(l) == boxes[i]->name)
-					{
-						boxes[k]->fbohandlergroup.deleteFboPointer(l);
-					}
-				}
-			}
-			boxes[i]->clear();
-			delete boxes[i];
-			boxes[i] = nullptr;
-
-			boxes.erase(boxes.begin() + i);
-
-			// Safely adjust active render index when box is deleted
-			if (i == *activerender)
-			{
-				*activerender = std::max(0, i - 1);
-				updateTransition(*activerender);
-			}
-			else if (*activerender > i)
-			{
-				(*activerender)--;
-			}
-
-			// Decrement loop variable to account for vector shift
-			i--;
+			deleteBoxAtIndex(i);
+			break;
 		}
 	}
 

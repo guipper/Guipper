@@ -82,8 +82,8 @@ public:
 	void mouseReleased(int x, int y, int button);
 	void togglePanel();
 	bool isPanelOpen() const;
-	void saveToSession(string path);
-	void loadFromSession(string path);
+	void save(string path);
+	void load(string path);
 	void newMidiMessage(ofxMidiMessage &msg) override;
 
 private:
@@ -94,6 +94,7 @@ private:
 	vector<string> pendingShaderAdds;
 	map<string, bool> ccHighState;
 	std::mutex pendingMutex;
+	string globalKeymapPath;
 
 	bool panelOpen = false;
 	bool editMode = false;
@@ -131,9 +132,10 @@ private:
 	void learnKey(const MidiKey &key);
 	void armLearn(const Binding &binding, int existingIndex = -1);
 	void cancelLearning();
+	void saveGlobal();
 	bool hasLearnTarget() const;
 	bool isBindingLoadable(const Binding &binding) const;
-	void removeBindingForKey(const MidiKey &key);
+	void removeBindingForKey(const MidiKey &key, bool saveChange = true);
 	int findBindingForKey(const MidiKey &key) const;
 	bool hasBindingForAction(Action action, string boxName = "", int parameterIndex = -1) const;
 	int findParameterBindingForIndex(int parameterIndex) const;

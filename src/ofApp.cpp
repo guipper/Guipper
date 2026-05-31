@@ -99,6 +99,7 @@ void ofApp::setup() {
 	//ofDisableArbTex(); // needed for textures to work
 	// myTextureImage.loadImage("SpoutBox1.png");			// Load a texture image for the demo
 	loadSession(savedirectory);
+	midiKeymap.load(ofToDataPath("midi_keymap.xml"));
 }
 void ofApp::update() {
 	boxes.update();
@@ -461,11 +462,6 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		openloader.startThread();
 	}
 
-	// cout << "DELETE ALL SHADERBOXS" << endl;
-	if (e.key == 'b') {
-		boxes.clear();
-		// boxes.shaderboxs.clear();
-	}
 	prevKey = e.keycode;
 }
 void ofApp::mouseDragged(int x, int y, int button) {
@@ -506,6 +502,7 @@ void ofApp::keyReleased(int key) { }
 void ofApp::mouseMoved(int x, int y) { }
 void ofApp::mouseReleased(int x, int y, int button) {
 	midiKeymap.mouseReleased(x, y, button);
+	boxes.update_mouseReleased(button);
 	if (button == 0) {
 		// mouseButton_left = false;
 	}
@@ -697,11 +694,9 @@ void ofApp::saveSettings() {
 }
 void ofApp::saveSession(string path) {
 	boxes.save(path);
-	midiKeymap.saveToSession(path);
 }
 void ofApp::loadSession(string path) {
 	boxes.load(path);
-	midiKeymap.loadFromSession(path);
 }
 void ofApp::updateOSC() {
 	// hide old messages

@@ -45,6 +45,7 @@ public:
 	void update_resized(int w, int h);		   // Lo que hace cuando pinta resize
 	void update_mouseDragged(int mousebutton); // Lo que hace cuando arrastras en la pantalla.
 	void update_mousePressed(int mouseButton); // Lo que hace cada vez que haces click(ponele).
+	void update_mouseReleased(int mouseButton);
 
 	void updateTransition(int _i);
 
@@ -123,6 +124,12 @@ private:
 	void draw_paramswindow(); // Dibuja la ventanita del inspector.
 	void setupGalleryDurationSlider();
 	void drawGalleryDurationSlider();
+	void clearSelection();
+	void updateBoxSelection();
+	bool boxIntersectsSelection(JPbox *box) const;
+	bool isBoxSelected(int index) const;
+	bool deleteBoxAtIndex(int index);
+	bool deleteSelectedBoxes();
 
 	float inspectorwindow_width;
 	float inspectorwindow_height;
@@ -149,6 +156,8 @@ private:
 	bool ouletagarrado;
 	int cualestaagarrado = -1;
 	int outlet_cualestaagarrado = -1;
+	ofVec2f selectionEnd;
+	vector<int> selectedBoxIndices;
 
 	// Vamos a ver si podemos emular un doble click.
 	bool isDoubleClick;
