@@ -415,6 +415,13 @@ void JPMidiKeymap::applyBinding(const Binding &binding, float midiValue)
 	{
 		selectRelativeBox(-1, false);
 	}
+	else if (binding.action == SET_CUE_SHADER)
+	{
+		if (boxes->openguinumber >= 0 && boxes->openguinumber < boxes->boxes.size())
+		{
+			boxes->setCueBoxByIndex(boxes->openguinumber);
+		}
+	}
 	else if (binding.action == SET_ACTIVE_SHADER || binding.action == SET_ACTIVE_RENDER)
 	{
 		setSelectedBoxActive();
@@ -632,8 +639,11 @@ void JPMidiKeymap::setSelectedBoxActive()
 	int index = getCurrentBoxIndex();
 	if (index >= 0)
 	{
-		boxes->selectOpenBoxByIndex(index);
-		boxes->updateTransition(index);
+		if (!boxes->promoteCueToActive())
+		{
+			boxes->selectOpenBoxByIndex(index);
+			boxes->updateTransition(index);
+		}
 	}
 }
 
@@ -918,6 +928,7 @@ vector<JPMidiKeymap::Action> JPMidiKeymap::getGlobalActions() const
 	vector<Action> actions;
 	actions.push_back(NEXT_SHADER);
 	actions.push_back(PREV_SHADER);
+	actions.push_back(SET_CUE_SHADER);
 	actions.push_back(SET_ACTIVE_SHADER);
 	actions.push_back(SET_ACTIVE_RENDER);
 	actions.push_back(NEXT_SHADER_GALLERY);
@@ -954,6 +965,7 @@ string JPMidiKeymap::getActionName(Action action) const
 	if (action == SELECT_OPEN_BOX) return "Select/Open Box";
 	if (action == NEXT_SHADER) return "Next Shader";
 	if (action == PREV_SHADER) return "Prev Shader";
+	if (action == SET_CUE_SHADER) return "Set Cue Shader";
 	if (action == SET_ACTIVE_SHADER) return "Set Active Shader";
 	if (action == SET_ACTIVE_RENDER) return "Set Active Render";
 	if (action == NEXT_SHADER_GALLERY) return "Next Shader Gallery";
@@ -971,6 +983,7 @@ string JPMidiKeymap::actionToXml(Action action) const
 	if (action == SELECT_OPEN_BOX) return "select_open_box";
 	if (action == NEXT_SHADER) return "next_shader";
 	if (action == PREV_SHADER) return "prev_shader";
+	if (action == SET_CUE_SHADER) return "set_cue_shader";
 	if (action == SET_ACTIVE_SHADER) return "set_active_shader";
 	if (action == SET_ACTIVE_RENDER) return "set_active_render";
 	if (action == NEXT_SHADER_GALLERY) return "next_shader_gallery";
@@ -987,6 +1000,7 @@ JPMidiKeymap::Action JPMidiKeymap::actionFromXml(string value) const
 	if (value == "parameter") return PARAMETER;
 	if (value == "next_shader") return NEXT_SHADER;
 	if (value == "prev_shader") return PREV_SHADER;
+	if (value == "set_cue_shader") return SET_CUE_SHADER;
 	if (value == "set_active_shader") return SET_ACTIVE_SHADER;
 	if (value == "set_active_render") return SET_ACTIVE_RENDER;
 	if (value == "next_shader_gallery") return NEXT_SHADER_GALLERY;
