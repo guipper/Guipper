@@ -18,7 +18,7 @@ void main()
 {
 	vec2 uv = gl_FragCoord.xy/resolution;
 		// uv.y = 1.-uv.y;
-	vec4 t2 =  texture2D(texture2,uv);
+	vec4 t2 =  texture(texture2,uv);
 	
 	for(int i = 0; i<15; i++){
 	
@@ -35,7 +35,7 @@ void main()
 	float moffsetx = mapr(offsetx,-limit,limit);
 	float moffsety = mapr(offsety,-limit,limit);
 	
-    vec4 t1 =  texture2D(texture1, uv2);
+    vec4 t1 =  texture(texture1, uv2);
 	
 	vec3 fin = t1.rgb;
 

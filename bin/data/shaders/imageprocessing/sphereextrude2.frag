@@ -79,12 +79,12 @@ float de(vec3 p)
 
 	vec2 pselect = mix(p.xz,p.yz,sin(rotate*4.+time+p.y)*.5+.5);
 	
-	vec4 txtx = texture2D(tx,abs(p.xy*txtile*.25));
+	vec4 txtx = texture(tx,abs(p.xy*txtile*.25));
 	
 	
 	vec3 ptx = vec3(p.x+mapr(offsetx,-10.,10.),
 					p.y+mapr(offsety,-10.,10.),p.z);
-		 txtx = texture2D(tx,abs(ptx.xy*txtile*.25));
+		 txtx = texture(tx,abs(ptx.xy*txtile*.25));
 	float prom = length(txtx);
 	
 

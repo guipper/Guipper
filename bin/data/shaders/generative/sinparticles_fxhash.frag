@@ -107,7 +107,7 @@ void main()
 	vec2 puv = gl_FragCoord.xy/resolution;
 	
 	
-	vec4 fb =  texture2D(feedback, puv);
+	vec4 fb =  texture(feedback, puv);
 	
 	vec3 fin = mix(fb.rgb*mfuerzafeedback,dib,dib);
 	/*fin.r = 1.0 -fin.r;

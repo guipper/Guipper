@@ -56,7 +56,7 @@ float obj1(vec3 p){
 	
 	vec2 uv2 = gl_FragCoord.xy/resolution.xy;
 	uv2*=0.25;
-	vec4 tx = texture2D(fondo,uv2);	
+	vec4 tx = texture(fondo,uv2);	
 	
 	float prom = length(tx.rgb);
     float sph = sphere(psph, 15.3*size);
@@ -99,7 +99,7 @@ float obj2(vec3 p){
 	
 	vec2 uv2 = gl_FragCoord.xy/resolution.xy;
 	uv2*=0.25;
-	vec4 tx = texture2D(fondo,uv2);	
+	vec4 tx = texture(fondo,uv2);	
 	
 	float prom = length(tx.rgb);
     float sph = sphere(psph, 15.3*size);
@@ -207,7 +207,7 @@ vec3 march(vec3 from, vec3 dir)
         td += d;
     }
 	vec2 uv2 = gl_FragCoord.xy/resolution.xy;
-	vec4 tx = texture2D(fondo,uv2);	
+	vec4 tx = texture(fondo,uv2);	
     /*if (d < det)
     {
         p -= det * dir;

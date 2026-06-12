@@ -123,8 +123,8 @@ vec3 generateRedbullBackground(vec2 uv){
 
 	
 	
-	//vec4 tx = texture2D(titulos,uv);
-	//vec4 tx2 = texture2D(cuadrados,uv);
+	//vec4 tx = texture(titulos,uv);
+	//vec4 tx2 = texture(cuadrados,uv);
 	
 	
 	
@@ -229,11 +229,11 @@ void main(){
 	vec2 uv3 = gl_FragCoord.xy / resolution;
 	uv3.x+=stprom*.05;
 	uv3.y-=stprom*.05;
-	//vec4 tx2 = texture2D(cuadrados,uv3);
+	//vec4 tx2 = texture(cuadrados,uv3);
 	vec2 uv4 = gl_FragCoord.xy / resolution;
 	uv4.x-=stprom*.05;
 	uv4.y+=stprom*.05;
-	//vec4 tx3 = texture2D(cuadrados,uv4);
+	//vec4 tx3 = texture(cuadrados,uv4);
 
 	
 	//fin-=tx2.rgb*.5;
@@ -243,7 +243,7 @@ void main(){
 	vec2 uv5= gl_FragCoord.xy / resolution;
 	//uv5.x-=stprom*.05;
 	uv5.y+=stprom*.05;
-	//vec4 tx4 = texture2D(botones,uv5);
+	//vec4 tx4 = texture(botones,uv5);
 	
 	
 	float e = fbm2(vec2(uv.x*5.,uv.y*5.+time*.1),time+1.0);

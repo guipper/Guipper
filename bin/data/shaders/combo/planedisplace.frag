@@ -25,7 +25,7 @@ vec4 de(vec3 p) {
   p.xz*=rotate2d(rotation_y*3.1416);
   p.yz*=rotate2d(rotation_x*3.1416);
   vec2 uv =(p.xy+.5/image_scale)*image_scale;
-  vec3 col = texture2DRect(textura, uv*resolution).rgb;
+  vec3 col = texture(textura, uv*resolution).rgb;
   float disp=sqrt(length(col));
   if (displacement-.5<0.) disp=2.-length(col);
   float d = abs(p.z)-disp*abs(displacement-.5)*.5;

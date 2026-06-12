@@ -10,8 +10,8 @@ void main()
 {	
 	vec2 uv = gl_FragCoord.xy / resolution;
 		
-	vec4 fb =  texture2D(feedback, gl_FragCoord.xy/resolution);
-	vec4 t1 =  texture2D(textura1, gl_FragCoord.xy/resolution);
+	vec4 fb =  texture(feedback, gl_FragCoord.xy/resolution);
+	vec4 t1 =  texture(textura1, gl_FragCoord.xy/resolution);
 
 	vec3 fin_inv = vec3(1.0) - t1.rgb;
 	

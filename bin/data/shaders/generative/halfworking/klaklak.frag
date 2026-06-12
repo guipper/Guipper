@@ -36,7 +36,7 @@ void main()
 	dib/=ite;
 	//dib*=0.3;
 	vec2 puv = uv;
-	vec4 fb =  texture2DRect(feedback, puv);
+	vec4 fb =  texture(feedback, puv);
 
 	vec3 fin = dib;
 

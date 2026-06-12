@@ -103,7 +103,7 @@ vec3 tex(vec2 p)
     vec2 p2=fract(p*gridsize*5.1);
     if (mirror) p=abs(.5-fract(p*texturesize*2.));
     else p=abs(fract(p*texturesize*2.+.5));
-    return texture2D(intext,p).rgb+smoothstep(.9,1.,max(p2.x,p2.y))*grid;
+    return texture(intext,p).rgb+smoothstep(.9,1.,max(p2.x,p2.y))*grid;
 }
 float de(vec3 p)
 {

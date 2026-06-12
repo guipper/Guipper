@@ -33,7 +33,7 @@ void main()
 		/*uv2*=resolution;
 		uv = fract(uv2);
 		uv2/=resolution;*/
-		vec4 t1 =  texture2D(textura1, uv2/resolution);
+		vec4 t1 =  texture(textura1, uv2/resolution);
 		dib += t1.rgb;
 	}
 	

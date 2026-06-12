@@ -159,7 +159,7 @@ float atan2(float x,float y){
     } else if(x == 0 && y<0){
         return -PI/2;
     }else{
-        return 0;
+        return 0.0;
     }
 }
 

@@ -23,7 +23,7 @@ void main()
 
 	vec2 coords = gl_FragCoord.xy ;
 	//coords.y = resolution.y -coords.y;
-	vec4 fb =  texture2D(feedback, coords/resolution);
+	vec4 fb =  texture(feedback, coords/resolution);
 		
 	float fix = resolution.x/resolution.y;
 	uv.x *= fix;

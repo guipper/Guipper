@@ -213,7 +213,7 @@ void main(void) {
 	float prom = length(fin);
 	
 	
-	vec4 fb2 = texture2D(feedback,uv);
+	vec4 fb2 = texture(feedback,uv);
 	float fb2_prom = (fb2.r+fb2.g+fb2.b)/3.;
 	
 	puv-=vec2(0.5+fb2_prom*.001);
@@ -221,7 +221,7 @@ void main(void) {
 //	puv*= rotate2d(time*.000001+sin(fb2_prom*10.0+time*.1*50.));
 	puv+=vec2(0.5-fb2_prom*.001);
 	
-	vec4 fb = texture2D(feedback,puv);
+	vec4 fb = texture(feedback,puv);
 	
 	/*fin+=fb.rgb;
 	fin+=fb.rgb*0.02;

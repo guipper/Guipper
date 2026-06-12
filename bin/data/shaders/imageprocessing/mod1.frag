@@ -9,7 +9,7 @@ void main()
 { 
 	vec2 uv = gl_FragCoord.xy / resolution;
 
-	vec4 t1 =  texture2D(texture1, gl_FragCoord.xy/resolution);
+	vec4 t1 =  texture(texture1, gl_FragCoord.xy/resolution);
 	
 	
 	vec2 uv2 = uv;
@@ -35,7 +35,7 @@ void main()
 	} 
 	
 	
-	vec4 t2 =  texture2D(texture1,vec2(uv2.x,uv2.y));
+	vec4 t2 =  texture(texture1,vec2(uv2.x,uv2.y));
 	t2 += sin(t2*sinfy*100.+time)*mapr(multysin,0.0,1.0);
 	
 	
@@ -46,7 +46,7 @@ void main()
 	uv3.x+=sin(prom2*3.+time)*.008;
 	uv3.y+=cos(prom2*3.+time)*.008;
 	
-	vec4 t3 =  texture2D(texture1, uv3);
+	vec4 t3 =  texture(texture1, uv3);
 	
 	t3 += sin(t3*sinfy*100.+time)*mapr(multysin,0.0,1.0);
 	fragColor = vec4(t3.rgb,1.0);

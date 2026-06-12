@@ -16,7 +16,7 @@ void main()
 {
 	vec2 uv = gl_FragCoord.xy/resolution;
 		// uv.y = 1.-uv.y;
-	vec4 t2 =  texture2D(texture1,uv);
+	vec4 t2 =  texture(texture1,uv);
 	float t2_f = (t2.r+t2.g+t2.b)/3.;
 	
 	vec2 uv2 = uv;
@@ -40,7 +40,7 @@ void main()
 
 	
 	//uv2*=resolution;
-	vec4 t1 =  texture2D(texture1, uv2);
+	vec4 t1 =  texture(texture1, uv2);
 	
 	
 	

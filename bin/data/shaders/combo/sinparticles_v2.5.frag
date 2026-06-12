@@ -43,8 +43,8 @@ void main()
 	float mamp = mapr(amp,0.0,2.0);
 	float mfase = mapr(fase,0.0,PI*2);
 	float mspeed = mapr(speed,0.0,5.0);
-	vec3 c1 = texture2DRect(col1,uv2).rgb;
-	vec3 c2 = texture2DRect(col2,uv2).rgb;
+	vec3 c1 = texture(col1,uv2).rgb;
+	vec3 c2 = texture(col2,uv2).rgb;
 	vec2 m = vec2( mapr(offsetx,0.0,2.0)*fx,mapr(offsety,0.0,2.0));
 
 	float msize = mapr(size,0.99,0.7);
@@ -95,7 +95,7 @@ void main()
 	vec2 puv = fragCoord.xy;
 	
 	
-	vec4 fb =  texture2DRect(feedback, puv);
+	vec4 fb =  texture(feedback, puv);
 	
 	vec3 fin = mix(fb.rgb*mfuerzafeedback,dib,dib);
 	  fragColor = vec4(fin,

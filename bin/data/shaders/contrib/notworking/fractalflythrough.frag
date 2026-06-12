@@ -67,11 +67,11 @@ vec3 tex3D(sampler2D t, in vec3 p, in vec3 n ){
     
     n = max(abs(n), 0.001);
     n /= dot(n, vec3(1));
-	/*vec3 tx = texture2DRect(t, p.yz).xyz;
+	/*vec3 tx = texture(t, p.yz).xyz;
     vec3 ty = texture(t, p.zx).xyz;
     vec3 tz = texture(t, p.xy).xyz;
 */
-	vec3 tx = texture2DRect(t, p.yz).xyz;
+	vec3 tx = texture(t, p.yz).xyz;
     vec3 ty = texture(t, p.zx).xyz;
     vec3 tz = texture(t, p.xy).xyz;
     

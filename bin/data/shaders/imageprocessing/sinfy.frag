@@ -8,7 +8,7 @@ void main()
 {	
 	vec2 uv = gl_FragCoord.xy / resolution;
 	
-	vec4 t1 =  texture2D(textura1, gl_FragCoord.xy/resolution);
+	vec4 t1 =  texture(textura1, gl_FragCoord.xy/resolution);
 	
 	vec3 fin = sin(t1.rgb*100.*freq+speed*4.*time)*.5+.5 ;
 	

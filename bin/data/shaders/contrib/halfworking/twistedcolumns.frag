@@ -10,7 +10,7 @@ vec4 segment( float x0, float x1, vec2 uv, float id, float time, float f )
 	float v =-1.0*(id+0.5)*time+2.0*uv.y/3.141593 + f*2.0;
 	float w = (x1 - x0);
 
-	vec3 col = texture2DRect( texture1, vec2(u) ).xyz;
+	vec3 col = texture( texture1, vec2(u) ).xyz;
 	col += 0.3*sin( 2.0*f + 2.0*id + vec3(0.0,1.0,2.0) );
 
 	//col *= mix( 1.0, smoothstep(-0.95,-0.94, sin(8.0*6.2831*v + 3.0*u + 2.0*f)), smoothstep(0.4,0.5,sin(f*13.0)) );

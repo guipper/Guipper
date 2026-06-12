@@ -30,11 +30,11 @@ vec3 fractal(vec2 uv) {
 void main()
 {
 		vec2 uv = gl_FragCoord.xy/resolution;
-		vec3 fback = texture2D(feedback,gl_FragCoord.xy/resolution).rgb;
+		vec3 fback = texture(feedback,gl_FragCoord.xy/resolution).rgb;
 		uv-=.5;
 		uv.x*=resolution.x/resolution.y;
 		vec2 uvtex = mod(fractal(uv).xy*resolution*image_scale*3.,resolution);
-		vec3 c = texture2D(input_image,uvtex/resolution.xy).rgb;
+		vec3 c = texture(input_image,uvtex/resolution.xy).rgb;
 		c.xy*=rotate2d(color1*PI*2.);
 		c.xz*=rotate2d(color2*PI*2.);
 		c=pow(abs(c),vec3(mapr(contraste,.5,3.)))*mapr(brillo,.5,3.);

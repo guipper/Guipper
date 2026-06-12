@@ -136,8 +136,8 @@ vec3 generateRedbullBackground(vec2 uv){
 
 	
 	
-	//vec4 tx = texture2D(titulos,uv);
-	//vec4 tx2 = texture2D(cuadrados,uv);
+	//vec4 tx = texture(titulos,uv);
+	//vec4 tx2 = texture(cuadrados,uv);
 	
 	
 	vec3 textc = mix(c1,c2,sin(uv.x*4.+e2+pi-time*.1+rx1)*.5+.5);

@@ -8,11 +8,11 @@ void main()
 {
     float size=1.+pow(2.,floor(1.+blur_size*2.));
     float it=floor(size*size);
-    vec3 C=texture2D(input_texture,gl_FragCoord.xy/resolution).rgb;
+    vec3 C=texture(input_texture,gl_FragCoord.xy/resolution).rgb;
 	  vec3 R=vec3(0.);
     for(float i=0.; i<it; i++) {
     	vec2 p=vec2(mod(i,size),floor(i/size))-floor(size*.5);
-        vec3 aC=texture2D(feedback,(gl_FragCoord.xy+p)/resolution).rgb;
+        vec3 aC=texture(feedback,(gl_FragCoord.xy+p)/resolution).rgb;
 		    R+=aC;
     };
     R/=it;

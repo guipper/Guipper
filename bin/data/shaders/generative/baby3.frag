@@ -167,14 +167,14 @@ void main(void) {
 	float prom = length(fin);
 	
 	
-	vec4 fb2 = texture2D(feedback,uv);
+	vec4 fb2 = texture(feedback,uv);
 	float fb2_prom = (fb2.r+fb2.g+fb2.b)/3.;
 	
 	puv-=vec2(0.5+fb2_prom*.001);
 	puv*= scale(vec2(0.995+fb2_prom*.0001));
 	puv+=vec2(0.5-fb2_prom*.001);
 	
-	vec4 fb = texture2D(feedback,puv);
+	vec4 fb = texture(feedback,puv);
 		
 	if(prom > 0.995){
 		fin = vec3(0.0);

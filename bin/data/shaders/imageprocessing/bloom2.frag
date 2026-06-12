@@ -27,7 +27,7 @@ void main()
 { 
 	vec2 uv = gl_FragCoord.xy / resolution;
 
-	vec4 t1 =  texture2D(texture1, uv);
+	vec4 t1 =  texture(texture1, uv);
 	vec2 uv2=floor(uv*10.)/50.;
 	mat2 spin=rot(2.39996);
     vec2 p=vec2(0.,1.);
@@ -37,14 +37,14 @@ void main()
 	float rad=0.;
     float ti=mod(time,10.);
     float vhs=step(.92,hash(uv.yy+ti))*(1.+sin(uv.y*5.+ti))*step(.5,hash(uv.xy+ti))*smoothstep(0.,1.,uv.y);
-    //vec4 col=texture2D(tx,uv+.05*step(.98,hash(uv2.yy+floor(time*10.)))*step(.5,hash(uv2.xx+time))*.7);
+    //vec4 col=texture(tx,uv+.05*step(.98,hash(uv2.yy+floor(time*10.)))*step(.5,hash(uv2.xx+time))*.7);
     //uv.y+=vhs*.3;
 	
-	vec4 col=texture2D(texture1,uv);
+	vec4 col=texture(texture1,uv);
     for (float i=0.;i<mit; i++) {
         rad+=rad_step;
         p*=spin;
-        vec4 col=texture2D(texture1,uv+p*rad);
+        vec4 col=texture(texture1,uv+p*rad);
         res+=smoothstep(.6,.8,col.rgb)*3.5;
     };
     res/=mit;

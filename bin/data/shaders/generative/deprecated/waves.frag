@@ -53,7 +53,7 @@ float part(vec2 p) {
 
 void main()
 {
-	vec3 back = texture2DRect(tex,gl_FragCoord.xy).rgb;
+	vec3 back = texture(tex,gl_FragCoord.xy).rgb;
     vec2 uv = gl_FragCoord.xy / resolution.xy;
 	vec2 d=vec2(0.,smoothstep(0.,.5,abs(uv.x-.5)));
 	float w1=waves(uv, .55,0.);

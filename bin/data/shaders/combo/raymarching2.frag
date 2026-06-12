@@ -79,7 +79,7 @@ float is_id(float id) {
 vec3 color() {
   vec3 col=vec3(0.);
   //col+=vec3(1.,0.,0.)*is_id(1.);
-  col+=texture2DRect(sph_texture, fract(psph.xy)*resolution*sph_texture_scale).rgb*is_id(1.);
+  col+=texture(sph_texture, fract(psph.xy)*resolution*sph_texture_scale).rgb*is_id(1.);
   col+=vec3(0.,0.,1.)*is_id(2.);
   return col;
 }
@@ -122,10 +122,10 @@ vec3 march(vec3 from, vec3 dir) {
   } else {
     totdist=maxdist;
     p=from+dir*maxdist;
-    col=texture2DRect(background,abs(dir.xy-vec2(0.,.1))*resolution).rgb;
+    col=texture(background,abs(dir.xy-vec2(0.,.1))*resolution).rgb;
   }
   vec2 uvfloor=abs(resolution-mod(refp.xz*floor_texture_scale*resolution,resolution*2.));
-  vec3 floor_col=texture2DRect(floor_texture,uvfloor).rgb;
+  vec3 floor_col=texture(floor_texture,uvfloor).rgb;
   col=mix(col,floor_col,ref);
   return col;
 }

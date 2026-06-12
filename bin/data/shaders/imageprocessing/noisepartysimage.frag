@@ -17,7 +17,7 @@ void main()
 	float fix = resolution.x/resolution.y;
 	uv.x *=fix;
 	vec2 puv = gl_FragCoord.xy ;
-	vec4 fb =  texture2D(feedback, puv/resolution);
+	vec4 fb =  texture(feedback, puv/resolution);
 
 	
 	vec3 dib = vec3(1.0);
@@ -51,7 +51,7 @@ void main()
 		
 		//uv2+=random2(uv2*uv.x*200.*f1+sin(uv.y*10.*f2+time)*0.1+time)*e4*4.*sin(uv.x*10.*f3+time);
 		
-		vec4 txx = texture2D(tx,gl_FragCoord.xy / resolution);
+		vec4 txx = texture(tx,gl_FragCoord.xy / resolution);
 		float prom = (txx.r+txx.g+txx.b)/3.;
 		
 		prom*=10.5;

@@ -168,7 +168,7 @@ vec3 march(vec3 from, vec3 dir, vec2 uv) {
 	
 	
 	vec2 spout_res = vec2(1920,1012); //ESTO PARA QUE COINCIDA CON LA RESOLUCION DEL VIDEO.
-    vec3 backtex = texture2DRect(spout, gl_FragCoord.xy/resolution*spout_res).rgb;
+    vec3 backtex = texture(spout, gl_FragCoord.xy/resolution*spout_res).rgb;
     vec3 col = vec3(0.);
     float d, td = 0., sh = 1., md = 100., g=0.;
     for (int i=0; i<80; i++) {

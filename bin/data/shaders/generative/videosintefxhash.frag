@@ -54,7 +54,7 @@ void main()
 
 	vec2 coords = gl_FragCoord.xy ;
 	//coords.y = resolution.y -coords.y;
-	vec4 fb =  texture2D(feedback, coords/resolution);
+	vec4 fb =  texture(feedback, coords/resolution);
 	
 	float mt = mapr(speed,time*10.,-time*10.);//MAP TIME 
 	

@@ -102,7 +102,7 @@ float mapr2(float _value,float _minin,float _maxin, float _low2,float _high2) {
 float de(vec3 p) 
 {
 	//p.xz *= rot(rotate*TWO_PI+time*.1);
-	//vec4 tx = texture2D(fondo,uv2);	
+	//vec4 tx = texture(fondo,uv2);	
     
 	vec3 psph = p;	
 	vec3 psph2 = p;
@@ -210,7 +210,7 @@ vec3 march(vec3 from, vec3 dir)
         td += d;
     }
 	vec2 uv2 = gl_FragCoord.xy/resolution.xy;
-	vec4 tx = texture2D(fondo,uv2);	
+	vec4 tx = texture(fondo,uv2);	
 	
 	p -= det * dir;
 	col = mix(vec3(0.0),shade(p, dir),d<det);

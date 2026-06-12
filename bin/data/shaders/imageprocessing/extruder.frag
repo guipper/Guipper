@@ -54,8 +54,8 @@ float de(vec3 p) {
   //if (distort) p.yz*=rot(p.x*.5+iTime);
   vec3 p2=p;
   p2.x*=3./5.;
-  if(!invert) objcol=texture2D(tx,p2.xy*.15*(1.+p.z*3.*(distort_scale-.5))+.5).rgb;
-  else objcol=1.-texture2D(tx,p2.xy*.15*(1.+p.z*3.*(distort_scale-.5))+.5).rgb;
+  if(!invert) objcol=texture(tx,p2.xy*.15*(1.+p.z*3.*(distort_scale-.5))+.5).rgb;
+  else objcol=1.-texture(tx,p2.xy*.15*(1.+p.z*3.*(distort_scale-.5))+.5).rgb;
 
   //float l=invert?1.-length(objcol)*.5:length(objcol)*.3*smoothstep(.75,1.,dot(normalize(objcol),normalize(vec3(0.,.5,1.))));
   float l=length(objcol)*.5*height_scale*2.;

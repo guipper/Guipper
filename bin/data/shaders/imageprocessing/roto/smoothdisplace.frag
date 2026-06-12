@@ -30,7 +30,7 @@ float GetWaveDisplacement(vec3 p)
 //	k = p.z;
 	
 	vec2 uv = gl_FragCoord.xy / resolution.xy;
-	vec4 tk = texture2D(input_texture,p.xy);
+	vec4 tk = texture(input_texture,p.xy);
 	
 	float prom = (tk.r+tk.g+tk.b)/3.;
 	prom = smoothstep(0.0,0.75,prom*prom);
@@ -44,7 +44,7 @@ float map(vec3 p)
 	float k = GetWaveDisplacement(p);
 	
 	vec2 uv = gl_FragCoord.xy / resolution;
-	vec4 tk = texture2D(input_texture,uv);
+	vec4 tk = texture(input_texture,uv);
 	float prom = (tk.r+tk.g+tk.b)/3.;
 	float dist = p.y - k - 1.0;
 	return dist;

@@ -11,7 +11,7 @@
 #define iFrame floor (time*60.)
 #define iResolution resolution
 #define iMouse mouse
-#define texture(tex,uv) texture2DRect(tex,(uv)*resolution)*/
+#define texture(tex,uv) texture(tex,(uv)*resolution)*/
 uniform sampler2DRect iChannel0;
 ///////////////////////////////
 // TEXT BELOW, OPTIONS FIRST //

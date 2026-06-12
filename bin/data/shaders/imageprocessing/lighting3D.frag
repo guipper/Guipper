@@ -15,7 +15,7 @@ uniform sampler2D texture1;
 vec2 d = vec2(1.,0.);
 
 float bri(vec2 p) {
-	return length(texture2D(texture1, p/resolution))*mapr(height,-300,300.);
+	return length(texture(texture1, p/resolution))*mapr(height,-300,300.);
 }
 
 vec3 normal(vec2 z) {
@@ -26,7 +26,7 @@ vec3 normal(vec2 z) {
 
 void main()
 {
-	vec3 t1 =  texture2D(texture1, gl_FragCoord.xy/resolution).rgb;
+	vec3 t1 =  texture(texture1, gl_FragCoord.xy/resolution).rgb;
 	vec2 z = gl_FragCoord.xy;
 
 	vec3 n= normal(z-d.xy)+normal(z+d.xy);

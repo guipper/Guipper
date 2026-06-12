@@ -26,12 +26,12 @@ void main()
     vec2 uv_textura2 = uv * vec2(2.0, 1.0) - vec2(1.0 - offset2x, mapr(offset2y,-1.,1.));
 
     if (uv_textura1.x >= 0.0 && uv_textura1.x <= 1.0 && uv_textura1.y >= 0.0 && uv_textura1.y <= 1.0) {
-        color1 = texture2D(textura1, uv_textura1);
+        color1 = texture(textura1, uv_textura1);
         //color1 *= smootherstep(0.0, smoothness, uv_textura1.y) * smootherstep(1.0, 1.0-smoothness, uv_textura1.y);
     }
     
     if (uv_textura2.x >= 0.0 && uv_textura2.x <= 1.0 && uv_textura2.y >= 0.0 && uv_textura2.y <= 1.0) {
-        color2 = texture2D(textura2, uv_textura2);
+        color2 = texture(textura2, uv_textura2);
         //color2 *= smootherstep(0.0, smoothness, uv_textura2.y) * smootherstep(1.0, 1.0-smoothness, uv_textura2.y);
     }
 	int bm = int(mapr(blendmode, 0.0, 25.0));

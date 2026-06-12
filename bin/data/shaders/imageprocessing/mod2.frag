@@ -9,7 +9,7 @@ void main(){
 
 
 	vec2 uv = gl_FragCoord.xy / resolution;
-	vec4 t1 =  texture2D(texture1, gl_FragCoord.xy/resolution);
+	vec4 t1 =  texture(texture1, gl_FragCoord.xy/resolution);
 	vec2 uv2 = uv;
 	float prom = (t1.r+t1.g+t1.b)/3.;
 	
@@ -23,7 +23,7 @@ void main(){
 	for(int i=0; i<mcnt; i++){
 		
 		float fase = i*pi*2/mcnt;
-		t1 =  texture2D(texture1, uv3);
+		t1 =  texture(texture1, uv3);
 		prom = (t1.r+t1.g+t1.b)/3.;
 		
 		
@@ -31,7 +31,7 @@ void main(){
 		uv3.x+=sin(time+fase)*prom*mapr(multdisplace,0.001,0.1);		
 		uv3.y+=cos(time+fase)*prom*mapr(multdisplace,0.001,0.1);
 	
-		vec4 tx2 =  texture2D(texture1, uv3); 
+		vec4 tx2 =  texture(texture1, uv3); 
 		dib+=tx2.rgb;
 	} 
 	

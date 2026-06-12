@@ -150,7 +150,7 @@ vec3 march(vec3 from, vec3 dir) {
 		td+=d;
 		g++;
 	}
-	vec3 back = texture2DRect(tex,gl_FragCoord.xy).rgb;
+	vec3 back = texture(tex,gl_FragCoord.xy).rgb;
 	if (d<det) {
 		p-=det*dir;
 		col=mix(shade(p, dir),back,.4);

@@ -289,11 +289,11 @@ void main() {
 	uv3*=scale(vec2(0.5,1.0));
 	uv3+=vec2(0.5);
 	uv3.y-=0.4;
-	vec4 img = texture2D(tx1,uv2);
+	vec4 img = texture(tx1,uv2);
 	
 	
 	
-	vec4 img2 = texture2D(tx2,uv3);
+	vec4 img2 = texture(tx2,uv3);
 	
 	
 	

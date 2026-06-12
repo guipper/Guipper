@@ -128,7 +128,7 @@ vec3 march(vec3 from, vec3 dir) {
 		td+=d;
 		g+=max(0.,.5-d)/.5;
 	}
-	vec3 back = texture2DRect(tex,gl_FragCoord.xy).rgb;
+	vec3 back = texture(tex,gl_FragCoord.xy).rgb;
 	float gl=g*.1*(1.-smoothstep(1.,3.,abs(p.x)))*turbina;
 	if (d<det) {
 		p-=det*dir;

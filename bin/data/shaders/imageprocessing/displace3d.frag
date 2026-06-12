@@ -30,7 +30,7 @@ vec4 de(vec3 p) {
   vec2 uv = p.xy;
 	   uv.x =(p.x+.5/image_scale_x)*image_scale_x;
 	   uv.y =(p.y+.5/image_scale_y)*image_scale_y;
-  vec3 col = texture2D(textura, uv).rgb;
+  vec3 col = texture(textura, uv).rgb;
   
   float disp=sqrt(length(col));
   if (mapdisp-.5<0.) disp=2.-length(col);

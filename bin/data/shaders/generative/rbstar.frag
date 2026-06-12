@@ -97,8 +97,8 @@ void main(){
 
 	
 	
-	//vec4 tx = texture2D(titulos,uv);
-	//vec4 tx2 = texture2D(cuadrados,uv);
+	//vec4 tx = texture(titulos,uv);
+	//vec4 tx2 = texture(cuadrados,uv);
 	
 	
 	

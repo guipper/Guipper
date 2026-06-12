@@ -20,7 +20,7 @@ void main()
 
 	uv+=vec2(.5);
 	
-	vec4 t1 =  texture2D(textura1, uv);	
+	vec4 t1 =  texture(textura1, uv);	
 	vec3 fin = t1.rgb;
 	
 	fragColor = vec4(fin,1.0); 

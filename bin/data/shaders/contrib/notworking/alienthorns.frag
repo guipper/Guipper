@@ -20,9 +20,9 @@ vec3 sunDir = normalize(vec3(-.3, 0.6, .8));
 vec3 TexCube(in vec3 p, in vec3 n )
 {
     p *= .5;
-	vec3 x = texture2DRect( iChannel0, p.yz).xyz;
-	vec3 y = texture2DRect( iChannel1, p.zx).xyz;
-	vec3 z = texture2DRect( iChannel2, p.xy).xyz;
+	vec3 x = texture( iChannel0, p.yz).xyz;
+	vec3 y = texture( iChannel1, p.zx).xyz;
+	vec3 z = texture( iChannel2, p.xy).xyz;
 	return x*abs(n.x) + y*abs(n.y) + z*abs(n.z);
 }
 

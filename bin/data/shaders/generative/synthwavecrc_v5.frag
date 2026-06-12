@@ -349,8 +349,8 @@ void main() {
 	uv3*=scale(vec2(0.3,0.275));
 	uv3+=vec2(0.5);
 	uv3.y-=0.50;
-	vec4 img = texture2D(tx1,uv2);
-	vec4 img2 = texture2D(tx2,uv3);
+	vec4 img = texture(tx1,uv2);
+	vec4 img2 = texture(tx2,uv3);
 	
 	img.rgb *= img.a;
 	
@@ -384,8 +384,8 @@ void main() {
 	uv5.x-=5;
 	uv5.y-=0.3;
 	
-	vec4 logoder = texture2D(tx1,uv4);
-	vec4 logoizq = texture2D(tx1,uv5);
+	vec4 logoder = texture(tx1,uv4);
+	vec4 logoizq = texture(tx1,uv5);
 	
 	vec4 fin = colSum / colSum.w*4.71;
 	//fin = mix(fin,mix(fin,img,.7),img.a);

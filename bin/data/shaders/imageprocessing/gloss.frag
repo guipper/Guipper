@@ -62,7 +62,7 @@ vec3 march(vec3 from, vec3 dir)
 		
         col=vec3(spec)+.0;
     }
-	vec3 img=texture2D(imagen,gl_FragCoord.xy/resolution).rgb;
+	vec3 img=texture(imagen,gl_FragCoord.xy/resolution).rgb;
 	col+=img;
     return col+g*vec3(1.,0.2,1.)*0.;
 }
