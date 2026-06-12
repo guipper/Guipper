@@ -105,6 +105,7 @@ private:
 	bool addShaderSectionCollapsed = true;
 	bool targetBoxSelectOpen = false;
 	bool actionSelectOpen = false;
+	bool mapDeviceSelectOpen = false;
 	int rebindIndex = -1;
 	int focusedAddShaderRow = -1;
 	string selectedBoxName;
@@ -117,6 +118,8 @@ private:
 	MidiKey lastKey;
 	bool hasLastKey = false;
 	bool inputsOpen = false;
+	vector<string> availableDeviceNames;
+	string activeMapDeviceName;
 
 	// Scroll and drag variables
 	float targetBoxScrollY = 0.0f;
@@ -126,6 +129,10 @@ private:
 
 	void openInputs();
 	void closeInputs();
+	void setActiveMapDevice(string deviceName);
+	bool isActiveMapDevice(string deviceName) const;
+	vector<string> getMapDeviceNames() const;
+	void ensureActiveMapDevice();
 	void processKey(const MidiKey &key);
 	void applyBinding(const Binding &binding, float midiValue);
 	void processPendingShaderAdds();
@@ -163,6 +170,7 @@ private:
 	PanelLayout getPanelLayout() const;
 	DropdownLayout getTargetBoxDropdownLayout(const PanelLayout &layout) const;
 	DropdownLayout getActionDropdownLayout(const PanelLayout &layout) const;
+	DropdownLayout getMapDeviceDropdownLayout(const PanelLayout &layout) const;
 	vector<Action> getGlobalActions() const;
 	vector<Action> getBoxActions() const;
 	string getKeyId(const MidiKey &key) const;

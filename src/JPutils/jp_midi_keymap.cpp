@@ -142,11 +142,21 @@ void JPMidiKeymap::openInputs()
 	closeInputs();
 	inputsOpen = true;
 	ccHighState.clear();
+	availableDeviceNames.clear();
 
 	ofxMidiIn midiProbe;
 	int numPorts = midiProbe.getNumInPorts();
 	for (int i = 0; i < numPorts; i++)
 	{
+		string portName = midiProbe.getInPortName(i);
+		if (portName.empty())
+		{
+			portName = "port " + ofToString(i);
+		}
+		if (std::find(availableDeviceNames.begin(), availableDeviceNames.end(), portName) == availableDeviceNames.end())
+		{
+			availableDeviceNames.push_back(portName);
+		}
 		ofxMidiIn *midiIn = new ofxMidiIn();
 		midiIn->openPort(i);
 		midiIn->ignoreTypes(false, false, false);
@@ -154,6 +164,7 @@ void JPMidiKeymap::openInputs()
 		midiIn->setVerbose(false);
 		midiInputs.push_back(midiIn);
 	}
+	ensureActiveMapDevice();
 }
 
 void JPMidiKeymap::closeInputs()
@@ -174,6 +185,46 @@ void JPMidiKeymap::closeInputs()
 	}
 	midiInputs.clear();
 	inputsOpen = false;
+}
+
+void JPMidiKeymap::setActiveMapDevice(string deviceName)
+{
+	activeMapDeviceName = deviceName;
+	mapDeviceSelectOpen = false;
+	cancelLearning();
+	rebindIndex = -1;
+	syncAddShaderRowsFromBindings();
+}
+
+bool JPMidiKeymap::isActiveMapDevice(string deviceName) const
+{
+	return activeMapDeviceName.empty() || deviceName == activeMapDeviceName;
+}
+
+vector<string> JPMidiKeymap::getMapDeviceNames() const
+{
+	vector<string> names = availableDeviceNames;
+	for (int i = 0; i < bindings.size(); i++)
+	{
+		if (!bindings[i].key.deviceName.empty() &&
+			std::find(names.begin(), names.end(), bindings[i].key.deviceName) == names.end())
+		{
+			names.push_back(bindings[i].key.deviceName);
+		}
+	}
+	std::sort(names.begin(), names.end());
+	return names;
+}
+
+void JPMidiKeymap::ensureActiveMapDevice()
+{
+	vector<string> names = getMapDeviceNames();
+	if (!activeMapDeviceName.empty() &&
+		std::find(names.begin(), names.end(), activeMapDeviceName) != names.end())
+	{
+		return;
+	}
+	activeMapDeviceName = names.empty() ? "" : names[0];
 }
 
 void JPMidiKeymap::update()
@@ -249,6 +300,10 @@ void JPMidiKeymap::processKey(const MidiKey &key)
 		learnKey(key);
 		return;
 	}
+	if (!isActiveMapDevice(key.deviceName))
+	{
+		return;
+	}
 
 	int index = findBindingForKey(key);
 	if (index >= 0)
@@ -265,6 +320,8 @@ void JPMidiKeymap::learnKey(const MidiKey &key)
 		return;
 	}
 
+	activeMapDeviceName = key.deviceName;
+	mapDeviceSelectOpen = false;
 	removeBindingForKey(key, false);
 
 	Binding binding;
@@ -497,9 +554,17 @@ void JPMidiKeymap::removeBindingForKey(const MidiKey &key, bool saveChange)
 
 int JPMidiKeymap::findBindingForKey(const MidiKey &key) const
 {
+	if (!isActiveMapDevice(key.deviceName))
+	{
+		return -1;
+	}
 	string keyId = getKeyId(key);
 	for (int i = 0; i < bindings.size(); i++)
 	{
+		if (!isActiveMapDevice(bindings[i].key.deviceName))
+		{
+			continue;
+		}
 		if (getKeyId(bindings[i].key) == keyId)
 		{
 			return i;
@@ -512,6 +577,10 @@ bool JPMidiKeymap::hasBindingForAction(Action action, string boxName, int parame
 {
 	for (int i = 0; i < bindings.size(); i++)
 	{
+		if (!isActiveMapDevice(bindings[i].key.deviceName))
+		{
+			continue;
+		}
 		if (bindings[i].action != action)
 		{
 			continue;
@@ -539,6 +608,10 @@ int JPMidiKeymap::findParameterBindingForIndex(int parameterIndex) const
 {
 	for (int i = 0; i < bindings.size(); i++)
 	{
+		if (!isActiveMapDevice(bindings[i].key.deviceName))
+		{
+			continue;
+		}
 		if (bindings[i].action == PARAMETER &&
 			bindings[i].parameterIndex == parameterIndex)
 		{
@@ -552,6 +625,10 @@ int JPMidiKeymap::findGlobalActionBinding(Action action) const
 {
 	for (int i = 0; i < bindings.size(); i++)
 	{
+		if (!isActiveMapDevice(bindings[i].key.deviceName))
+		{
+			continue;
+		}
 		if (bindings[i].action == action)
 		{
 			return i;
@@ -569,6 +646,10 @@ int JPMidiKeymap::findAddShaderBinding(string query) const
 	}
 	for (int i = 0; i < bindings.size(); i++)
 	{
+		if (!isActiveMapDevice(bindings[i].key.deviceName))
+		{
+			continue;
+		}
 		if (bindings[i].action == ADD_SHADER_BOX &&
 			normalizeText(bindings[i].shaderQuery) == normalizedQuery)
 		{
@@ -670,6 +751,10 @@ void JPMidiKeymap::syncAddShaderRowsFromBindings()
 	addShaderSearched.clear();
 	for (int i = 0; i < bindings.size(); i++)
 	{
+		if (!isActiveMapDevice(bindings[i].key.deviceName))
+		{
+			continue;
+		}
 		if (bindings[i].action == ADD_SHADER_BOX && !bindings[i].shaderQuery.empty())
 		{
 			addShaderRows.push_back(bindings[i].shaderQuery);
@@ -856,6 +941,10 @@ int JPMidiKeymap::getNonParameterBindingCount() const
 	int count = 0;
 	for (int i = 0; i < bindings.size(); i++)
 	{
+		if (!isActiveMapDevice(bindings[i].key.deviceName))
+		{
+			continue;
+		}
 		if (bindings[i].action != PARAMETER)
 		{
 			count++;
@@ -885,7 +974,7 @@ JPMidiKeymap::PanelLayout JPMidiKeymap::getPanelLayout() const
 	layout.innerX = PANEL_X + PAD;
 	layout.innerW = PANEL_W - PAD * 2;
 	layout.headerY = PANEL_Y + PAD;
-	layout.paramY = PANEL_Y + PARAM_Y_OFFSET;
+	layout.paramY = PANEL_Y + PARAM_Y_OFFSET + 24.0f;
 	layout.globalY = layout.paramY + PARAM_HEADER_H + getParameterRowCount() * (ROW_H + 4) + SECTION_VERTICAL_SPACING;
 	layout.addShaderY = layout.globalY + PARAM_HEADER_H + getGlobalActionRowCount() * (ROW_H + 4) + SECTION_VERTICAL_SPACING;
 	layout.targetBoxY = layout.addShaderY + PARAM_HEADER_H + getAddShaderRowCount() * (ROW_H + 4) + SECTION_VERTICAL_SPACING;
@@ -919,6 +1008,20 @@ JPMidiKeymap::DropdownLayout JPMidiKeymap::getActionDropdownLayout(const PanelLa
 	dropdown.w = 200.0f;
 	dropdown.contentH = getBoxActions().size() * (ROW_H + 2) + 4;
 	dropdown.h = dropdown.contentH;
+	return dropdown;
+}
+
+JPMidiKeymap::DropdownLayout JPMidiKeymap::getMapDeviceDropdownLayout(const PanelLayout &layout) const
+{
+	DropdownLayout dropdown;
+	dropdown.x = layout.innerX + 44;
+	dropdown.y = layout.headerY + 58;
+	dropdown.w = layout.innerW - 44;
+	vector<string> names = getMapDeviceNames();
+	dropdown.contentH = names.size() * (ROW_H + 2) + 2;
+	dropdown.h = std::min(SELECT_DROPDOWN_MAX_H, dropdown.contentH);
+	dropdown.showScrollbar = false;
+	dropdown.maxScrollY = 0.0f;
 	return dropdown;
 }
 
@@ -1053,6 +1156,35 @@ void JPMidiKeymap::draw()
 	}
 
 	// DRAW OVERLAYS FOR DROPDOWNS
+	if (mapDeviceSelectOpen)
+	{
+		vector<string> names = getMapDeviceNames();
+		DropdownLayout dropdown = getMapDeviceDropdownLayout(layout);
+		ofSetColor(15, 20, 25, 245);
+		ofDrawRectRounded(dropdown.x, dropdown.y, dropdown.w, dropdown.h, 6.0f);
+		ofNoFill();
+		ofSetColor(0, 230, 230, 255);
+		ofSetLineWidth(1.5f);
+		ofDrawRectRounded(dropdown.x, dropdown.y, dropdown.w, dropdown.h, 6.0f);
+		ofFill();
+		ofSetLineWidth(1.0f);
+
+		for (int i = 0; i < names.size(); i++)
+		{
+			float optionY = dropdown.y + 2 + i * (ROW_H + 2);
+			bool isSelected = names[i] == activeMapDeviceName;
+			bool isHovered = pointInRect(ofGetMouseX(), ofGetMouseY(), dropdown.x + 2, optionY, dropdown.w - 4, ROW_H);
+			ofSetColor(isSelected ? ofColor(0, 160, 160, 220) : (isHovered ? ofColor(40, 50, 60, 230) : ofColor(20, 25, 30, 200)));
+			ofDrawRectRounded(dropdown.x + 2, optionY, dropdown.w - 4, ROW_H, 3.0f);
+			ofNoFill();
+			ofSetColor(isHovered ? ofColor(255) : (isSelected ? ofColor(0, 230, 230, 200) : ofColor(60, 70, 80, 100)));
+			ofDrawRectRounded(dropdown.x + 2, optionY, dropdown.w - 4, ROW_H, 3.0f);
+			ofFill();
+			ofSetColor(255);
+			jp_constants::p_font.drawString(fitLabel(names[i], dropdown.w - 20), dropdown.x + 10, optionY + ROW_H - 7);
+		}
+	}
+
 	if (targetBoxSelectOpen && boxes != nullptr && !boxes->boxes.empty())
 	{
 		vector<string> names = boxes->getBoxNames();
@@ -1273,6 +1405,13 @@ void JPMidiKeymap::drawPanelHeader(float x, float y, float w)
 	string last = hasLastKey ? getKeyLabel(lastKey) : "none";
 	last = fitLabel("Last MIDI: " + last, w - 126);
 	jp_constants::p_font.drawString(last, x + 110, y + 46);
+
+	ensureActiveMapDevice();
+	ofSetColor(255);
+	jp_constants::p_font.drawString("Map", x, y + 72);
+	string mapLabel = activeMapDeviceName.empty() ? "No MIDI device" : activeMapDeviceName;
+	mapLabel = fitLabel(mapLabel, w - 66);
+	drawSelectField(x + 44, y + 54, w - 44, ROW_H, mapLabel, mapDeviceSelectOpen);
 }
 
 void JPMidiKeymap::drawBoxSelector(float x, float y, float w)
@@ -1503,6 +1642,10 @@ void JPMidiKeymap::drawBindings(float x, float y, float w)
 	int rowIndex = 0;
 	for (int i = 0; i < bindings.size(); i++)
 	{
+		if (!isActiveMapDevice(bindings[i].key.deviceName))
+		{
+			continue;
+		}
 		if (bindings[i].action == PARAMETER)
 		{
 			continue;
@@ -1562,6 +1705,24 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		return true;
 	}
 
+	if (mapDeviceSelectOpen)
+	{
+		vector<string> names = getMapDeviceNames();
+		DropdownLayout dropdown = getMapDeviceDropdownLayout(layout);
+		if (pointInRect(x, y, dropdown.x, dropdown.y, dropdown.w, dropdown.h))
+		{
+			float clickY = y - dropdown.y - 2;
+			int clickedIndex = clickY / (ROW_H + 2);
+			if (clickedIndex >= 0 && clickedIndex < names.size())
+			{
+				setActiveMapDevice(names[clickedIndex]);
+				saveGlobal();
+			}
+			return true;
+		}
+		mapDeviceSelectOpen = false;
+	}
+
 	// Check header buttons
 	if (pointInRect(x, y, layout.innerX + layout.innerW - 264, layout.headerY + 4, 82, 24))
 	{
@@ -1569,6 +1730,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		cancelLearning();
 		targetBoxSelectOpen = false;
 		actionSelectOpen = false;
+		mapDeviceSelectOpen = false;
 		return true;
 	}
 	if (pointInRect(x, y, layout.innerX + layout.innerW - 174, layout.headerY + 4, 82, 24))
@@ -1577,6 +1739,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		cancelLearning();
 		targetBoxSelectOpen = false;
 		actionSelectOpen = false;
+		mapDeviceSelectOpen = false;
 		return true;
 	}
 	if (pointInRect(x, y, layout.innerX + layout.innerW - 84, layout.headerY + 4, 84, 24))
@@ -1592,6 +1755,15 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		}
 		targetBoxSelectOpen = false;
 		actionSelectOpen = false;
+		mapDeviceSelectOpen = false;
+		return true;
+	}
+	if (pointInRect(x, y, layout.innerX + 44, layout.headerY + 54, layout.innerW - 44, ROW_H))
+	{
+		mapDeviceSelectOpen = !mapDeviceSelectOpen;
+		targetBoxSelectOpen = false;
+		actionSelectOpen = false;
+		focusedAddShaderRow = -1;
 		return true;
 	}
 
@@ -1600,6 +1772,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		parameterSectionCollapsed = !parameterSectionCollapsed;
 		targetBoxSelectOpen = false;
 		actionSelectOpen = false;
+		mapDeviceSelectOpen = false;
 		return true;
 	}
 
@@ -1609,6 +1782,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		focusedAddShaderRow = -1;
 		targetBoxSelectOpen = false;
 		actionSelectOpen = false;
+		mapDeviceSelectOpen = false;
 		return true;
 	}
 
@@ -1618,6 +1792,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		focusedAddShaderRow = -1;
 		targetBoxSelectOpen = false;
 		actionSelectOpen = false;
+		mapDeviceSelectOpen = false;
 		return true;
 	}
 
@@ -1704,6 +1879,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 			focusedAddShaderRow = -1;
 			targetBoxSelectOpen = !targetBoxSelectOpen;
 			actionSelectOpen = false;
+			mapDeviceSelectOpen = false;
 			return true;
 		}
 	}
@@ -1714,6 +1890,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		focusedAddShaderRow = -1;
 		actionSelectOpen = !actionSelectOpen;
 		targetBoxSelectOpen = false;
+		mapDeviceSelectOpen = false;
 		return true;
 	}
 
@@ -1862,6 +2039,10 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 	int bindingRow = 0;
 	for (int i = 0; i < bindings.size(); i++)
 	{
+		if (!isActiveMapDevice(bindings[i].key.deviceName))
+		{
+			continue;
+		}
 		if (bindings[i].action == PARAMETER)
 		{
 			continue;
@@ -2081,6 +2262,7 @@ void JPMidiKeymap::save(string path)
 	ofXml xml;
 
 	auto keymap = xml.appendChild("midikeymap");
+	keymap.appendChild("active_device").set(activeMapDeviceName);
 	for (int i = 0; i < bindings.size(); i++)
 	{
 		auto binding = keymap.appendChild("binding");
@@ -2124,6 +2306,11 @@ void JPMidiKeymap::load(string path)
 		ensureAddShaderDraftRow();
 		return;
 	}
+	auto activeDevice = keymap.getChild("active_device");
+	if (activeDevice)
+	{
+		activeMapDeviceName = activeDevice.getValue();
+	}
 
 	for (auto &bindingNode : keymap.getChildren("binding"))
 	{
@@ -2148,5 +2335,6 @@ void JPMidiKeymap::load(string path)
 			bindings.push_back(binding);
 		}
 	}
+	ensureActiveMapDevice();
 	syncAddShaderRowsFromBindings();
 }
