@@ -1,11 +1,11 @@
 #include "jp_box_video.h"
 
-JPbox_video::JPbox_video(){}
-JPbox_video::~JPbox_video(){}
+JPbox_video::JPbox_video() { }
+JPbox_video::~JPbox_video() { }
 
-void JPbox_video::setup(string _dir, string _nombre){
+void JPbox_video::setup(string _dir, string _nombre) {
 
-	JPbox::setup(_dir,_nombre);
+	JPbox::setup(_dir, _nombre);
 
 	//parameters.coutData();
 	name = _nombre;
@@ -13,9 +13,10 @@ void JPbox_video::setup(string _dir, string _nombre){
 	//img.loadImage(_dir);
 	movie.loadAsync(_dir);
 	movie.setLoopState(OF_LOOP_NORMAL);
+	movie.setVolume(0.0f);
 	movie.play();
 
-	parameters.addFloatValue(0.5, "scalex");
+	parameters.addFloatValue(1, "scalex");
 	parameters.addFloatValue(0.5, "scaley");
 	parameters.addFloatValue(0.5, "offsetx");
 	parameters.addFloatValue(0.5, "offsety");
@@ -25,31 +26,26 @@ void JPbox_video::setup(string _dir, string _nombre){
 	parameters.addBoolValue(true, "play");
 	tipo = VIDEOBOX;
 }
-void JPbox_video::update(){
+void JPbox_video::update() {
 	JPbox::update();
 	updateFBO();
 }
-void JPbox_video::updateFBO()
-{
+void JPbox_video::updateFBO() {
 	if (onoff.boolValue) {
 		movie.update();
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		ofSetColor(255, 255);
 
-
-
 		if (auxpos != parameters.getFloatValue(6)) {
 			auxpos = parameters.getFloatValue(6);
 			//float pos = ofMap(parameters.getFloatValue(6), 0.0, 1.0, 0.0, movie.getTotalNumFrames());
 			movie.setPosition(parameters.getFloatValue(6));
-		}
-		else {
+		} else {
 			float position = ofMap(movie.getCurrentFrame(), 0.0, movie.getTotalNumFrames(), 0.0, 1.0);
 			parameters.setFloatValue(position, 6);
 			auxpos = parameters.getFloatValue(6);
-
 		}
-		
+
 		//float pos = ofMap(parameters.getFloatValue(6), 0.0, 1.0, 0.0, movie.getTotalNumFrames());
 		/*float position = ofMap(movie.getCurrentFrame(), 0.0, movie.getTotalNumFrames(), 0.0, 1.0);
 		//parameters.setFloatValue(position, 6);
@@ -73,22 +69,20 @@ void JPbox_video::updateFBO()
 				jp_constants::renderHeight / 2 - mscaley / 2 + moffsety,
 				mscalex,
 				mscaley);
-		}
-		else {
+		} else {
 			movie.draw(0, 0, jp_constants::renderWidth, jp_constants::renderHeight);
 		}
 		fbo.end();
-	}
-	else {
+	} else {
 		JPbox::updateFBO();
 	}
 }
-void JPbox_video::draw(){
+void JPbox_video::draw() {
 	JPbox::draw();
 	fbo.draw(x, y + padding_top / 2 - 3, fbowidth, fboheight);
 	JPbox::draw_outlet();
 }
-void JPbox_video::clear(){
+void JPbox_video::clear() {
 	JPbox::clear();
 	movie.close();
 	movie.closeMovie();

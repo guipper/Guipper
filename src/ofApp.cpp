@@ -155,14 +155,17 @@ void ofApp::update() {
 	}*/
 }
 void ofApp::draw() {
-	boxes.draw_activerender(ofGetWidth(), ofGetHeight());
 	if (pantallaActiva == NODOS) {
+		boxes.drawNodeEditorBackground(ofGetWidth(), ofGetHeight());
 		boxes.draw();
 		ofSetColor(255, 255, 255, 255);
 		// outletimg.draw(ofGetWidth() / 2, ofGetHeight() / 2, 200, 200);
 		if (isDebug) {
 			draw_debugInfo();
 		}
+	}
+	else {
+		boxes.draw_activerender(ofGetWidth(), ofGetHeight());
 	}
 	if (pantallaActiva == TUTORIAL) {
 		draw_instrucciones();
@@ -409,19 +412,7 @@ void ofApp::keyPressed(int key) {
 		}
 
 		if (key == 'z') {
-
-			//boxes.load(dirmanager.directorys[0][0]);
-			//boxes.addBox("data/shaders/generative/nubes.frag",300,400);
-
-			cout << "DIRECTORIO LOCO " << dirmanager.directorys[0][0] << endl;
-			string rutita = "D:/of_v0.11.2_vs2017_release/apps/myApps/guipper3/bin/data/shaders/generative/nubes.frag";
-			if (rutita.find("data") != std::string::npos) {
-				cout << "IS INSIDE DATA FOLDER SO LETS CONVERT IT TO RELATIVE DIR" << endl;
-				rutita = rutita.substr(rutita.find("data"), rutita.size());
-				cout << "NEW PATH CONVERSION :" << rutita << endl;
-			}
-
-			boxes.addBox(rutita, ofGetWidth() / 2, ofGetHeight() / 2); //BUENO ESTO FUNCIONA.
+			boxes.toggleCueBoxByIndex(boxes.openguinumber);
 		}
 		if (key == 'x') {
 			cout << "Trigger CODE " << endl;
@@ -467,6 +458,9 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 void ofApp::mouseDragged(int x, int y, int button) {
 	midiKeymap.mouseDragged(x, y, button);
 	if (pantallaActiva == NODOS) {
+		if (boxes.update_cueMouseDragged(button)) {
+			return;
+		}
 		// jp_constants::set_mousePressedPos(ofVec2f(ofGetMouseX(), ofGetMouseY()));
 		boxes.update_mouseDragged(button);
 	}
@@ -480,6 +474,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 	}
 
 	if (pantallaActiva == NODOS) {
+		if (boxes.update_cueMousePressed(button)) {
+			return;
+		}
 		jp_constants::set_mousePressedPos(ofVec2f(ofGetMouseX(), ofGetMouseY()));
 		boxes.update_mousePressed(button);
 	}
@@ -502,6 +499,10 @@ void ofApp::keyReleased(int key) { }
 void ofApp::mouseMoved(int x, int y) { }
 void ofApp::mouseReleased(int x, int y, int button) {
 	midiKeymap.mouseReleased(x, y, button);
+	if (boxes.update_cueMouseReleased(button)) {
+		saveSettings();
+		return;
+	}
 	boxes.update_mouseReleased(button);
 	if (button == 0) {
 		// mouseButton_left = false;
@@ -623,6 +624,10 @@ void ofApp::loadSettings() {
 	auto oscout1 = settings.getChild("oscout_mode1");
 	auto oscout2 = settings.getChild("oscout_mode2");
 	auto durationgallery = settings.getChild("durationgallery");
+	auto cuePanelX = settings.getChild("cue_panel_x");
+	auto cuePanelY = settings.getChild("cue_panel_y");
+	auto cuePanelW = settings.getChild("cue_panel_w");
+	auto cuePanelH = settings.getChild("cue_panel_h");
 
 	cout << "/****************************************************/" << endl;
 	cout << "INITIAL VALUES FROM SETTINGS.XML " << endl;
@@ -650,6 +655,12 @@ void ofApp::loadSettings() {
 		windowwidth.getIntValue(),
 		windowheight.getIntValue());
 	boxes.setDurationGalleryMs(durationgallery.getFloatValue());
+	if (cuePanelX && cuePanelY && cuePanelW && cuePanelH) {
+		boxes.setCuePanelLayout(cuePanelX.getFloatValue(),
+			cuePanelY.getFloatValue(),
+			cuePanelW.getFloatValue(),
+			cuePanelH.getFloatValue());
+	}
 
 	cout << "window_width " << jp_constants::window_width << endl;
 
@@ -675,11 +686,20 @@ void ofApp::saveSettings() {
 	const auto settingsPath = ofToDataPath("settings.xml");
 
 	ofXml xml;
+	float cuePanelX = 0.0f;
+	float cuePanelY = 0.0f;
+	float cuePanelW = 0.0f;
+	float cuePanelH = 0.0f;
+	boxes.getCuePanelLayout(cuePanelX, cuePanelY, cuePanelW, cuePanelH);
 
 	auto settings = xml.appendChild("settings");
 	settings.appendChild("renderwidth").set(jp_constants::renderWidth);
 	settings.appendChild("renderheight").set(jp_constants::renderHeight);
 	settings.appendChild("durationgallery").set(boxes.getDurationGalleryMs());
+	settings.appendChild("cue_panel_x").set(cuePanelX);
+	settings.appendChild("cue_panel_y").set(cuePanelY);
+	settings.appendChild("cue_panel_w").set(cuePanelW);
+	settings.appendChild("cue_panel_h").set(cuePanelH);
 	settings.appendChild("window_x").set(ceil(window_initialposx));
 	settings.appendChild("window_y").set(ceil(window_initialposy));
 	//settings.appendChild("window_width").set(jp_constants::window_width);
@@ -771,6 +791,7 @@ void ofApp::updateOSC() {
 void ofApp::exit() {
 	//cout << "LALA" << endl;
 	//windows.back()->close();
+	saveSettings();
 	midiKeymap.exit();
 }
 

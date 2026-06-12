@@ -38,6 +38,7 @@ public:
 	void draw();
 	void draw_activerender(); // Dibuja el render activo. Esta es la <que corre en el ofApp.cpp
 	void draw_activerender(float _width, float _height);
+	void drawNodeEditorBackground(float _width, float _height);
 
 	void update();
 	void setActiveOnlyBox(int _val);
@@ -46,9 +47,13 @@ public:
 	void update_mouseDragged(int mousebutton); // Lo que hace cuando arrastras en la pantalla.
 	void update_mousePressed(int mouseButton); // Lo que hace cada vez que haces click(ponele).
 	void update_mouseReleased(int mouseButton);
+	bool update_cueMousePressed(int mouseButton);
+	bool update_cueMouseDragged(int mouseButton);
+	bool update_cueMouseReleased(int mouseButton);
 	bool mouseScrolled(int x, int y, float scrollX, float scrollY);
 
 	void updateTransition(int _i);
+	bool requestSetActiveRender(int index, bool activeOnly = false);
 
 	void save(string _diroutput);
 	void load2(string _dirinput);
@@ -84,6 +89,25 @@ public:
 	bool setPauseForBox(string boxName, bool value);
 	bool selectOpenBoxByName(string boxName);
 	bool selectOpenBoxByIndex(int index);
+	bool setCueFromSelected();
+	bool setCueByIndex(int index);
+	bool toggleCueByIndex(int index);
+	void clearCue();
+	bool applyCue();
+	bool hasCue() const;
+	JPbox *getInspectorBox();
+	JPbox *getCuePreviewBox();
+	bool setCueBoxByIndex(int index);
+	bool setCueBoxByName(string boxName);
+	bool toggleCueBoxByIndex(int index);
+	bool hasCueBox() const;
+	bool promoteCueToActive();
+	bool requestCueApply();
+	bool beginCueDraftForActiveShader();
+	void clearCueDraft();
+	bool applyCueDraftToSource();
+	void setCuePanelLayout(float x, float y, float w, float h);
+	void getCuePanelLayout(float &x, float &y, float &w, float &h) const;
 	int getMaxParameterCount() const;
 	bool setOpenBoxParameterAtIndex(int parameterIndex, float value);
 	bool setLastBoxOnOff(bool value);
@@ -113,6 +137,48 @@ public:
 	int controllerselected; // ME INDICA QUE VARIABLE ESTA AGARRADA
 	bool activeSequence; //SECUENCIA ACTIVA
 private:
+	enum CueMode
+	{
+		CUE_NONE,
+		CUE_NORMAL_PREVIEW,
+		CUE_DRAFT_CHAIN
+	};
+	enum CueMonitorMode
+	{
+		CUE_MONITOR_FINAL_OUTPUT,
+		CUE_MONITOR_SELECTED_BOX
+	};
+	enum CueDirtyFlag
+	{
+		CUE_DIRTY_NONE = 0,
+		CUE_DIRTY_PARAMS = 1 << 0,
+		CUE_DIRTY_BYPASS_PAUSE = 1 << 1,
+		CUE_DIRTY_LINKS = 1 << 2,
+		CUE_DIRTY_ADDED = 1 << 3,
+		CUE_DIRTY_DELETED = 1 << 4,
+		CUE_DIRTY_STAGED_ACTIVE = 1 << 5
+	};
+
+	struct CueState
+	{
+		CueMode mode = CUE_NONE;
+		int sourceIndex = -1;
+		int previewIndex = -1;
+		int draftInspectorRealIndex = -1;
+		vector<JPbox *> draftBoxes;
+		vector<int> draftRealIndices;
+		vector<int> dirtyDraftRealIndices;
+		vector<unsigned int> draftDirtyFlags;
+		vector<int> cueAddedRealIndices;
+		vector<JPParameterGroup> draftBaselineParameters;
+		vector<bool> draftBaselineOnOff;
+		vector<bool> draftBaselineBypass;
+		JPbox *draftSourceBox = nullptr;
+		JPbox *draftOutputBox = nullptr;
+		int draftOutputRealIndex = -1;
+		int stagedActiveRenderIndex = -1;
+	};
+
 	vector<JPTooglelist *> botones_modo;
 	vector<JPToogle *> botones_speed;
 	vector<JPSlider *> sliders_speed;
@@ -129,8 +195,57 @@ private:
 
 	void setinspectorsetactiveparams();
 	void draw_paramswindow(); // Dibuja la ventanita del inspector.
+	void drawCuePreview();
+	void drawLiveOutput(float x, float y, float w, float h);
+	JPbox *getCueDraftSourceBox();
+	JPbox *getCueDraftBoxForRealIndex(int index) const;
+	JPbox *getEditableBoxForRealIndex(int index);
+	bool beginCueDraftForBoxIndex(int index);
+	bool buildCueDraftGraph(int sourceIndex);
+	bool collectCueDraftPath(int currentIndex, int activeIndex, vector<int> &path, vector<bool> &visiting);
+	JPbox *cloneBoxForCueDraft(int index);
+	JPbox *createBoxForDirectory(const string &directory, string &name) const;
+	string makeNameFromDirectory(const string &directory) const;
+	string makeUniqueBoxName(const string &baseName) const;
+	int findCueDraftCloneIndexForRealIndex(int index) const;
+	bool isCueSourceIndex(int index) const;
+	bool isCueDraftRealIndex(int index) const;
+	bool isCueAddedRealIndex(int index) const;
+	bool isCueDeletedRealIndex(int index) const;
+	bool isRealIndexDraftEditable(int index) const;
+	bool isCueDraftDirty(int index) const;
+	unsigned int getCueDraftDirtyFlags(int index) const;
+	bool isCueDraftMode() const;
+	bool isCueNormalPreviewMode() const;
+	bool setCueStagedActiveRenderIndex(int index);
+	void markCueDraftDirty(int index, unsigned int flags = CUE_DIRTY_PARAMS);
+	void removeCueDraftDirty(int index, unsigned int flags = 0);
+	void addCueAddedRealIndex(int index);
+	bool revertCueDraftBox(int index);
+	void removeCueAddedBoxesFromRealGraph();
+	bool commitCueDraftLink(int targetRealIndex, int linkIndex, int sourceRealIndex);
+	void copyCueDraftLinksToReal(int realIndex);
+	vector<int> getCueDirtyIndices(unsigned int mask = 0) const;
+	string getCueDirtySummary() const;
+	void copyEditableBoxState(JPbox *destination, JPbox *source);
+	void processPendingCueApply();
+	void requestCueRebuild();
+	void processPendingCueRebuild();
+	bool rebuildCueAfterGraphChange();
+	void rewireCueDraftGraph();
+	void updateCueDraftGraph();
+	void updateRealBoxesForCueApply();
+	void copyParametersByNameOrIndex(JPParameterGroup &destination, JPParameterGroup &source);
 	void setupGalleryDurationSlider();
 	void drawGalleryDurationSlider();
+	void setupDefaultCuePanelLayout();
+	void clampCuePanelLayout();
+	bool mouseOverCueHeader() const;
+	bool mouseOverCueResizeHandle() const;
+	bool mouseOverCueCloseIcon() const;
+	bool mouseOverCueFullscreenIcon() const;
+	bool mouseOverCueApplyIcon() const;
+	bool mouseOverCueMonitorModeIcon() const;
 	void clearSelection();
 	void updateBoxSelection();
 	void zoomViewport(const ofVec2f &screenAnchor, float zoomFactor);
@@ -165,6 +280,23 @@ private:
 	bool ouletagarrado;
 	int cualestaagarrado = -1;
 	int outlet_cualestaagarrado = -1;
+	CueState cueState;
+	float cuePanelX = 24.0f;
+	float cuePanelY = 360.0f;
+	float cuePanelW = 420.0f;
+	float cuePanelH = 270.0f;
+	bool cueFullscreenPreview = false;
+	CueMonitorMode cueMonitorMode = CUE_MONITOR_FINAL_OUTPUT;
+	bool cuePanelDragging = false;
+	bool cuePanelResizing = false;
+	bool cuePanelApplyArmed = false;
+	bool pendingCueApply = false;
+	bool pendingCueRebuild = false;
+	bool cueApplyingCommit = false;
+	ofFbo cueApplySnapshotFbo;
+	ofVec2f cuePanelDragStartMouse;
+	ofVec2f cuePanelDragStartPos;
+	ofVec2f cuePanelResizeStartSize;
 	ofVec2f selectionEnd;
 	vector<int> selectedBoxIndices;
 

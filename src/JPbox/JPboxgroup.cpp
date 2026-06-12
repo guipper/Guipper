@@ -5,7 +5,10 @@
 
 
 JPboxgroup::JPboxgroup() {}
-JPboxgroup::~JPboxgroup() {}
+JPboxgroup::~JPboxgroup()
+{
+	clearCue();
+}
 
 ofVec2f JPboxgroup::screenToCanvas(const ofVec2f &screen) const
 {
@@ -32,6 +35,117 @@ void JPboxgroup::zoomViewport(const ofVec2f &screenAnchor, float zoomFactor)
 void JPboxgroup::panViewport(const ofVec2f &screenDelta)
 {
 	viewportPan += screenDelta;
+}
+
+string JPboxgroup::makeNameFromDirectory(const string &directory) const
+{
+	string nombre = directory.substr(directory.find_last_of("/\\") + 1, directory.size());
+	nombre = nombre.substr(0, nombre.find(".mov"));
+	nombre = nombre.substr(0, nombre.find(".mkv"));
+	nombre = nombre.substr(0, nombre.find(".mp4"));
+	nombre = nombre.substr(0, nombre.find(".avi"));
+	nombre = nombre.substr(0, nombre.find(".vob"));
+	nombre = nombre.substr(0, nombre.find(".flv"));
+	nombre = nombre.substr(0, nombre.find(".jpg"));
+	nombre = nombre.substr(0, nombre.find(".png"));
+	nombre = nombre.substr(0, nombre.find(".jpeg"));
+	nombre = nombre.substr(0, nombre.find(".frag"));
+	nombre = nombre.substr(0, nombre.find(".xml"));
+	if (directory.find("cam") != std::string::npos)
+	{
+		nombre = "CAMARITA";
+	}
+#ifdef SPOUT
+	else if (directory.find("spoutReceiver") != std::string::npos)
+	{
+		nombre = "SPOUT";
+	}
+#endif
+	else if (directory.find("framedifference") != std::string::npos)
+	{
+		nombre = "frameDif";
+	}
+#ifdef NDI
+	else if (directory.find("ndiReceiver") != std::string::npos)
+	{
+		nombre = "NDI";
+	}
+#endif
+	return nombre;
+}
+
+JPbox *JPboxgroup::createBoxForDirectory(const string &directory, string &name) const
+{
+	JPbox *bx = nullptr;
+	if (directory.find(".frag") != std::string::npos)
+	{
+		bx = new JPbox_shader();
+	}
+	else if (directory.find(".jpg") != std::string::npos ||
+			 directory.find(".png") != std::string::npos ||
+			 directory.find(".jpeg") != std::string::npos)
+	{
+		bx = new JPbox_image();
+	}
+	else if (directory.find(".mov") != std::string::npos ||
+			 directory.find(".mkv") != std::string::npos ||
+			 directory.find(".mp4") != std::string::npos ||
+			 directory.find(".flv") != std::string::npos ||
+			 directory.find(".vob") != std::string::npos ||
+			 directory.find(".avi") != std::string::npos)
+	{
+		bx = new JPbox_video();
+	}
+	else if (directory.find(".xml") != std::string::npos)
+	{
+		bx = new JPbox_preset();
+	}
+	else if (directory.find("cam") != std::string::npos)
+	{
+		bx = new JPbox_cam();
+	}
+#ifdef SPOUT
+	else if (directory.find("spoutReceiver") != std::string::npos)
+	{
+		bx = new JPbox_spout();
+	}
+#endif
+	else if (directory.find("framedifference") != std::string::npos)
+	{
+		bx = new JPbox_framedifference();
+	}
+#ifdef NDI
+	else if (directory.find("ndiReceiver") != std::string::npos)
+	{
+		bx = new JPbox_ndi();
+	}
+#endif
+	return bx;
+}
+
+string JPboxgroup::makeUniqueBoxName(const string &baseName) const
+{
+	string nombre = baseName;
+	string nombreaux = nombre;
+	bool existenombre = false;
+	int counter = 2;
+	do
+	{
+		existenombre = false;
+		for (int i = 0; i < boxes.size(); i++)
+		{
+			if (boxes[i] != nullptr && nombre.compare(boxes[i]->name) == 0)
+			{
+				existenombre = true;
+			}
+		}
+		if (existenombre)
+		{
+			nombre = nombreaux + ofToString(counter);
+			counter++;
+		}
+	} while (existenombre);
+	return nombre;
 }
 
 
@@ -62,6 +176,10 @@ void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 	ouletagarrado = false;
 	cualestaagarrado = -1;
 	outlet_cualestaagarrado = -1;
+	cueState = CueState();
+	cueFullscreenPreview = false;
+	cueMonitorMode = CUE_MONITOR_FINAL_OUTPUT;
+	pendingCueRebuild = false;
 
 	duration_mouseclick = 200;
 	isDoubleClick = false;
@@ -72,11 +190,13 @@ void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 	activeSequence = false;
 	durationGalleryMs = 1200.0f;
 	setupGalleryDurationSlider();
+	setupDefaultCuePanelLayout();
 }
 void JPboxgroup::draw()
 {
 	// boxesdrawing.draw(0, 0, ofGetWidth(), ofGetHeight());
 	// boxesdrawing.draw(offsetx, offsety, ofGetWidth(), ofGetHeight());
+	drawCuePreview();
 	ofPushMatrix();
 	ofTranslate(viewportPan.x, viewportPan.y);
 	ofScale(viewportZoom, viewportZoom);
@@ -106,14 +226,64 @@ void JPboxgroup::draw()
 		float x = boxes[i]->x;
 		float y = boxes[i]->y + boxes[i]->height / 2 - 8;
 		ofSetRectMode(OF_RECTMODE_CENTER);
-		if (*activerender == i) {
-			ofSetColor(200,200,150, 225);
+		int activeRenderDisplayIndex = *activerender;
+		if (hasCue() &&
+			cueState.stagedActiveRenderIndex >= 0 &&
+			cueState.stagedActiveRenderIndex < boxes.size())
+		{
+			activeRenderDisplayIndex = cueState.stagedActiveRenderIndex;
+		}
+		if (activeRenderDisplayIndex == i) {
+			ofSetColor(40, 210, 90, 210);
 			ofRectMode(CENTER);
 			ofRectRounded(x, y - boxes[i]->height / 2+10, boxes[i]->width*1.1, boxes[i]->height*1.1,10);
 		}
 		boxes[i]->bypass.activable2 = !draw_SelectionRect;
 		boxes[i]->onoff.activable2 = !draw_SelectionRect;
+		JPbox *draftBox = getCueDraftBoxForRealIndex(i);
+		bool cueDraftBox = isCueSourceIndex(i);
+		bool cueDirtyBox = isCueDraftDirty(i);
+		if (cueDraftBox)
+		{
+			boxes[i]->setBackgroundOverride(cueDirtyBox ? ofColor(238, 190, 24, 245) : ofColor(196, 178, 105, 235),
+										   cueDirtyBox ? ofColor(255, 230, 85, 255) : ofColor(255, 205, 70, 225));
+		}
+		else
+		{
+			boxes[i]->clearBackgroundOverride();
+		}
+		bool realBypass = false;
+		bool realOnOff = false;
+		bool draftBypassBeforeDraw = false;
+		bool draftOnOffBeforeDraw = false;
+		if (draftBox != nullptr)
+		{
+			realBypass = boxes[i]->getBypass();
+			realOnOff = boxes[i]->getonoff();
+			draftBypassBeforeDraw = draftBox->getBypass();
+			draftOnOffBeforeDraw = draftBox->getonoff();
+			boxes[i]->setBypass(draftBypassBeforeDraw);
+			boxes[i]->setonoff(draftOnOffBeforeDraw);
+		}
 		boxes[i]->draw();
+		boxes[i]->clearBackgroundOverride();
+		if (draftBox != nullptr)
+		{
+			bool draftBypassAfterDraw = boxes[i]->getBypass();
+			bool draftOnOffAfterDraw = boxes[i]->getonoff();
+			if (draftBypassAfterDraw != draftBypassBeforeDraw)
+			{
+				draftBox->setBypass(draftBypassAfterDraw);
+				markCueDraftDirty(i, CUE_DIRTY_BYPASS_PAUSE);
+			}
+			if (draftOnOffAfterDraw != draftOnOffBeforeDraw)
+			{
+				draftBox->setonoff(draftOnOffAfterDraw);
+				markCueDraftDirty(i, CUE_DIRTY_BYPASS_PAUSE);
+			}
+			boxes[i]->setBypass(realBypass);
+			boxes[i]->setonoff(realOnOff);
+		}
 		if (isBoxSelected(i))
 		{
 			ofPushStyle();
@@ -125,7 +295,6 @@ void JPboxgroup::draw()
 			ofFill();
 			ofPopStyle();
 		}
-
 		// OSC preview selection (used by /nextshader and /prevshader before /setactiveshader)
 		if (openguinumber == i)
 		{
@@ -135,6 +304,15 @@ void JPboxgroup::draw()
 			ofSetLineWidth(3);
 			ofSetColor(0, 220, 255, 255);
 			ofDrawRectRounded(x, y - boxes[i]->height / 2 + 10, boxes[i]->width * 1.22, boxes[i]->height * 1.22, 10);
+			ofPopStyle();
+		}
+		if (isCueAddedRealIndex(i))
+		{
+			ofPushStyle();
+			ofSetColor(30, 20, 0, 230);
+			ofDrawRectangle(x - boxes[i]->width / 2 + 6, y - boxes[i]->height / 2 + 16, 30, 13);
+			ofSetColor(255, 230, 80, 255);
+			ofDrawBitmapString("NEW", x - boxes[i]->width / 2 + 9, y - boxes[i]->height / 2 + 27);
 			ofPopStyle();
 		}
 		
@@ -149,6 +327,268 @@ void JPboxgroup::draw()
 	
 	
 	
+}
+void JPboxgroup::drawCuePreview()
+{
+	JPbox *previewBox = getCuePreviewBox();
+	if (previewBox == nullptr)
+	{
+		return;
+	}
+
+	clampCuePanelLayout();
+	const float pad = 12.0f;
+	const float headerH = 30.0f;
+	const float handleSize = 16.0f;
+	const float iconSize = 18.0f;
+	const float iconGap = 8.0f;
+	const float previewAreaX = cuePanelX + pad;
+	const float previewAreaY = cuePanelY + headerH + pad * 0.5f;
+	const float previewAreaW = cuePanelW - pad * 2.0f;
+	const float previewAreaH = cuePanelH - headerH - pad * 1.5f;
+	float previewW = previewAreaW;
+	float previewH = previewW * 9.0f / 16.0f;
+	if (previewH > previewAreaH)
+	{
+		previewH = previewAreaH;
+		previewW = previewH * 16.0f / 9.0f;
+	}
+	const float previewX = previewAreaX + (previewAreaW - previewW) * 0.5f;
+	const float previewY = previewAreaY + (previewAreaH - previewH) * 0.5f;
+
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofSetColor(18, 20, 22, 230);
+	ofDrawRectRounded(cuePanelX, cuePanelY, cuePanelW, cuePanelH, 6);
+	ofSetColor(30, 25, 12, 235);
+	ofDrawRectRounded(cuePanelX, cuePanelY, cuePanelW, headerH, 6);
+	ofNoFill();
+	ofSetLineWidth(2);
+	ofSetColor(255, 180, 0, 230);
+	ofDrawRectRounded(cuePanelX, cuePanelY, cuePanelW, cuePanelH, 6);
+	ofFill();
+
+	ofSetColor(255, 180, 0);
+	string displayName = previewBox->name;
+	if (cueMonitorMode == CUE_MONITOR_SELECTED_BOX &&
+		openguinumber >= 0 && openguinumber < boxes.size())
+	{
+		displayName = boxes[openguinumber]->name;
+	}
+	else if (isCueDraftMode() &&
+			 cueState.draftOutputRealIndex >= 0 &&
+			 cueState.draftOutputRealIndex < boxes.size())
+	{
+		displayName = boxes[cueState.draftOutputRealIndex]->name;
+	}
+	if (cueFullscreenPreview && boxes.size() > 0 && *activerender >= 0 && *activerender < boxes.size())
+	{
+		displayName = boxes[*activerender]->name;
+	}
+	if (isCueDraftMode() && !cueFullscreenPreview)
+	{
+		displayName += getCueDirtySummary();
+	}
+	string cueName = displayName;
+	string panelMode = cueFullscreenPreview ? "LIVE OUTPUT" :
+					   (cueMonitorMode == CUE_MONITOR_SELECTED_BOX ? "CUE SELECT" :
+						(isCueDraftMode() ? "CUE OUTPUT" : "CUE PREVIEW"));
+	string cuePrefix = panelMode + " - ";
+	string title = cuePrefix + cueName;
+	float maxNameWidth = cuePanelW - pad * 2.0f - iconSize * 4.0f - iconGap * 4.0f - jp_constants::p_font.stringWidth(cuePrefix);
+	while (!cueName.empty() && jp_constants::p_font.stringWidth(cueName) > maxNameWidth)
+	{
+		cueName.pop_back();
+	}
+	if (cueName != displayName)
+	{
+		cueName += "...";
+	}
+	title = cuePrefix + cueName;
+	jp_constants::p_font.drawString(title, cuePanelX + pad, cuePanelY + 21);
+
+	const float closeX = cuePanelX + cuePanelW - pad - iconSize;
+	const float fullX = closeX - iconGap - iconSize;
+	const float monitorX = fullX - iconGap - iconSize;
+	const float applyX = monitorX - iconGap - iconSize;
+	const float iconY = cuePanelY + (headerH - iconSize) * 0.5f;
+	ofNoFill();
+	ofSetLineWidth(1.5f);
+	ofSetColor(255, 215, 120, 230);
+	ofDrawRectRounded(monitorX, iconY, iconSize, iconSize, 3);
+	ofDrawRectRounded(applyX, iconY, iconSize, iconSize, 3);
+	ofDrawRectRounded(fullX, iconY, iconSize, iconSize, 3);
+	if (cueFullscreenPreview)
+	{
+		ofFill();
+		ofSetColor(255, 180, 0, 210);
+		ofDrawRectRounded(fullX + 1, iconY + 1, iconSize - 2, iconSize - 2, 3);
+		ofNoFill();
+	}
+	ofColor monitorGlyphColor(255, 215, 120, 230);
+	ofColor swapGlyphColor = cueFullscreenPreview ? ofColor(24, 20, 10, 245) : ofColor(255, 215, 120, 230);
+	ofSetColor(monitorGlyphColor);
+	if (cueMonitorMode == CUE_MONITOR_SELECTED_BOX)
+	{
+		ofDrawRectangle(monitorX + 4, iconY + 4, iconSize - 8, iconSize - 8);
+		ofDrawLine(monitorX + 5, iconY + 5, monitorX + 8, iconY + 5);
+		ofDrawLine(monitorX + 5, iconY + 5, monitorX + 5, iconY + 8);
+		ofDrawLine(monitorX + iconSize - 5, iconY + 5, monitorX + iconSize - 8, iconY + 5);
+		ofDrawLine(monitorX + iconSize - 5, iconY + 5, monitorX + iconSize - 5, iconY + 8);
+		ofDrawLine(monitorX + 5, iconY + iconSize - 5, monitorX + 8, iconY + iconSize - 5);
+		ofDrawLine(monitorX + 5, iconY + iconSize - 5, monitorX + 5, iconY + iconSize - 8);
+		ofDrawLine(monitorX + iconSize - 5, iconY + iconSize - 5, monitorX + iconSize - 8, iconY + iconSize - 5);
+		ofDrawLine(monitorX + iconSize - 5, iconY + iconSize - 5, monitorX + iconSize - 5, iconY + iconSize - 8);
+		ofDrawLine(monitorX + iconSize * 0.5f - 2, iconY + iconSize * 0.5f, monitorX + iconSize * 0.5f + 2, iconY + iconSize * 0.5f);
+		ofDrawLine(monitorX + iconSize * 0.5f, iconY + iconSize * 0.5f - 2, monitorX + iconSize * 0.5f, iconY + iconSize * 0.5f + 2);
+	}
+	else
+	{
+		ofDrawRectangle(monitorX + 4, iconY + 4, iconSize - 8, iconSize - 8);
+		ofFill();
+		ofDrawCircle(monitorX + iconSize * 0.5f, iconY + iconSize * 0.5f, 2.2f);
+		ofNoFill();
+	}
+	ofDrawLine(applyX + 4, iconY + 10, applyX + 8, iconY + 14);
+	ofDrawLine(applyX + 8, iconY + 14, applyX + iconSize - 4, iconY + 4);
+	ofSetColor(swapGlyphColor);
+	ofDrawRectangle(fullX + 4, iconY + 4, 6, 5);
+	ofDrawRectangle(fullX + 8, iconY + 9, 6, 5);
+	ofDrawLine(fullX + 5, iconY + 12, fullX + 13, iconY + 5);
+	ofDrawLine(fullX + 13, iconY + 5, fullX + 10, iconY + 5);
+	ofDrawLine(fullX + 13, iconY + 5, fullX + 13, iconY + 8);
+	ofDrawLine(fullX + 13, iconY + 7, fullX + 5, iconY + 14);
+	ofDrawLine(fullX + 5, iconY + 14, fullX + 8, iconY + 14);
+	ofDrawLine(fullX + 5, iconY + 14, fullX + 5, iconY + 11);
+	ofSetColor(255, 215, 120, 230);
+	ofDrawLine(closeX + 4, iconY + 4, closeX + iconSize - 4, iconY + iconSize - 4);
+	ofDrawLine(closeX + iconSize - 4, iconY + 4, closeX + 4, iconY + iconSize - 4);
+	ofFill();
+
+	ofSetColor(255);
+	if (cueFullscreenPreview)
+	{
+		drawLiveOutput(previewX, previewY, previewW, previewH);
+	}
+	else
+	{
+		previewBox->fbo.draw(previewX, previewY, previewW, previewH);
+	}
+	ofSetColor(cueFullscreenPreview ? ofColor(0, 220, 255, 235) : ofColor(255, 180, 0, 235));
+	ofDrawRectangle(previewX, previewY, previewW, 22);
+	ofSetColor(18, 20, 22, 245);
+	jp_constants::p_font.drawString(panelMode, previewX + 8, previewY + 16);
+
+	ofSetColor(255, 180, 0, 220);
+	ofDrawLine(cuePanelX + cuePanelW - handleSize, cuePanelY + cuePanelH - 4,
+			   cuePanelX + cuePanelW - 4, cuePanelY + cuePanelH - handleSize);
+	ofDrawLine(cuePanelX + cuePanelW - handleSize * 0.65f, cuePanelY + cuePanelH - 4,
+			   cuePanelX + cuePanelW - 4, cuePanelY + cuePanelH - handleSize * 0.65f);
+	ofPopStyle();
+}
+void JPboxgroup::setupDefaultCuePanelLayout()
+{
+	const float margin = 24.0f;
+	const float headerH = 30.0f;
+	const float minW = 260.0f;
+	cuePanelW = std::max(minW, ofGetWidth() * 0.4f);
+	cuePanelH = headerH + (cuePanelW - margin) * 9.0f / 16.0f;
+	cuePanelX = margin;
+	cuePanelY = ofGetHeight() - cuePanelH - margin;
+	clampCuePanelLayout();
+}
+
+void JPboxgroup::clampCuePanelLayout()
+{
+	const float minW = 260.0f;
+	const float minH = 170.0f;
+	const float margin = 8.0f;
+	float maxW = std::max(minW, ofGetWidth() - margin * 2.0f);
+	float maxH = std::max(minH, ofGetHeight() - margin * 2.0f);
+
+	cuePanelW = ofClamp(cuePanelW, minW, maxW);
+	cuePanelH = ofClamp(cuePanelH, minH, maxH);
+	cuePanelX = ofClamp(cuePanelX, margin, std::max(margin, ofGetWidth() - cuePanelW - margin));
+	cuePanelY = ofClamp(cuePanelY, margin, std::max(margin, ofGetHeight() - cuePanelH - margin));
+}
+
+bool JPboxgroup::mouseOverCueHeader() const
+{
+	const float headerH = 30.0f;
+	return ofGetMouseX() >= cuePanelX &&
+		   ofGetMouseX() <= cuePanelX + cuePanelW &&
+		   ofGetMouseY() >= cuePanelY &&
+		   ofGetMouseY() <= cuePanelY + headerH;
+}
+
+bool JPboxgroup::mouseOverCueResizeHandle() const
+{
+	const float handleSize = 24.0f;
+	return ofGetMouseX() >= cuePanelX + cuePanelW - handleSize &&
+		   ofGetMouseX() <= cuePanelX + cuePanelW &&
+		   ofGetMouseY() >= cuePanelY + cuePanelH - handleSize &&
+		   ofGetMouseY() <= cuePanelY + cuePanelH;
+}
+
+bool JPboxgroup::mouseOverCueCloseIcon() const
+{
+	const float pad = 12.0f;
+	const float headerH = 30.0f;
+	const float iconSize = 18.0f;
+	const float closeX = cuePanelX + cuePanelW - pad - iconSize;
+	const float iconY = cuePanelY + (headerH - iconSize) * 0.5f;
+	return ofGetMouseX() >= closeX &&
+		   ofGetMouseX() <= closeX + iconSize &&
+		   ofGetMouseY() >= iconY &&
+		   ofGetMouseY() <= iconY + iconSize;
+}
+
+bool JPboxgroup::mouseOverCueFullscreenIcon() const
+{
+	const float pad = 12.0f;
+	const float headerH = 30.0f;
+	const float iconSize = 18.0f;
+	const float iconGap = 8.0f;
+	const float closeX = cuePanelX + cuePanelW - pad - iconSize;
+	const float fullX = closeX - iconGap - iconSize;
+	const float iconY = cuePanelY + (headerH - iconSize) * 0.5f;
+	return ofGetMouseX() >= fullX &&
+		   ofGetMouseX() <= fullX + iconSize &&
+		   ofGetMouseY() >= iconY &&
+		   ofGetMouseY() <= iconY + iconSize;
+}
+
+bool JPboxgroup::mouseOverCueApplyIcon() const
+{
+	const float pad = 12.0f;
+	const float headerH = 30.0f;
+	const float iconSize = 18.0f;
+	const float iconGap = 8.0f;
+	const float closeX = cuePanelX + cuePanelW - pad - iconSize;
+	const float fullX = closeX - iconGap - iconSize;
+	const float monitorX = fullX - iconGap - iconSize;
+	const float applyX = monitorX - iconGap - iconSize;
+	const float iconY = cuePanelY + (headerH - iconSize) * 0.5f;
+	return ofGetMouseX() >= applyX &&
+		   ofGetMouseX() <= applyX + iconSize &&
+		   ofGetMouseY() >= iconY &&
+		   ofGetMouseY() <= iconY + iconSize;
+}
+
+bool JPboxgroup::mouseOverCueMonitorModeIcon() const
+{
+	const float pad = 12.0f;
+	const float headerH = 30.0f;
+	const float iconSize = 18.0f;
+	const float iconGap = 8.0f;
+	const float closeX = cuePanelX + cuePanelW - pad - iconSize;
+	const float fullX = closeX - iconGap - iconSize;
+	const float monitorX = fullX - iconGap - iconSize;
+	const float iconY = cuePanelY + (headerH - iconSize) * 0.5f;
+	return ofGetMouseX() >= monitorX &&
+		   ofGetMouseX() <= monitorX + iconSize &&
+		   ofGetMouseY() >= iconY &&
+		   ofGetMouseY() <= iconY + iconSize;
 }
 void JPboxgroup::setupGalleryDurationSlider()
 {
@@ -205,25 +645,44 @@ void JPboxgroup::draw_activerender()
 }
 void JPboxgroup::draw_activerender(float _width, float _height)
 {
+	drawLiveOutput(0, 0, _width, _height);
+}
+
+void JPboxgroup::drawNodeEditorBackground(float _width, float _height)
+{
+	JPbox *previewBox = getCuePreviewBox();
+	if (cueFullscreenPreview && previewBox != nullptr)
+	{
+		ofSetColor(255, 255);
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		previewBox->fbo.draw(0, 0, _width, _height);
+		return;
+	}
+	drawLiveOutput(0, 0, _width, _height);
+}
+
+void JPboxgroup::drawLiveOutput(float x, float y, float w, float h)
+{
 	if (boxes.size() >= 1)
 	{
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		//boxes[*activerender]->fbo.draw(0, 0, _width, _height);
+		//boxes[*activerender]->fbo.draw(0, 0, w, h);
 
 		//QUE ONDA QUE LO TENGO QUE DIBUJAR DIFERENTE!?
 		if (boxes.size() > 2) {
-			transition.draw(0, 0, _width, _height);
+			transition.draw(x, y, w, h);
 		}
 		else {
-			boxes[*activerender]->fbo.draw(0, 0, _width, _height);
+			boxes[*activerender]->fbo.draw(x, y, w, h);
 		}
-		transition.draw(0, 0, _width, _height);
+		transition.draw(x, y, w, h);
 	}
 }
 void JPboxgroup::draw_paramswindow()
 {
 
-	if (openguinumber != -1 && boxes.size() > 0)
+	JPbox *inspectorBox = getInspectorBox();
+	if (inspectorBox != nullptr)
 	{
 		/*//CUADRADO VERDE
 		ofSetRectMode(OF_RECTMODE_CENTER);
@@ -240,7 +699,7 @@ void JPboxgroup::draw_paramswindow()
 		// constants_img::background.draw(inspectorwindow_x, inspectorwindow_y, inspectorwindow_width, inspectorwindow_height);
 		ofDrawRectangle(inspectorwindow_x, inspectorwindow_y, inspectorwindow_width, inspectorwindow_height);
 
-		string name = boxes[openguinumber]->name;
+		string name = getCueDraftBoxForRealIndex(openguinumber) != nullptr ? inspectorBox->name + " DRAFT" : inspectorBox->name;
 		ofSetColor(255);
 
 		// DIBUJAR EL NOMBRE DEL SHADER
@@ -400,6 +859,12 @@ void JPboxgroup::update(){
 			}
 		}
 	}
+	processPendingCueRebuild();
+	processPendingCueApply();
+	if (isCueDraftMode())
+	{
+		updateCueDraftGraph();
+	}
 	// SUELTA LAS CAJITAS Y EL SELECTION RECT
 	if (!ofGetMousePressed())
 	{
@@ -415,16 +880,18 @@ void JPboxgroup::update(){
 	// LA VARIABLE NEEDSUPDATE DETERMINA SI EL BOTON FUE APRETADO Y SI NECEITA ACTUALIZARSE LO HACE Y LA VUELVE A SETEAR A FALSE
 	// ACA LO QUE PASA ES QUE ESTO SOLUCIONA EL TEMITA DEL SYNC CUANDO SE DESPLIEGA EL BOTON PARA QUE NO QUEDE EN CUALQUIERA
 	// OSEA EL NEEDSUPDATE COMUNICA QUE EL BOTON DEL COLLAPSE DE LOS SLIDERS FUE APRETADO.
-	if (openguinumber != -1)
+	JPbox *inspectorBox = getInspectorBox();
+	if (inspectorBox != nullptr)
 	{
-		for (int k = 0; k < boxes[openguinumber]->parameters.getSize(); k++)
+		for (int k = 0; k < inspectorBox->parameters.getSize(); k++)
 		{
-			if (boxes[openguinumber]->parameters.parameters[k]->needsUpdate)
+			if (inspectorBox->parameters.parameters[k]->needsUpdate)
 			{
-				boxes[openguinumber]->parameters.parameters[k]->update();
+				inspectorBox->parameters.parameters[k]->update();
+				markCueDraftDirty(openguinumber);
 				setControllers();
 
-				boxes[openguinumber]->parameters.parameters[k]->needsUpdate = false;
+				inspectorBox->parameters.parameters[k]->needsUpdate = false;
 			}
 		}
 	}
@@ -449,7 +916,7 @@ void JPboxgroup::update(){
 			else {
 				idx = *activerender + 1;
 			}
-			updateTransition(idx);
+			requestSetActiveRender(idx);
 			// Keep all boxes running in cycle mode so animated sources don't "freeze"
 			// while waiting to become active again.
 		}
@@ -533,6 +1000,7 @@ void JPboxgroup::update_resized(int w, int h)
 	inspectorwindow_height = 0;
 	setinspectorsetactiveparams();
 	setupGalleryDurationSlider();
+	clampCuePanelLayout();
 
 	// int i = controllers.size()-1; i >= 0; i--
 	for (int i = 0; i < controllers.size(); i++)
@@ -619,15 +1087,28 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 				if (boxes[k]->fbohandlergroup.mouseOver(l) &&
 					boxes[i]->outletActiveFlag)
 				{
-					boxes[k]->fbohandlergroup.setFboPointer(&boxes[i]->fbo,
-															&boxes[i]->name, l);
+					if (boxes[k]->fbohandlergroup.getFboName(l) == boxes[i]->name)
+					{
+						continue;
+					}
+					if (isCueDraftMode())
+					{
+						commitCueDraftLink(k, l, i);
+					}
+					else
+					{
+						boxes[k]->fbohandlergroup.setFboPointer(&boxes[i]->fbo,
+																&boxes[i]->name, l);
+						requestCueRebuild();
+					}
 				}
 			}
 		}
 	}
 	JPdragobject::clearMouseOverride();
 	// Para los sliders :
-	if (!shaderboxagarrado && !ouletagarrado && cualestaagarrado == -1 && outlet_cualestaagarrado == -1 && openguinumber != -1)
+	JPbox *inspectorBox = getInspectorBox();
+	if (!shaderboxagarrado && !ouletagarrado && cualestaagarrado == -1 && outlet_cualestaagarrado == -1 && inspectorBox != nullptr)
 	{
 		// Con esto detecto que no se toque ningun slider de mas: osea que no puedas estar tocando dos sliders a la vez :
 		bool slideragarrado = false;
@@ -638,7 +1119,7 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 			{
 				slideragarrado = true;
 
-				if (boxes[openguinumber]->parameters.getType(i) == boxes[openguinumber]->parameters.FLOAT && boxes[openguinumber]->parameters.getMovType(i) == 0)
+				if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT && inspectorBox->parameters.getMovType(i) == 0)
 				{
 					// float valf = ofLerp(controllers[i]->value, boxes[openguinumber]->parameters.getFloatValue(i), 0.1);
 					// boxes[openguinumber]->parameters.setFloatValue(valf, i);
@@ -659,8 +1140,9 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 					controllers[i]->value = ofMap(ofGetMouseX(), controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
 												  controllers[i]->x + (controllers[i]->width * 3 / 4) / 2, 0.0, 1.0, true);
 
-					boxes[openguinumber]->parameters.setFloatValue(controllers[i]->value, i);
-					boxes[openguinumber]->parameters.setFloatLerpValue(controllers[i]->value, i);
+					inspectorBox->parameters.setFloatValue(controllers[i]->value, i);
+					inspectorBox->parameters.setFloatLerpValue(controllers[i]->value, i);
+					markCueDraftDirty(openguinumber);
 					// boxes[openguinumber]->parameters.setSpeed(controllers[i]->speed, i);
 					// boxes[openguinumber]->parameters.setMin(controllers[i]->min, i);
 					// boxes[openguinumber]->parameters.setMax(controllers[i]->max, i);
@@ -668,13 +1150,13 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 			}
 		}
 		// Si invertimos el for en este crashea. habra que cambiarlo en otro lugar tambien?
-		if (!slideragarrado && openguinumber != -1)
+		if (!slideragarrado && inspectorBox != nullptr)
 		{
 			for (int i = 0; i < controllers.size(); i++)
 			{
 				if ((controllers[i]->mouseOver()) && mousebutton == OF_MOUSE_BUTTON_LEFT)
 				{
-					if (boxes[openguinumber]->parameters.getType(i) == boxes[openguinumber]->parameters.FLOAT)
+					if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT)
 					{
 						controllers[i]->activeFlag = true;
 					}
@@ -700,6 +1182,22 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	draw_SelectionRect = false;
 	bool arafue = false; // POR SI NO TOCO NINGUN ELEMENTO;
 
+	if (mouseButton == OF_MOUSE_BUTTON_RIGHT && isCueDraftMode() && !mouseOverGui())
+	{
+		JPdragobject::setMouseOverride(canvasMouse);
+		for (int i = boxes.size() - 1; i >= 0; i--)
+		{
+			if (boxes[i]->mouseOver() && (isCueDraftDirty(i) || isCueAddedRealIndex(i)))
+			{
+				JPdragobject::clearMouseOverride();
+				revertCueDraftBox(i);
+				viewportPanning = false;
+				return;
+			}
+		}
+		JPdragobject::clearMouseOverride();
+	}
+
 	if ((mouseButton == OF_MOUSE_BUTTON_MIDDLE || mouseButton == OF_MOUSE_BUTTON_RIGHT) && !mouseOverGui())
 	{
 		viewportPanning = true;
@@ -707,12 +1205,16 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	}
 
 	// SI EL MOUSE ESTA DENTRO DEL INSPECTOR WINDOW PAPA.
-	if (mouseOverGui() && openguinumber != -1)
+	JPbox *inspectorBox = getInspectorBox();
+	if (mouseOverGui() && inspectorBox != nullptr)
 	{
 		arafue = true;
 		if (inspectorsetactive.mouseGrab())
 		{
-			*activerender = openguinumber;
+			if (!promoteCueToActive())
+			{
+				requestSetActiveRender(openguinumber);
+			}
 		}
 		if (inspectorreload.mouseGrab())
 		{
@@ -729,17 +1231,18 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			{
 				// cout << "MOUSE OVER " << controllers[i]->name << endl;
 				isovercontrol = true;
-				if (boxes[openguinumber]->parameters.getType(i) == boxes[openguinumber]->parameters.FLOAT)
+				if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT)
 				{
 					controllers[i]->activeFlag = true;
 					activeone = i;
 				}
-				else if (boxes[openguinumber]->parameters.getType(i) == boxes[openguinumber]->parameters.BOOL)
+				else if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.BOOL)
 				{
-					boxes[openguinumber]->parameters.setBoolValue(controllers[i]->boolValue, i);
+					inspectorBox->parameters.setBoolValue(controllers[i]->boolValue, i);
+					markCueDraftDirty(openguinumber);
 				}
 			}
-			if (boxes[openguinumber]->parameters.getType(i) == boxes[openguinumber]->parameters.FLOAT)
+			if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT)
 			{
 				index++;
 			}
@@ -757,20 +1260,22 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				// Esta es la actualizaci�n manual. Acordate que si el movtype esta en 0 el valor NO SE ACTUALIZA.
 				controllers[i]->value = ofMap(ofGetMouseX(), controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
 											  controllers[i]->x + (controllers[i]->width * 3 / 4) / 2, 0.0, 1.0, true);
-				boxes[openguinumber]->parameters.setFloatValue(controllers[i]->value, i);
-				boxes[openguinumber]->parameters.setFloatLerpValue(controllers[i]->value, i);
+				inspectorBox->parameters.setFloatValue(controllers[i]->value, i);
+				inspectorBox->parameters.setFloatLerpValue(controllers[i]->value, i);
+				markCueDraftDirty(openguinumber);
 			}
 		}
 		if (mouseButton == 2 && isDoubleClick)
 		{
 			cout << "DOBLE CLICK " << endl;
-			for (int i = 0; i < boxes[openguinumber]->parameters.getSize(); i++)
+			for (int i = 0; i < inspectorBox->parameters.getSize(); i++)
 			{
-				if (boxes[openguinumber]->parameters.getType(i) == boxes[openguinumber]->parameters.FLOAT)
+				if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT)
 				{
 					float rdm = ofRandom(1);
-					boxes[openguinumber]->parameters.setFloatLerpValue(rdm, i);
-					boxes[openguinumber]->parameters.setFloatValue(rdm, i);
+					inspectorBox->parameters.setFloatLerpValue(rdm, i);
+					inspectorBox->parameters.setFloatValue(rdm, i);
+					markCueDraftDirty(openguinumber);
 
 				}
 			}
@@ -780,7 +1285,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		for (int i = 0; i < controllers.size(); i++)
 		{
 			if (controllers[i]->overboton_collapse &&
-				boxes[openguinumber]->parameters.getType(i) == boxes[openguinumber]->parameters.FLOAT)
+				inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT)
 			{
 				// CAMBIA MOVTYPE
 				// Bueno todo esto esta medio raro pero funciona digamos.
@@ -820,12 +1325,12 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				{
 					setControllers();
 				}
-				if (isDoubleClick)
-				{
-					//*activerender = i;
-					updateTransition(i);
-				}
-			}
+		if (isDoubleClick)
+		{
+			//*activerender = i;
+			requestSetActiveRender(i);
+		}
+	}
 		}
 		JPdragobject::clearMouseOverride();
 	}
@@ -859,6 +1364,125 @@ void JPboxgroup::update_mouseReleased(int mouseButton)
 		draw_SelectionRect = false;
 	}
 }
+bool JPboxgroup::update_cueMousePressed(int mouseButton)
+{
+	if (mouseButton != OF_MOUSE_BUTTON_LEFT || getCuePreviewBox() == nullptr)
+	{
+		return false;
+	}
+
+	if (mouseOverCueApplyIcon())
+	{
+		cuePanelApplyArmed = true;
+		return true;
+	}
+
+	if (mouseOverCueMonitorModeIcon())
+	{
+		cuePanelApplyArmed = false;
+		cueMonitorMode = cueMonitorMode == CUE_MONITOR_FINAL_OUTPUT ? CUE_MONITOR_SELECTED_BOX : CUE_MONITOR_FINAL_OUTPUT;
+		return true;
+	}
+
+	if (mouseOverCueCloseIcon())
+	{
+		cuePanelApplyArmed = false;
+		setCueBoxByIndex(-1);
+		return true;
+	}
+
+	if (mouseOverCueFullscreenIcon())
+	{
+		cuePanelApplyArmed = false;
+		cueFullscreenPreview = !cueFullscreenPreview;
+		return true;
+	}
+
+	if (mouseOverCueResizeHandle())
+	{
+		cuePanelApplyArmed = false;
+		cuePanelResizing = true;
+		cuePanelDragging = false;
+		cuePanelDragStartMouse = ofVec2f(ofGetMouseX(), ofGetMouseY());
+		cuePanelResizeStartSize = ofVec2f(cuePanelW, cuePanelH);
+		return true;
+	}
+
+	if (mouseOverCueHeader())
+	{
+		cuePanelApplyArmed = false;
+		cuePanelDragging = true;
+		cuePanelResizing = false;
+		cuePanelDragStartMouse = ofVec2f(ofGetMouseX(), ofGetMouseY());
+		cuePanelDragStartPos = ofVec2f(cuePanelX, cuePanelY);
+		return true;
+	}
+
+	return false;
+}
+
+bool JPboxgroup::update_cueMouseDragged(int mouseButton)
+{
+	if (mouseButton != OF_MOUSE_BUTTON_LEFT)
+	{
+		return false;
+	}
+
+	ofVec2f mouse(ofGetMouseX(), ofGetMouseY());
+	ofVec2f delta = mouse - cuePanelDragStartMouse;
+
+	if (cuePanelApplyArmed)
+	{
+		return true;
+	}
+
+	if (cuePanelDragging)
+	{
+		cuePanelX = cuePanelDragStartPos.x + delta.x;
+		cuePanelY = cuePanelDragStartPos.y + delta.y;
+		clampCuePanelLayout();
+		return true;
+	}
+
+	if (cuePanelResizing)
+	{
+		cuePanelW = cuePanelResizeStartSize.x + delta.x;
+		cuePanelH = cuePanelResizeStartSize.y + delta.y;
+		clampCuePanelLayout();
+		return true;
+	}
+
+	return false;
+}
+
+bool JPboxgroup::update_cueMouseReleased(int mouseButton)
+{
+	if (mouseButton != OF_MOUSE_BUTTON_LEFT)
+	{
+		return false;
+	}
+
+	if (cuePanelApplyArmed)
+	{
+		bool applyNow = mouseOverCueApplyIcon();
+		cuePanelApplyArmed = false;
+		if (applyNow)
+		{
+			requestCueApply();
+		}
+		return true;
+	}
+
+	bool wasInteracting = cuePanelDragging || cuePanelResizing;
+	cuePanelDragging = false;
+	cuePanelResizing = false;
+	if (wasInteracting)
+	{
+		clampCuePanelLayout();
+	}
+	return wasInteracting;
+}
+
 bool JPboxgroup::mouseScrolled(int x, int y, float scrollX, float scrollY)
 {
 	if (scrollY == 0 || mouseOverGui())
@@ -875,6 +1499,8 @@ void JPboxgroup::updateTransition(int _idx) {
 
 //	cout << "UPDATE TRANSITION " << endl;
 	if (boxes.size() >= 1) {
+		_idx = ofClamp(_idx, 0, int(boxes.size()) - 1);
+		bool activeRenderChanged = _idx != *activerender;
 		if (&boxes[*activerender]->fbo != 0) {
 			transition.setFboPointer1(&boxes[*activerender]->fbo);
 		}
@@ -884,7 +1510,34 @@ void JPboxgroup::updateTransition(int _idx) {
 			transition.setFboPointer2(&boxes[*activerender]->fbo);
 		}
 		transition.setLerpValue(0);
+		if (activeRenderChanged)
+		{
+			requestCueRebuild();
+		}
 	}
+}
+
+bool JPboxgroup::requestSetActiveRender(int index, bool activeOnly)
+{
+	if (boxes.empty() || index < 0 || index >= boxes.size() || boxes[index] == nullptr)
+	{
+		return false;
+	}
+	if (hasCue())
+	{
+		bool staged = setCueStagedActiveRenderIndex(index);
+		if (staged)
+		{
+			markCueDraftDirty(index, CUE_DIRTY_STAGED_ACTIVE);
+		}
+		return staged;
+	}
+	updateTransition(index);
+	if (activeOnly)
+	{
+		setActiveOnlyBox(index);
+	}
+	return true;
 }
 void JPboxgroup::draw_cursorrect() {}
 void JPboxgroup::save(string outputPath)
@@ -896,6 +1549,10 @@ void JPboxgroup::save(string outputPath)
 
 	for (int i = 0; i < boxes.size(); i++)
 	{
+		if (isCueAddedRealIndex(i))
+		{
+			continue;
+		}
 
 		// for (int i = boxes.size() - 1; i >= 0; i--) {
 		auto data = xml.appendChild("box"); // or whatever name you want to.
@@ -1153,11 +1810,17 @@ void JPboxgroup::setControllers(){
 	}
 	controllers.clear();
 
+	JPbox *inspectorBox = getInspectorBox();
+	if (inspectorBox == nullptr)
+	{
+		return;
+	}
+
 	inspectorwindow_height = 0;
 	float slider_width = inspectorwindow_width * 3 / 4;
 	float slider_height = inspectorwindow_sepy * 7 / 10;
 
-	inspectorwindow_height = font_p->stringHeight(boxes[openguinumber]->name);
+	inspectorwindow_height = font_p->stringHeight(inspectorBox->name);
 	inspectorwindow_height += inspectorwindow_sepy * 1.;
 
 	// El espacio que ponemos para dibujar el reload shader. Cosa que ya sacamos.
@@ -1171,30 +1834,30 @@ void JPboxgroup::setControllers(){
 	*/
 
 	// FIJATE QUE ESTO SI LA PRIMERA CONDICION NO SE CUMPLE NI EVALUA LA SEGUNDA. PARA PODER EVALUAR LA SEGUNDA LA PRIMERA TIENE QUE SER TRU
-	if (boxes[openguinumber]->parameters.getSize() > 0 && boxes[openguinumber]->parameters.getMovType(0) != 0)
+	if (inspectorBox->parameters.getSize() > 0 && inspectorBox->parameters.getMovType(0) != 0)
 	{
 		inspectorwindow_height += inspectorwindow_sepy * 0.5;
 	}
 
-	for (int k = 0; k < boxes[openguinumber]->parameters.getSize(); k++)
+	for (int k = 0; k < inspectorBox->parameters.getSize(); k++)
 	{
-		if (boxes[openguinumber]->parameters.getType(k) == boxes[openguinumber]->parameters.FLOAT)
+		if (inspectorBox->parameters.getType(k) == inspectorBox->parameters.FLOAT)
 		{
 
 			float complexsliderheight = inspectorwindow_sepy * 1.0;
-			if (boxes[openguinumber]->parameters.getMovType(k) != 0)
+			if (inspectorBox->parameters.getMovType(k) != 0)
 			{
 				complexsliderheight = inspectorwindow_sepy * 2.0;
 			}
 			if (k > 0)
 			{
-				if (boxes[openguinumber]->parameters.getMovType(k) != 0 &&
-					boxes[openguinumber]->parameters.getMovType(k - 1) == 0)
+				if (inspectorBox->parameters.getMovType(k) != 0 &&
+					inspectorBox->parameters.getMovType(k - 1) == 0)
 				{
 					inspectorwindow_height += inspectorwindow_sepy * 0.5;
 				}
-				if (boxes[openguinumber]->parameters.getMovType(k) == 0 &&
-					boxes[openguinumber]->parameters.getMovType(k - 1) != 0)
+				if (inspectorBox->parameters.getMovType(k) == 0 &&
+					inspectorBox->parameters.getMovType(k - 1) != 0)
 				{
 					inspectorwindow_height -= inspectorwindow_sepy * 0.5;
 				}
@@ -1209,11 +1872,11 @@ void JPboxgroup::setControllers(){
 			JPComplexSlider *sl = new JPComplexSlider();
 			sl->setup(inspectorwindow_x,
 					  inspectorwindow_height, inspectorwindow_width, complexsliderheight,
-					  boxes[openguinumber]->parameters.parameters[k]);
+					  inspectorBox->parameters.parameters[k]);
 
 			controllers.push_back(sl);
 
-			if (k != boxes[openguinumber]->parameters.getSize() - 1)
+			if (k != inspectorBox->parameters.getSize() - 1)
 			{
 				// inspectorwindow_height -= inspectorwindow_sepy * 0.5;
 				inspectorwindow_height += complexsliderheight;
@@ -1223,16 +1886,16 @@ void JPboxgroup::setControllers(){
 				inspectorwindow_height += complexsliderheight * .5;
 			}
 		}
-		else if (boxes[openguinumber]->parameters.getType(k) == boxes[openguinumber]->parameters.BOOL)
+		else if (inspectorBox->parameters.getType(k) == inspectorBox->parameters.BOOL)
 		{
 			float complexsliderheight = inspectorwindow_sepy * 1.0;
 			JPToogle *toogle = new JPToogle();
-			toogle->setParametersPointer(boxes[openguinumber]->parameters.getJParameter(k));
+			toogle->setParametersPointer(inspectorBox->parameters.getJParameter(k));
 			toogle->setup(inspectorwindow_x,
-						  inspectorwindow_height, slider_width, slider_height, boxes[openguinumber]->parameters.getName(k), boxes[openguinumber]->parameters.getBoolValue(k));
+						  inspectorwindow_height, slider_width, slider_height, inspectorBox->parameters.getName(k), inspectorBox->parameters.getBoolValue(k));
 			controllers.push_back(toogle);
 			// Esto es para que no lo agregue si es el ultimo elemento :
-			if (k != boxes[openguinumber]->parameters.getSize() - 1)
+			if (k != inspectorBox->parameters.getSize() - 1)
 			{
 				inspectorwindow_height += complexsliderheight;
 			}
@@ -1266,10 +1929,10 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 		//cout << "SETEA EL RENDER ACTIVO " << _val << endl;
 		if(!boxes.empty() && _val < boxes.size() && _val >= 0){
 			//*activerender = floor(_val);
-			updateTransition(floor(_val));
+			requestSetActiveRender(floor(_val));
 
-		}
 	}
+}
 
 	if (_dir == "/nextshader") {
 		if (boxes.empty()) {
@@ -1318,9 +1981,7 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 		}
 		openguinumber = val;
 		setControllers();
-		updateTransition(floor(openguinumber));
-
-		setActiveOnlyBox(openguinumber);
+		requestSetActiveRender(floor(openguinumber), true);
 	}
 
 	if (_dir == "/prevshader_gallerymode") {
@@ -1334,16 +1995,18 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 		}
 		openguinumber = val;
 		setControllers();
-		updateTransition(floor(openguinumber));
-
-		setActiveOnlyBox(openguinumber);
+		requestSetActiveRender(floor(openguinumber), true);
 	}
 
 
 
 	if (_dir == "/setactiveshader") {
+		if (promoteCueToActive())
+		{
+			return;
+		}
 		if (!boxes.empty() && openguinumber >= 0 && openguinumber < boxes.size()) {
-			updateTransition(floor(openguinumber));
+			requestSetActiveRender(floor(openguinumber));
 		}
 	}
 
@@ -1371,25 +2034,34 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 		setDurationGalleryMs(_val);
 	}
 
-	//LEO POR NOMBRE DE EFECTO Y LE TIRO AL EFECTO ESE
+			//LEO POR NOMBRE DE EFECTO Y LE TIRO AL EFECTO ESE
 	for (int i = 0; i < boxes.size(); i++){
 		if (boxes[i]->name == shadername){	
+			JPbox *targetBox = getEditableBoxForRealIndex(i);
+			if (targetBox == nullptr)
+			{
+				continue;
+			}
 			//cout << "Parameter name " <<parametername << endl;
 			if (parametername == "onoff") {
 				//cout << "LLEGA ON OFF" << endl;
 				if (_val == 0) {
-					boxes[i]->setonoff(false);
+					targetBox->setonoff(false);
+					markCueDraftDirty(i, CUE_DIRTY_BYPASS_PAUSE);
 				}
 				else if (_val == 1) {
-					boxes[i]->setonoff(true);
+					targetBox->setonoff(true);
+					markCueDraftDirty(i, CUE_DIRTY_BYPASS_PAUSE);
 				}
 			}
 			// cout << "COINCIDE EL NOMBRE " << endl;
-			for (int k = 0; k < boxes[i]->parameters.getSize(); k++){
-				if (boxes[i]->parameters.getName(k) == parametername){
+			for (int k = 0; k < targetBox->parameters.getSize(); k++){
+				if (targetBox->parameters.getName(k) == parametername){
 					// cout << "COINCIDE EL PARAMETRO " << endl;
-					if (boxes[i]->parameters.getType(k) == boxes[i]->parameters.FLOAT){
-						boxes[i]->parameters.setFloatValue(_val, k);
+					if (targetBox->parameters.getType(k) == targetBox->parameters.FLOAT){
+						targetBox->parameters.setFloatValue(_val, k);
+						targetBox->parameters.setFloatLerpValue(_val, k);
+						markCueDraftDirty(i);
 						// ESTO ES PARA QUE SOLO MODIFIQUE EL VALOR DEL SLIDER SOLO SI ESTA ABIERTO ESE COSO
 						if (openguinumber == i){
 							controllers[k]->value = _val; // ACa la cantidad de controllers siempre va a ser igual a la cantidad de parameters size;
@@ -1401,6 +2073,7 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 	}
 	//LEO POR NOMBRE DEL OPENGUIQUE ESTA ACTIVO
 	if (shadername == "openguinumber"){
+		JPbox *inspectorBox = getInspectorBox();
 		string index = "NULL";
 		// cout << "parametername.size()" << parametername.size() << endl;
 		// NO TENGO NI PUTA IDEA QUE HACES ESTE CODIGO DE ACA :  ONDA . PORQUE SI ES IGUAL A 6 O A / O SEA QUE CARAJO
@@ -1412,10 +2085,11 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 			index.push_back(parametername.at(6));
 		}
 		int Intindex = ofToInt(index);
-		if (Intindex < controllers.size() && openguinumber != -1 && 
-			boxes[openguinumber]->parameters.getMovType(Intindex) == 0){
-			boxes[openguinumber]->parameters.setFloatValue(_val, Intindex);
-			boxes[openguinumber]->parameters.setFloatLerpValue(_val, Intindex);
+		if (Intindex < controllers.size() && inspectorBox != nullptr &&
+			inspectorBox->parameters.getMovType(Intindex) == 0){
+			inspectorBox->parameters.setFloatValue(_val, Intindex);
+			inspectorBox->parameters.setFloatLerpValue(_val, Intindex);
+			markCueDraftDirty(openguinumber);
 			controllers[Intindex]->value = _val;
 		}
 	}
@@ -1455,40 +2129,48 @@ bool JPboxgroup::hasBoxName(string boxName) const
 }
 bool JPboxgroup::toggleBypassForBox(string boxName)
 {
-	JPbox *box = findBoxByName(boxName);
+	int index = findBoxIndexByName(boxName);
+	JPbox *box = getEditableBoxForRealIndex(index);
 	if (box != nullptr)
 	{
 		box->setBypass(!box->getBypass());
+		markCueDraftDirty(index, CUE_DIRTY_BYPASS_PAUSE);
 		return true;
 	}
 	return false;
 }
 bool JPboxgroup::togglePauseForBox(string boxName)
 {
-	JPbox *box = findBoxByName(boxName);
+	int index = findBoxIndexByName(boxName);
+	JPbox *box = getEditableBoxForRealIndex(index);
 	if (box != nullptr)
 	{
 		box->setonoff(!box->getonoff());
+		markCueDraftDirty(index, CUE_DIRTY_BYPASS_PAUSE);
 		return true;
 	}
 	return false;
 }
 bool JPboxgroup::setBypassForBox(string boxName, bool value)
 {
-	JPbox *box = findBoxByName(boxName);
+	int index = findBoxIndexByName(boxName);
+	JPbox *box = getEditableBoxForRealIndex(index);
 	if (box != nullptr)
 	{
 		box->setBypass(value);
+		markCueDraftDirty(index, CUE_DIRTY_BYPASS_PAUSE);
 		return true;
 	}
 	return false;
 }
 bool JPboxgroup::setPauseForBox(string boxName, bool value)
 {
-	JPbox *box = findBoxByName(boxName);
+	int index = findBoxIndexByName(boxName);
+	JPbox *box = getEditableBoxForRealIndex(index);
 	if (box != nullptr)
 	{
 		box->setonoff(value);
+		markCueDraftDirty(index, CUE_DIRTY_BYPASS_PAUSE);
 		return true;
 	}
 	return false;
@@ -1514,6 +2196,1274 @@ bool JPboxgroup::selectOpenBoxByIndex(int index)
 	}
 	return false;
 }
+bool JPboxgroup::setCueFromSelected()
+{
+	return setCueByIndex(openguinumber);
+}
+
+bool JPboxgroup::setCueByIndex(int index)
+{
+	if (index < 0 || index >= boxes.size())
+	{
+		clearCue();
+		return false;
+	}
+
+	bool wasInspectorTarget = isCueDraftMode() && openguinumber == cueState.sourceIndex;
+	clearCue();
+	if (wasInspectorTarget && openguinumber >= 0 && openguinumber < boxes.size())
+	{
+		setControllers();
+	}
+	if (*activerender >= 0 && *activerender < boxes.size())
+	{
+		if (cueApplySnapshotFbo.getWidth() != boxes[*activerender]->fbo.getWidth() ||
+			cueApplySnapshotFbo.getHeight() != boxes[*activerender]->fbo.getHeight())
+		{
+			cueApplySnapshotFbo.allocate(boxes[*activerender]->fbo.getWidth(), boxes[*activerender]->fbo.getHeight());
+		}
+		cueApplySnapshotFbo.begin();
+		ofClear(0, 0, 0, 0);
+		ofSetColor(255, 255);
+		boxes[*activerender]->fbo.draw(0, 0, cueApplySnapshotFbo.getWidth(), cueApplySnapshotFbo.getHeight());
+		cueApplySnapshotFbo.end();
+	}
+
+	if (beginCueDraftForBoxIndex(index))
+	{
+		return true;
+	}
+
+	return false;
+}
+
+bool JPboxgroup::toggleCueByIndex(int index)
+{
+	if (index < 0 || index >= boxes.size())
+	{
+		clearCue();
+		return true;
+	}
+	if (hasCue() && cueState.sourceIndex == index)
+	{
+		clearCue();
+		return true;
+	}
+	return setCueByIndex(index);
+}
+
+void JPboxgroup::clearCue()
+{
+	bool wasInspectorTarget = isCueDraftMode() && openguinumber == cueState.sourceIndex;
+	removeCueAddedBoxesFromRealGraph();
+	clearCueDraft();
+	cueState.mode = CUE_NONE;
+	cueState.sourceIndex = -1;
+	cueState.previewIndex = -1;
+	cueState.stagedActiveRenderIndex = -1;
+	cueFullscreenPreview = false;
+	cueMonitorMode = CUE_MONITOR_FINAL_OUTPUT;
+	cuePanelApplyArmed = false;
+	pendingCueApply = false;
+	pendingCueRebuild = false;
+	if (wasInspectorTarget && openguinumber >= 0 && openguinumber < boxes.size())
+	{
+		setControllers();
+	}
+}
+
+bool JPboxgroup::applyCue()
+{
+	if (isCueDraftMode())
+	{
+		return applyCueDraftToSource();
+	}
+	if (isCueNormalPreviewMode())
+	{
+		if (cueState.stagedActiveRenderIndex >= 0 &&
+			cueState.stagedActiveRenderIndex < boxes.size() &&
+			cueState.stagedActiveRenderIndex != *activerender)
+		{
+			updateTransition(cueState.stagedActiveRenderIndex);
+		}
+		return true;
+	}
+	return false;
+}
+
+bool JPboxgroup::hasCue() const
+{
+	return cueState.mode != CUE_NONE;
+}
+
+bool JPboxgroup::setCueBoxByIndex(int index)
+{
+	return setCueByIndex(index);
+}
+
+bool JPboxgroup::setCueBoxByName(string boxName)
+{
+	return setCueByIndex(findBoxIndexByName(boxName));
+}
+
+bool JPboxgroup::toggleCueBoxByIndex(int index)
+{
+	return toggleCueByIndex(index);
+}
+
+bool JPboxgroup::hasCueBox() const
+{
+	return hasCue();
+}
+
+bool JPboxgroup::promoteCueToActive()
+{
+	return requestCueApply();
+}
+
+bool JPboxgroup::requestCueApply()
+{
+	if (!hasCue())
+	{
+		return false;
+	}
+	pendingCueApply = true;
+	return true;
+}
+
+void JPboxgroup::processPendingCueApply()
+{
+	if (!pendingCueApply)
+	{
+		return;
+	}
+	pendingCueApply = false;
+	applyCue();
+}
+
+void JPboxgroup::requestCueRebuild()
+{
+	if (hasCue())
+	{
+		pendingCueRebuild = true;
+	}
+}
+
+void JPboxgroup::processPendingCueRebuild()
+{
+	if (!pendingCueRebuild)
+	{
+		return;
+	}
+	pendingCueRebuild = false;
+	rebuildCueAfterGraphChange();
+}
+
+bool JPboxgroup::rebuildCueAfterGraphChange()
+{
+	if (!hasCue())
+	{
+		return false;
+	}
+
+	if (isCueNormalPreviewMode())
+	{
+		if (cueState.sourceIndex < 0 || cueState.sourceIndex >= boxes.size() ||
+			cueState.previewIndex < 0 || cueState.previewIndex >= boxes.size() ||
+			boxes[cueState.sourceIndex] == nullptr || boxes[cueState.previewIndex] == nullptr)
+		{
+			clearCue();
+			return false;
+		}
+		return true;
+	}
+
+	if (!isCueDraftMode())
+	{
+		return false;
+	}
+
+	struct DraftSnapshot
+	{
+		int realIndex = -1;
+		string name;
+		JPParameterGroup parameters;
+		bool onoff = true;
+		bool bypass = false;
+		vector<string> linkNames;
+		vector<bool> linkSet;
+		unsigned int dirtyFlags = CUE_DIRTY_NONE;
+	};
+
+	vector<DraftSnapshot> snapshots;
+	for (int i = 0; i < cueState.draftRealIndices.size(); i++)
+	{
+		int realIndex = cueState.draftRealIndices[i];
+		if (realIndex < 0 || realIndex >= boxes.size() ||
+			i < 0 || i >= cueState.draftBoxes.size() ||
+			boxes[realIndex] == nullptr || cueState.draftBoxes[i] == nullptr)
+		{
+			continue;
+		}
+		DraftSnapshot snapshot;
+		snapshot.realIndex = realIndex;
+		snapshot.name = boxes[realIndex]->name;
+		snapshot.parameters = cueState.draftBoxes[i]->parameters;
+		snapshot.onoff = cueState.draftBoxes[i]->getonoff();
+		snapshot.bypass = cueState.draftBoxes[i]->getBypass();
+		for (int linkIndex = 0; linkIndex < cueState.draftBoxes[i]->fbohandlergroup.getSize(); linkIndex++)
+		{
+			bool isSet = cueState.draftBoxes[i]->fbohandlergroup.getisPointerSet(linkIndex);
+			snapshot.linkSet.push_back(isSet);
+			snapshot.linkNames.push_back(isSet ? cueState.draftBoxes[i]->fbohandlergroup.getFboName(linkIndex) : "");
+		}
+		snapshot.dirtyFlags = getCueDraftDirtyFlags(realIndex);
+		if (snapshot.dirtyFlags != CUE_DIRTY_NONE)
+		{
+			snapshots.push_back(snapshot);
+		}
+	}
+
+	int sourceIndex = cueState.sourceIndex;
+	int openIndex = openguinumber;
+	int keepStagedActiveRenderIndex = cueState.stagedActiveRenderIndex;
+	bool keepFullscreenPreview = cueFullscreenPreview;
+	CueMonitorMode keepMonitorMode = cueMonitorMode;
+
+	if (sourceIndex < 0 || sourceIndex >= boxes.size() ||
+		boxes[sourceIndex] == nullptr)
+	{
+		clearCue();
+		return false;
+	}
+
+	if (!buildCueDraftGraph(sourceIndex))
+	{
+		return false;
+	}
+
+	cueFullscreenPreview = keepFullscreenPreview;
+	cueMonitorMode = keepMonitorMode;
+	if (keepStagedActiveRenderIndex >= 0 && keepStagedActiveRenderIndex < boxes.size())
+	{
+		setCueStagedActiveRenderIndex(keepStagedActiveRenderIndex);
+	}
+	cueState.dirtyDraftRealIndices.clear();
+	for (int i = 0; i < cueState.draftDirtyFlags.size(); i++)
+	{
+		cueState.draftDirtyFlags[i] = CUE_DIRTY_NONE;
+	}
+
+	for (int i = 0; i < snapshots.size(); i++)
+	{
+		int realIndex = snapshots[i].realIndex;
+		if (realIndex < 0 || realIndex >= boxes.size() ||
+			boxes[realIndex] == nullptr ||
+			boxes[realIndex]->name != snapshots[i].name)
+		{
+			realIndex = findBoxIndexByName(snapshots[i].name);
+		}
+
+		JPbox *draftBox = getCueDraftBoxForRealIndex(realIndex);
+		if (draftBox == nullptr)
+		{
+			continue;
+		}
+
+		copyParametersByNameOrIndex(draftBox->parameters, snapshots[i].parameters);
+		draftBox->setonoff(snapshots[i].onoff);
+		draftBox->setBypass(snapshots[i].bypass);
+		for (int linkIndex = 0; linkIndex < snapshots[i].linkSet.size() &&
+								   linkIndex < draftBox->fbohandlergroup.getSize(); linkIndex++)
+		{
+			if (!snapshots[i].linkSet[linkIndex])
+			{
+				draftBox->fbohandlergroup.deleteFboPointer(linkIndex);
+				continue;
+			}
+			int linkedRealIndex = findBoxIndexByName(snapshots[i].linkNames[linkIndex]);
+			JPbox *linkedDraft = getCueDraftBoxForRealIndex(linkedRealIndex);
+			if (linkedDraft != nullptr)
+			{
+				draftBox->fbohandlergroup.setFboPointer(&linkedDraft->fbo, &linkedDraft->name, linkIndex);
+			}
+			else if (linkedRealIndex >= 0 && linkedRealIndex < boxes.size() && boxes[linkedRealIndex] != nullptr)
+			{
+				draftBox->fbohandlergroup.setFboPointer(&boxes[linkedRealIndex]->fbo, &boxes[linkedRealIndex]->name, linkIndex);
+			}
+		}
+		markCueDraftDirty(realIndex, snapshots[i].dirtyFlags);
+	}
+	for (int i = 0; i < cueState.cueAddedRealIndices.size(); i++)
+	{
+		markCueDraftDirty(cueState.cueAddedRealIndices[i], CUE_DIRTY_ADDED);
+	}
+
+	openguinumber = openIndex;
+	if (openguinumber >= 0 && openguinumber < boxes.size())
+	{
+		setControllers();
+	}
+	rewireCueDraftGraph();
+	updateCueDraftGraph();
+	return true;
+}
+
+bool JPboxgroup::beginCueDraftForActiveShader()
+{
+	return beginCueDraftForBoxIndex(*activerender);
+}
+
+void JPboxgroup::clearCueDraft()
+{
+	for (int i = 0; i < cueState.draftBoxes.size(); i++)
+	{
+		if (cueState.draftBoxes[i] != nullptr)
+		{
+			cueState.draftBoxes[i]->clear();
+			delete cueState.draftBoxes[i];
+			cueState.draftBoxes[i] = nullptr;
+		}
+	}
+	cueState.draftBoxes.clear();
+	cueState.draftRealIndices.clear();
+	cueState.dirtyDraftRealIndices.clear();
+	cueState.draftDirtyFlags.clear();
+	cueState.draftBaselineParameters.clear();
+	cueState.draftBaselineOnOff.clear();
+	cueState.draftBaselineBypass.clear();
+	cueState.draftInspectorRealIndex = -1;
+	cueState.draftSourceBox = nullptr;
+	cueState.draftOutputBox = nullptr;
+	cueState.draftOutputRealIndex = -1;
+	cueState.stagedActiveRenderIndex = -1;
+}
+
+bool JPboxgroup::applyCueDraftToSource()
+{
+	if (!isCueDraftMode())
+	{
+		return false;
+	}
+	int sourceIndex = cueState.sourceIndex;
+	bool draftWasInspectorTarget = getCueDraftBoxForRealIndex(openguinumber) != nullptr;
+	int stagedActiveIndex = cueState.stagedActiveRenderIndex;
+	if (stagedActiveIndex < 0 || stagedActiveIndex >= boxes.size())
+	{
+		stagedActiveIndex = *activerender;
+	}
+	bool activeRenderChanged = stagedActiveIndex != *activerender;
+	if (cueState.dirtyDraftRealIndices.empty() && !activeRenderChanged)
+	{
+		return true;
+	}
+	if (*activerender >= 0 && *activerender < boxes.size() &&
+		(cueApplySnapshotFbo.getWidth() != boxes[*activerender]->fbo.getWidth() ||
+		 cueApplySnapshotFbo.getHeight() != boxes[*activerender]->fbo.getHeight()))
+	{
+		cueApplySnapshotFbo.allocate(boxes[*activerender]->fbo.getWidth(), boxes[*activerender]->fbo.getHeight());
+	}
+	if (*activerender >= 0 && *activerender < boxes.size())
+	{
+		cueApplySnapshotFbo.begin();
+		ofClear(0, 0, 0, 0);
+		ofSetColor(255, 255);
+		boxes[*activerender]->fbo.draw(0, 0, cueApplySnapshotFbo.getWidth(), cueApplySnapshotFbo.getHeight());
+		cueApplySnapshotFbo.end();
+	}
+
+	vector<int> dirtyIndices = cueState.dirtyDraftRealIndices;
+	vector<int> deletedIndices = getCueDirtyIndices(CUE_DIRTY_DELETED);
+	std::sort(deletedIndices.begin(), deletedIndices.end(), std::greater<int>());
+	for (int i = 0; i < dirtyIndices.size(); i++)
+	{
+		int realIndex = dirtyIndices[i];
+		unsigned int flags = getCueDraftDirtyFlags(realIndex);
+		if ((flags & CUE_DIRTY_DELETED) != 0)
+		{
+			continue;
+		}
+		int draftIndex = findCueDraftCloneIndexForRealIndex(realIndex);
+		if (realIndex < 0 || realIndex >= boxes.size() ||
+			draftIndex < 0 || draftIndex >= cueState.draftBoxes.size() ||
+			boxes[realIndex] == nullptr || cueState.draftBoxes[draftIndex] == nullptr)
+		{
+			continue;
+		}
+		if ((flags & (CUE_DIRTY_PARAMS | CUE_DIRTY_ADDED)) != 0)
+		{
+			copyParametersByNameOrIndex(boxes[realIndex]->parameters, cueState.draftBoxes[draftIndex]->parameters);
+		}
+		if ((flags & (CUE_DIRTY_BYPASS_PAUSE | CUE_DIRTY_ADDED)) != 0)
+		{
+			boxes[realIndex]->setonoff(cueState.draftBoxes[draftIndex]->getonoff());
+			boxes[realIndex]->setBypass(cueState.draftBoxes[draftIndex]->getBypass());
+		}
+		if ((flags & (CUE_DIRTY_LINKS | CUE_DIRTY_ADDED)) != 0)
+		{
+			copyCueDraftLinksToReal(realIndex);
+		}
+	}
+	cueApplyingCommit = true;
+	for (int i = 0; i < deletedIndices.size(); i++)
+	{
+		int realIndex = deletedIndices[i];
+		if (realIndex >= 0 && realIndex < boxes.size() && !isCueAddedRealIndex(realIndex))
+		{
+			deleteBoxAtIndex(realIndex);
+			if (stagedActiveIndex == realIndex)
+			{
+				stagedActiveIndex = *activerender;
+			}
+			else if (stagedActiveIndex > realIndex)
+			{
+				stagedActiveIndex--;
+			}
+		}
+	}
+	cueApplyingCommit = false;
+	cueState.cueAddedRealIndices.clear();
+	updateRealBoxesForCueApply();
+	if (stagedActiveIndex >= 0 && stagedActiveIndex < boxes.size())
+	{
+		*activerender = stagedActiveIndex;
+		transition.setFboPointer1(&cueApplySnapshotFbo);
+		transition.setFboPointer2(&boxes[stagedActiveIndex]->fbo);
+		transition.setLerpValue(0);
+	}
+
+	bool keepFullscreenPreview = cueFullscreenPreview;
+	CueMonitorMode keepMonitorMode = cueMonitorMode;
+	int rebuildSourceIndex = sourceIndex;
+	if (rebuildSourceIndex < 0 || rebuildSourceIndex >= boxes.size() || boxes[rebuildSourceIndex] == nullptr)
+	{
+		rebuildSourceIndex = stagedActiveIndex;
+	}
+	if (rebuildSourceIndex < 0 || rebuildSourceIndex >= boxes.size() || boxes[rebuildSourceIndex] == nullptr)
+	{
+		rebuildSourceIndex = *activerender;
+	}
+	if (rebuildSourceIndex >= 0 && rebuildSourceIndex < boxes.size() && buildCueDraftGraph(rebuildSourceIndex))
+	{
+		cueFullscreenPreview = keepFullscreenPreview;
+		cueMonitorMode = keepMonitorMode;
+		setCueStagedActiveRenderIndex(stagedActiveIndex);
+	}
+	else
+	{
+		clearCue();
+		return true;
+	}
+	if (draftWasInspectorTarget && openguinumber >= 0 && openguinumber < boxes.size())
+	{
+		setControllers();
+	}
+	return true;
+}
+
+JPbox *JPboxgroup::getInspectorBox()
+{
+	JPbox *draftBox = getCueDraftBoxForRealIndex(openguinumber);
+	if (draftBox != nullptr)
+	{
+		cueState.draftInspectorRealIndex = openguinumber;
+		return draftBox;
+	}
+	if (openguinumber >= 0 && openguinumber < boxes.size())
+	{
+		return boxes[openguinumber];
+	}
+	return nullptr;
+}
+
+JPbox *JPboxgroup::getCuePreviewBox()
+{
+	if (cueMonitorMode == CUE_MONITOR_SELECTED_BOX &&
+		openguinumber >= 0 && openguinumber < boxes.size())
+	{
+		JPbox *draftBox = getCueDraftBoxForRealIndex(openguinumber);
+		if (draftBox != nullptr)
+		{
+			return draftBox;
+		}
+		return boxes[openguinumber];
+	}
+	if (isCueDraftMode())
+	{
+		if (cueState.draftOutputBox != nullptr)
+		{
+			return cueState.draftOutputBox;
+		}
+		return cueState.draftSourceBox;
+	}
+	if (isCueNormalPreviewMode() &&
+		cueState.previewIndex >= 0 && cueState.previewIndex < boxes.size())
+	{
+		return boxes[cueState.previewIndex];
+	}
+	return nullptr;
+}
+
+JPbox *JPboxgroup::getCueDraftSourceBox()
+{
+	return cueState.draftSourceBox;
+}
+
+JPbox *JPboxgroup::getCueDraftBoxForRealIndex(int index) const
+{
+	if (!isCueDraftMode())
+	{
+		return nullptr;
+	}
+	int draftIndex = findCueDraftCloneIndexForRealIndex(index);
+	if (draftIndex >= 0 && draftIndex < cueState.draftBoxes.size())
+	{
+		return cueState.draftBoxes[draftIndex];
+	}
+	return nullptr;
+}
+
+JPbox *JPboxgroup::getEditableBoxForRealIndex(int index)
+{
+	if (index < 0 || index >= boxes.size())
+	{
+		return nullptr;
+	}
+	JPbox *draftBox = getCueDraftBoxForRealIndex(index);
+	if (draftBox != nullptr)
+	{
+		return draftBox;
+	}
+	return boxes[index];
+}
+
+bool JPboxgroup::beginCueDraftForBoxIndex(int index)
+{
+	if (index < 0 || index >= boxes.size() || boxes.empty() ||
+		*activerender < 0 || *activerender >= boxes.size())
+	{
+		return false;
+	}
+	if (boxes[index] == nullptr)
+	{
+		return false;
+	}
+	return buildCueDraftGraph(index);
+}
+
+bool JPboxgroup::buildCueDraftGraph(int sourceIndex)
+{
+	if (sourceIndex < 0 || sourceIndex >= boxes.size() ||
+		boxes[sourceIndex] == nullptr)
+	{
+		clearCueDraft();
+		cueState.mode = CUE_NONE;
+		cueState.sourceIndex = -1;
+		cueState.previewIndex = -1;
+		return false;
+	}
+
+	bool draftWasInspectorTarget = isCueDraftMode() && openguinumber == cueState.sourceIndex;
+	clearCueDraft();
+
+	for (int realIndex = 0; realIndex < boxes.size(); realIndex++)
+	{
+		if (boxes[realIndex] == nullptr)
+		{
+			continue;
+		}
+		JPbox *draft = cloneBoxForCueDraft(realIndex);
+		if (draft == nullptr)
+		{
+			clearCueDraft();
+			cueState.mode = CUE_NONE;
+			cueState.sourceIndex = -1;
+			cueState.previewIndex = -1;
+			if (draftWasInspectorTarget && openguinumber >= 0 && openguinumber < boxes.size())
+			{
+				setControllers();
+			}
+			return false;
+		}
+		cueState.draftBoxes.push_back(draft);
+		cueState.draftRealIndices.push_back(realIndex);
+		cueState.draftDirtyFlags.push_back(CUE_DIRTY_NONE);
+		cueState.draftBaselineParameters.push_back(draft->parameters);
+		cueState.draftBaselineOnOff.push_back(draft->getonoff());
+		cueState.draftBaselineBypass.push_back(draft->getBypass());
+		if (realIndex == sourceIndex)
+		{
+			cueState.draftSourceBox = draft;
+		}
+	}
+
+	cueState.mode = cueState.draftSourceBox != nullptr ? CUE_DRAFT_CHAIN : CUE_NONE;
+	cueState.sourceIndex = sourceIndex;
+	cueState.previewIndex = -1;
+	cueState.stagedActiveRenderIndex = *activerender;
+	setCueStagedActiveRenderIndex(cueState.stagedActiveRenderIndex);
+	cueFullscreenPreview = false;
+	rewireCueDraftGraph();
+	updateCueDraftGraph();
+	if (getCueDraftBoxForRealIndex(openguinumber) != nullptr)
+	{
+		setControllers();
+	}
+	return isCueDraftMode();
+}
+
+bool JPboxgroup::collectCueDraftPath(int currentIndex, int activeIndex, vector<int> &path, vector<bool> &visiting)
+{
+	if (currentIndex < 0 || currentIndex >= boxes.size() || visiting[currentIndex])
+	{
+		return false;
+	}
+	if (currentIndex == activeIndex)
+	{
+		if (std::find(path.begin(), path.end(), currentIndex) == path.end())
+		{
+			path.insert(path.begin(), currentIndex);
+		}
+		return true;
+	}
+
+	visiting[currentIndex] = true;
+	bool foundPath = false;
+	string currentName = boxes[currentIndex]->name;
+	for (int consumerIndex = 0; consumerIndex < boxes.size(); consumerIndex++)
+	{
+		if (consumerIndex == currentIndex || boxes[consumerIndex] == nullptr)
+		{
+			continue;
+		}
+		for (int linkIndex = 0; linkIndex < boxes[consumerIndex]->fbohandlergroup.getSize(); linkIndex++)
+		{
+			if (boxes[consumerIndex]->fbohandlergroup.getisPointerSet(linkIndex) &&
+				boxes[consumerIndex]->fbohandlergroup.getFboName(linkIndex) == currentName &&
+				collectCueDraftPath(consumerIndex, activeIndex, path, visiting))
+			{
+				foundPath = true;
+			}
+		}
+	}
+	visiting[currentIndex] = false;
+
+	if (foundPath && std::find(path.begin(), path.end(), currentIndex) == path.end())
+	{
+		path.insert(path.begin(), currentIndex);
+	}
+	return foundPath;
+}
+
+JPbox *JPboxgroup::cloneBoxForCueDraft(int index)
+{
+	if (index < 0 || index >= boxes.size() || boxes[index] == nullptr)
+	{
+		return nullptr;
+	}
+
+	JPbox *source = boxes[index];
+	JPbox *draft = nullptr;
+	const int type = source->getTipo();
+	if (type == source->SHADERBOX ||
+		type == source->FRAMEDIFFERENCEBOX ||
+		type == source->PRESETBOX)
+	{
+		string draftName = source->name + "_cue_draft";
+		draft = createBoxForDirectory(source->dir, draftName);
+		if (draft == nullptr)
+		{
+			return nullptr;
+		}
+		draft->setup(source->dir, draftName);
+	}
+	else
+	{
+		draft = new JPbox();
+		draft->setup(source->dir, source->name + "_cue_draft");
+	}
+	copyEditableBoxState(draft, source);
+	draft->name = source->name;
+	return draft;
+}
+
+void JPboxgroup::copyEditableBoxState(JPbox *destination, JPbox *source)
+{
+	if (destination == nullptr || source == nullptr)
+	{
+		return;
+	}
+	destination->parameters = source->parameters;
+	destination->setonoff(source->getonoff());
+	destination->setBypass(source->getBypass());
+	destination->setPos(source->x, source->y);
+}
+
+int JPboxgroup::findCueDraftCloneIndexForRealIndex(int index) const
+{
+	for (int i = 0; i < cueState.draftRealIndices.size(); i++)
+	{
+		if (cueState.draftRealIndices[i] == index)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+bool JPboxgroup::isCueSourceIndex(int index) const
+{
+	if (isCueDraftMode())
+	{
+		return isCueDraftRealIndex(index);
+	}
+	return hasCue() && cueState.sourceIndex == index;
+}
+
+bool JPboxgroup::isCueDraftRealIndex(int index) const
+{
+	return findCueDraftCloneIndexForRealIndex(index) >= 0;
+}
+
+bool JPboxgroup::isRealIndexDraftEditable(int index) const
+{
+	return isCueDraftMode() && isCueDraftRealIndex(index);
+}
+
+bool JPboxgroup::isCueDraftDirty(int index) const
+{
+	unsigned int flags = getCueDraftDirtyFlags(index);
+	return (flags & ~CUE_DIRTY_STAGED_ACTIVE) != CUE_DIRTY_NONE;
+}
+
+unsigned int JPboxgroup::getCueDraftDirtyFlags(int index) const
+{
+	int draftIndex = findCueDraftCloneIndexForRealIndex(index);
+	if (draftIndex < 0 || draftIndex >= cueState.draftDirtyFlags.size())
+	{
+		return CUE_DIRTY_NONE;
+	}
+	return cueState.draftDirtyFlags[draftIndex];
+}
+
+bool JPboxgroup::isCueDeletedRealIndex(int index) const
+{
+	return (getCueDraftDirtyFlags(index) & CUE_DIRTY_DELETED) != 0;
+}
+
+bool JPboxgroup::isCueDraftMode() const
+{
+	return cueState.mode == CUE_DRAFT_CHAIN;
+}
+
+bool JPboxgroup::isCueNormalPreviewMode() const
+{
+	return cueState.mode == CUE_NORMAL_PREVIEW;
+}
+
+bool JPboxgroup::setCueStagedActiveRenderIndex(int index)
+{
+	if (!hasCue() || index < 0 || index >= boxes.size() || boxes[index] == nullptr)
+	{
+		return false;
+	}
+	cueState.stagedActiveRenderIndex = index;
+	cueState.draftOutputRealIndex = index;
+	int outputCloneIndex = findCueDraftCloneIndexForRealIndex(index);
+	cueState.draftOutputBox = outputCloneIndex >= 0 && outputCloneIndex < cueState.draftBoxes.size()
+								  ? cueState.draftBoxes[outputCloneIndex]
+								  : getCueDraftBoxForRealIndex(cueState.sourceIndex);
+	if (cueState.draftOutputBox == nullptr && index >= 0 && index < boxes.size())
+	{
+		cueState.draftOutputBox = boxes[index];
+	}
+	return true;
+}
+
+void JPboxgroup::markCueDraftDirty(int index, unsigned int flags)
+{
+	if (!isCueDraftMode() || !isCueDraftRealIndex(index))
+	{
+		return;
+	}
+	int draftIndex = findCueDraftCloneIndexForRealIndex(index);
+	if (draftIndex >= 0 && draftIndex < cueState.draftDirtyFlags.size())
+	{
+		cueState.draftDirtyFlags[draftIndex] |= flags;
+	}
+	if (std::find(cueState.dirtyDraftRealIndices.begin(),
+				  cueState.dirtyDraftRealIndices.end(),
+				  index) == cueState.dirtyDraftRealIndices.end())
+	{
+		cueState.dirtyDraftRealIndices.push_back(index);
+	}
+}
+
+void JPboxgroup::removeCueDraftDirty(int index, unsigned int flags)
+{
+	int draftIndex = findCueDraftCloneIndexForRealIndex(index);
+	if (draftIndex >= 0 && draftIndex < cueState.draftDirtyFlags.size())
+	{
+		if (flags == 0)
+		{
+			cueState.draftDirtyFlags[draftIndex] = CUE_DIRTY_NONE;
+		}
+		else
+		{
+			cueState.draftDirtyFlags[draftIndex] &= ~flags;
+		}
+	}
+	if (getCueDraftDirtyFlags(index) == CUE_DIRTY_NONE)
+	{
+		cueState.dirtyDraftRealIndices.erase(
+			std::remove(cueState.dirtyDraftRealIndices.begin(),
+						cueState.dirtyDraftRealIndices.end(),
+						index),
+			cueState.dirtyDraftRealIndices.end());
+	}
+}
+
+bool JPboxgroup::isCueAddedRealIndex(int index) const
+{
+	return std::find(cueState.cueAddedRealIndices.begin(),
+					 cueState.cueAddedRealIndices.end(),
+					 index) != cueState.cueAddedRealIndices.end();
+}
+
+void JPboxgroup::addCueAddedRealIndex(int index)
+{
+	if (index < 0 || index >= boxes.size())
+	{
+		return;
+	}
+	if (!isCueAddedRealIndex(index))
+	{
+		cueState.cueAddedRealIndices.push_back(index);
+	}
+	markCueDraftDirty(index, CUE_DIRTY_ADDED);
+}
+
+vector<int> JPboxgroup::getCueDirtyIndices(unsigned int mask) const
+{
+	vector<int> result;
+	for (int i = 0; i < cueState.draftRealIndices.size(); i++)
+	{
+		if (i >= cueState.draftDirtyFlags.size())
+		{
+			continue;
+		}
+		unsigned int flags = cueState.draftDirtyFlags[i];
+		if (flags == CUE_DIRTY_NONE)
+		{
+			continue;
+		}
+		if (mask != 0 && (flags & mask) == 0)
+		{
+			continue;
+		}
+		result.push_back(cueState.draftRealIndices[i]);
+	}
+	return result;
+}
+
+string JPboxgroup::getCueDirtySummary() const
+{
+	int params = 0;
+	int bypassPause = 0;
+	int links = 0;
+	int added = 0;
+	int deleted = 0;
+	bool stagedActive = false;
+	for (int i = 0; i < cueState.draftDirtyFlags.size(); i++)
+	{
+		unsigned int flags = cueState.draftDirtyFlags[i];
+		if (flags & CUE_DIRTY_PARAMS) params++;
+		if (flags & CUE_DIRTY_BYPASS_PAUSE) bypassPause++;
+		if (flags & CUE_DIRTY_LINKS) links++;
+		if (flags & CUE_DIRTY_ADDED) added++;
+		if (flags & CUE_DIRTY_DELETED) deleted++;
+		if (flags & CUE_DIRTY_STAGED_ACTIVE) stagedActive = true;
+	}
+	vector<string> parts;
+	if (params > 0) parts.push_back("params " + ofToString(params));
+	if (bypassPause > 0) parts.push_back("pause " + ofToString(bypassPause));
+	if (links > 0) parts.push_back("links " + ofToString(links));
+	if (added > 0) parts.push_back("new " + ofToString(added));
+	if (deleted > 0) parts.push_back("delete " + ofToString(deleted));
+	if (stagedActive) parts.push_back("active");
+	if (parts.empty())
+	{
+		return "";
+	}
+	string summary = " (";
+	for (int i = 0; i < parts.size(); i++)
+	{
+		if (i > 0)
+		{
+			summary += ", ";
+		}
+		summary += parts[i];
+	}
+	summary += ")";
+	return summary;
+}
+
+bool JPboxgroup::revertCueDraftBox(int index)
+{
+	if (!isCueDraftMode() || index < 0 || index >= boxes.size())
+	{
+		return false;
+	}
+	if (isCueAddedRealIndex(index))
+	{
+		string deletedName = boxes[index]->name;
+		for (int k = boxes.size() - 1; k >= 0; k--)
+		{
+			if (k == index || boxes[k] == nullptr)
+			{
+				continue;
+			}
+			for (int l = 0; l < boxes[k]->fbohandlergroup.getSize(); l++)
+			{
+				if (boxes[k]->fbohandlergroup.getFboName(l) == deletedName)
+				{
+					boxes[k]->fbohandlergroup.deleteFboPointer(l);
+				}
+			}
+		}
+		boxes[index]->clear();
+		delete boxes[index];
+		boxes[index] = nullptr;
+		boxes.erase(boxes.begin() + index);
+		cueState.cueAddedRealIndices.erase(
+			std::remove(cueState.cueAddedRealIndices.begin(),
+						cueState.cueAddedRealIndices.end(),
+						index),
+			cueState.cueAddedRealIndices.end());
+		removeCueDraftDirty(index);
+		for (int &addedIndex : cueState.cueAddedRealIndices)
+		{
+			if (addedIndex > index)
+			{
+				addedIndex--;
+			}
+		}
+		for (int &dirtyIndex : cueState.dirtyDraftRealIndices)
+		{
+			if (dirtyIndex > index)
+			{
+				dirtyIndex--;
+			}
+		}
+		if (openguinumber == index)
+		{
+			openguinumber = -1;
+			for (int c = 0; c < controllers.size(); c++)
+			{
+				delete controllers[c];
+				controllers[c] = nullptr;
+			}
+			controllers.clear();
+		}
+		else if (openguinumber > index)
+		{
+			openguinumber--;
+		}
+		if (*activerender > index)
+		{
+			(*activerender)--;
+		}
+		*activerender = boxes.empty() ? 0 : ofClamp(*activerender, 0, int(boxes.size()) - 1);
+		requestCueRebuild();
+		return true;
+	}
+	int draftIndex = findCueDraftCloneIndexForRealIndex(index);
+	if (draftIndex < 0 || draftIndex >= cueState.draftBoxes.size() ||
+		draftIndex >= cueState.draftBaselineParameters.size() ||
+		boxes[index] == nullptr || cueState.draftBoxes[draftIndex] == nullptr)
+	{
+		return false;
+	}
+	cueState.draftBoxes[draftIndex]->parameters = cueState.draftBaselineParameters[draftIndex];
+	cueState.draftBoxes[draftIndex]->setonoff(cueState.draftBaselineOnOff[draftIndex]);
+	cueState.draftBoxes[draftIndex]->setBypass(cueState.draftBaselineBypass[draftIndex]);
+	removeCueDraftDirty(index);
+	if (openguinumber == index)
+	{
+		setControllers();
+	}
+	rewireCueDraftGraph();
+	updateCueDraftGraph();
+	return true;
+}
+
+void JPboxgroup::removeCueAddedBoxesFromRealGraph()
+{
+	if (cueState.cueAddedRealIndices.empty())
+	{
+		return;
+	}
+	vector<int> added = cueState.cueAddedRealIndices;
+	std::sort(added.begin(), added.end(), std::greater<int>());
+	added.erase(std::unique(added.begin(), added.end()), added.end());
+	cueState.cueAddedRealIndices.clear();
+	for (int i = 0; i < added.size(); i++)
+	{
+		int index = added[i];
+		if (index < 0 || index >= boxes.size() || boxes[index] == nullptr)
+		{
+			continue;
+		}
+		string deletedName = boxes[index]->name;
+		for (int k = boxes.size() - 1; k >= 0; k--)
+		{
+			if (k == index || boxes[k] == nullptr)
+			{
+				continue;
+			}
+			for (int l = 0; l < boxes[k]->fbohandlergroup.getSize(); l++)
+			{
+				if (boxes[k]->fbohandlergroup.getFboName(l) == deletedName)
+				{
+					boxes[k]->fbohandlergroup.deleteFboPointer(l);
+				}
+			}
+		}
+		boxes[index]->clear();
+		delete boxes[index];
+		boxes[index] = nullptr;
+		boxes.erase(boxes.begin() + index);
+		if (openguinumber == index)
+		{
+			openguinumber = -1;
+			for (int c = 0; c < controllers.size(); c++)
+			{
+				delete controllers[c];
+				controllers[c] = nullptr;
+			}
+			controllers.clear();
+		}
+		else if (openguinumber > index)
+		{
+			openguinumber--;
+		}
+		if (*activerender > index)
+		{
+			(*activerender)--;
+		}
+	}
+	if (!boxes.empty())
+	{
+		*activerender = ofClamp(*activerender, 0, int(boxes.size()) - 1);
+	}
+	else
+	{
+		*activerender = 0;
+	}
+}
+
+bool JPboxgroup::commitCueDraftLink(int targetRealIndex, int linkIndex, int sourceRealIndex)
+{
+	if (!isCueDraftMode() ||
+		targetRealIndex < 0 || targetRealIndex >= boxes.size() ||
+		sourceRealIndex < 0 || sourceRealIndex >= boxes.size())
+	{
+		return false;
+	}
+	JPbox *targetDraft = getCueDraftBoxForRealIndex(targetRealIndex);
+	JPbox *sourceDraft = getCueDraftBoxForRealIndex(sourceRealIndex);
+	if (targetDraft == nullptr ||
+		linkIndex < 0 ||
+		linkIndex >= targetDraft->fbohandlergroup.getSize() ||
+		boxes[sourceRealIndex] == nullptr)
+	{
+		return false;
+	}
+	if (sourceDraft != nullptr)
+	{
+		targetDraft->fbohandlergroup.setFboPointer(&sourceDraft->fbo, &sourceDraft->name, linkIndex);
+	}
+	else
+	{
+		targetDraft->fbohandlergroup.setFboPointer(&boxes[sourceRealIndex]->fbo, &boxes[sourceRealIndex]->name, linkIndex);
+	}
+	markCueDraftDirty(targetRealIndex, CUE_DIRTY_LINKS);
+	updateCueDraftGraph();
+	return true;
+}
+
+void JPboxgroup::copyCueDraftLinksToReal(int realIndex)
+{
+	int draftIndex = findCueDraftCloneIndexForRealIndex(realIndex);
+	if (draftIndex < 0 || draftIndex >= cueState.draftBoxes.size() ||
+		realIndex < 0 || realIndex >= boxes.size() ||
+		cueState.draftBoxes[draftIndex] == nullptr ||
+		boxes[realIndex] == nullptr)
+	{
+		return;
+	}
+	JPbox *draftBox = cueState.draftBoxes[draftIndex];
+	int maxLinks = std::min(draftBox->fbohandlergroup.getSize(), boxes[realIndex]->fbohandlergroup.getSize());
+	for (int linkIndex = 0; linkIndex < maxLinks; linkIndex++)
+	{
+		if (!draftBox->fbohandlergroup.getisPointerSet(linkIndex))
+		{
+			boxes[realIndex]->fbohandlergroup.deleteFboPointer(linkIndex);
+			continue;
+		}
+		string linkedName = draftBox->fbohandlergroup.getFboName(linkIndex);
+		int linkedRealIndex = findBoxIndexByName(linkedName);
+		if (linkedRealIndex >= 0 && linkedRealIndex < boxes.size() && boxes[linkedRealIndex] != nullptr)
+		{
+			boxes[realIndex]->fbohandlergroup.setFboPointer(&boxes[linkedRealIndex]->fbo,
+															&boxes[linkedRealIndex]->name,
+															linkIndex);
+		}
+		else
+		{
+			boxes[realIndex]->fbohandlergroup.deleteFboPointer(linkIndex);
+		}
+	}
+}
+
+void JPboxgroup::rewireCueDraftGraph()
+{
+	for (int draftIndex = 0; draftIndex < cueState.draftBoxes.size(); draftIndex++)
+	{
+		int realIndex = cueState.draftRealIndices[draftIndex];
+		if (realIndex < 0 || realIndex >= boxes.size() || cueState.draftBoxes[draftIndex] == nullptr)
+		{
+			continue;
+		}
+		if ((getCueDraftDirtyFlags(realIndex) & CUE_DIRTY_LINKS) != 0)
+		{
+			continue;
+		}
+		for (int linkIndex = 0; linkIndex < cueState.draftBoxes[draftIndex]->fbohandlergroup.getSize() &&
+			 linkIndex < boxes[realIndex]->fbohandlergroup.getSize(); linkIndex++)
+		{
+			if (!boxes[realIndex]->fbohandlergroup.getisPointerSet(linkIndex))
+			{
+				continue;
+			}
+			string linkedName = boxes[realIndex]->fbohandlergroup.getFboName(linkIndex);
+			int linkedRealIndex = findBoxIndexByName(linkedName);
+			int linkedDraftIndex = findCueDraftCloneIndexForRealIndex(linkedRealIndex);
+			if (linkedDraftIndex >= 0 && linkedDraftIndex < cueState.draftBoxes.size())
+			{
+				cueState.draftBoxes[draftIndex]->fbohandlergroup.setFboPointer(&cueState.draftBoxes[linkedDraftIndex]->fbo,
+																			   &cueState.draftBoxes[linkedDraftIndex]->name,
+																			   linkIndex);
+			}
+			else if (linkedRealIndex >= 0 && linkedRealIndex < boxes.size())
+			{
+				cueState.draftBoxes[draftIndex]->fbohandlergroup.setFboPointer(&boxes[linkedRealIndex]->fbo,
+																			   &boxes[linkedRealIndex]->name,
+																			   linkIndex);
+			}
+		}
+	}
+}
+
+void JPboxgroup::updateCueDraftGraph()
+{
+	for (int i = 0; i < cueState.draftBoxes.size(); i++)
+	{
+		if (cueState.draftBoxes[i] == nullptr)
+		{
+			continue;
+		}
+		int realIndex = cueState.draftRealIndices[i];
+		if (realIndex >= 0 && realIndex < boxes.size() && boxes[realIndex] != nullptr)
+		{
+			int type = boxes[realIndex]->getTipo();
+			if (type != boxes[realIndex]->SHADERBOX &&
+				type != boxes[realIndex]->FRAMEDIFFERENCEBOX &&
+				type != boxes[realIndex]->PRESETBOX)
+			{
+				cueState.draftBoxes[i]->update();
+				cueState.draftBoxes[i]->fbo.begin();
+				ofClear(0, 0, 0, 0);
+				ofSetColor(255, 255);
+				boxes[realIndex]->fbo.draw(0, 0,
+										   cueState.draftBoxes[i]->fbo.getWidth(),
+										   cueState.draftBoxes[i]->fbo.getHeight());
+				cueState.draftBoxes[i]->fbo.end();
+				continue;
+			}
+		}
+		if (cueState.draftBoxes[i] != nullptr)
+		{
+			cueState.draftBoxes[i]->update();
+		}
+	}
+}
+
+void JPboxgroup::updateRealBoxesForCueApply()
+{
+	for (int i = 0; i < cueState.draftRealIndices.size(); i++)
+	{
+		int realIndex = cueState.draftRealIndices[i];
+		if (realIndex >= 0 && realIndex < boxes.size() && boxes[realIndex] != nullptr)
+		{
+			boxes[realIndex]->update();
+		}
+	}
+}
+
+void JPboxgroup::copyParametersByNameOrIndex(JPParameterGroup &destination, JPParameterGroup &source)
+{
+	for (int srcIndex = 0; srcIndex < source.getSize(); srcIndex++)
+	{
+		int dstIndex = -1;
+		string srcName = source.getName(srcIndex);
+		for (int i = 0; i < destination.getSize(); i++)
+		{
+			if (destination.getName(i) == srcName)
+			{
+				dstIndex = i;
+				break;
+			}
+		}
+		if (dstIndex < 0 && srcIndex < destination.getSize())
+		{
+			dstIndex = srcIndex;
+		}
+		if (dstIndex < 0 || dstIndex >= destination.getSize() ||
+			destination.getType(dstIndex) != source.getType(srcIndex))
+		{
+			continue;
+		}
+		if (source.getType(srcIndex) == source.FLOAT)
+		{
+			destination.setFloatValue(source.getFloatValue(srcIndex), dstIndex);
+			destination.setFloatLerpValue(source.getLerpValue(srcIndex), dstIndex);
+			destination.setMin(source.getMin(srcIndex), dstIndex);
+			destination.setMax(source.getMax(srcIndex), dstIndex);
+			destination.setSpeed(source.getSpeed(srcIndex), dstIndex);
+			destination.setmovetype(source.getMovType(srcIndex), dstIndex);
+		}
+		else if (source.getType(srcIndex) == source.BOOL)
+		{
+			destination.setBoolValue(source.getBoolValue(srcIndex), dstIndex);
+		}
+	}
+}
+void JPboxgroup::setCuePanelLayout(float x, float y, float w, float h)
+{
+	cuePanelX = x;
+	cuePanelY = y;
+	cuePanelW = w;
+	cuePanelH = h;
+	clampCuePanelLayout();
+}
+void JPboxgroup::getCuePanelLayout(float &x, float &y, float &w, float &h) const
+{
+	x = cuePanelX;
+	y = cuePanelY;
+	w = cuePanelW;
+	h = cuePanelH;
+}
 int JPboxgroup::getMaxParameterCount() const
 {
 	int maxCount = 0;
@@ -1525,28 +3475,31 @@ int JPboxgroup::getMaxParameterCount() const
 }
 bool JPboxgroup::setOpenBoxParameterAtIndex(int parameterIndex, float value)
 {
-	if (openguinumber < 0 || openguinumber >= boxes.size() ||
+	JPbox *inspectorBox = getInspectorBox();
+	if (inspectorBox == nullptr ||
 		parameterIndex < 0 ||
-		parameterIndex >= boxes[openguinumber]->parameters.getSize())
+		parameterIndex >= inspectorBox->parameters.getSize())
 	{
 		return false;
 	}
 
-	int type = boxes[openguinumber]->parameters.getType(parameterIndex);
-	if (type == boxes[openguinumber]->parameters.FLOAT)
+	int type = inspectorBox->parameters.getType(parameterIndex);
+	if (type == inspectorBox->parameters.FLOAT)
 	{
-		boxes[openguinumber]->parameters.setFloatValue(value, parameterIndex);
-		boxes[openguinumber]->parameters.setFloatLerpValue(value, parameterIndex);
+		inspectorBox->parameters.setFloatValue(value, parameterIndex);
+		inspectorBox->parameters.setFloatLerpValue(value, parameterIndex);
+		markCueDraftDirty(openguinumber);
 		if (parameterIndex < controllers.size())
 		{
 			controllers[parameterIndex]->value = value;
 		}
 		return true;
 	}
-	if (type == boxes[openguinumber]->parameters.BOOL)
+	if (type == inspectorBox->parameters.BOOL)
 	{
 		bool boolValue = value > 0.5f;
-		boxes[openguinumber]->parameters.setBoolValue(boolValue, parameterIndex);
+		inspectorBox->parameters.setBoolValue(boolValue, parameterIndex);
+		markCueDraftDirty(openguinumber);
 		if (parameterIndex < controllers.size())
 		{
 			controllers[parameterIndex]->boolValue = boolValue;
@@ -1580,103 +3533,24 @@ bool JPboxgroup::mouseOverGui()
 }
 void JPboxgroup::addBox(string directory, float _x, float _y)
 {
-	JPbox *bx;
-
-	// NO SE COMO HACERLO EN UNA SOLA PASADA PERO EN 2 RE FUNCA ASI QUE MIRA QUE PIOLA EH
-	string nombre = directory.substr(directory.find_last_of("/\\") + 1, directory.size());
-	/*Formatos de video*/
-	nombre = nombre.substr(0, nombre.find(".mov"));
-	nombre = nombre.substr(0, nombre.find(".mkv"));
-	nombre = nombre.substr(0, nombre.find(".mp4"));
-	nombre = nombre.substr(0, nombre.find(".avi"));
-	nombre = nombre.substr(0, nombre.find(".vob"));
-	nombre = nombre.substr(0, nombre.find(".flv"));
-	/*formatos de imagen*/
-	nombre = nombre.substr(0, nombre.find(".jpg"));
-	nombre = nombre.substr(0, nombre.find(".png"));
-	nombre = nombre.substr(0, nombre.find(".jpeg"));
-	/*Formato de shader*/
-	nombre = nombre.substr(0, nombre.find(".frag"));
-	/*Formato de preset*/
-	nombre = nombre.substr(0, nombre.find(".xml"));
-
-	if (directory.find(".frag") != std::string::npos)
+	string nombre = makeUniqueBoxName(makeNameFromDirectory(directory));
+	JPbox *bx = createBoxForDirectory(directory, nombre);
+	if (bx == nullptr)
 	{
-		bx = new JPbox_shader();
+		return;
 	}
-	else if (directory.find(".jpg") != std::string::npos ||
-			 directory.find(".png") != std::string::npos ||
-			 directory.find(".jpeg") != std::string::npos)
-	{
-		bx = new JPbox_image();
-	}
-	else if (directory.find(".mov") != std::string::npos ||
-			 directory.find(".mkv") != std::string::npos ||
-			 directory.find(".mp4") != std::string::npos ||
-			 directory.find(".flv") != std::string::npos ||
-			 directory.find(".vob") != std::string::npos ||
-			 directory.find(".avi") != std::string::npos)
-	{
-		bx = new JPbox_video();
-	}
-	else if (directory.find(".xml") != std::string::npos)
-	{
-		bx = new JPbox_preset();
-	}
-	else if (directory.find("cam") != std::string::npos)
-	{
-		bx = new JPbox_cam();
-		nombre = "CAMARITA";
-	}
-#ifdef SPOUT
-	else if (directory.find("spoutReceiver") != std::string::npos)
-	{
-		bx = new JPbox_spout();
-		nombre = "SPOUT";
-	}
-#endif
-	else if (directory.find("framedifference") != std::string::npos)
-	{
-		bx = new JPbox_framedifference();
-		nombre = "frameDif";
-	}
-#ifdef NDI
-	else if (directory.find("ndiReceiver") != std::string::npos)
-	{
-		bx = new JPbox_ndi();
-		nombre = "NDI";
-	}
-#endif
-
-	// ESTO ES PARA QUE NO PONGA 2 VECES EL MISMO NOMBRE:
-	string nombreaux = nombre;
-	bool existenombre = false;
-	int counter = 2;
-	do
-	{
-		existenombre = false;
-		for (int i = 0; i < boxes.size(); i++)
-		{
-			// cout << "AHORA: " << nombre << endl;
-			// cout << "boxes[i]->name: " << boxes[i]->name << endl;
-			if (nombre.compare(boxes[i]->name) == 0)
-			{
-				existenombre = true;
-			}
-		}
-		if (existenombre)
-		{
-			// cout << "EL NOMBRE YA EXISTE " << endl;
-			nombre = nombreaux;
-			nombre += ofToString(counter);
-			counter++;
-		}
-	} while (existenombre);
 
 	bx->setup(directory, nombre);
 	bx->setonoff(true);
 	bx->setPos(_x, _y);
 	boxes.push_back(bx);
+	if (isCueDraftMode())
+	{
+		int newIndex = int(boxes.size()) - 1;
+		addCueAddedRealIndex(newIndex);
+		openguinumber = newIndex;
+	}
+	requestCueRebuild();
 }
 void JPboxgroup::addBox(string directory)
 {
@@ -1737,6 +3611,7 @@ void JPboxgroup::setupShaderRendersFromDataFolder()
 void JPboxgroup::clear()
 {
 	clearSelection();
+	clearCue();
 	transition.setFboPointer1(nullptr);
 	transition.setFboPointer2(nullptr);
 	activeSequence = false;
@@ -1809,6 +3684,30 @@ bool JPboxgroup::deleteBoxAtIndex(int index)
 	{
 		return false;
 	}
+	if (isCueDraftMode() && !cueApplyingCommit)
+	{
+		if (isCueAddedRealIndex(index))
+		{
+			return revertCueDraftBox(index);
+		}
+		JPbox *draftBox = getCueDraftBoxForRealIndex(index);
+		if (draftBox != nullptr)
+		{
+			draftBox->setonoff(false);
+			draftBox->setBypass(true);
+		}
+		markCueDraftDirty(index, CUE_DIRTY_DELETED);
+		updateCueDraftGraph();
+		return true;
+	}
+	bool deletedCueSource = hasCue() && cueState.sourceIndex == index;
+	bool deletedCuePreview = isCueNormalPreviewMode() && cueState.previewIndex == index;
+	bool needsCueIndexShift = isCueNormalPreviewMode() && cueState.sourceIndex > index;
+	bool needsPreviewIndexShift = isCueNormalPreviewMode() && cueState.previewIndex > index;
+	if (!cueApplyingCommit && (isCueDraftMode() || deletedCueSource || deletedCuePreview))
+	{
+		clearCue();
+	}
 
 	string deletedName = boxes[index]->name;
 	for (int k = boxes.size() - 1; k >= 0; k--)
@@ -1834,6 +3733,7 @@ bool JPboxgroup::deleteBoxAtIndex(int index)
 	if (boxes.empty())
 	{
 		openguinumber = -1;
+		clearCue();
 		*activerender = 0;
 		activeSequence = false;
 		transition.setFboPointer1(nullptr);
@@ -1855,6 +3755,14 @@ bool JPboxgroup::deleteBoxAtIndex(int index)
 		{
 			openguinumber--;
 		}
+		if (needsCueIndexShift)
+		{
+			cueState.sourceIndex--;
+		}
+		if (needsPreviewIndexShift)
+		{
+			cueState.previewIndex--;
+		}
 
 		if (*activerender == index)
 		{
@@ -1865,7 +3773,11 @@ bool JPboxgroup::deleteBoxAtIndex(int index)
 			(*activerender)--;
 		}
 		*activerender = ofClamp(*activerender, 0, int(boxes.size()) - 1);
-		updateTransition(*activerender);
+		if (!cueApplyingCommit)
+		{
+			updateTransition(*activerender);
+			requestCueRebuild();
+		}
 	}
 	return true;
 }
