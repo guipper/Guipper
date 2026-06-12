@@ -19,7 +19,9 @@
 #include "JPutils/jp_constants.h"
 #include "JPutils/jp_midi_keymap.h"
 #include "ofxOsc.h"
+#ifdef NDI
 #include "ofxNDI.h"
+#endif
 
 //#include "RenderWindowApp.h"
 

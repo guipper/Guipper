@@ -15,8 +15,9 @@ void JPbox_ndi::setup(string _dir, string _name)
 	name = _name;
 	dir = "ndiReceiver";
 	myTexture.allocate(int(jp_constants::renderWidth), int(jp_constants::renderHeight), GL_RGBA);
-	// Limpiamos el buffer de la textura ?
-	glClearTexImage(myTexture.getTextureData().textureID, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	// glClearTexImage needs GL 4.4 / ARB_clear_texture, which is unavailable
+	// on macOS (and not guaranteed on Linux/Mesa), where it segfaults. The
+	// freshly allocated texture does not need clearing here.
 
 	parameters.addFloatValue(0.5, "scalex");
 	parameters.addFloatValue(0.5, "scaley");
