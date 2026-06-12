@@ -67,6 +67,7 @@ void JPbox::setup(ofTrueTypeFont &_font)
 	border = ofColor(0, 200, 200, 120);
 	border_mouseover = ofColor(0, 200, 200, 255);
 	border_grab = ofColor(0, 255, 0, 255);
+	clearBackgroundOverride();
 
 	// font_p = &_font;
 	name = "Prueba";
@@ -109,6 +110,7 @@ void JPbox::setup(string _directory, string _name)
 	border = ofColor(0, 200, 200, 120);
 	border_mouseover = ofColor(0, 200, 200, 255);
 	border_grab = ofColor(0, 255, 0, 255);
+	clearBackgroundOverride();
 
 	outlet_x = x + width / 2;
 	outlet_y = y;
@@ -182,10 +184,20 @@ void JPbox::draw()
 
 	// CAJA GRIS:
 	ofSetRectMode(OF_RECTMODE_CENTER);
-	ofSetLineWidth(3);
-	ofSetColor(0);
+	ofSetLineWidth(useBackgroundOverride ? 2 : 3);
+	ofSetColor(useBackgroundOverride ? backgroundBorderOverride : ofColor(0));
 	ofRectRounded(x, y, width, height, 10);
-	if (mouseOver() || activeFlag){
+	if (useBackgroundOverride)
+	{
+		ofColor cueBg = backgroundOverride;
+		if (mouseOver() || activeFlag)
+		{
+			cueBg = cueBg.getLerped(ofColor(255), 0.18);
+		}
+		ofSetColor(cueBg);
+		ofFill();
+	}
+	else if (mouseOver() || activeFlag){
 		ofSetColor(200);
 		ofFill(); 
 	}

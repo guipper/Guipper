@@ -51,6 +51,19 @@ public:
 	ofColor border_mouseover;
 	ofColor border_grab;
 	ofColor Cfront;
+	bool useBackgroundOverride = false;
+	ofColor backgroundOverride;
+	ofColor backgroundBorderOverride;
+	void setBackgroundOverride(const ofColor &_background, const ofColor &_border)
+	{
+		useBackgroundOverride = true;
+		backgroundOverride = _background;
+		backgroundBorderOverride = _border;
+	}
+	void clearBackgroundOverride()
+	{
+		useBackgroundOverride = false;
+	}
 	string name;
 
 	bool activeFlag;
