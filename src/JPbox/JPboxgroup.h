@@ -53,6 +53,7 @@ public:
 	bool mouseScrolled(int x, int y, float scrollX, float scrollY);
 
 	void updateTransition(int _i);
+	bool requestSetActiveRender(int index, bool activeOnly = false);
 
 	void save(string _diroutput);
 	void load2(string _dirinput);
@@ -147,6 +148,16 @@ private:
 		CUE_MONITOR_FINAL_OUTPUT,
 		CUE_MONITOR_SELECTED_BOX
 	};
+	enum CueDirtyFlag
+	{
+		CUE_DIRTY_NONE = 0,
+		CUE_DIRTY_PARAMS = 1 << 0,
+		CUE_DIRTY_BYPASS_PAUSE = 1 << 1,
+		CUE_DIRTY_LINKS = 1 << 2,
+		CUE_DIRTY_ADDED = 1 << 3,
+		CUE_DIRTY_DELETED = 1 << 4,
+		CUE_DIRTY_STAGED_ACTIVE = 1 << 5
+	};
 
 	struct CueState
 	{
@@ -157,9 +168,15 @@ private:
 		vector<JPbox *> draftBoxes;
 		vector<int> draftRealIndices;
 		vector<int> dirtyDraftRealIndices;
-		JPbox_shader *draftSourceBox = nullptr;
+		vector<unsigned int> draftDirtyFlags;
+		vector<int> cueAddedRealIndices;
+		vector<JPParameterGroup> draftBaselineParameters;
+		vector<bool> draftBaselineOnOff;
+		vector<bool> draftBaselineBypass;
+		JPbox *draftSourceBox = nullptr;
 		JPbox *draftOutputBox = nullptr;
 		int draftOutputRealIndex = -1;
+		int stagedActiveRenderIndex = -1;
 	};
 
 	vector<JPTooglelist *> botones_modo;
@@ -180,21 +197,37 @@ private:
 	void draw_paramswindow(); // Dibuja la ventanita del inspector.
 	void drawCuePreview();
 	void drawLiveOutput(float x, float y, float w, float h);
-	JPbox_shader *getCueDraftSourceBox();
+	JPbox *getCueDraftSourceBox();
 	JPbox *getCueDraftBoxForRealIndex(int index) const;
 	JPbox *getEditableBoxForRealIndex(int index);
 	bool beginCueDraftForBoxIndex(int index);
 	bool buildCueDraftGraph(int sourceIndex);
 	bool collectCueDraftPath(int currentIndex, int activeIndex, vector<int> &path, vector<bool> &visiting);
 	JPbox *cloneBoxForCueDraft(int index);
+	JPbox *createBoxForDirectory(const string &directory, string &name) const;
+	string makeNameFromDirectory(const string &directory) const;
+	string makeUniqueBoxName(const string &baseName) const;
 	int findCueDraftCloneIndexForRealIndex(int index) const;
 	bool isCueSourceIndex(int index) const;
 	bool isCueDraftRealIndex(int index) const;
+	bool isCueAddedRealIndex(int index) const;
+	bool isCueDeletedRealIndex(int index) const;
 	bool isRealIndexDraftEditable(int index) const;
 	bool isCueDraftDirty(int index) const;
+	unsigned int getCueDraftDirtyFlags(int index) const;
 	bool isCueDraftMode() const;
 	bool isCueNormalPreviewMode() const;
-	void markCueDraftDirty(int index);
+	bool setCueStagedActiveRenderIndex(int index);
+	void markCueDraftDirty(int index, unsigned int flags = CUE_DIRTY_PARAMS);
+	void removeCueDraftDirty(int index, unsigned int flags = 0);
+	void addCueAddedRealIndex(int index);
+	bool revertCueDraftBox(int index);
+	void removeCueAddedBoxesFromRealGraph();
+	bool commitCueDraftLink(int targetRealIndex, int linkIndex, int sourceRealIndex);
+	void copyCueDraftLinksToReal(int realIndex);
+	vector<int> getCueDirtyIndices(unsigned int mask = 0) const;
+	string getCueDirtySummary() const;
+	void copyEditableBoxState(JPbox *destination, JPbox *source);
 	void processPendingCueApply();
 	void requestCueRebuild();
 	void processPendingCueRebuild();
@@ -259,6 +292,7 @@ private:
 	bool cuePanelApplyArmed = false;
 	bool pendingCueApply = false;
 	bool pendingCueRebuild = false;
+	bool cueApplyingCommit = false;
 	ofFbo cueApplySnapshotFbo;
 	ofVec2f cuePanelDragStartMouse;
 	ofVec2f cuePanelDragStartPos;

@@ -624,8 +624,7 @@ void JPMidiKeymap::selectRelativeBox(int offset, bool galleryMode)
 
 	if (galleryMode)
 	{
-		boxes->updateTransition(index);
-		boxes->setActiveOnlyBox(index);
+		boxes->requestSetActiveRender(index, true);
 	}
 }
 
@@ -642,7 +641,7 @@ void JPMidiKeymap::setSelectedBoxActive()
 		if (!boxes->promoteCueToActive())
 		{
 			boxes->selectOpenBoxByIndex(index);
-			boxes->updateTransition(index);
+			boxes->requestSetActiveRender(index);
 		}
 	}
 }
