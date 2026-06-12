@@ -572,6 +572,10 @@ void ofApp::openRenderWindow() {
 		isRenderWindowOpen = true;
 		ofGLFWWindowSettings settings;
 
+		// Match the main window's GL context (see main.cpp). Required on
+		// Linux/macOS: without an explicit core-profile version the render
+		// window's context can mismatch the main window and fail to create.
+		settings.setGLVersion(3, 2);
 		settings.setSize(jp_constants::window_width, jp_constants::window_height);
 		settings.setPosition(ofVec2f(window_initialposx, window_initialposy));
 		settings.resizable = true;
