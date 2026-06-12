@@ -62,7 +62,11 @@ OF_ROOT = ../../..
 #
 #   Note: Leave a leading space when adding list items with the += operator
 ################################################################################
-#PROJECT_EXCLUSIONS = 
+# The Spout SDK is Windows-only (DirectX) and is not used on Linux/macOS, where
+# SPOUT is undefined (see src/defines.h). Exclude both copies of the SDK so the
+# Makefile build does not try to compile Windows-only source on these platforms.
+PROJECT_EXCLUSIONS = $(PROJECT_ROOT)/src/SpoutSDK%
+PROJECT_EXCLUSIONS += $(PROJECT_ROOT)/vendor%
 
 ################################################################################
 # PROJECT LINKER FLAGS
@@ -144,5 +148,15 @@ PROJECT_DEFINES = TEST
 #		(default) PROJECT_CC = (blank)
 #   Note: Leave a leading space when adding list items with the += operator
 ################################################################################
-# PROJECT_CXX = 
-# PROJECT_CC = 
+# PROJECT_CXX =
+# PROJECT_CC =
+
+################################################################################
+# PROJECT AFTER-BUILD HOOK
+#   PROJECT_AFTER is run by openFrameworks as a shell command after each build.
+#   On macOS the Makefile build produces a .app bundle but does not copy the
+#   data folder into it, so the app can't find its shaders/assets at runtime.
+#   Copy bin/data into the bundle's Resources. The uname guard makes this a
+#   no-op on Linux/Windows.
+################################################################################
+PROJECT_AFTER = if [ "`uname -s`" = "Darwin" ]; then cp -r bin/data "bin/$(APPNAME).app/Contents/Resources/" 2>/dev/null || true; fi
