@@ -321,6 +321,7 @@ void JPboxgroup::draw()
 	}
 	JPdragobject::clearMouseOverride();
 	ofPopMatrix();
+	drawTabs();
 	draw_paramswindow();
 	drawGalleryDurationSlider();
 
@@ -1180,6 +1181,13 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	isDoubleClick = (ofGetSystemTimeMillis() - lasttime_mouseclick < duration_mouseclick);
 	lasttime_mouseclick = ofGetSystemTimeMillis();
 	draw_SelectionRect = false;
+
+	// Handle tab clicks (left button only)
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT && handleTabClick())
+	{
+		return;
+	}
+
 	bool arafue = false; // POR SI NO TOCO NINGUN ELEMENTO;
 
 	if (mouseButton == OF_MOUSE_BUTTON_RIGHT && isCueDraftMode() && !mouseOverGui())
@@ -3897,7 +3905,16 @@ void JPboxgroup::groupSelectedBoxes()
 	// which loads the XML, creates child boxes, restores params and links
 	addBox(outputPath, avgX, avgY);
 
-	cout << "groupSelectedBoxes: done, boxes size=" << boxes.size() << endl;
+	// Set the newly created preset as the active render (output)
+	int newIdx = (int)boxes.size() - 1;
+	*activerender = newIdx;
+
+	// Reset transition so it doesn't draw from deleted boxes' FBOs
+	transition.setFboPointer1(&boxes[newIdx]->fbo);
+	transition.setFboPointer2(&boxes[newIdx]->fbo);
+	transition.setLerpValue(0);
+
+	cout << "groupSelectedBoxes: done, boxes size=" << boxes.size() << " activerender=" << *activerender << endl;
 }
 
 void JPboxgroup::deleteSelectedShader()
@@ -3971,3 +3988,201 @@ int JPboxgroup::getActiverenderNum() {
 		//boxes[*activerender]->shaderrender.fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
 	}
 }*/
+
+// ============================================================
+// TAB SYSTEM
+// ============================================================
+
+vector<int> JPboxgroup::collectPresetTabBoxIndices() const
+{
+	vector<int> indices;
+	for (int i = 0; i < (int)boxes.size(); i++)
+	{
+		if (boxes[i] != nullptr && boxes[i]->getTipo() == JPbox::PRESETBOX)
+		{
+			indices.push_back(i);
+		}
+	}
+	return indices;
+}
+
+void JPboxgroup::drawTabs()
+{
+	vector<int> presetIndices = collectPresetTabBoxIndices();
+	int totalTabs = 1 + (int)presetIndices.size(); // main + preset tabs
+	if (totalTabs <= 1)
+	{
+		return; // No preset boxes, no tabs to show
+	}
+
+	const float tabBarX = 0;
+	const float tabBarY = 0;
+	const float tabHeight = 28;
+	const float tabMinWidth = 90;
+	const float pad = 8;
+	const float gap = 2;
+	const float tabH = tabHeight;
+	float x = tabBarX + pad;
+	const float y = tabBarY + pad;
+
+	// Draw tab bar background
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofSetColor(18, 18, 22, 210);
+	ofDrawRectRounded(x, y, ofGetWidth() - pad * 2, tabH + gap * 2, 4);
+	ofPopStyle();
+
+	// Draw "Main" tab (activeTab == 0)
+	drawSingleTab(x, y, tabH, "MAIN", activeTab == 0);
+
+	// Measure main tab width
+	float mainTabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth("MAIN") + 20);
+	x += mainTabW + gap;
+
+	// Draw preset group tabs
+	for (int ti = 0; ti < (int)presetIndices.size(); ti++)
+	{
+		int boxIdx = presetIndices[ti];
+		string tabName = boxes[boxIdx]->name;
+		if (tabName.empty())
+		{
+			tabName = "Group " + ofToString(ti);
+		}
+		float tabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth(tabName) + 24);
+		drawSingleTab(x, y, tabH, tabName, activeTab == (ti + 1));
+		x += tabW + gap;
+	}
+}
+
+void JPboxgroup::drawSingleTab(float x, float y, float h, const string &label, bool active)
+{
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+
+	const float tabMinWidth = 90;
+	float textW = jp_constants::p_font.stringWidth(label);
+	float tabW = std::max(tabMinWidth, textW + 24);
+
+	if (active)
+	{
+		ofSetColor(40, 180, 80, 235);
+	}
+	else
+	{
+		ofSetColor(35, 35, 42, 225);
+	}
+	ofDrawRectRounded(x, y, tabW, h, 3);
+
+	// Border
+	ofNoFill();
+	ofSetLineWidth(1);
+	if (active)
+	{
+		ofSetColor(60, 220, 100, 255);
+	}
+	else
+	{
+		ofSetColor(55, 55, 65, 200);
+	}
+	ofDrawRectRounded(x, y, tabW, h, 3);
+	ofFill();
+
+	// Text
+	ofSetColor(active ? 255 : 200);
+	jp_constants::p_font.drawString(label, x + (tabW - textW) * 0.5f, y + h * 0.5f + 5);
+
+	ofPopStyle();
+}
+
+int JPboxgroup::getTabAtScreenPos(int screenX, int screenY) const
+{
+	vector<int> presetIndices = collectPresetTabBoxIndices();
+	int totalTabs = 1 + (int)presetIndices.size();
+	const float tabBarY = 0;
+	const float tabHeight = 28;
+	if (totalTabs <= 1 || screenY < tabBarY || screenY > tabBarY + tabHeight + 8)
+	{
+		return -1;
+	}
+
+	const float tabBarX = 0;
+	const float tabMinWidth = 90;
+	const float pad = 8;
+	const float gap = 2;
+	const float tabH = tabHeight;
+	float x = tabBarX + pad;
+
+	// Check Main tab
+	float mainTabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth("MAIN") + 20);
+	if (screenX >= x && screenX <= x + mainTabW)
+	{
+		return 0; // Main tab
+	}
+	x += mainTabW + gap;
+
+	// Check preset tabs
+	for (int ti = 0; ti < (int)presetIndices.size(); ti++)
+	{
+		int boxIdx = presetIndices[ti];
+		string tabName = boxes[boxIdx]->name;
+		if (tabName.empty())
+		{
+			tabName = "Group " + ofToString(ti);
+		}
+		float tabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth(tabName) + 24);
+		if (screenX >= x && screenX <= x + tabW)
+		{
+			return ti + 1;
+		}
+		x += tabW + gap;
+	}
+	return -1;
+}
+
+bool JPboxgroup::handleTabClick()
+{
+	int tabIndex = getTabAtScreenPos(ofGetMouseX(), ofGetMouseY());
+	if (tabIndex < 0)
+	{
+		return false;
+	}
+
+	if (tabIndex == activeTab)
+	{
+		// Clicking the same tab does nothing (or could reset view?)
+		return true;
+	}
+
+	activeTab = tabIndex;
+
+	if (activeTab == 0)
+	{
+		// Reset to main view
+		viewportZoom = 1.0f;
+		viewportPan = ofVec2f(0, 0);
+	}
+	else
+	{
+		// Zoom to the preset box
+		vector<int> presetIndices = collectPresetTabBoxIndices();
+		int ti = activeTab - 1;
+		if (ti >= 0 && ti < (int)presetIndices.size())
+		{
+			int boxIdx = presetIndices[ti];
+			if (boxIdx >= 0 && boxIdx < (int)boxes.size() && boxes[boxIdx] != nullptr)
+			{
+				JPbox *box = boxes[boxIdx];
+				// Center viewport on this box with some zoom
+				float targetZoom = 1.5f;
+				viewportZoom = ofClamp(targetZoom, 0.25f, 3.0f);
+				// Pan so the box center is at screen center
+				float screenCX = ofGetWidth() * 0.5f;
+				float screenCY = ofGetHeight() * 0.5f;
+				viewportPan.x = screenCX - box->x * viewportZoom;
+				viewportPan.y = screenCY - box->y * viewportZoom;
+			}
+		}
+	}
+
+	return true;
+}

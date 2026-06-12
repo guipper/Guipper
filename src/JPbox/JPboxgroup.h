@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 
 #include "defines.h"
 #include "ofMain.h"
@@ -128,6 +129,14 @@ public:
 	float viewportZoom = 1.0f;
 	ofVec2f viewportPan = ofVec2f(0, 0);
 	bool viewportPanning = false;
+
+	// Tab system
+	int activeTab = 0; // 0 = main, 1+ = preset group tabs
+	void drawTabs();
+	int getTabAtScreenPos(int screenX, int screenY) const;
+	bool handleTabClick();
+	vector<int> collectPresetTabBoxIndices() const;
+	void drawSingleTab(float x, float y, float h, const string &label, bool active);
 
 	vector<JPcontroller *> controllers; // ESTE ARRAY ES DINAMICO , QUIERE DECIR QUE DEPENDE DE CUANDO CAMBIEN LOS COSOS
 										// ESTO ES SOLO PARA QUE LERPEE LOS VALORES HACIA ESTO.
