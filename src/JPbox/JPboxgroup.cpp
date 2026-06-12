@@ -197,6 +197,23 @@ void JPboxgroup::draw()
 	// boxesdrawing.draw(0, 0, ofGetWidth(), ofGetHeight());
 	// boxesdrawing.draw(offsetx, offsety, ofGetWidth(), ofGetHeight());
 	drawCuePreview();
+
+	// Group view mode: draw only the sub-boxes of the active preset
+	if (isGroupViewActive())
+	{
+		ofPushMatrix();
+		ofTranslate(viewportPan.x, viewportPan.y);
+		ofScale(viewportZoom, viewportZoom);
+		JPdragobject::setMouseOverride(screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY())));
+		drawGroupView();
+		JPdragobject::clearMouseOverride();
+		ofPopMatrix();
+		drawTabs();
+		draw_paramswindow();
+		drawGalleryDurationSlider();
+		return;
+	}
+
 	ofPushMatrix();
 	ofTranslate(viewportPan.x, viewportPan.y);
 	ofScale(viewportZoom, viewportZoom);
@@ -781,6 +798,40 @@ void JPboxgroup::update(){
 	update_paramswindow();
 	ofVec2f canvasMouse = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
 	
+	// Update sub-boxes when in group view mode
+	if (isGroupViewActive())
+	{
+		JPbox_preset *preset = getActivePreset();
+		if (preset != nullptr)
+		{
+			for (int i = (int)preset->boxes.size() - 1; i >= 0; i--)
+			{
+				preset->boxes[i]->update();
+				// Handle box grabbing for sub-boxes
+				if (ofGetMousePressed() && !viewportPanning){
+					JPdragobject::setMouseOverride(canvasMouse);
+					if (preset->boxes[i]->mouseOverOutlet() && !ouletagarrado && !shaderboxagarrado){
+						preset->boxes[i]->activeFlag = false;
+						preset->boxes[i]->outletActiveFlag = true;
+						ouletagarrado = true;
+						shaderboxagarrado = false;
+						outlet_cualestaagarrado = i;
+						cualestaagarrado = -1;
+					}
+					else if (preset->boxes[i]->mouseOver() && !ouletagarrado && !shaderboxagarrado){
+						cualestaagarrado = i;
+						outlet_cualestaagarrado = -1;
+						ouletagarrado = false;
+						shaderboxagarrado = true;
+						preset->boxes[i]->activeFlag = true;
+					}
+					JPdragobject::clearMouseOverride();
+				}
+			}
+		}
+		return;
+	}
+
 	float lerpAmount = 0.3;
 	for (int i = boxes.size() - 1; i >= 0; i--){
 		boxes[i]->update();
@@ -1040,6 +1091,52 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 	ofVec2f previousScreenMouse(ofGetPreviousMouseX(), ofGetPreviousMouseY());
 	ofVec2f canvasMouse = screenToCanvas(screenMouse);
 	ofVec2f previousCanvasMouse = screenToCanvas(previousScreenMouse);
+
+	// Group view mode: handle sub-box dragging and connections
+	if (isGroupViewActive())
+	{
+		JPbox_preset *preset = getActivePreset();
+		if (preset == nullptr) return;
+
+		if (mousebutton == OF_MOUSE_BUTTON_MIDDLE || mousebutton == OF_MOUSE_BUTTON_RIGHT)
+		{
+			viewportPanning = true;
+			panViewport(screenMouse - previousScreenMouse);
+			return;
+		}
+
+		vector<JPbox *> &subBoxes = preset->boxes;
+
+		if (cualestaagarrado != -1 && cualestaagarrado < (int)subBoxes.size() && subBoxes[cualestaagarrado]->activeFlag)
+		{
+			float deltaX = canvasMouse.x - previousCanvasMouse.x;
+			float deltaY = canvasMouse.y - previousCanvasMouse.y;
+			subBoxes[cualestaagarrado]->setPos(subBoxes[cualestaagarrado]->x + deltaX,
+												subBoxes[cualestaagarrado]->y + deltaY);
+		}
+
+		// Connection dragging: release outlet over an input
+		JPdragobject::setMouseOverride(canvasMouse);
+		for (int i = (int)subBoxes.size() - 1; i >= 0; i--)
+		{
+			for (int k = (int)subBoxes.size() - 1; k >= 0; k--)
+			{
+				for (int l = subBoxes[k]->fbohandlergroup.getSize() - 1; l >= 0; l--)
+				{
+					if (subBoxes[k]->fbohandlergroup.mouseOver(l) &&
+						subBoxes[i]->outletActiveFlag)
+					{
+						if (subBoxes[k]->fbohandlergroup.getFboName(l) == subBoxes[i]->name)
+							continue;
+						subBoxes[k]->fbohandlergroup.setFboPointer(&subBoxes[i]->fbo,
+																	&subBoxes[i]->name, l);
+					}
+				}
+			}
+		}
+		JPdragobject::clearMouseOverride();
+		return;
+	}
 
 	if (mousebutton == OF_MOUSE_BUTTON_MIDDLE || mousebutton == OF_MOUSE_BUTTON_RIGHT)
 	{
@@ -1360,6 +1457,40 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 }
 void JPboxgroup::update_mouseReleased(int mouseButton)
 {
+	// Group view mode: release grabbed sub-boxes
+	if (isGroupViewActive())
+	{
+		if (mouseButton == OF_MOUSE_BUTTON_MIDDLE || mouseButton == OF_MOUSE_BUTTON_RIGHT)
+		{
+			viewportPanning = false;
+		}
+		if (mouseButton == OF_MOUSE_BUTTON_LEFT)
+		{
+			if (shaderboxagarrado && cualestaagarrado != -1)
+			{
+				JPbox_preset *preset = getActivePreset();
+				if (preset != nullptr && cualestaagarrado < (int)preset->boxes.size())
+				{
+					preset->boxes[cualestaagarrado]->activeFlag = false;
+				}
+			}
+			if (ouletagarrado)
+			{
+				JPbox_preset *preset = getActivePreset();
+				if (preset != nullptr && outlet_cualestaagarrado != -1 && outlet_cualestaagarrado < (int)preset->boxes.size())
+				{
+					preset->boxes[outlet_cualestaagarrado]->outletActiveFlag = false;
+				}
+			}
+			shaderboxagarrado = false;
+			ouletagarrado = false;
+			cualestaagarrado = -1;
+			outlet_cualestaagarrado = -1;
+			viewportPanning = false;
+		}
+		return;
+	}
+
 	if (mouseButton == OF_MOUSE_BUTTON_MIDDLE || mouseButton == OF_MOUSE_BUTTON_RIGHT)
 	{
 		viewportPanning = false;
@@ -4139,6 +4270,19 @@ int JPboxgroup::getTabAtScreenPos(int screenX, int screenY) const
 	return -1;
 }
 
+JPbox_preset *JPboxgroup::getActivePreset() const
+{
+	if (activeGroupBoxIndex < 0 || activeGroupBoxIndex >= (int)boxes.size() || boxes[activeGroupBoxIndex] == nullptr)
+	{
+		return nullptr;
+	}
+	if (boxes[activeGroupBoxIndex]->getTipo() != JPbox::PRESETBOX)
+	{
+		return nullptr;
+	}
+	return static_cast<JPbox_preset *>(boxes[activeGroupBoxIndex]);
+}
+
 bool JPboxgroup::handleTabClick()
 {
 	int tabIndex = getTabAtScreenPos(ofGetMouseX(), ofGetMouseY());
@@ -4147,9 +4291,31 @@ bool JPboxgroup::handleTabClick()
 		return false;
 	}
 
+	// Handle double-click on an ALREADY active tab → rename
+	if (tabIndex == activeTab && isDoubleClick)
+	{
+		vector<int> presetIndices = collectPresetTabBoxIndices();
+		int ti = tabIndex - 1;
+		if (tabIndex > 0 && ti >= 0 && ti < (int)presetIndices.size())
+		{
+			int boxIdx = presetIndices[ti];
+			if (boxIdx >= 0 && boxIdx < (int)boxes.size() && boxes[boxIdx] != nullptr)
+			{
+				string newName = ofSystemTextBoxDialog("Rename group", boxes[boxIdx]->name);
+				if (!newName.empty())
+				{
+					boxes[boxIdx]->name = newName;
+				}
+			}
+		}
+		return true;
+	}
+
 	if (tabIndex == activeTab)
 	{
-		// Clicking the same tab does nothing (or could reset view?)
+		// Clicking the same tab: just reset zoom
+		viewportZoom = 1.0f;
+		viewportPan = ofVec2f(0, 0);
 		return true;
 	}
 
@@ -4157,13 +4323,15 @@ bool JPboxgroup::handleTabClick()
 
 	if (activeTab == 0)
 	{
-		// Reset to main view
+		// Switch to main view
+		activeGroupBoxIndex = -1;
+		openguinumber = -1;
 		viewportZoom = 1.0f;
 		viewportPan = ofVec2f(0, 0);
 	}
 	else
 	{
-		// Zoom to the preset box
+		// Switch to group view - show sub-boxes
 		vector<int> presetIndices = collectPresetTabBoxIndices();
 		int ti = activeTab - 1;
 		if (ti >= 0 && ti < (int)presetIndices.size())
@@ -4171,18 +4339,79 @@ bool JPboxgroup::handleTabClick()
 			int boxIdx = presetIndices[ti];
 			if (boxIdx >= 0 && boxIdx < (int)boxes.size() && boxes[boxIdx] != nullptr)
 			{
-				JPbox *box = boxes[boxIdx];
-				// Center viewport on this box with some zoom
-				float targetZoom = 1.5f;
-				viewportZoom = ofClamp(targetZoom, 0.25f, 3.0f);
-				// Pan so the box center is at screen center
-				float screenCX = ofGetWidth() * 0.5f;
-				float screenCY = ofGetHeight() * 0.5f;
-				viewportPan.x = screenCX - box->x * viewportZoom;
-				viewportPan.y = screenCY - box->y * viewportZoom;
+				activeGroupBoxIndex = boxIdx;
+				openguinumber = -1;
+				// Reset zoom/pan for group view
+				viewportZoom = 1.0f;
+				viewportPan = ofVec2f(0, 0);
 			}
 		}
 	}
 
 	return true;
+}
+
+void JPboxgroup::drawGroupView()
+{
+	JPbox_preset *preset = getActivePreset();
+	if (preset == nullptr || preset->boxes.empty())
+	{
+		return;
+	}
+
+	vector<JPbox *> &subBoxes = preset->boxes;
+
+	// Draw connections between sub-boxes
+	ofSetLineWidth(2);
+	for (int i = (int)subBoxes.size() - 1; i >= 0; i--)
+	{
+		for (int k = (int)subBoxes.size() - 1; k >= 0; k--)
+		{
+			for (int l = subBoxes[k]->fbohandlergroup.getSize() - 1; l >= 0; l--)
+			{
+				if (subBoxes[k]->fbohandlergroup.getFboName(l) == subBoxes[i]->name)
+				{
+					if (subBoxes[i]->outletActiveFlag) {
+						subBoxes[i]->triangleangle = atan2(JPdragobject::getMouseY() - subBoxes[i]->outlet_y,
+							JPdragobject::getMouseX() - subBoxes[i]->outlet_x);
+					}
+					else {
+						if (subBoxes[k]->fbohandlergroup.getSize() > 0) {
+							subBoxes[i]->triangleangle = atan2(subBoxes[k]->fbohandlergroup.getPosY(l) - subBoxes[i]->outlet_y,
+								subBoxes[k]->fbohandlergroup.getPosX(l) - subBoxes[i]->outlet_x);
+						}
+						else {
+							subBoxes[i]->triangleangle = atan2(JPdragobject::getMouseY() - subBoxes[i]->outlet_y,
+								JPdragobject::getMouseX() - subBoxes[i]->outlet_x);
+						}
+					}
+
+					ofDrawLine(subBoxes[k]->fbohandlergroup.getPosX(l),
+						subBoxes[k]->fbohandlergroup.getPosY(l),
+						subBoxes[i]->outlet_x + subBoxes[i]->outlet_size / 2, subBoxes[i]->outlet_y);
+				}
+			}
+		}
+	}
+
+	// Draw sub-boxes
+	JPdragobject::setMouseOverride(screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY())));
+
+	for (int i = 0; i < (int)subBoxes.size(); i++)
+	{
+		float x = subBoxes[i]->x;
+		float y = subBoxes[i]->y + subBoxes[i]->height / 2 - 8;
+
+		ofSetRectMode(OF_RECTMODE_CENTER);
+		if (preset->activeRender == i) {
+			ofSetColor(40, 210, 90, 210);
+			ofRectMode(CENTER);
+			ofRectRounded(x, y - subBoxes[i]->height / 2 + 10, subBoxes[i]->width * 1.1, subBoxes[i]->height * 1.1, 10);
+		}
+
+		subBoxes[i]->draw();
+		ofDrawBitmapString(ofToString(i), x, y);
+	}
+
+	JPdragobject::clearMouseOverride();
 }

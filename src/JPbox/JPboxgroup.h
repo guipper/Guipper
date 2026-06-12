@@ -132,11 +132,15 @@ public:
 
 	// Tab system
 	int activeTab = 0; // 0 = main, 1+ = preset group tabs
+	int activeGroupBoxIndex = -1; // -1 = main, >= 0 = preset box index whose sub-boxes to show
 	void drawTabs();
 	int getTabAtScreenPos(int screenX, int screenY) const;
 	bool handleTabClick();
+	void drawGroupView();
 	vector<int> collectPresetTabBoxIndices() const;
 	void drawSingleTab(float x, float y, float h, const string &label, bool active);
+	bool isGroupViewActive() const { return activeGroupBoxIndex >= 0; }
+	JPbox_preset *getActivePreset() const;
 
 	vector<JPcontroller *> controllers; // ESTE ARRAY ES DINAMICO , QUIERE DECIR QUE DEPENDE DE CUANDO CAMBIEN LOS COSOS
 										// ESTO ES SOLO PARA QUE LERPEE LOS VALORES HACIA ESTO.
