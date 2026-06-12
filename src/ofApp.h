@@ -97,6 +97,7 @@ public:
 	// NDI SENDER:
 	ofxNDIsender ndiSender; // NDI sender
 	ofFbo ndiFbo;			// Fbo used for graphics and sending
+	bool ndiActive = true;
 #endif
 
 	// WINDOW MANAGMENT:
@@ -155,8 +156,21 @@ public:
 	//ACA PARA AGREGAR MAS LENGUAJES EVENTUALMENTE SUPONGO : 
 	//0 INSTRUCCIONES EN INGLES.
 	//1 INSTRUCCIONES EN ESPAÑOL.
-	int language = 0; 
+	int language = 0;
 
+	// Options screen text fields
+	enum { FIELD_OSC_PORT_IN = 0, FIELD_OSC_PORT_OUT, FIELD_RENDER_WIDTH, FIELD_RENDER_HEIGHT, FIELD_BPM, OPTIONS_FIELD_COUNT };
+	string optionsFieldText[OPTIONS_FIELD_COUNT];
+	int focusedOptionsField = -1;
+	void applyOptionsField();
+	void initOptionsFields();
 
+	// Save-as modal state
+	bool saveModalActive = false;
+	string saveModalName = "";
+	void drawSaveModal();
+	void confirmSaveModal();
+	void cancelSaveModal();
+	ofTrueTypeFont modalFont; // Larger font for modal text
 
 };

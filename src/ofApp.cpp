@@ -6,6 +6,9 @@ void ofApp::setup() {
 
 	font_p.loadFont("font/Montserrat-Regular.ttf", 11); // Inicio fuente.
 
+	// Modal font - loaded at readable size for the save dialog
+	modalFont.loadFont("font/Montserrat-Medium.ttf", 14);
+
 	ofSetVerticalSync(false);
 	// FreeConsole();
 
@@ -47,7 +50,7 @@ void ofApp::setup() {
 
 	ofSetWindowTitle("GUIPPER");
 
-	loadAspreset = false;
+	loadAspreset = true; // Default: drag XML as boxgroup. Press 't' to toggle to full session load.
 	//.----------------------------------------------------------------/
 
 #ifdef NDI
@@ -113,7 +116,7 @@ void ofApp::update() {
 #endif
 
 #ifdef NDI
-	if (boxes.getBoxesSize() > 0) {
+	if (ndiActive && boxes.getBoxesSize() > 0) {
 		ndiSender.SendImage(*boxes.getActiverender());
 	}
 #endif
@@ -175,6 +178,8 @@ void ofApp::draw() {
 	}
 	midiKeymap.drawMappingTargets();
 	midiKeymap.draw();
+
+	drawSaveModal();
 }
 void ofApp::draw_debugInfo() {
 
@@ -243,19 +248,167 @@ void ofApp::draw_instrucciones() {
 	}
 }
 void ofApp::draw_opciones() {
+	float panelX = 30, panelY = 30;
+	float panelW = 500;
+	float fieldX = 175;
+	float fieldW = 200;
+	float rowH = 28;
+	float sepy = 40;
+	int totalRows = OPTIONS_FIELD_COUNT + 4; // fields + 2 toggles + save + osc ip
+	float panelH = 55 + totalRows * sepy + 25;
+	float toggleBtnW = 70;
 
-	float sepy = 20;
-	float posy = 30;
-	float posx = 30;
+	// Glassmorphism panel background
+	ofSetColor(12, 16, 20, 235);
+	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
+	ofNoFill();
+	ofSetColor(0, 230, 230, 80);
+	ofSetLineWidth(1.5f);
+	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
+	ofFill();
+	ofSetLineWidth(1.0f);
 
-	font_p.drawString("opciones de SETTINGS.XML", posx, posy += sepy);
-	font_p.drawString("Render Resolution :" + ofToString(jp_constants::renderWidth) + "X" + ofToString(jp_constants::renderHeight), posx, posy += sepy);
+	// Title
+	ofSetColor(0, 230, 230);
+	font_p.drawString("SETTINGS.XML Configuration", panelX + 15, panelY + 30);
+
+	// Field labels & inputs
+	string labels[OPTIONS_FIELD_COUNT] = {
+		"OSC Port In:",
+		"OSC Port Out:",
+		"Render Width:",
+		"Render Height:",
+		"BPM:"
+	};
+
+	for (int i = 0; i < OPTIONS_FIELD_COUNT; i++) {
+		float rowY = panelY + 55 + i * sepy;
+
+		// Label
+		ofSetColor(220);
+		font_p.drawString(labels[i], panelX + 15, rowY + rowH - 7);
+
+		// Field background
+		ofSetColor(focusedOptionsField == i ? ofColor(30, 40, 50) : ofColor(20, 25, 30));
+		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
+
+		// Field border
+		ofNoFill();
+		if (focusedOptionsField == i) {
+			ofSetColor(0, 230, 230);
+			ofSetLineWidth(2.0f);
+		} else {
+			ofSetColor(60, 70, 80);
+			ofSetLineWidth(1.0f);
+		}
+		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
+		ofFill();
+		ofSetLineWidth(1.0f);
+
+		// Field text with cursor if focused
+		ofSetColor(255);
+		string displayText = optionsFieldText[i];
+		if (focusedOptionsField == i) {
+			displayText += "|";
+		}
+		font_p.drawString(displayText, fieldX + 6, rowY + rowH - 7);
+	}
+
+	// --- Toggle: Spout ---
+	int toggleRow = OPTIONS_FIELD_COUNT;
 #ifdef SPOUT
-	font_p.drawString("Spout " + ofToString(spoutActive), posx, posy += sepy);
+	{
+		float rowY = panelY + 55 + toggleRow * sepy;
+		ofSetColor(220);
+		font_p.drawString("Spout Output", panelX + 15, rowY + rowH - 7);
+
+		float btnX = fieldX;
+		bool isOn = spoutActive;
+		ofSetColor(isOn ? ofColor(0, 180, 80) : ofColor(80, 30, 30));
+		ofDrawRectRounded(btnX, rowY, toggleBtnW, rowH, 4.0f);
+		ofSetColor(255);
+		font_p.drawString(isOn ? "ON" : "OFF", btnX + toggleBtnW / 2 - 12, rowY + rowH - 7);
+	}
+	toggleRow++;
 #endif
-	font_p.drawString("osc PORT IN " + ofToString(receiver.getPort()), posx, posy += sepy);
-	font_p.drawString("osc PORT OUT " + ofToString(sender.getPort()), posx, posy += sepy);
-	font_p.drawString("osc IP OUT " + ofToString(sender.getHost()), posx, posy += sepy);
+
+	// --- Toggle: NDI ---
+#ifdef NDI
+	{
+		float rowY = panelY + 55 + toggleRow * sepy;
+		ofSetColor(220);
+		font_p.drawString("NDI Output", panelX + 15, rowY + rowH - 7);
+
+		float btnX = fieldX;
+		bool isOn = ndiActive;
+		ofSetColor(isOn ? ofColor(0, 180, 80) : ofColor(80, 30, 30));
+		ofDrawRectRounded(btnX, rowY, toggleBtnW, rowH, 4.0f);
+		ofSetColor(255);
+		font_p.drawString(isOn ? "ON" : "OFF", btnX + toggleBtnW / 2 - 12, rowY + rowH - 7);
+	}
+	toggleRow++;
+#endif
+
+	// --- OSC IP Out info ---
+	{
+		float rowY = panelY + 55 + toggleRow * sepy;
+		ofSetColor(160);
+		font_p.drawString("OSC IP Out: " + sender.getHost(), panelX + 15, rowY + rowH - 7);
+	}
+	toggleRow++;
+
+	// --- Save button ---
+	{
+		float rowY = panelY + 55 + toggleRow * sepy;
+		float saveW = 160;
+		float saveX = panelX + panelW / 2 - saveW / 2;
+		ofSetColor(0, 160, 160);
+		ofDrawRectRounded(saveX, rowY, saveW, rowH + 4, 6.0f);
+		ofSetColor(255);
+		font_p.drawString("SAVE SETTINGS", saveX + saveW / 2 - 48, rowY + rowH + 4 - 6);
+	}
+
+	// Hint text when focused
+	if (focusedOptionsField >= 0) {
+		ofSetColor(100, 120, 130);
+		font_p.drawString("Enter to apply | Click outside to cancel", panelX + 15, panelY + panelH - 10);
+	}
+}
+
+void ofApp::initOptionsFields() {
+	optionsFieldText[FIELD_OSC_PORT_IN] = ofToString(receiver.getPort());
+	optionsFieldText[FIELD_OSC_PORT_OUT] = ofToString(sender.getPort());
+	optionsFieldText[FIELD_RENDER_WIDTH] = ofToString(jp_constants::renderWidth);
+	optionsFieldText[FIELD_RENDER_HEIGHT] = ofToString(jp_constants::renderHeight);
+	optionsFieldText[FIELD_BPM] = ofToString((int)jp_constants::bpm);
+	focusedOptionsField = -1;
+}
+
+void ofApp::applyOptionsField() {
+	for (int i = 0; i < OPTIONS_FIELD_COUNT; i++) {
+		string text = optionsFieldText[i];
+		if (text.empty()) continue;
+		int val = ofToInt(text);
+		switch (i) {
+			case FIELD_OSC_PORT_IN:
+				receiver.setup(val);
+				break;
+			case FIELD_OSC_PORT_OUT:
+				sender.setup(sender.getHost(), val);
+				break;
+			case FIELD_RENDER_WIDTH:
+				jp_constants::setrenderWidth(val);
+				break;
+			case FIELD_RENDER_HEIGHT:
+				jp_constants::setrenderHeight(val);
+				break;
+			case FIELD_BPM:
+				jp_constants::setBpm((float)val);
+				break;
+			}
+		}
+	saveSettings();
+	focusedOptionsField = -1;
 }
 // Esta es la que se dibuja en la otra ventana
 void ofApp::drawRender() {
@@ -267,18 +420,69 @@ void ofApp::keyPressed(int key) {
 		return;
 	}
 
+	// Save-as modal input handling
+	if (saveModalActive) {
+		if (key == OF_KEY_RETURN || key == '\r') {
+			confirmSaveModal();
+			return;
+		}
+		if (key == OF_KEY_ESC) {
+			cancelSaveModal();
+			return;
+		}
+		if (key == OF_KEY_BACKSPACE) {
+			if (!saveModalName.empty()) {
+				saveModalName.erase(saveModalName.size() - 1);
+			}
+			return;
+		}
+		// Allow alphanumeric, dash, underscore, dot, space
+		if ((key >= 'a' && key <= 'z') ||
+			(key >= 'A' && key <= 'Z') ||
+			(key >= '0' && key <= '9') ||
+			key == '-' || key == '_' || key == '.' || key == ' ') {
+			saveModalName += (char)key;
+		}
+		return;
+	}
+
 	// keyIsDown[key] = true;
+
+	// Options screen text field input — run BEFORE tab shortcuts so digits
+	// '1','2','3' get consumed by the field instead of switching tabs.
+	if (focusedOptionsField >= 0) {
+		if (key == OF_KEY_RETURN || key == '\r') {
+			applyOptionsField();
+			return;
+		}
+		if (key == OF_KEY_BACKSPACE) {
+			string &text = optionsFieldText[focusedOptionsField];
+			if (!text.empty()) {
+				text.erase(text.size() - 1);
+			}
+			return;
+		}
+		// Allow digits 0-9
+		if (key >= '0' && key <= '9') {
+			optionsFieldText[focusedOptionsField] += (char)key;
+			return;
+		}
+		return; // consume other keys while focused
+	}
 
 	if (key == '1') {
 		pantallaActiva = NODOS;
+		focusedOptionsField = -1;
 	}
 
 	if (key == '2') {
 		pantallaActiva = OPCIONES;
+		initOptionsFields();
 	}
 
 	if (key == '3') {
 		pantallaActiva = TUTORIAL;
+		focusedOptionsField = -1;
 	}
 	if (key == 'k') {
 		midiKeymap.togglePanel();
@@ -443,18 +647,27 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 
 	// CUANDO APRETAS CONTROL TE TOMA COMO DOS INPUTS EN EL MOMENTO.
 	cout << "-------------------------------------" << endl;
-	//cout << "PREVKEYCODE " << prevKey << endl;
-	//cout << "KEYCODE : " << e.keycode << endl;
-	//cout << "KEY : " << e.key << endl;
-	// Como que esto solo sucede cuando apretas el control y despues el save. LO SACAMOS VIENDO VALORES EN CONSOLA. NO ME PREGUNTES LA LOGICA.
 
-	// if (prevKey == 19) {
-
-	// Aca me lo cambio a 134 de golpe. Que onda? Hay que tener cuidado con este bug.
+	// Ctrl+S (keycodes 46 or 19 depending on platform) -> open save-as modal
 	if (e.key == 46 || e.key == 19) {
+		if (!saveModalActive) {
+			saveModalActive = true;
+			saveModalName = "";
+			cout << "Save modal opened" << endl;
+		}
+		return;
+	}
 
-		jp_constants::set_systemDialog_open(true);
-		saveas_saver.startThread();
+	// Ctrl+C (key=3) -> copy selected boxes
+	if (e.key == 3 && pantallaActiva == NODOS) {
+		boxes.copySelectedBoxes();
+		return;
+	}
+
+	// Ctrl+V (key=22) -> paste boxes
+	if (e.key == 22 && pantallaActiva == NODOS) {
+		boxes.pasteBoxes();
+		return;
 	}
 
 	if (prevKey == 12) {
@@ -493,6 +706,68 @@ void ofApp::mousePressed(int x, int y, int button) {
 			language = 1;
 		} else if (language == 1) {
 			language = 0;
+		}
+	}
+	if (pantallaActiva == OPCIONES) {
+		// Layout constants matching draw_opciones()
+		float panelX = 30, panelY = 30;
+		float panelW = 500;
+		float fieldX = 175;
+		float fieldW = 200;
+		float rowH = 28;
+		float sepy = 40;
+		float toggleBtnW = 70;
+
+		// Check if clicked inside any text field
+		focusedOptionsField = -1;
+		for (int i = 0; i < OPTIONS_FIELD_COUNT; i++) {
+			float rowY = panelY + 55 + i * sepy;
+			if (x >= fieldX && x <= fieldX + fieldW &&
+				y >= rowY && y <= rowY + rowH) {
+				focusedOptionsField = i;
+				return;
+			}
+		}
+
+		// Check toggle buttons
+		int toggleRow = OPTIONS_FIELD_COUNT;
+
+#ifdef SPOUT
+		{
+			float rowY = panelY + 55 + toggleRow * sepy;
+			if (x >= fieldX && x <= fieldX + toggleBtnW &&
+				y >= rowY && y <= rowY + rowH) {
+				spoutActive = !spoutActive;
+				return;
+			}
+		}
+		toggleRow++;
+#endif
+
+#ifdef NDI
+		{
+			float rowY = panelY + 55 + toggleRow * sepy;
+			if (x >= fieldX && x <= fieldX + toggleBtnW &&
+				y >= rowY && y <= rowY + rowH) {
+				ndiActive = !ndiActive;
+				return;
+			}
+		}
+		toggleRow++;
+#endif
+
+		toggleRow++; // skip OSC IP info row (not clickable)
+
+		// Check Save button
+		{
+			float rowY = panelY + 55 + toggleRow * sepy;
+			float saveW = 160;
+			float saveX = panelX + panelW / 2 - saveW / 2;
+			if (x >= saveX && x <= saveX + saveW &&
+				y >= rowY && y <= rowY + rowH + 4) {
+				saveSettings();
+				return;
+			}
 		}
 	}
 }
@@ -678,11 +953,21 @@ void ofApp::loadSettings() {
 #ifdef SPOUT
 	spoutActive = spouton.getBoolValue();
 #endif
+#ifdef NDI
+	{
+		auto ndion = settings.getChild("ndion");
+		if (ndion) ndiActive = ndion.getBoolValue();
+	}
+#endif
 	oscout_mode1 = oscout1.getBoolValue();
 	oscout_mode2 = oscout2.getBoolValue();
 
 	receiver.setup(oscportin.getIntValue());
 	sender.setup(oscipout.getValue(), oscportout.getIntValue());
+	{
+		auto bpmaux = settings.getChild("bpm");
+		if (bpmaux) jp_constants::bpm = (float)bpmaux.getIntValue();
+	}
 	if (windowopen.getBoolValue()) {
 		openRenderWindow();
 	}
@@ -721,11 +1006,15 @@ void ofApp::saveSettings() {
 #ifdef SPOUT
 	settings.appendChild("spouton").set(toXmlString(spoutActive));
 #endif
+#ifdef NDI
+	settings.appendChild("ndion").set(toXmlString(ndiActive));
+#endif
 	settings.appendChild("osc_port_in").set(receiver.getPort());
 	settings.appendChild("osc_port_out").set(sender.getPort());
 	settings.appendChild("osc_ip_out").set(sender.getHost());
 	settings.appendChild("oscout_mode1").set(toXmlString(oscout_mode1));
 	settings.appendChild("oscout_mode2").set(toXmlString(oscout_mode2));
+	settings.appendChild("bpm").set((int)jp_constants::bpm);
 
 	xml.save(settingsPath);
 }
@@ -883,4 +1172,115 @@ bool ofApp::InitGLtexture(GLuint & texID, unsigned int width, unsigned int heigh
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glBindTexture(GL_TEXTURE_2D, 0);
 	return true;
+}
+
+// Save-as modal: draws a centered overlay with a text input field
+void ofApp::drawSaveModal() {
+	if (!saveModalActive) return;
+
+	float w = ofGetWidth();
+	float h = ofGetHeight();
+
+	// Full scene overlay (dark translucent)
+	ofSetColor(0, 0, 0, 180);
+	ofDrawRectangle(0, 0, w, h);
+
+	// Modal box dimensions
+	float boxW = 420;
+	float boxH = 190;
+	float boxX = (w - boxW) * 0.5f;
+	float boxY = (h - boxH) * 0.5f;
+	float corner = 10;
+
+	// Rounded shadow behind modal
+	ofSetColor(0, 0, 0, 100);
+	ofDrawRectRounded(boxX + 5, boxY + 5, boxW, boxH, corner);
+
+	// Panel background — same glassmorphism as draw_opciones
+	ofSetColor(12, 16, 20, 238);
+	ofDrawRectRounded(boxX, boxY, boxW, boxH, corner);
+
+	// Panel border — cyan with matching alpha
+	ofNoFill();
+	ofSetColor(0, 230, 230, 80);
+	ofSetLineWidth(1.5f);
+	ofDrawRectRounded(boxX, boxY, boxW, boxH, corner);
+	ofFill();
+	ofSetLineWidth(1.0f);
+
+	float pad = 20;
+
+	// Title — cyan, same style as "SETTINGS.XML Configuration"
+	ofSetColor(0, 230, 230);
+	modalFont.drawString("SAVE COMPOSITION", boxX + pad, boxY + 34);
+
+	// Thin separator
+	ofSetColor(50, 60, 75);
+	ofDrawLine(boxX + pad, boxY + 45, boxX + boxW - pad, boxY + 45);
+
+	// Input field
+	float fieldX = boxX + pad;
+	float fieldY = boxY + 58;
+	float fieldW = boxW - pad * 2;
+	float fieldH = 32;
+
+	// Field background
+	ofSetColor(18, 22, 28);
+	ofDrawRectRounded(fieldX, fieldY, fieldW, fieldH, 4);
+
+	// Field border — cyan (always focused while modal is active)
+	ofNoFill();
+	ofSetColor(0, 230, 230);
+	ofSetLineWidth(2.0f);
+	ofDrawRectRounded(fieldX, fieldY, fieldW, fieldH, 4);
+	ofFill();
+	ofSetLineWidth(1.0f);
+
+	// Filename text inside the field — white with blinking cursor
+	ofSetColor(255);
+	string displayText = saveModalName;
+	// Cursor blinks every 25 frames
+	if ((ofGetFrameNum() / 25) % 2 == 0) {
+		displayText += "|";
+	}
+	// Vertically center text at baseline ~ fieldY + fieldH/2 + font_size/3
+	float textY = fieldY + fieldH * 0.5f + 5.0f;
+	modalFont.drawString(displayText, fieldX + 8, textY);
+
+	// Preview path below the field
+	ofSetColor(100, 130, 160);
+	string previewName = saveModalName.empty() ? string("composition") : saveModalName;
+	string preview = "savefiles/" + previewName + ".xml";
+	modalFont.drawString(preview, boxX + pad, fieldY + fieldH + 22);
+
+	// Bottom hint — Enter (cyan, left)
+	ofSetColor(0, 230, 230, 200);
+	modalFont.drawString("Enter  Save", boxX + pad, boxY + boxH - 14);
+
+	// Bottom hint — Esc (gray, right)
+	ofSetColor(130, 140, 165);
+	string escHint = "Esc  Cancel";
+	modalFont.drawString(escHint, boxX + boxW - pad - modalFont.stringWidth(escHint), boxY + boxH - 14);
+}
+
+void ofApp::confirmSaveModal() {
+	if (saveModalName.empty()) return;
+
+	string filename = saveModalName;
+	// Ensure .xml extension
+	if (filename.find(".xml") == string::npos) {
+		filename += ".xml";
+	}
+	string path = "savefiles/" + filename;
+	cout << "Save modal confirmed: " << path << endl;
+	savedirectory = path;
+	saveSession(path);
+	saveModalActive = false;
+	saveModalName = "";
+}
+
+void ofApp::cancelSaveModal() {
+	cout << "Save modal cancelled" << endl;
+	saveModalActive = false;
+	saveModalName = "";
 }

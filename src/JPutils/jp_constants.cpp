@@ -7,6 +7,7 @@ int jp_constants::window_height;
 int jp_constants::window_mousex;
 int jp_constants::window_mousey;
 float jp_constants::durationgallery;
+float jp_constants::bpm = 120.0f;
 
 ofTrueTypeFont jp_constants::p_font;
 ofTrueTypeFont jp_constants::h_font;
@@ -84,6 +85,7 @@ void jp_constants::init(int _renderwidth, int _renderheight, int _window_width, 
 	background.load("img/design/componentes/fondo.png");*/
 }
 void jp_constants::setdurationgallery(float _durationgallery) { durationgallery = _durationgallery; }
+void jp_constants::setBpm(float _bpm) { bpm = _bpm; }
 void jp_constants::setrenderWidth(int _renderwidth) { renderWidth = _renderwidth; }
 void jp_constants::setrenderHeight(int _renderheight) { renderHeight = _renderheight; }
 void jp_constants::setwindow_width(int _window_width) { window_width = _window_width; }

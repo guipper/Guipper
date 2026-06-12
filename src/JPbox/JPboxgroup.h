@@ -157,6 +157,11 @@ public:
 	int controllerselected; // ME INDICA QUE VARIABLE ESTA AGARRADA
 	bool activeSequence; //SECUENCIA ACTIVA
 	void groupSelectedBoxes();
+
+	// Clipboard - copy/paste across main and group views
+	string clipboardXml;
+	void copySelectedBoxes();
+	void pasteBoxes();
 private:
 	enum CueMode
 	{

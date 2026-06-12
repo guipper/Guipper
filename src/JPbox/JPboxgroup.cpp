@@ -1297,7 +1297,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		return;
 	}
 
-	// In group view mode: handle deselect on empty space click
+	// In group view mode: handle click on sub-box and deselect on empty space click
 	if (isGroupViewActive() && mouseButton == OF_MOUSE_BUTTON_LEFT)
 	{
 		JPbox_preset *preset = getActivePreset();
@@ -1305,16 +1305,33 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		{
 			JPdragobject::setMouseOverride(canvasMouse);
 			bool hitBox = false;
+			int clickedIndex = -1;
 			for (int i = 0; i < (int)preset->boxes.size(); i++)
 			{
-				if (preset->boxes[i]->mouseOver() || preset->boxes[i]->mouseOverOutlet())
+				if (preset->boxes[i]->mouseOver() && !preset->boxes[i]->mouseOverOutlet())
 				{
 					hitBox = true;
+					clickedIndex = i;
 					break;
 				}
 			}
 			JPdragobject::clearMouseOverride();
-			if (!hitBox && !mouseOverGui())
+			if (hitBox && clickedIndex >= 0)
+			{
+				// Click on a sub-box sets it as the active render of this preset
+				preset->activeRender = clickedIndex;
+				groupInspectorIndex = clickedIndex;
+				groupPreviewBoxIndex = -1;
+				setControllers();
+				// Also switch the main boxgroup's active render to this preset,
+				// so the render that reaches the main output comes from the selected sub-box
+				if (!activeGroupPath.empty())
+				{
+					requestSetActiveRender(activeGroupPath[0]);
+				}
+				return; // Don't process main boxes
+			}
+			else if (!hitBox && !mouseOverGui())
 			{
 				groupInspectorIndex = -1;
 				groupPreviewBoxIndex = -1;
@@ -3720,6 +3737,27 @@ bool JPboxgroup::mouseOverGui()
 }
 void JPboxgroup::addBox(string directory, float _x, float _y)
 {
+	// When in group view and dropping an .xml, add it to the active preset's sub-boxes
+	if (isGroupViewActive() && directory.find(".xml") != std::string::npos)
+	{
+		JPbox_preset *preset = getActivePreset();
+		if (preset != nullptr)
+		{
+			string nombre = makeUniqueBoxName(makeNameFromDirectory(directory));
+			JPbox *bx = createBoxForDirectory(directory, nombre);
+			if (bx == nullptr)
+			{
+				return;
+			}
+			bx->setup(directory, nombre);
+			bx->setonoff(true);
+			bx->setPos(_x, _y);
+			preset->boxes.push_back(bx);
+			cout << "addBox: added sub-box \"" << nombre << "\" to active preset (group view)" << endl;
+			return;
+		}
+	}
+
 	string nombre = makeUniqueBoxName(makeNameFromDirectory(directory));
 	JPbox *bx = createBoxForDirectory(directory, nombre);
 	if (bx == nullptr)
@@ -4180,6 +4218,319 @@ void JPboxgroup::deleteSelectedShader()
 
 	openguinumber = -1;
 }
+
+void JPboxgroup::copySelectedBoxes()
+{
+	clipboardXml.clear();
+
+	// Determine which boxes to copy
+	vector<int> srcIndices;
+
+	if (isGroupViewActive())
+	{
+		// In group view: copy the sub-box at groupInspectorIndex
+		JPbox_preset *preset = getActivePreset();
+		if (preset == nullptr || groupInspectorIndex < 0 || groupInspectorIndex >= (int)preset->boxes.size())
+		{
+			cout << "copySelectedBoxes: nothing selected in group view" << endl;
+			return;
+		}
+		srcIndices.push_back(groupInspectorIndex);
+	}
+	else
+	{
+		// In main view: use selectedBoxIndices, or fall back to openguinumber
+		if (!selectedBoxIndices.empty())
+		{
+			srcIndices = selectedBoxIndices;
+		}
+		else if (openguinumber >= 0 && openguinumber < (int)boxes.size())
+		{
+			srcIndices.push_back(openguinumber);
+		}
+		else
+		{
+			cout << "copySelectedBoxes: nothing selected" << endl;
+			return;
+		}
+	}
+
+	// Build XML from source boxes (same format as save())
+	ofXml xml;
+	xml.appendChild("activerender").set(0);
+
+	for (int si : srcIndices)
+	{
+		JPbox *box;
+		if (isGroupViewActive())
+		{
+			JPbox_preset *preset = getActivePreset();
+			if (si < 0 || si >= (int)preset->boxes.size() || preset->boxes[si] == nullptr) continue;
+			box = preset->boxes[si];
+		}
+		else
+		{
+			if (si < 0 || si >= (int)boxes.size() || boxes[si] == nullptr) continue;
+			box = boxes[si];
+		}
+
+		auto data = xml.appendChild("box");
+		data.appendChild("nombre").set(box->name);
+		data.appendChild("x").set((int)box->x);
+		data.appendChild("y").set((int)box->y);
+		data.appendChild("directory").set(box->dir);
+		data.appendChild("onoff").set(box->getonoff());
+		data.appendChild("bypass").set(box->getBypass());
+
+		// Parameters
+		if (box->parameters.getSize() > 0)
+		{
+			auto parameters = data.appendChild("parameters");
+			for (int k = 0; k < box->parameters.getSize(); k++)
+			{
+				auto param = parameters.appendChild("param");
+				param.appendChild("name").set(box->parameters.getName(k));
+				if (box->parameters.getType(k) == box->parameters.BOOL)
+				{
+					param.appendChild("value").set(box->parameters.getBoolValue(k));
+				}
+				else
+				{
+					param.appendChild("min").set(box->parameters.getMin(k));
+					param.appendChild("max").set(box->parameters.getMax(k));
+					param.appendChild("value").set(box->parameters.getFloatValue(k));
+					param.appendChild("movtype").set(box->parameters.getMovType(k));
+					param.appendChild("speed").set(box->parameters.getSpeed(k));
+				}
+			}
+		}
+
+		// FBO links (between copied boxes)
+		if (box->fbohandlergroup.getPointerSetsSize() > 0)
+		{
+			auto fboslinks = data.appendChild("fboslinks");
+			for (int k = 0; k < box->fbohandlergroup.getSize(); k++)
+			{
+				if (box->fbohandlergroup.getisPointerSet(k))
+				{
+					fboslinks.appendChild(box->fbohandlergroup.getName(k))
+						.set(box->fbohandlergroup.getFboName(k));
+				}
+			}
+		}
+	}
+
+	clipboardXml = xml.toString();
+	cout << "copySelectedBoxes: copied " << srcIndices.size() << " box(es) to clipboard" << endl;
+}
+
+void JPboxgroup::pasteBoxes()
+{
+	if (clipboardXml.empty())
+	{
+		cout << "pasteBoxes: clipboard is empty" << endl;
+		return;
+	}
+
+	ofXml xml;
+	if (!xml.parse(clipboardXml))
+	{
+		cout << "pasteBoxes: failed to parse clipboard XML" << endl;
+		return;
+	}
+
+	auto boxloader = xml.find("/box");
+	if (boxloader.empty())
+	{
+		cout << "pasteBoxes: no boxes in clipboard" << endl;
+		return;
+	}
+
+	// Determine where to paste
+	JPbox_preset *targetPreset = nullptr;
+	if (isGroupViewActive())
+	{
+		targetPreset = getActivePreset();
+		if (targetPreset == nullptr)
+		{
+			cout << "pasteBoxes: in group view but no active preset" << endl;
+			return;
+		}
+	}
+
+	// Calculate paste position at mouse cursor in canvas coordinates
+	ofVec2f pastePos = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
+
+	// First pass: create all boxes and add to destination
+	// We add them one by one so makeUniqueBoxName checks against existing boxes each time
+	vector<JPbox *> newBoxes;
+	vector<string> srcNames; // original names for FBO link reconnection
+
+	int pasteIndex = 0;
+	for (auto &box : boxloader)
+	{
+		auto nombre = box.getChild("nombre");
+		auto x = box.getChild("x");
+		auto y = box.getChild("y");
+		auto directory = box.getChild("directory");
+		auto onoff = box.getChild("onoff");
+		auto bypass = box.getChild("bypass");
+
+		if (!nombre || !directory) continue;
+
+		string dir = directory.getValue();
+
+		// Reuse the same addBox pattern but without requiring an xml file on disk
+		string nombreFinal = makeUniqueBoxName(makeNameFromDirectory(dir));
+		JPbox *bx = createBoxForDirectory(dir, nombreFinal);
+		if (bx == nullptr) continue;
+
+		if (targetPreset != nullptr)
+		{
+			bx->setup(dir, nombreFinal);
+			bx->setonoff(true);
+			bx->setPos(pastePos.x + pasteIndex * 30.0f, pastePos.y + pasteIndex * 30.0f);
+			targetPreset->boxes.push_back(bx);
+		}
+		else
+		{
+			bx->setup(dir, nombreFinal);
+			bx->setonoff(true);
+			bx->setPos(pastePos.x + pasteIndex * 30.0f, pastePos.y + pasteIndex * 30.0f);
+			boxes.push_back(bx);
+		}
+
+		// Restore onoff/bypass from copied state
+		if (onoff) bx->setonoff(onoff.getBoolValue());
+		if (bypass) bx->setBypass(bypass.getBoolValue());
+
+		// Restore parameters (only if the child exists)
+		{
+			auto paramsChild = box.getChild("parameters");
+			if (paramsChild)
+			{
+				int paramIndex = 0;
+				auto parameters = paramsChild.getChildren();
+				for (auto &param : parameters)
+				{
+					if (paramIndex >= bx->parameters.getSize()) break;
+
+					if (bx->parameters.getType(paramIndex) == bx->parameters.FLOAT)
+					{
+						bx->parameters.setName(param.getChild("name").getValue());
+						bx->parameters.setMin(param.getChild("min").getFloatValue(), paramIndex);
+						bx->parameters.setMax(param.getChild("max").getFloatValue(), paramIndex);
+						bx->parameters.setFloatLerpValue(param.getChild("value").getFloatValue(), paramIndex);
+						bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), paramIndex);
+						bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), paramIndex);
+						bx->parameters.setSpeed(param.getChild("speed").getFloatValue(), paramIndex);
+					}
+					else if (bx->parameters.getType(paramIndex) == bx->parameters.BOOL)
+					{
+						bx->parameters.setName(param.getChild("name").getValue());
+						bx->parameters.setBoolValue(param.getChild("value").getBoolValue(), paramIndex);
+					}
+					paramIndex++;
+				}
+			}
+		}
+
+		srcNames.push_back(nombre.getValue());
+		newBoxes.push_back(bx);
+		pasteIndex++;
+	}
+
+	if (newBoxes.empty())
+	{
+		cout << "pasteBoxes: no valid boxes to paste" << endl;
+		return;
+	}
+
+	// Second pass: reconnect FBO links using name mapping (old name -> new name)
+	pasteIndex = 0;
+	for (auto &box : boxloader)
+	{
+		if (pasteIndex >= (int)newBoxes.size()) break;
+		JPbox *newBox = newBoxes[pasteIndex];
+
+		auto fbosChild = box.getChild("fboslinks");
+		if (!fbosChild)
+		{
+			pasteIndex++;
+			continue;
+		}
+		auto fboslinks = fbosChild.getChildren();
+		int linkIndex = 0;
+		for (auto &fbolink : fboslinks)
+		{
+			string linkedName = fbolink.getValue();
+			if (newBox->fbohandlergroup.getSize() <= linkIndex)
+			{
+				linkIndex++;
+				continue;
+			}
+
+			// Find the box in our newly pasted set whose old name matches
+			if (targetPreset != nullptr)
+			{
+				for (size_t k = 0; k < targetPreset->boxes.size(); k++)
+				{
+					if (targetPreset->boxes[k] == newBox) continue;
+					// Check the original name by looking at srcNames at matching index
+					// For pasted boxes within the same preset, names are already unique
+					string candidateName = targetPreset->boxes[k]->name;
+					for (size_t si = 0; si < srcNames.size(); si++)
+					{
+						if (newBoxes[si] == targetPreset->boxes[k])
+						{
+							candidateName = srcNames[si];
+							break;
+						}
+					}
+					if (candidateName == linkedName && newBox->fbohandlergroup.getSize() > linkIndex)
+					{
+						newBox->fbohandlergroup.setFboPointer(
+							&targetPreset->boxes[k]->fbo,
+							&targetPreset->boxes[k]->name,
+							linkIndex);
+						break;
+					}
+				}
+			}
+			else
+			{
+				for (size_t k = 0; k < boxes.size(); k++)
+				{
+					if (boxes[k] == newBox) continue;
+					// Match by original name via srcNames
+					string candidateName = boxes[k]->name;
+					for (size_t si = 0; si < srcNames.size(); si++)
+					{
+						if (newBoxes[si] == boxes[k])
+						{
+							candidateName = srcNames[si];
+							break;
+						}
+					}
+					if (candidateName == linkedName && newBox->fbohandlergroup.getSize() > linkIndex)
+					{
+						newBox->fbohandlergroup.setFboPointer(
+							&boxes[k]->fbo,
+							&boxes[k]->name,
+							linkIndex);
+						break;
+					}
+				}
+			}
+			linkIndex++;
+		}
+		pasteIndex++;
+	}
+
+	requestCueRebuild();
+	cout << "pasteBoxes: pasted " << newBoxes.size() << " box(es)" << endl;
+}
+
 ofTexture *JPboxgroup::getActiveTexture()
 {
 	if (boxes.size() >= 1)

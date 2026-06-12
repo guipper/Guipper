@@ -505,6 +505,7 @@ void JPbox_shader::update_globalUniforms()
 	shader.setUniform2f("window_mouse", ofMap(jp_constants::window_mousex, 0, jp_constants::window_width, 0, 1),
 						ofMap(jp_constants::window_mousey, 0, jp_constants::window_height, 0, 1));
 	shader.setUniform1f("time", ofGetElapsedTimef());
+	shader.setUniform1f("bpm", jp_constants::bpm);
 }
 
 /*********************************DEPRECATED ******************************************/

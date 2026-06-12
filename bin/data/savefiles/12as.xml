@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<activerender>0</activerender>
+<box>
+	<nombre>justvisuals4</nombre>
+	<x>94</x>
+	<y>175</y>
+	<directory>data\savefiles\justvisuals\justvisuals4.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>
