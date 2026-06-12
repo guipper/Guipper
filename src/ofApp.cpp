@@ -535,7 +535,7 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
 	int indexx = 0;
 	int indexy = 0;
 	for (int i = 0; i < dragInfo.files.size(); i++) {
-		string path = dragInfo.files[i].string();
+		string path = dragInfo.files[i];
 		if (dragInfo.files.size() > 1) {
 
 			if (indexx >= ceil(sqrt(dragInfo.files.size()))) {

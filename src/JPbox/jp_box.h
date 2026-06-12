@@ -70,7 +70,7 @@ public:
 	};
 
 	int getTipo();
-	std::filesystem::file_time_type datemodified; // La pongo aca porque necesito que me recorra la cosa dentro del for. Aunque sea solo para los shaders.
+	std::time_t datemodified; // La pongo aca porque necesito que me recorra la cosa dentro del for. Aunque sea solo para los shaders.
 
 	// Me perturba que el nombre de la variable sea tan verga.
 	void setonoff(bool _val);
