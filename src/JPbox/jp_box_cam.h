@@ -27,6 +27,8 @@ public:
 	void updateFBO();
 	void draw();
 	void clear();
+	void refreshCameraDevices();
+	void applyCameraIndexFromParameter(bool force = false);
 	void setPos(float _x, float _y)
 	{
 		JPdragobject::setPos(_x, _y);
@@ -41,4 +43,9 @@ public:
 	// void setUniforms(JPParameterGroup & _parameters, JPFbohandlerGroup & _fbohandlergroup, string _dir, string _name);
 	// ofFbo fbo;
 	// ofShader shader;
+	vector<int> availableDeviceIds;
+	int currentCameraListIndex = -1;
+	int currentDeviceId = -1;
+	int camWidth = 640;
+	int camHeight = 480;
 };
