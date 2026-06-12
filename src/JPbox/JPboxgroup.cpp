@@ -4098,6 +4098,50 @@ void JPboxgroup::groupSelectedBoxes()
 
 void JPboxgroup::deleteSelectedShader()
 {
+	// In group view mode, delete the selected sub-box from the preset
+	if (isGroupViewActive())
+	{
+		JPbox_preset *preset = getActivePreset();
+		if (preset != nullptr && groupInspectorIndex >= 0 && groupInspectorIndex < (int)preset->boxes.size())
+		{
+			int idx = groupInspectorIndex;
+			string deletedName = preset->boxes[idx]->name;
+
+			// Remove FBO links pointing to the deleted box
+			for (int k = (int)preset->boxes.size() - 1; k >= 0; k--)
+			{
+				if (k == idx) continue;
+				for (int l = 0; l < preset->boxes[k]->fbohandlergroup.getSize(); l++)
+				{
+					if (preset->boxes[k]->fbohandlergroup.getFboName(l) == deletedName)
+					{
+						preset->boxes[k]->fbohandlergroup.deleteFboPointer(l);
+					}
+				}
+			}
+
+			// Delete and remove
+			preset->boxes[idx]->clear();
+			delete preset->boxes[idx];
+			preset->boxes[idx] = nullptr;
+			preset->boxes.erase(preset->boxes.begin() + idx);
+
+			// Adjust preset's activeRender
+			if (preset->boxes.empty())
+			{
+				preset->activeRender = 0;
+			}
+			else
+			{
+				preset->activeRender = ofClamp(preset->activeRender, 0, (int)preset->boxes.size() - 1);
+			}
+
+			groupInspectorIndex = -1;
+			setControllers();
+		}
+		return;
+	}
+
 	if (deleteSelectedBoxes())
 	{
 		return;
@@ -4172,23 +4216,36 @@ int JPboxgroup::getActiverenderNum() {
 // TAB SYSTEM
 // ============================================================
 
-vector<int> JPboxgroup::collectPresetTabBoxIndices() const
+vector<vector<int>> JPboxgroup::collectAllPresetPaths() const
 {
-	vector<int> indices;
-	for (int i = 0; i < (int)boxes.size(); i++)
+	vector<vector<int>> paths;
+
+	// Helper to recursively find presets
+	function<void(const vector<int> &basePath, const vector<JPbox *> &boxList)> findPresets;
+	findPresets = [&](const vector<int> &basePath, const vector<JPbox *> &boxList)
 	{
-		if (boxes[i] != nullptr && boxes[i]->getTipo() == JPbox::PRESETBOX)
+		for (int i = 0; i < (int)boxList.size(); i++)
 		{
-			indices.push_back(i);
+			if (boxList[i] != nullptr && boxList[i]->getTipo() == JPbox::PRESETBOX)
+			{
+				vector<int> path = basePath;
+				path.push_back(i);
+				paths.push_back(path);
+				// Recurse into nested presets
+				JPbox_preset *innerPreset = static_cast<JPbox_preset *>(boxList[i]);
+				findPresets(path, innerPreset->boxes);
+			}
 		}
-	}
-	return indices;
+	};
+
+	findPresets(vector<int>(), boxes);
+	return paths;
 }
 
 void JPboxgroup::drawTabs()
 {
-	vector<int> presetIndices = collectPresetTabBoxIndices();
-	int totalTabs = 1 + (int)presetIndices.size(); // main + preset tabs
+	vector<vector<int>> presetPaths = collectAllPresetPaths();
+	int totalTabs = 1 + (int)presetPaths.size(); // main + preset tabs
 	if (totalTabs <= 1)
 	{
 		return; // No preset boxes, no tabs to show
@@ -4219,10 +4276,23 @@ void JPboxgroup::drawTabs()
 	x += mainTabW + gap;
 
 	// Draw preset group tabs
-	for (int ti = 0; ti < (int)presetIndices.size(); ti++)
+	for (int ti = 0; ti < (int)presetPaths.size(); ti++)
 	{
-		int boxIdx = presetIndices[ti];
-		string tabName = boxes[boxIdx]->name;
+		const vector<int> &path = presetPaths[ti];
+		// Get the name from the deepest preset in the path
+		JPbox *labelBox = boxes[path[0]];
+		JPbox_preset *labelPreset = (labelBox && labelBox->getTipo() == JPbox::PRESETBOX)
+			? static_cast<JPbox_preset *>(labelBox) : nullptr;
+		for (size_t d = 1; d < path.size() && labelPreset != nullptr; d++)
+		{
+			if (path[d] < (int)labelPreset->boxes.size())
+				labelBox = labelPreset->boxes[path[d]];
+			else
+				labelBox = nullptr;
+			labelPreset = (labelBox && labelBox->getTipo() == JPbox::PRESETBOX)
+				? static_cast<JPbox_preset *>(labelBox) : nullptr;
+		}
+		string tabName = (labelBox != nullptr) ? labelBox->name : "";
 		if (tabName.empty())
 		{
 			tabName = "Group " + ofToString(ti);
@@ -4275,8 +4345,8 @@ void JPboxgroup::drawSingleTab(float x, float y, float h, const string &label, b
 
 int JPboxgroup::getTabAtScreenPos(int screenX, int screenY) const
 {
-	vector<int> presetIndices = collectPresetTabBoxIndices();
-	int totalTabs = 1 + (int)presetIndices.size();
+	vector<vector<int>> presetPaths = collectAllPresetPaths();
+	int totalTabs = 1 + (int)presetPaths.size();
 	const float tabBarY = 0;
 	const float tabHeight = 28;
 	if (totalTabs <= 1 || screenY < tabBarY || screenY > tabBarY + tabHeight + 8)
@@ -4300,10 +4370,23 @@ int JPboxgroup::getTabAtScreenPos(int screenX, int screenY) const
 	x += mainTabW + gap;
 
 	// Check preset tabs
-	for (int ti = 0; ti < (int)presetIndices.size(); ti++)
+	for (int ti = 0; ti < (int)presetPaths.size(); ti++)
 	{
-		int boxIdx = presetIndices[ti];
-		string tabName = boxes[boxIdx]->name;
+		const vector<int> &path = presetPaths[ti];
+		// Get name from the deepest preset in the path
+		JPbox *labelBox = boxes[path[0]];
+		JPbox_preset *labelPreset = (labelBox && labelBox->getTipo() == JPbox::PRESETBOX)
+			? static_cast<JPbox_preset *>(labelBox) : nullptr;
+		for (size_t d = 1; d < path.size() && labelPreset != nullptr; d++)
+		{
+			if (path[d] < (int)labelPreset->boxes.size())
+				labelBox = labelPreset->boxes[path[d]];
+			else
+				labelBox = nullptr;
+			labelPreset = (labelBox && labelBox->getTipo() == JPbox::PRESETBOX)
+				? static_cast<JPbox_preset *>(labelBox) : nullptr;
+		}
+		string tabName = (labelBox != nullptr) ? labelBox->name : "";
 		if (tabName.empty())
 		{
 			tabName = "Group " + ofToString(ti);
@@ -4320,15 +4403,22 @@ int JPboxgroup::getTabAtScreenPos(int screenX, int screenY) const
 
 JPbox_preset *JPboxgroup::getActivePreset() const
 {
-	if (activeGroupBoxIndex < 0 || activeGroupBoxIndex >= (int)boxes.size() || boxes[activeGroupBoxIndex] == nullptr)
+	if (activeGroupPath.empty()) return nullptr;
+
+	// Navigate the path to find the target preset
+	JPbox *box = boxes[activeGroupPath[0]];
+	if (box == nullptr || box->getTipo() != JPbox::PRESETBOX) return nullptr;
+	JPbox_preset *preset = static_cast<JPbox_preset *>(box);
+
+	// For nested presets, go deeper
+	for (size_t depth = 1; depth < activeGroupPath.size(); depth++)
 	{
-		return nullptr;
+		int idx = activeGroupPath[depth];
+		if (idx < 0 || idx >= (int)preset->boxes.size() || preset->boxes[idx] == nullptr) return nullptr;
+		if (preset->boxes[idx]->getTipo() != JPbox::PRESETBOX) return nullptr;
+		preset = static_cast<JPbox_preset *>(preset->boxes[idx]);
 	}
-	if (boxes[activeGroupBoxIndex]->getTipo() != JPbox::PRESETBOX)
-	{
-		return nullptr;
-	}
-	return static_cast<JPbox_preset *>(boxes[activeGroupBoxIndex]);
+	return preset;
 }
 
 bool JPboxgroup::handleTabClick()
@@ -4342,17 +4432,30 @@ bool JPboxgroup::handleTabClick()
 	// Handle double-click on an ALREADY active tab → rename
 	if (tabIndex == activeTab && isDoubleClick)
 	{
-		vector<int> presetIndices = collectPresetTabBoxIndices();
+		vector<vector<int>> presetPaths = collectAllPresetPaths();
 		int ti = tabIndex - 1;
-		if (tabIndex > 0 && ti >= 0 && ti < (int)presetIndices.size())
+		if (tabIndex > 0 && ti >= 0 && ti < (int)presetPaths.size())
 		{
-			int boxIdx = presetIndices[ti];
-			if (boxIdx >= 0 && boxIdx < (int)boxes.size() && boxes[boxIdx] != nullptr)
+			// Navigate path to find the preset box
+			const vector<int> &path = presetPaths[ti];
+			JPbox *targetBox = boxes[path[0]];
+			JPbox_preset *targetPreset = (targetBox && targetBox->getTipo() == JPbox::PRESETBOX)
+				? static_cast<JPbox_preset *>(targetBox) : nullptr;
+			for (size_t d = 1; d < path.size() && targetPreset != nullptr; d++)
 			{
-				string newName = ofSystemTextBoxDialog("Rename group", boxes[boxIdx]->name);
+				if (path[d] < (int)targetPreset->boxes.size())
+					targetBox = targetPreset->boxes[path[d]];
+				else
+					targetBox = nullptr;
+				targetPreset = (targetBox && targetBox->getTipo() == JPbox::PRESETBOX)
+					? static_cast<JPbox_preset *>(targetBox) : nullptr;
+			}
+			if (targetBox != nullptr)
+			{
+				string newName = ofSystemTextBoxDialog("Rename group", targetBox->name);
 				if (!newName.empty())
 				{
-					boxes[boxIdx]->name = newName;
+					targetBox->name = newName;
 				}
 			}
 		}
@@ -4364,44 +4467,78 @@ bool JPboxgroup::handleTabClick()
 		// Clicking the same tab: just reset zoom
 		viewportZoom = 1.0f;
 		viewportPan = ofVec2f(0, 0);
+		// Store the reset state for this tab
+		ensureTabStateSize();
+		if (tabIndex < (int)tabZooms.size())
+		{
+			tabZooms[tabIndex] = viewportZoom;
+			tabPans[tabIndex] = viewportPan;
+		}
 		return true;
+	}
+
+	// Save current tab's zoom/pan before switching
+	ensureTabStateSize();
+	if (activeTab < (int)tabZooms.size())
+	{
+		tabZooms[activeTab] = viewportZoom;
+		tabPans[activeTab] = viewportPan;
 	}
 
 	activeTab = tabIndex;
 
+	// Restore new tab's zoom/pan (or reset if first visit)
+	if (activeTab < (int)tabZooms.size())
+	{
+		viewportZoom = tabZooms[activeTab];
+		viewportPan = tabPans[activeTab];
+	}
+	else
+	{
+		viewportZoom = 1.0f;
+		viewportPan = ofVec2f(0, 0);
+		ensureTabStateSize();
+		if (activeTab < (int)tabZooms.size())
+		{
+			tabZooms[activeTab] = viewportZoom;
+			tabPans[activeTab] = viewportPan;
+		}
+	}
+
 	if (activeTab == 0)
 	{
 		// Switch to main view
-		activeGroupBoxIndex = -1;
+		activeGroupPath.clear();
 		openguinumber = -1;
 		groupInspectorIndex = -1;
 		groupPreviewBoxIndex = -1;
-		viewportZoom = 1.0f;
-		viewportPan = ofVec2f(0, 0);
 	}
 	else
 	{
 		// Switch to group view - show sub-boxes
-		vector<int> presetIndices = collectPresetTabBoxIndices();
+		vector<vector<int>> presetPaths = collectAllPresetPaths();
 		int ti = activeTab - 1;
-		if (ti >= 0 && ti < (int)presetIndices.size())
+		if (ti >= 0 && ti < (int)presetPaths.size())
 		{
-			int boxIdx = presetIndices[ti];
-			if (boxIdx >= 0 && boxIdx < (int)boxes.size() && boxes[boxIdx] != nullptr)
-			{
-				activeGroupBoxIndex = boxIdx;
-				openguinumber = -1;
-				groupPreviewBoxIndex = -1;
-				// Reset zoom/pan for group view
-				viewportZoom = 1.0f;
-				viewportPan = ofVec2f(0, 0);
-			}
+			activeGroupPath = presetPaths[ti];
+			openguinumber = -1;
+			groupInspectorIndex = -1;
+			groupPreviewBoxIndex = -1;
 		}
 	}
 
 	return true;
 }
 
+void JPboxgroup::ensureTabStateSize()
+{
+	int totalTabs = 1 + (int)collectAllPresetPaths().size();
+	while ((int)tabZooms.size() < totalTabs)
+	{
+		tabZooms.push_back(1.0f);
+		tabPans.push_back(ofVec2f(0, 0));
+	}
+}
 void JPboxgroup::drawGroupView()
 {
 	JPbox_preset *preset = getActivePreset();
