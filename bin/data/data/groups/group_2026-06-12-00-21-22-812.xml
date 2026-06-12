@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<activerender>0</activerender>
+<box>
+	<nombre>c2</nombre>
+	<x>134</x>
+	<y>371</y>
+	<directory>data\savefiles\c2.xml</directory>
+</box>
+<box>
+	<nombre>bocacoso</nombre>
+	<x>117</x>
+	<y>169</y>
+	<directory>data\savefiles\bocacoso.xml</directory>
+</box>

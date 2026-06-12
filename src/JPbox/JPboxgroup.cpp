@@ -197,6 +197,23 @@ void JPboxgroup::draw()
 	// boxesdrawing.draw(0, 0, ofGetWidth(), ofGetHeight());
 	// boxesdrawing.draw(offsetx, offsety, ofGetWidth(), ofGetHeight());
 	drawCuePreview();
+
+	// Group view mode: draw only the sub-boxes of the active preset
+	if (isGroupViewActive())
+	{
+		ofPushMatrix();
+		ofTranslate(viewportPan.x, viewportPan.y);
+		ofScale(viewportZoom, viewportZoom);
+		JPdragobject::setMouseOverride(screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY())));
+		drawGroupView();
+		JPdragobject::clearMouseOverride();
+		ofPopMatrix();
+		drawTabs();
+		draw_paramswindow();
+		drawGalleryDurationSlider();
+		return;
+	}
+
 	ofPushMatrix();
 	ofTranslate(viewportPan.x, viewportPan.y);
 	ofScale(viewportZoom, viewportZoom);
@@ -321,6 +338,7 @@ void JPboxgroup::draw()
 	}
 	JPdragobject::clearMouseOverride();
 	ofPopMatrix();
+	drawTabs();
 	draw_paramswindow();
 	drawGalleryDurationSlider();
 
@@ -780,6 +798,52 @@ void JPboxgroup::update(){
 	update_paramswindow();
 	ofVec2f canvasMouse = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
 	
+	// Update sub-boxes when in group view mode
+	if (isGroupViewActive())
+	{
+		JPbox_preset *preset = getActivePreset();
+		if (preset != nullptr)
+		{
+			for (int i = (int)preset->boxes.size() - 1; i >= 0; i--)
+			{
+				preset->boxes[i]->update();
+				// Handle box grabbing for sub-boxes
+				if (ofGetMousePressed() && !viewportPanning){
+					JPdragobject::setMouseOverride(canvasMouse);
+					if (preset->boxes[i]->mouseOverOutlet() && !ouletagarrado && !shaderboxagarrado){
+						preset->boxes[i]->activeFlag = false;
+						preset->boxes[i]->outletActiveFlag = true;
+						ouletagarrado = true;
+						shaderboxagarrado = false;
+						outlet_cualestaagarrado = i;
+						cualestaagarrado = -1;
+					}
+					else if (preset->boxes[i]->mouseOver() && !ouletagarrado && !shaderboxagarrado){
+						// Select sub-box for inspector (use groupInspectorIndex, NOT openguinumber)
+						if (groupInspectorIndex != i)
+						{
+							groupInspectorIndex = i;
+							groupPreviewBoxIndex = -1;
+							setControllers();
+						}
+						// Double-click on sub-box → show preview
+						if (isDoubleClick)
+						{
+							groupPreviewBoxIndex = i;
+						}
+						cualestaagarrado = i;
+						outlet_cualestaagarrado = -1;
+						ouletagarrado = false;
+						shaderboxagarrado = true;
+						preset->boxes[i]->activeFlag = true;
+					}
+					JPdragobject::clearMouseOverride();
+				}
+			}
+		}
+		// Do NOT return here - main boxes must keep updating even in group view
+	}
+
 	float lerpAmount = 0.3;
 	for (int i = boxes.size() - 1; i >= 0; i--){
 		boxes[i]->update();
@@ -1040,6 +1104,52 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 	ofVec2f canvasMouse = screenToCanvas(screenMouse);
 	ofVec2f previousCanvasMouse = screenToCanvas(previousScreenMouse);
 
+	// Group view mode: handle sub-box dragging and connections
+	if (isGroupViewActive())
+	{
+		JPbox_preset *preset = getActivePreset();
+		if (preset == nullptr) return;
+
+		if (mousebutton == OF_MOUSE_BUTTON_MIDDLE || mousebutton == OF_MOUSE_BUTTON_RIGHT)
+		{
+			viewportPanning = true;
+			panViewport(screenMouse - previousScreenMouse);
+			return;
+		}
+
+		vector<JPbox *> &subBoxes = preset->boxes;
+
+		if (cualestaagarrado != -1 && cualestaagarrado < (int)subBoxes.size() && subBoxes[cualestaagarrado]->activeFlag)
+		{
+			float deltaX = canvasMouse.x - previousCanvasMouse.x;
+			float deltaY = canvasMouse.y - previousCanvasMouse.y;
+			subBoxes[cualestaagarrado]->setPos(subBoxes[cualestaagarrado]->x + deltaX,
+												subBoxes[cualestaagarrado]->y + deltaY);
+		}
+
+		// Connection dragging: release outlet over an input
+		JPdragobject::setMouseOverride(canvasMouse);
+		for (int i = (int)subBoxes.size() - 1; i >= 0; i--)
+		{
+			for (int k = (int)subBoxes.size() - 1; k >= 0; k--)
+			{
+				for (int l = subBoxes[k]->fbohandlergroup.getSize() - 1; l >= 0; l--)
+				{
+					if (subBoxes[k]->fbohandlergroup.mouseOver(l) &&
+						subBoxes[i]->outletActiveFlag)
+					{
+						if (subBoxes[k]->fbohandlergroup.getFboName(l) == subBoxes[i]->name)
+							continue;
+						subBoxes[k]->fbohandlergroup.setFboPointer(&subBoxes[i]->fbo,
+																	&subBoxes[i]->name, l);
+					}
+				}
+			}
+		}
+		JPdragobject::clearMouseOverride();
+		return;
+	}
+
 	if (mousebutton == OF_MOUSE_BUTTON_MIDDLE || mousebutton == OF_MOUSE_BUTTON_RIGHT)
 	{
 		viewportPanning = true;
@@ -1180,6 +1290,39 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	isDoubleClick = (ofGetSystemTimeMillis() - lasttime_mouseclick < duration_mouseclick);
 	lasttime_mouseclick = ofGetSystemTimeMillis();
 	draw_SelectionRect = false;
+
+	// Handle tab clicks (left button only)
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT && handleTabClick())
+	{
+		return;
+	}
+
+	// In group view mode: handle deselect on empty space click
+	if (isGroupViewActive() && mouseButton == OF_MOUSE_BUTTON_LEFT)
+	{
+		JPbox_preset *preset = getActivePreset();
+		if (preset != nullptr)
+		{
+			JPdragobject::setMouseOverride(canvasMouse);
+			bool hitBox = false;
+			for (int i = 0; i < (int)preset->boxes.size(); i++)
+			{
+				if (preset->boxes[i]->mouseOver() || preset->boxes[i]->mouseOverOutlet())
+				{
+					hitBox = true;
+					break;
+				}
+			}
+			JPdragobject::clearMouseOverride();
+			if (!hitBox && !mouseOverGui())
+			{
+				groupInspectorIndex = -1;
+				groupPreviewBoxIndex = -1;
+				setControllers();
+			}
+		}
+	}
+
 	bool arafue = false; // POR SI NO TOCO NINGUN ELEMENTO;
 
 	if (mouseButton == OF_MOUSE_BUTTON_RIGHT && isCueDraftMode() && !mouseOverGui())
@@ -1352,6 +1495,40 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 }
 void JPboxgroup::update_mouseReleased(int mouseButton)
 {
+	// Group view mode: release grabbed sub-boxes
+	if (isGroupViewActive())
+	{
+		if (mouseButton == OF_MOUSE_BUTTON_MIDDLE || mouseButton == OF_MOUSE_BUTTON_RIGHT)
+		{
+			viewportPanning = false;
+		}
+		if (mouseButton == OF_MOUSE_BUTTON_LEFT)
+		{
+			if (shaderboxagarrado && cualestaagarrado != -1)
+			{
+				JPbox_preset *preset = getActivePreset();
+				if (preset != nullptr && cualestaagarrado < (int)preset->boxes.size())
+				{
+					preset->boxes[cualestaagarrado]->activeFlag = false;
+				}
+			}
+			if (ouletagarrado)
+			{
+				JPbox_preset *preset = getActivePreset();
+				if (preset != nullptr && outlet_cualestaagarrado != -1 && outlet_cualestaagarrado < (int)preset->boxes.size())
+				{
+					preset->boxes[outlet_cualestaagarrado]->outletActiveFlag = false;
+				}
+			}
+			shaderboxagarrado = false;
+			ouletagarrado = false;
+			cualestaagarrado = -1;
+			outlet_cualestaagarrado = -1;
+			viewportPanning = false;
+		}
+		return;
+	}
+
 	if (mouseButton == OF_MOUSE_BUTTON_MIDDLE || mouseButton == OF_MOUSE_BUTTON_RIGHT)
 	{
 		viewportPanning = false;
@@ -2663,6 +2840,16 @@ bool JPboxgroup::applyCueDraftToSource()
 
 JPbox *JPboxgroup::getInspectorBox()
 {
+	// In group view mode, return sub-box from the active preset (uses separate groupInspectorIndex)
+	if (isGroupViewActive() && groupInspectorIndex >= 0)
+	{
+		JPbox_preset *preset = getActivePreset();
+		if (preset != nullptr && groupInspectorIndex < (int)preset->boxes.size())
+		{
+			return preset->boxes[groupInspectorIndex];
+		}
+	}
+
 	JPbox *draftBox = getCueDraftBoxForRealIndex(openguinumber);
 	if (draftBox != nullptr)
 	{
@@ -3798,8 +3985,163 @@ bool JPboxgroup::deleteSelectedBoxes()
 	return true;
 }
 
+void JPboxgroup::groupSelectedBoxes()
+{
+	if (selectedBoxIndices.size() < 2)
+	{
+		return;
+	}
+
+	// Calculate average position of selected boxes
+	float avgX = 0, avgY = 0;
+	for (int idx : selectedBoxIndices)
+	{
+		if (idx >= 0 && idx < boxes.size() && boxes[idx] != nullptr)
+		{
+			avgX += boxes[idx]->x;
+			avgY += boxes[idx]->y;
+		}
+	}
+	avgX /= (float)selectedBoxIndices.size();
+	avgY /= (float)selectedBoxIndices.size();
+
+	// Sort unique, descending for safe deletion
+	vector<int> sortedIndices = selectedBoxIndices;
+	std::sort(sortedIndices.begin(), sortedIndices.end(), std::greater<int>());
+	sortedIndices.erase(std::unique(sortedIndices.begin(), sortedIndices.end()), sortedIndices.end());
+
+	// Build XML in the EXACT format that JPbox_preset::setup() expects
+	// (same format as JPboxgroup::save() but only for selected boxes)
+	ofXml xml;
+	xml.appendChild("activerender").set(0);
+
+	for (int si : sortedIndices)
+	{
+		if (si < 0 || si >= boxes.size() || boxes[si] == nullptr) continue;
+
+		JPbox *box = boxes[si];
+		auto data = xml.appendChild("box");
+		data.appendChild("nombre").set(box->name);
+		data.appendChild("x").set((int)box->x);
+		data.appendChild("y").set((int)box->y);
+		data.appendChild("directory").set(box->dir);
+
+		// Parameters
+		if (box->parameters.getSize() > 0)
+		{
+			auto parameters = data.appendChild("parameters");
+			for (int k = 0; k < box->parameters.getSize(); k++)
+			{
+				auto param = parameters.appendChild("param");
+				param.appendChild("name").set(box->parameters.getName(k));
+				if (box->parameters.getType(k) == box->parameters.BOOL)
+				{
+					param.appendChild("value").set(box->parameters.getBoolValue(k));
+				}
+				else
+				{
+					param.appendChild("min").set(box->parameters.getMin(k));
+					param.appendChild("max").set(box->parameters.getMax(k));
+					param.appendChild("value").set(box->parameters.getFloatValue(k));
+					param.appendChild("movtype").set(box->parameters.getMovType(k));
+					param.appendChild("speed").set(box->parameters.getSpeed(k));
+				}
+			}
+		}
+
+		// FBO links (preserved between grouped boxes)
+		if (box->fbohandlergroup.getPointerSetsSize() > 0)
+		{
+			auto fboslinks = data.appendChild("fboslinks");
+			for (int k = 0; k < box->fbohandlergroup.getSize(); k++)
+			{
+				if (box->fbohandlergroup.getisPointerSet(k))
+				{
+					fboslinks.appendChild(box->fbohandlergroup.getName(k))
+						.set(box->fbohandlergroup.getFboName(k));
+				}
+			}
+		}
+	}
+
+	// Save to temp XML file in data/groups/
+	string outputDir = "data/groups/";
+	string timestamp = ofGetTimestampString();
+	string outputPath = outputDir + "group_" + timestamp + ".xml";
+	ofFilePath::createEnclosingDirectory(outputPath);
+	xml.save(outputPath);
+	cout << "groupSelectedBoxes: saved to " << outputPath << endl;
+
+	// Clear selection and delete the original boxes
+	clearSelection();
+	for (int i = 0; i < (int)sortedIndices.size(); i++)
+	{
+		deleteBoxAtIndex(sortedIndices[i]);
+	}
+
+	// Add the preset using the EXACT same path as loading any preset from disk
+	// This calls createBoxForDirectory -> JPbox_preset -> JPbox_preset::setup()
+	// which loads the XML, creates child boxes, restores params and links
+	addBox(outputPath, avgX, avgY);
+
+	// Set the newly created preset as the active render (output)
+	int newIdx = (int)boxes.size() - 1;
+	*activerender = newIdx;
+
+	// Reset transition so it doesn't draw from deleted boxes' FBOs
+	transition.setFboPointer1(&boxes[newIdx]->fbo);
+	transition.setFboPointer2(&boxes[newIdx]->fbo);
+	transition.setLerpValue(0);
+
+	cout << "groupSelectedBoxes: done, boxes size=" << boxes.size() << " activerender=" << *activerender << endl;
+}
+
 void JPboxgroup::deleteSelectedShader()
 {
+	// In group view mode, delete the selected sub-box from the preset
+	if (isGroupViewActive())
+	{
+		JPbox_preset *preset = getActivePreset();
+		if (preset != nullptr && groupInspectorIndex >= 0 && groupInspectorIndex < (int)preset->boxes.size())
+		{
+			int idx = groupInspectorIndex;
+			string deletedName = preset->boxes[idx]->name;
+
+			// Remove FBO links pointing to the deleted box
+			for (int k = (int)preset->boxes.size() - 1; k >= 0; k--)
+			{
+				if (k == idx) continue;
+				for (int l = 0; l < preset->boxes[k]->fbohandlergroup.getSize(); l++)
+				{
+					if (preset->boxes[k]->fbohandlergroup.getFboName(l) == deletedName)
+					{
+						preset->boxes[k]->fbohandlergroup.deleteFboPointer(l);
+					}
+				}
+			}
+
+			// Delete and remove
+			preset->boxes[idx]->clear();
+			delete preset->boxes[idx];
+			preset->boxes[idx] = nullptr;
+			preset->boxes.erase(preset->boxes.begin() + idx);
+
+			// Adjust preset's activeRender
+			if (preset->boxes.empty())
+			{
+				preset->activeRender = 0;
+			}
+			else
+			{
+				preset->activeRender = ofClamp(preset->activeRender, 0, (int)preset->boxes.size() - 1);
+			}
+
+			groupInspectorIndex = -1;
+			setControllers();
+		}
+		return;
+	}
+
 	if (deleteSelectedBoxes())
 	{
 		return;
@@ -3869,3 +4211,406 @@ int JPboxgroup::getActiverenderNum() {
 		//boxes[*activerender]->shaderrender.fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
 	}
 }*/
+
+// ============================================================
+// TAB SYSTEM
+// ============================================================
+
+vector<vector<int>> JPboxgroup::collectAllPresetPaths() const
+{
+	vector<vector<int>> paths;
+
+	// Helper to recursively find presets
+	function<void(const vector<int> &basePath, const vector<JPbox *> &boxList)> findPresets;
+	findPresets = [&](const vector<int> &basePath, const vector<JPbox *> &boxList)
+	{
+		for (int i = 0; i < (int)boxList.size(); i++)
+		{
+			if (boxList[i] != nullptr && boxList[i]->getTipo() == JPbox::PRESETBOX)
+			{
+				vector<int> path = basePath;
+				path.push_back(i);
+				paths.push_back(path);
+				// Recurse into nested presets
+				JPbox_preset *innerPreset = static_cast<JPbox_preset *>(boxList[i]);
+				findPresets(path, innerPreset->boxes);
+			}
+		}
+	};
+
+	findPresets(vector<int>(), boxes);
+	return paths;
+}
+
+void JPboxgroup::drawTabs()
+{
+	vector<vector<int>> presetPaths = collectAllPresetPaths();
+	int totalTabs = 1 + (int)presetPaths.size(); // main + preset tabs
+	if (totalTabs <= 1)
+	{
+		return; // No preset boxes, no tabs to show
+	}
+
+	const float tabBarX = 0;
+	const float tabBarY = 0;
+	const float tabHeight = 28;
+	const float tabMinWidth = 90;
+	const float pad = 8;
+	const float gap = 2;
+	const float tabH = tabHeight;
+	float x = tabBarX + pad;
+	const float y = tabBarY + pad;
+
+	// Draw tab bar background
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofSetColor(18, 18, 22, 210);
+	ofDrawRectRounded(x, y, ofGetWidth() - pad * 2, tabH + gap * 2, 4);
+	ofPopStyle();
+
+	// Draw "Main" tab (activeTab == 0)
+	drawSingleTab(x, y, tabH, "MAIN", activeTab == 0);
+
+	// Measure main tab width
+	float mainTabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth("MAIN") + 20);
+	x += mainTabW + gap;
+
+	// Draw preset group tabs
+	for (int ti = 0; ti < (int)presetPaths.size(); ti++)
+	{
+		const vector<int> &path = presetPaths[ti];
+		// Get the name from the deepest preset in the path
+		JPbox *labelBox = boxes[path[0]];
+		JPbox_preset *labelPreset = (labelBox && labelBox->getTipo() == JPbox::PRESETBOX)
+			? static_cast<JPbox_preset *>(labelBox) : nullptr;
+		for (size_t d = 1; d < path.size() && labelPreset != nullptr; d++)
+		{
+			if (path[d] < (int)labelPreset->boxes.size())
+				labelBox = labelPreset->boxes[path[d]];
+			else
+				labelBox = nullptr;
+			labelPreset = (labelBox && labelBox->getTipo() == JPbox::PRESETBOX)
+				? static_cast<JPbox_preset *>(labelBox) : nullptr;
+		}
+		string tabName = (labelBox != nullptr) ? labelBox->name : "";
+		if (tabName.empty())
+		{
+			tabName = "Group " + ofToString(ti);
+		}
+		float tabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth(tabName) + 24);
+		drawSingleTab(x, y, tabH, tabName, activeTab == (ti + 1));
+		x += tabW + gap;
+	}
+}
+
+void JPboxgroup::drawSingleTab(float x, float y, float h, const string &label, bool active)
+{
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+
+	const float tabMinWidth = 90;
+	float textW = jp_constants::p_font.stringWidth(label);
+	float tabW = std::max(tabMinWidth, textW + 24);
+
+	if (active)
+	{
+		ofSetColor(40, 180, 80, 235);
+	}
+	else
+	{
+		ofSetColor(35, 35, 42, 225);
+	}
+	ofDrawRectRounded(x, y, tabW, h, 3);
+
+	// Border
+	ofNoFill();
+	ofSetLineWidth(1);
+	if (active)
+	{
+		ofSetColor(60, 220, 100, 255);
+	}
+	else
+	{
+		ofSetColor(55, 55, 65, 200);
+	}
+	ofDrawRectRounded(x, y, tabW, h, 3);
+	ofFill();
+
+	// Text
+	ofSetColor(active ? 255 : 200);
+	jp_constants::p_font.drawString(label, x + (tabW - textW) * 0.5f, y + h * 0.5f + 5);
+
+	ofPopStyle();
+}
+
+int JPboxgroup::getTabAtScreenPos(int screenX, int screenY) const
+{
+	vector<vector<int>> presetPaths = collectAllPresetPaths();
+	int totalTabs = 1 + (int)presetPaths.size();
+	const float tabBarY = 0;
+	const float tabHeight = 28;
+	if (totalTabs <= 1 || screenY < tabBarY || screenY > tabBarY + tabHeight + 8)
+	{
+		return -1;
+	}
+
+	const float tabBarX = 0;
+	const float tabMinWidth = 90;
+	const float pad = 8;
+	const float gap = 2;
+	const float tabH = tabHeight;
+	float x = tabBarX + pad;
+
+	// Check Main tab
+	float mainTabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth("MAIN") + 20);
+	if (screenX >= x && screenX <= x + mainTabW)
+	{
+		return 0; // Main tab
+	}
+	x += mainTabW + gap;
+
+	// Check preset tabs
+	for (int ti = 0; ti < (int)presetPaths.size(); ti++)
+	{
+		const vector<int> &path = presetPaths[ti];
+		// Get name from the deepest preset in the path
+		JPbox *labelBox = boxes[path[0]];
+		JPbox_preset *labelPreset = (labelBox && labelBox->getTipo() == JPbox::PRESETBOX)
+			? static_cast<JPbox_preset *>(labelBox) : nullptr;
+		for (size_t d = 1; d < path.size() && labelPreset != nullptr; d++)
+		{
+			if (path[d] < (int)labelPreset->boxes.size())
+				labelBox = labelPreset->boxes[path[d]];
+			else
+				labelBox = nullptr;
+			labelPreset = (labelBox && labelBox->getTipo() == JPbox::PRESETBOX)
+				? static_cast<JPbox_preset *>(labelBox) : nullptr;
+		}
+		string tabName = (labelBox != nullptr) ? labelBox->name : "";
+		if (tabName.empty())
+		{
+			tabName = "Group " + ofToString(ti);
+		}
+		float tabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth(tabName) + 24);
+		if (screenX >= x && screenX <= x + tabW)
+		{
+			return ti + 1;
+		}
+		x += tabW + gap;
+	}
+	return -1;
+}
+
+JPbox_preset *JPboxgroup::getActivePreset() const
+{
+	if (activeGroupPath.empty()) return nullptr;
+
+	// Navigate the path to find the target preset
+	JPbox *box = boxes[activeGroupPath[0]];
+	if (box == nullptr || box->getTipo() != JPbox::PRESETBOX) return nullptr;
+	JPbox_preset *preset = static_cast<JPbox_preset *>(box);
+
+	// For nested presets, go deeper
+	for (size_t depth = 1; depth < activeGroupPath.size(); depth++)
+	{
+		int idx = activeGroupPath[depth];
+		if (idx < 0 || idx >= (int)preset->boxes.size() || preset->boxes[idx] == nullptr) return nullptr;
+		if (preset->boxes[idx]->getTipo() != JPbox::PRESETBOX) return nullptr;
+		preset = static_cast<JPbox_preset *>(preset->boxes[idx]);
+	}
+	return preset;
+}
+
+bool JPboxgroup::handleTabClick()
+{
+	int tabIndex = getTabAtScreenPos(ofGetMouseX(), ofGetMouseY());
+	if (tabIndex < 0)
+	{
+		return false;
+	}
+
+	// Handle double-click on an ALREADY active tab → rename
+	if (tabIndex == activeTab && isDoubleClick)
+	{
+		vector<vector<int>> presetPaths = collectAllPresetPaths();
+		int ti = tabIndex - 1;
+		if (tabIndex > 0 && ti >= 0 && ti < (int)presetPaths.size())
+		{
+			// Navigate path to find the preset box
+			const vector<int> &path = presetPaths[ti];
+			JPbox *targetBox = boxes[path[0]];
+			JPbox_preset *targetPreset = (targetBox && targetBox->getTipo() == JPbox::PRESETBOX)
+				? static_cast<JPbox_preset *>(targetBox) : nullptr;
+			for (size_t d = 1; d < path.size() && targetPreset != nullptr; d++)
+			{
+				if (path[d] < (int)targetPreset->boxes.size())
+					targetBox = targetPreset->boxes[path[d]];
+				else
+					targetBox = nullptr;
+				targetPreset = (targetBox && targetBox->getTipo() == JPbox::PRESETBOX)
+					? static_cast<JPbox_preset *>(targetBox) : nullptr;
+			}
+			if (targetBox != nullptr)
+			{
+				string newName = ofSystemTextBoxDialog("Rename group", targetBox->name);
+				if (!newName.empty())
+				{
+					targetBox->name = newName;
+				}
+			}
+		}
+		return true;
+	}
+
+	if (tabIndex == activeTab)
+	{
+		// Clicking the same tab: just reset zoom
+		viewportZoom = 1.0f;
+		viewportPan = ofVec2f(0, 0);
+		// Store the reset state for this tab
+		ensureTabStateSize();
+		if (tabIndex < (int)tabZooms.size())
+		{
+			tabZooms[tabIndex] = viewportZoom;
+			tabPans[tabIndex] = viewportPan;
+		}
+		return true;
+	}
+
+	// Save current tab's zoom/pan before switching
+	ensureTabStateSize();
+	if (activeTab < (int)tabZooms.size())
+	{
+		tabZooms[activeTab] = viewportZoom;
+		tabPans[activeTab] = viewportPan;
+	}
+
+	activeTab = tabIndex;
+
+	// Restore new tab's zoom/pan (or reset if first visit)
+	if (activeTab < (int)tabZooms.size())
+	{
+		viewportZoom = tabZooms[activeTab];
+		viewportPan = tabPans[activeTab];
+	}
+	else
+	{
+		viewportZoom = 1.0f;
+		viewportPan = ofVec2f(0, 0);
+		ensureTabStateSize();
+		if (activeTab < (int)tabZooms.size())
+		{
+			tabZooms[activeTab] = viewportZoom;
+			tabPans[activeTab] = viewportPan;
+		}
+	}
+
+	if (activeTab == 0)
+	{
+		// Switch to main view
+		activeGroupPath.clear();
+		openguinumber = -1;
+		groupInspectorIndex = -1;
+		groupPreviewBoxIndex = -1;
+	}
+	else
+	{
+		// Switch to group view - show sub-boxes
+		vector<vector<int>> presetPaths = collectAllPresetPaths();
+		int ti = activeTab - 1;
+		if (ti >= 0 && ti < (int)presetPaths.size())
+		{
+			activeGroupPath = presetPaths[ti];
+			openguinumber = -1;
+			groupInspectorIndex = -1;
+			groupPreviewBoxIndex = -1;
+		}
+	}
+
+	return true;
+}
+
+void JPboxgroup::ensureTabStateSize()
+{
+	int totalTabs = 1 + (int)collectAllPresetPaths().size();
+	while ((int)tabZooms.size() < totalTabs)
+	{
+		tabZooms.push_back(1.0f);
+		tabPans.push_back(ofVec2f(0, 0));
+	}
+}
+void JPboxgroup::drawGroupView()
+{
+	JPbox_preset *preset = getActivePreset();
+	if (preset == nullptr || preset->boxes.empty())
+	{
+		return;
+	}
+
+	vector<JPbox *> &subBoxes = preset->boxes;
+
+	// Draw preview background if a sub-box is double-clicked
+	if (groupPreviewBoxIndex >= 0 && groupPreviewBoxIndex < (int)subBoxes.size())
+	{
+		ofSetColor(255, 255);
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		subBoxes[groupPreviewBoxIndex]->fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
+		// Dim it slightly so nodes are visible
+		ofSetColor(0, 0, 0, 100);
+		ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight());
+	}
+
+	// Draw connections between sub-boxes
+	ofSetLineWidth(2);
+	for (int i = (int)subBoxes.size() - 1; i >= 0; i--)
+	{
+		for (int k = (int)subBoxes.size() - 1; k >= 0; k--)
+		{
+			for (int l = subBoxes[k]->fbohandlergroup.getSize() - 1; l >= 0; l--)
+			{
+				if (subBoxes[k]->fbohandlergroup.getFboName(l) == subBoxes[i]->name)
+				{
+					if (subBoxes[i]->outletActiveFlag) {
+						subBoxes[i]->triangleangle = atan2(JPdragobject::getMouseY() - subBoxes[i]->outlet_y,
+							JPdragobject::getMouseX() - subBoxes[i]->outlet_x);
+					}
+					else {
+						if (subBoxes[k]->fbohandlergroup.getSize() > 0) {
+							subBoxes[i]->triangleangle = atan2(subBoxes[k]->fbohandlergroup.getPosY(l) - subBoxes[i]->outlet_y,
+								subBoxes[k]->fbohandlergroup.getPosX(l) - subBoxes[i]->outlet_x);
+						}
+						else {
+							subBoxes[i]->triangleangle = atan2(JPdragobject::getMouseY() - subBoxes[i]->outlet_y,
+								JPdragobject::getMouseX() - subBoxes[i]->outlet_x);
+						}
+					}
+
+					ofDrawLine(subBoxes[k]->fbohandlergroup.getPosX(l),
+						subBoxes[k]->fbohandlergroup.getPosY(l),
+						subBoxes[i]->outlet_x + subBoxes[i]->outlet_size / 2, subBoxes[i]->outlet_y);
+				}
+			}
+		}
+	}
+
+	// Draw sub-boxes
+	JPdragobject::setMouseOverride(screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY())));
+
+	for (int i = 0; i < (int)subBoxes.size(); i++)
+	{
+		float x = subBoxes[i]->x;
+		float y = subBoxes[i]->y + subBoxes[i]->height / 2 - 8;
+
+		ofSetRectMode(OF_RECTMODE_CENTER);
+		if (preset->activeRender == i) {
+			ofSetColor(40, 210, 90, 210);
+			ofRectMode(CENTER);
+			ofRectRounded(x, y - subBoxes[i]->height / 2 + 10, subBoxes[i]->width * 1.1, subBoxes[i]->height * 1.1, 10);
+		}
+
+		subBoxes[i]->draw();
+		ofDrawBitmapString(ofToString(i), x, y);
+	}
+
+	JPdragobject::clearMouseOverride();
+}

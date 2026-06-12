@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 
 #include "defines.h"
 #include "ofMain.h"
@@ -129,6 +130,25 @@ public:
 	ofVec2f viewportPan = ofVec2f(0, 0);
 	bool viewportPanning = false;
 
+	// Tab system
+	int activeTab = 0; // 0 = main, 1+ = preset group tabs
+	vector<int> activeGroupPath; // empty = main, [i] = preset at boxes[i], [i,j] = nested preset
+	void drawTabs();
+	int getTabAtScreenPos(int screenX, int screenY) const;
+	bool handleTabClick();
+	void drawGroupView();
+	vector<vector<int>> collectAllPresetPaths() const;
+	void drawSingleTab(float x, float y, float h, const string &label, bool active);
+	bool isGroupViewActive() const { return !activeGroupPath.empty(); }
+	JPbox_preset *getActivePreset() const;
+	void ensureTabStateSize();
+	int groupPreviewBoxIndex = -1; // sub-box index for double-click preview in group view
+	int groupInspectorIndex = -1; // sub-box index for inspector in group view (separate from openguinumber)
+
+	// Per-tab zoom/pan state (index 0 = main, 1+ = preset tabs)
+	vector<float> tabZooms;
+	vector<ofVec2f> tabPans;
+
 	vector<JPcontroller *> controllers; // ESTE ARRAY ES DINAMICO , QUIERE DECIR QUE DEPENDE DE CUANDO CAMBIEN LOS COSOS
 										// ESTO ES SOLO PARA QUE LERPEE LOS VALORES HACIA ESTO.
 	vector<JPbox *> boxes;				// TODOS LOS SHADERRENDERS QUE TIENE EL OBJETO.
@@ -136,6 +156,7 @@ public:
 	int openguinumber = -1;
 	int controllerselected; // ME INDICA QUE VARIABLE ESTA AGARRADA
 	bool activeSequence; //SECUENCIA ACTIVA
+	void groupSelectedBoxes();
 private:
 	enum CueMode
 	{
