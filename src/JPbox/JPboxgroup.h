@@ -141,6 +141,8 @@ public:
 	void drawSingleTab(float x, float y, float h, const string &label, bool active);
 	bool isGroupViewActive() const { return activeGroupBoxIndex >= 0; }
 	JPbox_preset *getActivePreset() const;
+	int groupPreviewBoxIndex = -1; // sub-box index for double-click preview in group view
+	int groupInspectorIndex = -1; // sub-box index for inspector in group view (separate from openguinumber)
 
 	vector<JPcontroller *> controllers; // ESTE ARRAY ES DINAMICO , QUIERE DECIR QUE DEPENDE DE CUANDO CAMBIEN LOS COSOS
 										// ESTO ES SOLO PARA QUE LERPEE LOS VALORES HACIA ESTO.

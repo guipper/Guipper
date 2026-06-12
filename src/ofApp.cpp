@@ -21,7 +21,7 @@ void ofApp::setup() {
 		ofGetScreenHeight() / 2 - altoventana / 2);
 	*/
 
-	jp_constants::init(ofGetScreenWidth(), ofGetScreenHeight(), 600, 600);
+	jp_constants::init(ofGetScreenWidth(), ofGetScreenHeight(), 600, 600);                   
 	jp_constants::setwindow_mousex(300);
 	jp_constants::setwindow_mousex(300);
 	jp_constants::set_systemDialog_open(false);

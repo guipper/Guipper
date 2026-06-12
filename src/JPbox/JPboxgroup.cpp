@@ -819,6 +819,18 @@ void JPboxgroup::update(){
 						cualestaagarrado = -1;
 					}
 					else if (preset->boxes[i]->mouseOver() && !ouletagarrado && !shaderboxagarrado){
+						// Select sub-box for inspector (use groupInspectorIndex, NOT openguinumber)
+						if (groupInspectorIndex != i)
+						{
+							groupInspectorIndex = i;
+							groupPreviewBoxIndex = -1;
+							setControllers();
+						}
+						// Double-click on sub-box → show preview
+						if (isDoubleClick)
+						{
+							groupPreviewBoxIndex = i;
+						}
 						cualestaagarrado = i;
 						outlet_cualestaagarrado = -1;
 						ouletagarrado = false;
@@ -829,7 +841,7 @@ void JPboxgroup::update(){
 				}
 			}
 		}
-		return;
+		// Do NOT return here - main boxes must keep updating even in group view
 	}
 
 	float lerpAmount = 0.3;
@@ -1283,6 +1295,32 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT && handleTabClick())
 	{
 		return;
+	}
+
+	// In group view mode: handle deselect on empty space click
+	if (isGroupViewActive() && mouseButton == OF_MOUSE_BUTTON_LEFT)
+	{
+		JPbox_preset *preset = getActivePreset();
+		if (preset != nullptr)
+		{
+			JPdragobject::setMouseOverride(canvasMouse);
+			bool hitBox = false;
+			for (int i = 0; i < (int)preset->boxes.size(); i++)
+			{
+				if (preset->boxes[i]->mouseOver() || preset->boxes[i]->mouseOverOutlet())
+				{
+					hitBox = true;
+					break;
+				}
+			}
+			JPdragobject::clearMouseOverride();
+			if (!hitBox && !mouseOverGui())
+			{
+				groupInspectorIndex = -1;
+				groupPreviewBoxIndex = -1;
+				setControllers();
+			}
+		}
 	}
 
 	bool arafue = false; // POR SI NO TOCO NINGUN ELEMENTO;
@@ -2802,6 +2840,16 @@ bool JPboxgroup::applyCueDraftToSource()
 
 JPbox *JPboxgroup::getInspectorBox()
 {
+	// In group view mode, return sub-box from the active preset (uses separate groupInspectorIndex)
+	if (isGroupViewActive() && groupInspectorIndex >= 0)
+	{
+		JPbox_preset *preset = getActivePreset();
+		if (preset != nullptr && groupInspectorIndex < (int)preset->boxes.size())
+		{
+			return preset->boxes[groupInspectorIndex];
+		}
+	}
+
 	JPbox *draftBox = getCueDraftBoxForRealIndex(openguinumber);
 	if (draftBox != nullptr)
 	{
@@ -4326,6 +4374,8 @@ bool JPboxgroup::handleTabClick()
 		// Switch to main view
 		activeGroupBoxIndex = -1;
 		openguinumber = -1;
+		groupInspectorIndex = -1;
+		groupPreviewBoxIndex = -1;
 		viewportZoom = 1.0f;
 		viewportPan = ofVec2f(0, 0);
 	}
@@ -4341,6 +4391,7 @@ bool JPboxgroup::handleTabClick()
 			{
 				activeGroupBoxIndex = boxIdx;
 				openguinumber = -1;
+				groupPreviewBoxIndex = -1;
 				// Reset zoom/pan for group view
 				viewportZoom = 1.0f;
 				viewportPan = ofVec2f(0, 0);
@@ -4360,6 +4411,17 @@ void JPboxgroup::drawGroupView()
 	}
 
 	vector<JPbox *> &subBoxes = preset->boxes;
+
+	// Draw preview background if a sub-box is double-clicked
+	if (groupPreviewBoxIndex >= 0 && groupPreviewBoxIndex < (int)subBoxes.size())
+	{
+		ofSetColor(255, 255);
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		subBoxes[groupPreviewBoxIndex]->fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
+		// Dim it slightly so nodes are visible
+		ofSetColor(0, 0, 0, 100);
+		ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight());
+	}
 
 	// Draw connections between sub-boxes
 	ofSetLineWidth(2);
