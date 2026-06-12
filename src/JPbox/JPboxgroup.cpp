@@ -3798,6 +3798,108 @@ bool JPboxgroup::deleteSelectedBoxes()
 	return true;
 }
 
+void JPboxgroup::groupSelectedBoxes()
+{
+	if (selectedBoxIndices.size() < 2)
+	{
+		return;
+	}
+
+	// Calculate average position of selected boxes
+	float avgX = 0, avgY = 0;
+	for (int idx : selectedBoxIndices)
+	{
+		if (idx >= 0 && idx < boxes.size() && boxes[idx] != nullptr)
+		{
+			avgX += boxes[idx]->x;
+			avgY += boxes[idx]->y;
+		}
+	}
+	avgX /= (float)selectedBoxIndices.size();
+	avgY /= (float)selectedBoxIndices.size();
+
+	// Sort unique, descending for safe deletion
+	vector<int> sortedIndices = selectedBoxIndices;
+	std::sort(sortedIndices.begin(), sortedIndices.end(), std::greater<int>());
+	sortedIndices.erase(std::unique(sortedIndices.begin(), sortedIndices.end()), sortedIndices.end());
+
+	// Build XML in the EXACT format that JPbox_preset::setup() expects
+	// (same format as JPboxgroup::save() but only for selected boxes)
+	ofXml xml;
+	xml.appendChild("activerender").set(0);
+
+	for (int si : sortedIndices)
+	{
+		if (si < 0 || si >= boxes.size() || boxes[si] == nullptr) continue;
+
+		JPbox *box = boxes[si];
+		auto data = xml.appendChild("box");
+		data.appendChild("nombre").set(box->name);
+		data.appendChild("x").set((int)box->x);
+		data.appendChild("y").set((int)box->y);
+		data.appendChild("directory").set(box->dir);
+
+		// Parameters
+		if (box->parameters.getSize() > 0)
+		{
+			auto parameters = data.appendChild("parameters");
+			for (int k = 0; k < box->parameters.getSize(); k++)
+			{
+				auto param = parameters.appendChild("param");
+				param.appendChild("name").set(box->parameters.getName(k));
+				if (box->parameters.getType(k) == box->parameters.BOOL)
+				{
+					param.appendChild("value").set(box->parameters.getBoolValue(k));
+				}
+				else
+				{
+					param.appendChild("min").set(box->parameters.getMin(k));
+					param.appendChild("max").set(box->parameters.getMax(k));
+					param.appendChild("value").set(box->parameters.getFloatValue(k));
+					param.appendChild("movtype").set(box->parameters.getMovType(k));
+					param.appendChild("speed").set(box->parameters.getSpeed(k));
+				}
+			}
+		}
+
+		// FBO links (preserved between grouped boxes)
+		if (box->fbohandlergroup.getPointerSetsSize() > 0)
+		{
+			auto fboslinks = data.appendChild("fboslinks");
+			for (int k = 0; k < box->fbohandlergroup.getSize(); k++)
+			{
+				if (box->fbohandlergroup.getisPointerSet(k))
+				{
+					fboslinks.appendChild(box->fbohandlergroup.getName(k))
+						.set(box->fbohandlergroup.getFboName(k));
+				}
+			}
+		}
+	}
+
+	// Save to temp XML file in data/groups/
+	string outputDir = "data/groups/";
+	string timestamp = ofGetTimestampString();
+	string outputPath = outputDir + "group_" + timestamp + ".xml";
+	ofFilePath::createEnclosingDirectory(outputPath);
+	xml.save(outputPath);
+	cout << "groupSelectedBoxes: saved to " << outputPath << endl;
+
+	// Clear selection and delete the original boxes
+	clearSelection();
+	for (int i = 0; i < (int)sortedIndices.size(); i++)
+	{
+		deleteBoxAtIndex(sortedIndices[i]);
+	}
+
+	// Add the preset using the EXACT same path as loading any preset from disk
+	// This calls createBoxForDirectory -> JPbox_preset -> JPbox_preset::setup()
+	// which loads the XML, creates child boxes, restores params and links
+	addBox(outputPath, avgX, avgY);
+
+	cout << "groupSelectedBoxes: done, boxes size=" << boxes.size() << endl;
+}
+
 void JPboxgroup::deleteSelectedShader()
 {
 	if (deleteSelectedBoxes())

@@ -411,6 +411,10 @@ void ofApp::keyPressed(int key) {
 			boxes.activeSequence = !boxes.activeSequence;
 		}
 
+		if (key == 'u') {
+			boxes.groupSelectedBoxes();
+		}
+
 		if (key == 'z') {
 			boxes.toggleCueBoxByIndex(boxes.openguinumber);
 		}

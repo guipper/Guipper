@@ -136,6 +136,7 @@ public:
 	int openguinumber = -1;
 	int controllerselected; // ME INDICA QUE VARIABLE ESTA AGARRADA
 	bool activeSequence; //SECUENCIA ACTIVA
+	void groupSelectedBoxes();
 private:
 	enum CueMode
 	{

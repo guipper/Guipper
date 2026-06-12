@@ -83,7 +83,8 @@ public:
 	};
 
 	int getTipo();
-	std::time_t datemodified; // La pongo aca porque necesito que me recorra la cosa dentro del for. Aunque sea solo para los shaders.
+	void setTipo(int _tipo);
+	std::time_t datemodified;
 
 	// Me perturba que el nombre de la variable sea tan verga.
 	void setonoff(bool _val);
