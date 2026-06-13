@@ -1,10 +1,9 @@
 #pragma include "../common.frag" //ESta linea tiene todas las definiciones de las funciones globales
 
-const float BPM = 120.;
 uniform bool invertbpm;
 uniform float ss ;
 uniform float dif ; 
-uniform float shape ;
+uniform float shape ; 
 
 float getBPM(float _t,float _bpm){
 	return fract(time/60.*_bpm)/(_bpm/60.0);
@@ -52,11 +51,11 @@ void main()
 	
 	
 	//CALCULAMOS BPM : 
-	float bpm1 = 1.0-getBPM(time,BPM*1.0);
+	float bpm1 = 1.0-getBPM(time,bpm*1.0);
 	if(invertbpm){
-		bpm1 = getBPM(time,BPM*1.0);
+		bpm1 = getBPM(time,bpm*1.0);
 	}else{
-		bpm1 = 1.- getBPM(time,BPM*1.0);
+		bpm1 = 1.- getBPM(time,bpm*1.0);
 	}
 	
 	

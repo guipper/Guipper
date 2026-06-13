@@ -133,11 +133,24 @@ public:
 	SaveAsSaver saveas_saver;
 	ofImage outletimg;
 
+	struct ShaderEntry {
+		string name;
+		string path;
+	};
+
+	struct ShaderFolder {
+		string name;
+		string path;
+		bool expanded = false;
+		vector<ShaderEntry> shaders;
+	};
+
 	enum MENUACTIVO
 	{
 		NODOS,
 		OPCIONES,
-		TUTORIAL
+		TUTORIAL,
+		SHADER_INDEX
 	};
 	int pantallaActiva;
 	bool loadAspreset; // ESTO ES PARA QUE TODO EL TIEMPO ME DIGA SI TENGO APRETADO EL BOTON DE LA IZQ O NO .
@@ -148,6 +161,20 @@ public:
 	ofVec2f resolution_spoutext;
 
 	DirectoryManager dirmanager;
+
+	// Shader index data
+	int shaderScroll = 0;
+	vector<ShaderFolder> shaderFolders;
+	int selectedShaderFolder = -1;
+	int selectedShaderIndex = -1;
+
+	// Preview
+	ofShader previewShader;
+	ofFbo previewFbo;
+	bool previewShaderLoaded = false;
+
+	void scanShaders();
+	void draw_shaderindex();
 
 
 
@@ -164,6 +191,17 @@ public:
 	int focusedOptionsField = -1;
 	void applyOptionsField();
 	void initOptionsFields();
+
+	// AutoTap for BPM
+	vector<float> tapTimestamps;
+	void autoTap();
+
+	// Save feedback
+	string saveFeedbackText;
+	float saveFeedbackTime = 0.0f;
+
+	// Track if options fields have been initialized to avoid reset on tab switch
+	bool optionsFieldsInitialized = false;
 
 	// Save-as modal state
 	bool saveModalActive = false;

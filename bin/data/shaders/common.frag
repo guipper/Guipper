@@ -6,6 +6,7 @@ uniform float time;
 uniform vec4 mouse;
 uniform vec2 resolution;
 uniform vec2 window_mouse;
+uniform float bpm;
 //uniform sampler2DRect camara;
 #define iTime time
 #define iFrame floor (time*60.)

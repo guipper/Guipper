@@ -159,6 +159,11 @@ void JPbox_preset::updateFBO()
 			boxes[i]->update();
 			boxes[i]->onoff.boolValue = true;
 		}
+		if (boxes.empty() || activeRender < 0 || activeRender >= (int)boxes.size())
+		{
+			onoff.boolValue = false;
+			return;
+		}
 		ofSetColor(255, 255);
 		fbo.begin();
 		boxes[activeRender]->fbo.draw(0, 0, fbo.getWidth(), fbo.getHeight());

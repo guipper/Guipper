@@ -1,5 +1,6 @@
 #include "ofApp.h"
 #include <iostream>
+#include <algorithm>
 
 //--------------------------------------------------------------
 void ofApp::setup() {
@@ -156,6 +157,30 @@ void ofApp::update() {
 
 		openloader.activeflag = false;
 	}*/
+
+	// Update preview shader FBO every frame (for animated shaders)
+	if (previewShaderLoaded && pantallaActiva == SHADER_INDEX) {
+		previewFbo.begin();
+		ofClear(0, 0, 0, 255);
+		previewShader.begin();
+		previewShader.setUniform1f("time", ofGetElapsedTimef());
+		previewShader.setUniform2f("resolution", previewFbo.getWidth(), previewFbo.getHeight());
+		previewShader.setUniform1f("bpm", jp_constants::bpm);
+		previewShader.setUniform4f("mouse",
+			ofMap(ofGetMouseX(), 0, ofGetWidth(), 0, 1),
+			ofMap(ofGetMouseY(), 0, ofGetHeight(), 0, 1),
+			ofMap(jp_constants::mousePressedPos.x, 0, ofGetWidth(), 0, 1),
+			ofMap(jp_constants::mousePressedPos.y, 0, ofGetHeight(), 0, 1));
+		previewShader.setUniform2f("window_mouse",
+			ofMap(ofGetMouseX(), 0, ofGetWidth(), 0, 1),
+			ofMap(ofGetMouseY(), 0, ofGetHeight(), 0, 1));
+		previewShader.setUniform1i("globalframeNum", ofGetFrameNum());
+		previewShader.setUniform1i("boxframeNum", ofGetFrameNum());
+		ofSetColor(255, 0, 0);
+		ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
+		previewShader.end();
+		previewFbo.end();
+	}
 }
 void ofApp::draw() {
 	if (pantallaActiva == NODOS) {
@@ -166,6 +191,9 @@ void ofApp::draw() {
 		if (isDebug) {
 			draw_debugInfo();
 		}
+	}
+	else if (pantallaActiva == SHADER_INDEX) {
+		draw_shaderindex();
 	}
 	else {
 		boxes.draw_activerender(ofGetWidth(), ofGetHeight());
@@ -192,59 +220,155 @@ void ofApp::draw_debugInfo() {
 	//font_p.drawString("DIALOG BOX : " + ofToString(jp_constants::systemDialog_open), 30, posy -= sepy);
 }
 void ofApp::draw_instrucciones() {
-	float x = 30;
-	float y = 30;
-	float sepy = 30;
+	float panelX = 30, panelY = 30;
+	float panelW = ofGetWidth() - 60;
+	float lineH = 17;
+	float sepy = 17;
+	int totalLines = 0;
 
-	float x2 = 30;
-	float y2 = 30;
+	// Count lines for both languages (take the larger one)
+	int esLines = 0, enLines = 0;
+	string es[50], en[50];
 
-	ofSetColor(0, 100);
-	ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight());
-	ofSetColor(255);
+	// SPANISH
+	es[esLines++] = "INSTRUCCIONES";
+	es[esLines++] = "";
+	es[esLines++] = "Cargar archivo: Arrastrar a la ventana";
+	es[esLines++] = "";
+	es[esLines++] = "TECLAS:";
+	es[esLines++] = "1 : Editor de nodos";
+	es[esLines++] = "2 : Configuracion (Settings)";
+	es[esLines++] = "3 : Instrucciones (esta pantalla)";
+	es[esLines++] = "4 : Shader Index (navegador de shaders)";
+	es[esLines++] = "t : Alternar carga como preset o sesion completa";
+	es[esLines++] = "w : Abre ventana de render aparte";
+	es[esLines++] = "f : FullScreen sobre ventana de render";
+	es[esLines++] = "s : Guardar sesion en el XML actual";
+	es[esLines++] = "Ctrl+S : Guardar como (save-as)";
+	es[esLines++] = "l : Cargar sesion";
+	es[esLines++] = "d : Mostrar datos de debug";
+	es[esLines++] = "r : Recargar shader activo";
+	es[esLines++] = "u : Agrupar cajas seleccionadas";
+	es[esLines++] = "z : Alternar cue (seleccion rapida)";
+	es[esLines++] = "x : Disparar codigo en shader activo";
+	es[esLines++] = "h : Agregar caja SPOUT INPUT";
+	es[esLines++] = "c : Agregar caja camara";
+	es[esLines++] = "n : Agregar caja NDI RECEIVER";
+	es[esLines++] = "i : Agregar caja Frame Difference";
+	es[esLines++] = "k : Abrir/cerrar panel MIDI Keymap";
+	es[esLines++] = "m : Exportar imagen (captura de pantalla)";
+	es[esLines++] = "e : Activar/desactivar modo secuencia";
+	es[esLines++] = "DEL : Eliminar shader seleccionado";
+	es[esLines++] = "Ctrl+C : Copiar cajas seleccionadas";
+	es[esLines++] = "Ctrl+V : Pegar cajas";
+	es[esLines++] = "Esc : Cerrar shader index";
+	es[esLines++] = "";
+	es[esLines++] = "COMANDOS OSC:";
+	es[esLines++] = "/load/(dir) : Cargar archivo especifico";
+	es[esLines++] = "/setactiverender/(num) : Activar render";
+	es[esLines++] = "/openguinumber/(value) : Control de active";
+	es[esLines++] = "/(shader)/(param) : Control por nombre";
+	es[esLines++] = "";
+	es[esLines++] = "Click en esta pantalla para cambiar idioma";
 
-	//AGREGAR BOTON EN ALGUN MOMENTO
-	if (language == 0) {
-		jp_constants::p_font.drawString("INSTRUCCIONES : ", x, y += sepy);
-		jp_constants::p_font.drawString("Para cargar archivo (todos) arrastrarlo hasta la ventana", x, y += sepy);
-		jp_constants::p_font.drawString("TECLAS : ", x, y += sepy);
-		jp_constants::p_font.drawString("t : Cambia ente cargar un xml como preset o como compo", x, y += sepy);
-		jp_constants::p_font.drawString("w : Abre ventana aparte", x, y += sepy);
-		jp_constants::p_font.drawString("f : Sobre la ventana aparte abierta : FullScreen", x, y += sepy);
-		jp_constants::p_font.drawString("s : Guardar sobre el xml actual : " + savedirectory, x, y += sepy);
-		jp_constants::p_font.drawString("ctrl+s : Genera un nuevo archivo XML(guardarlo con la extension correcta)", x, y += sepy);
-		jp_constants::p_font.drawString("d : Muestra los datos de debug", x, y += sepy);
-		jp_constants::p_font.drawString("h : Agrega caja SPOUT INPUT", x, y += sepy);
-		jp_constants::p_font.drawString("c : Agrega caja camara", x, y += sepy);
-		jp_constants::p_font.drawString("k : Abre/cierra el panel MIDI Keymap", x, y += sepy);
-		jp_constants::p_font.drawString("m : Exportar imagen", x, y += sepy);
-		jp_constants::p_font.drawString("e : Activar modo secuencia", x, y += sepy);
-		jp_constants::p_font.drawString("COMANDOS OSC ", x, y += sepy);
-		jp_constants::p_font.drawString("/load/(dir) : Cargar archivo especifico", x, y += sepy);
-		jp_constants::p_font.drawString("/setactiverender/(num) : set active render", x, y += sepy);
-		jp_constants::p_font.drawString("/openguinumber/(value) : control de active", x, y += sepy);
-		jp_constants::p_font.drawString("/(name of shader)/(name of param) : to control using by name", x, y += sepy);
+	// ENGLISH
+	en[enLines++] = "INSTRUCTIONS";
+	en[enLines++] = "";
+	en[enLines++] = "Drag any file to this window to load it";
+	en[enLines++] = "";
+	en[enLines++] = "KEYS:";
+	en[enLines++] = "1 : Node editor";
+	en[enLines++] = "2 : Settings (XML Configuration)";
+	en[enLines++] = "3 : Instructions (this screen)";
+	en[enLines++] = "4 : Shader Index (shader browser)";
+	en[enLines++] = "t : Toggle load as preset or full session";
+	en[enLines++] = "w : Open separate render window";
+	en[enLines++] = "f : Fullscreen on render window";
+	en[enLines++] = "s : Save session to current XML";
+	en[enLines++] = "Ctrl+S : Save-as (new XML)";
+	en[enLines++] = "l : Load session";
+	en[enLines++] = "d : Toggle debug info";
+	en[enLines++] = "r : Reload active shader";
+	en[enLines++] = "u : Group selected boxes";
+	en[enLines++] = "z : Toggle cue (quick select)";
+	en[enLines++] = "x : Trigger code on active shader";
+	en[enLines++] = "h : Add SPOUT INPUT box";
+	en[enLines++] = "c : Add Camera box";
+	en[enLines++] = "n : Add NDI RECEIVER box";
+	en[enLines++] = "i : Add Frame Difference box";
+	en[enLines++] = "k : Open/close MIDI Keymap panel";
+	en[enLines++] = "m : Export screenshot to exportimgs/";
+	en[enLines++] = "e : Toggle sequence mode";
+	en[enLines++] = "DEL : Delete selected shader";
+	en[enLines++] = "Ctrl+C : Copy selected boxes";
+	en[enLines++] = "Ctrl+V : Paste boxes";
+	en[enLines++] = "Esc : Close shader index";
+	en[enLines++] = "";
+	en[enLines++] = "OSC COMMANDS:";
+	en[enLines++] = "/load/(dir) : Load specific savefile";
+	en[enLines++] = "/setactiverender/(num) : Set active render";
+	en[enLines++] = "/openguinumber/(value) : Control active";
+	en[enLines++] = "/(shader)/(param) : Control by name";
+	en[enLines++] = "";
+	en[enLines++] = "Click this screen to switch language";
+
+	int maxLines = (language == 0) ? esLines : enLines;
+	string* lines = (language == 0) ? es : en;
+
+	float panelH = 50 + maxLines * sepy + 30;
+	if (panelH > ofGetHeight() - 60) {
+		panelH = ofGetHeight() - 60;
 	}
-	if (language == 1) {
-		jp_constants::p_font.drawString("INSTRUCTIONS : ", x, y += sepy);
-		jp_constants::p_font.drawString("To load any file drag it to this window(any kind)", x, y += sepy);
-		jp_constants::p_font.drawString("KEYS : ", x, y += sepy);
-		jp_constants::p_font.drawString("t : Change between loading a box as a preset or as a full compo", x, y += sepy);
-		jp_constants::p_font.drawString("w : Opens another window", x, y += sepy);
-		jp_constants::p_font.drawString("f : Click over the another window to make it fullscreen", x, y += sepy);
-		jp_constants::p_font.drawString("s : Save on the actual XML : " + savedirectory, x, y += sepy);
-		jp_constants::p_font.drawString("ctrl+s : Generates a new XML (save it with the correct extension please)", x, y += sepy);
-		jp_constants::p_font.drawString("d : Show debug data", x, y += sepy);
-		jp_constants::p_font.drawString("h : Add spout input box", x, y += sepy);
-		jp_constants::p_font.drawString("c : Add Camera box", x, y += sepy);
-		jp_constants::p_font.drawString("k : Open/close the MIDI Keymap panel", x, y += sepy);
-		jp_constants::p_font.drawString("m : Export image to exportimgs folder", x, y += sepy);
-		jp_constants::p_font.drawString("e : Activate sequence mode", x, y += sepy);
-		jp_constants::p_font.drawString("OSC COMMANDS ", x, y += sepy);
-		jp_constants::p_font.drawString("/load/(dir) : load directory of a savefile", x, y += sepy);
-		jp_constants::p_font.drawString("/setactiverender/(num) : set active render", x, y += sepy);
-		jp_constants::p_font.drawString("/openguinumber/(value) : control de active", x, y += sepy);
-		jp_constants::p_font.drawString("/(name of shader)/(name of param) : to control using by name", x, y += sepy);
+	if (panelH < 300) panelH = 300;
+
+	// Glassmorphism panel background
+	ofSetColor(12, 16, 20, 235);
+	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
+	ofNoFill();
+	ofSetColor(0, 230, 230, 80);
+	ofSetLineWidth(1.5f);
+	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
+	ofFill();
+	ofSetLineWidth(1.0f);
+
+	// Title
+	ofSetColor(0, 230, 230);
+	font_p.drawString(lines[0], panelX + 15, panelY + 30);
+
+	float drawY = panelY + 55;
+	for (int i = 0; i < maxLines; i++) {
+		if (drawY > panelY + panelH - 15) break;
+
+		string line = lines[i];
+		if (line.empty()) {
+			drawY += sepy * 0.5f;
+			continue;
+		}
+
+		// Section headers (TECLAS:, COMANDOS OSC:)
+		if (line.find("TECLAS:") != string::npos || line.find("KEYS:") != string::npos ||
+			line.find("COMANDOS OSC") != string::npos || line.find("OSC COMMANDS") != string::npos) {
+			ofSetColor(0, 230, 230);
+			font_p.drawString(line, panelX + 15, drawY);
+		}
+		// First instruction line
+		else if (line.find("Cargar") != string::npos || line.find("Drag any") != string::npos) {
+			ofSetColor(180, 190, 200);
+			font_p.drawString(line, panelX + 15, drawY);
+		}
+		// Click hint
+		else if (line.find("Click") != string::npos) {
+			ofSetColor(80, 120, 140);
+			float lw = font_p.stringWidth(line);
+			font_p.drawString(line, panelX + panelW / 2 - lw / 2, drawY);
+		}
+		// Everything else
+		else {
+			ofSetColor(180, 190, 200);
+			font_p.drawString(line, panelX + 20, drawY);
+		}
+
+		drawY += sepy;
 	}
 }
 void ofApp::draw_opciones() {
@@ -312,6 +436,16 @@ void ofApp::draw_opciones() {
 			displayText += "|";
 		}
 		font_p.drawString(displayText, fieldX + 6, rowY + rowH - 7);
+
+		// AUTOTAP button next to BPM field
+		if (i == FIELD_BPM) {
+			float tapX = fieldX + fieldW + 10;
+			float tapW = 100;
+			ofSetColor(140, 100, 40);
+			ofDrawRectRounded(tapX, rowY, tapW, rowH, 4.0f);
+			ofSetColor(255);
+			font_p.drawString("AUTOTAP", tapX + 14, rowY + rowH - 7);
+		}
 	}
 
 	// --- Toggle: Spout ---
@@ -366,6 +500,15 @@ void ofApp::draw_opciones() {
 		ofDrawRectRounded(saveX, rowY, saveW, rowH + 4, 6.0f);
 		ofSetColor(255);
 		font_p.drawString("SAVE SETTINGS", saveX + saveW / 2 - 48, rowY + rowH + 4 - 6);
+
+		// Save feedback text
+		if (saveFeedbackTime > 0 && ofGetElapsedTimef() - saveFeedbackTime < 3.0f) {
+			ofSetColor(0, 230, 100);
+			float fw = font_p.stringWidth(saveFeedbackText);
+			font_p.drawString(saveFeedbackText, saveX + saveW / 2 - fw / 2, rowY + rowH + 4 + 20);
+		} else {
+			saveFeedbackTime = 0;
+		}
 	}
 
 	// Hint text when focused
@@ -409,6 +552,292 @@ void ofApp::applyOptionsField() {
 		}
 	saveSettings();
 	focusedOptionsField = -1;
+}
+void ofApp::autoTap() {
+	float now = ofGetElapsedTimef();
+	// Keep only taps within the last 3 seconds
+	float cutoff = now - 3.0f;
+	for (int i = tapTimestamps.size() - 1; i >= 0; i--) {
+		if (tapTimestamps[i] < cutoff) {
+			tapTimestamps.erase(tapTimestamps.begin() + i);
+		}
+	}
+	tapTimestamps.push_back(now);
+
+	if (tapTimestamps.size() >= 2) {
+		// Calculate average interval
+		float totalInterval = 0;
+		for (size_t i = 1; i < tapTimestamps.size(); i++) {
+			totalInterval += tapTimestamps[i] - tapTimestamps[i - 1];
+		}
+		float avgInterval = totalInterval / (tapTimestamps.size() - 1);
+		int bpmVal = (int)(60.0f / avgInterval + 0.5f);
+		bpmVal = ofClamp(bpmVal, 0, 999);
+		optionsFieldText[FIELD_BPM] = ofToString(bpmVal);
+		jp_constants::setBpm((float)bpmVal);
+	}
+}
+void ofApp::scanShaders() {
+	shaderFolders.clear();
+
+	// Only scan these specific root folders (no sub-subdirectories)
+	vector<string> targetFolders = { "blending", "contrib", "generative", "imageprocessing" };
+
+	// Root shaders/ folder (files directly in shaders/)
+	{
+		ShaderFolder rootFolder;
+		rootFolder.name = "root";
+		rootFolder.path = "shaders";
+		rootFolder.expanded = true;
+
+		ofDirectory rootDir;
+		rootDir.listDir("shaders");
+		rootDir.sort();
+		for (size_t i = 0; i < rootDir.size(); i++) {
+			if (rootDir.getFile(i).isDirectory()) continue;
+			string path = rootDir.getPath(i);
+			string ext = ofToLower(ofFilePath::getFileExt(path));
+			if (ext == "frag") {
+				ShaderEntry e;
+				e.name = ofFilePath::getBaseName(path);
+				e.path = path;
+				rootFolder.shaders.push_back(e);
+			}
+		}
+		if (!rootFolder.shaders.empty()) {
+			shaderFolders.push_back(rootFolder);
+		}
+	}
+
+	// Scan each target folder (only immediate frag files, no subdirs)
+	for (const string &folderName : targetFolders) {
+		string folderPath = "shaders/" + folderName;
+
+		ShaderFolder folder;
+		folder.name = folderName;
+		folder.path = folderPath;
+		folder.expanded = false;
+
+		ofDirectory dir;
+		dir.listDir(folderPath);
+		dir.sort();
+		for (size_t j = 0; j < dir.size(); j++) {
+			string path = dir.getPath(j);
+			if (dir.getFile(j).isDirectory()) continue;
+			string ext = ofToLower(ofFilePath::getFileExt(path));
+			if (ext == "frag") {
+				ShaderEntry e;
+				e.name = ofFilePath::getBaseName(path);
+				e.path = path;
+				folder.shaders.push_back(e);
+			}
+		}
+		if (!folder.shaders.empty()) {
+			shaderFolders.push_back(folder);
+		}
+	}
+
+	shaderScroll = 0;
+	selectedShaderFolder = -1;
+	selectedShaderIndex = -1;
+	previewShaderLoaded = false;
+	cout << "Shader index: found " << shaderFolders.size() << " folders" << endl;
+	int totalShaders = 0;
+	for (auto &f : shaderFolders) totalShaders += (int)f.shaders.size();
+	cout << "  total shaders: " << totalShaders << endl;
+}
+void ofApp::draw_shaderindex() {
+	float panelX = 30, panelY = 30;
+	float panelW = ofGetWidth() - 60;
+	float panelH = ofGetHeight() - 60;
+
+	// Background overlay
+	ofSetColor(0, 80);
+	ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight());
+
+	// Glassmorphism panel background
+	ofSetColor(12, 16, 20, 235);
+	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
+	ofNoFill();
+	ofSetColor(0, 230, 230, 80);
+	ofSetLineWidth(1.5f);
+	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
+	ofFill();
+	ofSetLineWidth(1.0f);
+
+	// Title
+	float y = panelY + 30;
+	ofSetColor(0, 230, 230);
+	int totalShaders = 0;
+	for (auto &f : shaderFolders) totalShaders += (int)f.shaders.size();
+	string title = language == 0 ?
+		"SHADER INDEX  |  " + ofToString(totalShaders) + " shaders found" :
+		"INDEXADOR DE SHADERS  |  " + ofToString(totalShaders) + " shaders encontrados";
+	font_p.drawString(title, panelX + 20, y);
+
+	// Separator
+	ofSetColor(0, 230, 230, 60);
+	ofDrawLine(panelX + 20, y + 6, panelX + panelW - 20, y + 6);
+
+	// Hint
+	ofSetColor(80, 90, 100);
+	string hint = language == 0 ?
+		"Click folder to expand  |  Click shader to preview  |  [LOAD] to add to canvas  |  Scroll  |  [4]/[Esc] to close" :
+		"Click carpeta para expandir  |  Click shader para previsualizar  |  [CARGAR] para anadir  |  Scroll  |  [4]/[Esc] cerrar";
+	float hw = font_p.stringWidth(hint);
+	font_p.drawString(hint, panelX + panelW / 2 - hw / 2, y + 20);
+
+	y += 30;
+
+	// Layout: left side = folder tree, right side = preview
+	float dividerX = panelX + panelW * 0.55f;
+	float listX = panelX + 15;
+	float listW = dividerX - listX - 10;
+	float previewX = dividerX + 15;
+	float previewW = panelX + panelW - 20 - previewX;
+	float previewY = y + 10;
+	float previewH = panelH - 80;
+
+	// Vertical divider
+	ofSetColor(0, 230, 230, 40);
+	ofDrawLine(dividerX, panelY + 60, dividerX, panelY + panelH - 20);
+
+	// ---- FOLDER LIST ----
+	float drawTop = y + 6;
+	float drawBottom = panelY + panelH - 20;
+	float folderEntryH = 16;
+	float shaderEntryH = 14;
+	float indentStep = 12;
+
+	int currentLine = 0;
+	float drawY = drawTop;
+
+	// Calculate total visible lines for scroll
+	int totalLines = 0;
+	for (size_t f = 0; f < shaderFolders.size(); f++) {
+		totalLines++; // folder header
+		if (shaderFolders[f].expanded) {
+			totalLines += (int)shaderFolders[f].shaders.size();
+		}
+	}
+	int visibleCount = (int)((drawBottom - drawTop) / folderEntryH);
+	int maxScroll = std::max(0, totalLines - visibleCount);
+	if (shaderScroll > maxScroll) shaderScroll = maxScroll;
+	if (shaderScroll < 0) shaderScroll = 0;
+
+	// Scroll indicators
+	if (shaderScroll > 0) {
+		ofSetColor(0, 230, 230, 120);
+		font_p.drawString("^", panelX + listW - 10, drawTop + 4);
+	}
+	if (shaderScroll < maxScroll) {
+		ofSetColor(0, 230, 230, 120);
+		font_p.drawString("v", panelX + listW - 10, drawBottom - 4);
+	}
+
+	for (size_t f = 0; f < shaderFolders.size(); f++) {
+		if (drawY > drawBottom) break;
+
+		// Folder header
+		currentLine++;
+		if (currentLine > shaderScroll) {
+			if (drawY + folderEntryH <= drawBottom) {
+				bool isSelected = ((int)f == selectedShaderFolder && selectedShaderIndex == -1);
+				ofSetColor(isSelected ? 0 : 120, isSelected ? 230 : 200, isSelected ? 230 : 255);
+				string arrow = shaderFolders[f].expanded ? "v" : ">";
+				string folderLabel = arrow + string("  ") + shaderFolders[f].name;
+				font_p.drawString(folderLabel, listX, drawY);
+
+				// Draw shader count
+				ofSetColor(80, 90, 100);
+				string countStr = "(" + ofToString((int)shaderFolders[f].shaders.size()) + ")";
+				float cw = font_p.stringWidth(countStr);
+				font_p.drawString(countStr, listX + listW - cw - 20, drawY);
+
+				drawY += folderEntryH;
+			}
+		}
+
+		// Shader entries (if expanded)
+		if (shaderFolders[f].expanded) {
+			for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
+				currentLine++;
+				if (currentLine > shaderScroll) {
+					if (drawY + shaderEntryH > drawBottom) break;
+
+					bool isSelected = ((int)f == selectedShaderFolder && (int)s == selectedShaderIndex);
+					if (isSelected) {
+						ofSetColor(0, 230, 230);
+					} else {
+						ofSetColor(180, 180, 190);
+					}
+					font_p.drawString(shaderFolders[f].shaders[s].name, listX + indentStep * 2, drawY);
+					drawY += shaderEntryH;
+				}
+			}
+		}
+	}
+
+	// ---- PREVIEW PANE ----
+	ofSetColor(20, 25, 30);
+	ofDrawRectRounded(previewX, previewY, previewW, previewH, 6);
+	ofNoFill();
+	ofSetColor(60, 70, 80);
+	ofSetLineWidth(1.0f);
+	ofDrawRectRounded(previewX, previewY, previewW, previewH, 6);
+	ofFill();
+	ofSetLineWidth(1.0f);
+
+	if (selectedShaderFolder >= 0 && selectedShaderIndex >= 0) {
+		string selPath = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
+		string selName = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].name;
+
+		// Draw preview FBO
+		if (previewShaderLoaded) {
+			ofSetColor(255);
+			float fboPreviewW = previewW - 20;
+			float fboPreviewH = fboPreviewW * 0.75f;
+			if (fboPreviewH > previewH - 80) {
+				fboPreviewH = previewH - 80;
+				fboPreviewW = fboPreviewH * 1.333f;
+			}
+			float fboX = previewX + previewW / 2 - fboPreviewW / 2;
+			float fboY = previewY + 15;
+			previewFbo.draw(fboX, fboY, fboPreviewW, fboPreviewH);
+
+			// Shader name below preview
+			ofSetColor(0, 230, 230);
+			font_p.drawString(selName, previewX + previewW / 2 - font_p.stringWidth(selName) / 2, fboY + fboPreviewH + 18);
+			ofSetColor(100, 110, 120);
+			font_p.drawString(selPath, previewX + previewW / 2 - font_p.stringWidth(selPath) / 2, fboY + fboPreviewH + 34);
+		}
+
+		// LOAD button
+		float btnW = 120;
+		float btnH = 28;
+		float btnX = previewX + previewW / 2 - btnW / 2;
+		float btnY = previewY + previewH - 40;
+		ofSetColor(0, 160, 160);
+		ofDrawRectRounded(btnX, btnY, btnW, btnH, 4.0f);
+		ofNoFill();
+		ofSetColor(0, 230, 230);
+		ofSetLineWidth(1.5f);
+		ofDrawRectRounded(btnX, btnY, btnW, btnH, 4.0f);
+		ofFill();
+		ofSetLineWidth(1.0f);
+		ofSetColor(255);
+		string loadLabel = language == 0 ? "[ LOAD ]" : "[ CARGAR ]";
+		float lw = font_p.stringWidth(loadLabel);
+		font_p.drawString(loadLabel, btnX + btnW / 2 - lw / 2, btnY + 20);
+
+	} else {
+		ofSetColor(80, 90, 100);
+		string noSel = language == 0 ?
+			"Select a shader from the list to preview" :
+			"Selecciona un shader de la lista para previsualizar";
+		float nw = font_p.stringWidth(noSel);
+		font_p.drawString(noSel, previewX + previewW / 2 - nw / 2, previewY + previewH / 2);
+	}
 }
 // Esta es la que se dibuja en la otra ventana
 void ofApp::drawRender() {
@@ -476,14 +905,37 @@ void ofApp::keyPressed(int key) {
 	}
 
 	if (key == '2') {
-		pantallaActiva = OPCIONES;
-		initOptionsFields();
+		if (pantallaActiva != OPCIONES) {
+			pantallaActiva = OPCIONES;
+			initOptionsFields();
+			optionsFieldsInitialized = true;
+		} else {
+			// Already on options tab, just refocus without resetting field values
+			// (keep existing text as-is)
+		}
+		focusedOptionsField = -1;
 	}
 
 	if (key == '3') {
 		pantallaActiva = TUTORIAL;
 		focusedOptionsField = -1;
 	}
+
+	if (key == '4') {
+		pantallaActiva = SHADER_INDEX;
+		focusedOptionsField = -1;
+		if (shaderFolders.empty()) {
+			scanShaders();
+		}
+	}
+
+	// ESC from shader index goes back to NODOS
+	if (key == OF_KEY_ESC && pantallaActiva == SHADER_INDEX) {
+		pantallaActiva = NODOS;
+		focusedOptionsField = -1;
+		return;
+	}
+
 	if (key == 'k') {
 		midiKeymap.togglePanel();
 	}
@@ -727,6 +1179,16 @@ void ofApp::mousePressed(int x, int y, int button) {
 				focusedOptionsField = i;
 				return;
 			}
+			// AUTOTAP button next to BPM field
+			if (i == FIELD_BPM) {
+				float tapX = fieldX + fieldW + 10;
+				float tapW = 100;
+				if (x >= tapX && x <= tapX + tapW &&
+					y >= rowY && y <= rowY + rowH) {
+					autoTap();
+					return;
+				}
+			}
 		}
 
 		// Check toggle buttons
@@ -766,7 +1228,103 @@ void ofApp::mousePressed(int x, int y, int button) {
 			if (x >= saveX && x <= saveX + saveW &&
 				y >= rowY && y <= rowY + rowH + 4) {
 				saveSettings();
+				saveFeedbackText = "Saved!";
+				saveFeedbackTime = ofGetElapsedTimef();
 				return;
+			}
+		}
+	}
+	if (pantallaActiva == SHADER_INDEX && button == 0) {
+		float panelX = 30, panelY = 30;
+		float panelW = ofGetWidth() - 60;
+		float panelH = ofGetHeight() - 60;
+		float dividerX = panelX + panelW * 0.55f;
+		float listX = panelX + 15;
+		float listW = dividerX - listX - 10;
+		float previewX = dividerX + 15;
+		float previewW = panelX + panelW - 20 - previewX;
+		float previewY = panelY + 70;
+		float previewH = panelH - 80;
+
+		// Check if click is within panel
+		if (x < panelX || x > panelX + panelW || y < panelY || y > panelY + panelH) {
+			return;
+		}
+
+		// ---- LOAD BUTTON ----
+		if (selectedShaderFolder >= 0 && selectedShaderIndex >= 0) {
+			float btnW = 120;
+			float btnH = 28;
+			float btnX = previewX + previewW / 2 - btnW / 2;
+			float btnY = previewY + previewH - 40;
+			if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) {
+				// Load this shader onto the canvas
+				string path = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
+				cout << "SHADER INDEX: Loading " << path << endl;
+				boxes.addBox(path);
+				return;
+			}
+		}
+
+		// ---- FOLDER/SHADER LIST (left side) ----
+		if (x >= listX && x <= listX + listW && y >= panelY + 70 && y <= panelY + panelH - 20) {
+			float drawTop = panelY + 70;
+			float folderEntryH = 16;
+			float shaderEntryH = 14;
+			float indentStep = 12;
+
+			int foundLine = (int)((y - drawTop + shaderScroll * folderEntryH) / folderEntryH);
+			if (foundLine < 0) return;
+
+			int lineCount = 0;
+			for (size_t f = 0; f < shaderFolders.size(); f++) {
+				if (lineCount == foundLine) {
+					// Clicked on folder header - toggle expand
+					shaderFolders[f].expanded = !shaderFolders[f].expanded;
+					selectedShaderFolder = (int)f;
+					selectedShaderIndex = -1;
+					previewShaderLoaded = false;
+					return;
+				}
+				lineCount++;
+
+				if (shaderFolders[f].expanded) {
+					for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
+						if (lineCount == foundLine) {
+							// Clicked on shader entry - select for preview
+							selectedShaderFolder = (int)f;
+							selectedShaderIndex = (int)s;
+
+							// Load into preview shader
+							string shaderPath = shaderFolders[f].shaders[s].path;
+							previewShader.unload();
+							previewShaderLoaded = false;
+							if (previewShader.load("shaders/default.vert", shaderPath)) {
+								previewShaderLoaded = true;
+								if (!previewFbo.isAllocated()) {
+									previewFbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
+								}
+								// Render first frame immediately
+								previewFbo.begin();
+								ofClear(0, 0, 0, 255);
+								previewShader.begin();
+								previewShader.setUniform1f("time", ofGetElapsedTimef());
+								previewShader.setUniform2f("resolution", previewFbo.getWidth(), previewFbo.getHeight());
+								previewShader.setUniform1f("bpm", jp_constants::bpm);
+								previewShader.setUniform4f("mouse", 0.5, 0.5, 0.5, 0.5);
+								previewShader.setUniform2f("window_mouse", 0.5, 0.5);
+								previewShader.setUniform1i("globalframeNum", 0);
+								previewShader.setUniform1i("boxframeNum", 0);
+								ofSetColor(255, 0, 0);
+								ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
+								previewShader.end();
+								previewFbo.end();
+							}
+							return;
+						}
+						lineCount++;
+					}
+				}
 			}
 		}
 	}
@@ -793,6 +1351,15 @@ void ofApp::mouseReleased(int x, int y, int button) {
 }
 void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 	if (midiKeymap.mouseScrolled(x, y, scrollX, scrollY)) {
+		return;
+	}
+	if (pantallaActiva == SHADER_INDEX) {
+		float panelX = 30, panelY = 30;
+		float panelH = ofGetHeight() - 60;
+		if (x >= panelX && x <= panelX + (ofGetWidth() - 60) && y >= panelY && y <= panelY + panelH) {
+			shaderScroll -= (int)scrollY * 3;
+			if (shaderScroll < 0) shaderScroll = 0;
+		}
 		return;
 	}
 	if (pantallaActiva == NODOS) {
