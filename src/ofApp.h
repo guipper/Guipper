@@ -172,6 +172,10 @@ public:
 	ofShader previewShader;
 	ofFbo previewFbo;
 	bool previewShaderLoaded = false;
+	ofImage previewImg1, previewImg2;
+
+	// LOAD distribution counter
+	int loadBoxCount = 0;
 
 	void scanShaders();
 	void draw_shaderindex();

@@ -52,6 +52,13 @@ void ofApp::setup() {
 	ofSetWindowTitle("GUIPPER");
 
 	loadAspreset = true; // Default: drag XML as boxgroup. Press 't' to toggle to full session load.
+
+	// Load preview images for shader index sampler2D preview
+	previewImg1.load("preview1.png");
+	previewImg2.load("preview2.png");
+	if (previewImg1.isAllocated()) cout << "preview1.png loaded OK" << endl;
+	if (previewImg2.isAllocated()) cout << "preview2.png loaded OK" << endl;
+
 	//.----------------------------------------------------------------/
 
 #ifdef NDI
@@ -176,9 +183,27 @@ void ofApp::update() {
 			ofMap(ofGetMouseY(), 0, ofGetHeight(), 0, 1));
 		previewShader.setUniform1i("globalframeNum", ofGetFrameNum());
 		previewShader.setUniform1i("boxframeNum", ofGetFrameNum());
-		ofSetColor(255, 0, 0);
+		// Bind preview textures for imageprocessing/blending shaders
+		if (previewImg1.isAllocated()) {
+			previewImg1.getTexture().bind(0);
+			previewShader.setUniform1i("texture1", 0);
+			previewShader.setUniform1i("textura1", 0);
+			previewShader.setUniform1i("input_texture", 0);
+			previewShader.setUniform1i("tex0", 0);
+			previewShader.setUniform1i("textura", 0);
+			previewShader.setUniform1i("texture", 0);
+		}
+		if (previewImg2.isAllocated()) {
+			previewImg2.getTexture().bind(1);
+			previewShader.setUniform1i("texture2", 1);
+			previewShader.setUniform1i("textura2", 1);
+			previewShader.setUniform1i("tex1", 1);
+		}
+		ofSetColor(255);
 		ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
 		previewShader.end();
+		if (previewImg1.isAllocated()) previewImg1.getTexture().unbind(0);
+		if (previewImg2.isAllocated()) previewImg2.getTexture().unbind(1);
 		previewFbo.end();
 	}
 }
@@ -1309,7 +1334,17 @@ void ofApp::mousePressed(int x, int y, int button) {
 				// Load this shader onto the canvas
 				string path = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
 				cout << "SHADER INDEX: Loading " << path << endl;
-				boxes.addBox(path);
+				// Distribute boxes in a grid pattern so they don't stack
+				float sepx = 112; // 80 * 1.4
+				float sepy = 128; // 80 * 1.6
+				int cols = 5;
+				int row = loadBoxCount / cols;
+				int col = loadBoxCount % cols;
+				ofVec2f canvasCenter = boxes.screenToCanvas(ofVec2f(ofGetWidth() / 2, ofGetHeight() / 2));
+				float startX = canvasCenter.x - cols * sepx * 0.5f;
+				float startY = canvasCenter.y;
+				boxes.addBox(path, startX + col * sepx, startY + row * sepy);
+				loadBoxCount++;
 				return;
 			}
 		}
@@ -1321,56 +1356,82 @@ void ofApp::mousePressed(int x, int y, int button) {
 			float shaderEntryH = 14;
 			float indentStep = 12;
 
-			int foundLine = (int)((y - drawTop + shaderScroll * folderEntryH) / folderEntryH);
-			if (foundLine < 0) return;
+			// Iterate the actual tree to compute exact Y ranges (matching draw_shaderindex)
+			int currentLine = 0;
+			float drawY = drawTop;
 
-			int lineCount = 0;
 			for (size_t f = 0; f < shaderFolders.size(); f++) {
-				if (lineCount == foundLine) {
-					// Clicked on folder header - toggle expand
-					shaderFolders[f].expanded = !shaderFolders[f].expanded;
-					selectedShaderFolder = (int)f;
-					selectedShaderIndex = -1;
-					previewShaderLoaded = false;
-					return;
+				currentLine++;
+				if (currentLine > shaderScroll) {
+					float folderBottom = drawY + folderEntryH;
+					if (y >= drawY && y < folderBottom) {
+						// Clicked on folder header - toggle expand
+						shaderFolders[f].expanded = !shaderFolders[f].expanded;
+						selectedShaderFolder = (int)f;
+						selectedShaderIndex = -1;
+						previewShaderLoaded = false;
+						return;
+					}
+					drawY += folderEntryH;
 				}
-				lineCount++;
 
 				if (shaderFolders[f].expanded) {
 					for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
-						if (lineCount == foundLine) {
-							// Clicked on shader entry - select for preview
-							selectedShaderFolder = (int)f;
-							selectedShaderIndex = (int)s;
+						currentLine++;
+						if (currentLine > shaderScroll) {
+							float shaderBottom = drawY + shaderEntryH;
+							if (y >= drawY && y < shaderBottom) {
+								// Clicked on shader entry - select for preview
+								selectedShaderFolder = (int)f;
+								selectedShaderIndex = (int)s;
 
-							// Load into preview shader
-							string shaderPath = shaderFolders[f].shaders[s].path;
-							previewShader.unload();
-							previewShaderLoaded = false;
-							if (previewShader.load("shaders/default.vert", shaderPath)) {
-								previewShaderLoaded = true;
-								if (!previewFbo.isAllocated()) {
-									previewFbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
+								// Load into preview shader
+								string shaderPath = shaderFolders[f].shaders[s].path;
+								previewShader.unload();
+								previewShaderLoaded = false;
+								if (previewShader.load("shaders/default.vert", shaderPath)) {
+									previewShaderLoaded = true;
+									if (!previewFbo.isAllocated()) {
+										previewFbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
+									}
+									// Render first frame immediately with sampler textures
+									previewFbo.begin();
+									ofClear(0, 0, 0, 255);
+									previewShader.begin();
+									previewShader.setUniform1f("time", ofGetElapsedTimef());
+									previewShader.setUniform2f("resolution", previewFbo.getWidth(), previewFbo.getHeight());
+									previewShader.setUniform1f("bpm", jp_constants::bpm);
+									previewShader.setUniform4f("mouse", 0.5, 0.5, 0.5, 0.5);
+									previewShader.setUniform2f("window_mouse", 0.5, 0.5);
+									previewShader.setUniform1i("globalframeNum", 0);
+									previewShader.setUniform1i("boxframeNum", 0);
+									// Bind preview textures for imageprocessing/blending shaders
+									if (previewImg1.isAllocated()) {
+										previewImg1.getTexture().bind(0);
+										previewShader.setUniform1i("texture1", 0);
+										previewShader.setUniform1i("textura1", 0);
+										previewShader.setUniform1i("input_texture", 0);
+										previewShader.setUniform1i("tex0", 0);
+										previewShader.setUniform1i("textura", 0);
+										previewShader.setUniform1i("texture", 0);
+									}
+									if (previewImg2.isAllocated()) {
+										previewImg2.getTexture().bind(1);
+										previewShader.setUniform1i("texture2", 1);
+										previewShader.setUniform1i("textura2", 1);
+										previewShader.setUniform1i("tex1", 1);
+									}
+									ofSetColor(255);
+									ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
+									previewShader.end();
+									if (previewImg1.isAllocated()) previewImg1.getTexture().unbind(0);
+									if (previewImg2.isAllocated()) previewImg2.getTexture().unbind(1);
+									previewFbo.end();
 								}
-								// Render first frame immediately
-								previewFbo.begin();
-								ofClear(0, 0, 0, 255);
-								previewShader.begin();
-								previewShader.setUniform1f("time", ofGetElapsedTimef());
-								previewShader.setUniform2f("resolution", previewFbo.getWidth(), previewFbo.getHeight());
-								previewShader.setUniform1f("bpm", jp_constants::bpm);
-								previewShader.setUniform4f("mouse", 0.5, 0.5, 0.5, 0.5);
-								previewShader.setUniform2f("window_mouse", 0.5, 0.5);
-								previewShader.setUniform1i("globalframeNum", 0);
-								previewShader.setUniform1i("boxframeNum", 0);
-								ofSetColor(255, 0, 0);
-								ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
-								previewShader.end();
-								previewFbo.end();
+								return;
 							}
-							return;
+							drawY += shaderEntryH;
 						}
-						lineCount++;
 					}
 				}
 			}

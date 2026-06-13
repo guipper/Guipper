@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
-<activerender>1</activerender>
+<activerender>3</activerender>
 <box>
-	<nombre>metro</nombre>
-	<x>99</x>
-	<y>172</y>
-	<directory>data\shaders\generative\metro.frag</directory>
+	<nombre>metro4</nombre>
+	<x>120</x>
+	<y>103</y>
+	<directory>shaders/generative\metro.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
 	<parameters>
@@ -16,7 +16,7 @@
 			<name>ss</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.212593</value>
+			<value>0.414074</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -24,7 +24,7 @@
 			<name>dif</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.0140741</value>
+			<value>0.0614815</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -32,7 +32,7 @@
 			<name>shape</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.052797</value>
+			<value>0</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -40,8 +40,8 @@
 </box>
 <box>
 	<nombre>edges</nombre>
-	<x>281</x>
-	<y>204</y>
+	<x>267</x>
+	<y>109</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -58,7 +58,7 @@
 			<name>effect_exp</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.274815</value>
+			<value>0.144444</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -66,7 +66,7 @@
 			<name>color_mix</name>
 			<min>0</min>
 			<max>1</max>
-			<value>1</value>
+			<value>0.23037</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -74,7 +74,7 @@
 			<name>sample_size</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.18</value>
+			<value>0.221481</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -82,94 +82,94 @@
 			<name>brightness</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.36</value>
+			<value>0.902963</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
 	</parameters>
 	<fboslinks>
-		<input_texture>metro</input_texture>
+		<input_texture>metro4</input_texture>
 	</fboslinks>
 </box>
 <box>
-	<nombre>feedbacklimitdisplace4</nombre>
-	<x>428</x>
-	<y>205</y>
-	<directory>data\shaders\imageprocessing\feedbacklimitdisplace4.frag</directory>
+	<nombre>bloom3</nombre>
+	<x>409</x>
+	<y>105</y>
+	<directory>data\shaders\imageprocessing\bloom3.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
 	<parameters>
 		<param>
-			<name>sc</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.5</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>limit</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.775353</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
 			<name>force</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.812921</value>
+			<value>0.02</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
 		<param>
-			<name>speedx</name>
+			<name>sm1</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.5</value>
+			<value>0</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
 		<param>
-			<name>speedy</name>
+			<name>sm2</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.5</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>sctx1</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.5</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>scty1</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.5</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>ttx1</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.5</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>tty1</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.5</value>
+			<value>1</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
 	</parameters>
+	<fboslinks>
+		<texture1>edges</texture1>
+	</fboslinks>
+</box>
+<box>
+	<nombre>kaleidoscope</nombre>
+	<x>547</x>
+	<y>110</y>
+	<directory>data\shaders\imageprocessing\kaleidoscope.frag</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+	<parameters>
+		<param>
+			<name>cant</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.657037</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>offset</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.378519</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>scale_factor</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.372082</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>zoom</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.279824</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+	</parameters>
+	<fboslinks>
+		<textura1>bloom3</textura1>
+	</fboslinks>
 </box>
