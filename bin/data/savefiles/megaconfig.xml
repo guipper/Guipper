@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<activerender>0</activerender>
+<box>
+	<nombre>particulasespacio</nombre>
+	<x>115</x>
+	<y>185</y>
+	<directory>data\savefiles\justvisuals\particulasespacio.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>

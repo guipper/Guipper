@@ -169,7 +169,7 @@ void JPbox_shader::setup(ofTrueTypeFont &_font,
 		return;
 	}*/
 
-	datemodified = std::filesystem::last_write_time(dir);
+	datemodified = std::filesystem::last_write_time(ofToDataPath(dir));
 }
 
 void JPbox_shader::setup2(string _dir,
@@ -209,7 +209,7 @@ void JPbox_shader::setup2(string _dir,
 		return;
 	}
 
-	datemodified = std::filesystem::last_write_time(dir);
+	datemodified = std::filesystem::last_write_time(ofToDataPath(dir));
 }
 
 void JPbox_shader::setup(string _dir,
@@ -248,7 +248,7 @@ void JPbox_shader::setup(string _dir,
 		return;
 	}
 
-	datemodified = std::filesystem::last_write_time(dir);
+	datemodified = std::filesystem::last_write_time(ofToDataPath(dir));
 }
 
 void JPbox_shader::draw()
@@ -319,7 +319,7 @@ void JPbox_shader::updateFBO()
 	{
 		return;
 	}
-	if (onoff.boolValue)
+	if (onoff.boolValue && shader.isLoaded())
 	{
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		ofSetColor(255, 255);

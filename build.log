@@ -1,0 +1,661 @@
+
+  TransitionSR.cpp
+  jp_midi_keymap.cpp
+  jp_parametergroup.cpp
+  jp_dragobject.cpp
+  jp_fileloader.cpp
+  jp_fbohandler.cpp
+  jp_constants.cpp
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/TransitionSR.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/TransitionSR.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/TransitionSR.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/TransitionSR.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/TransitionSR.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/TransitionSR.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_midi_keymap.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_midi_keymap.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_midi_keymap.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_midi_keymap.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_midi_keymap.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_midi_keymap.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_constants.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_constants.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fbohandler.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fbohandler.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_constants.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_constants.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_constants.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_constants.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fbohandler.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fbohandler.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fbohandler.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fbohandler.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_dragobject.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_dragobject.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fileloader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fileloader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_dragobject.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_dragobject.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_dragobject.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_dragobject.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fileloader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fileloader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fileloader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fileloader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_parametergroup.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_parametergroup.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_parametergroup.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_parametergroup.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_parametergroup.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_parametergroup.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\TransitionSR.cpp(58,2): warning C4996: 'ofRect': Use ofDrawRectangle instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fbohandler.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_constants.cpp(35,8): warning C4996: 'ofTrueTypeFont::loadFont': Use load instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_constants.cpp(36,8): warning C4996: 'ofTrueTypeFont::loadFont': Use load instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_constants.cpp(37,9): warning C4996: 'ofTrueTypeFont::loadFont': Use load instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_midi_keymap.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_fileloader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_parametergroup.cpp(248,24): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_midi_keymap.cpp(699,12): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_midi_keymap.cpp(995,15): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  main.cpp
+  ofApp.cpp
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/ofApp.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/ofApp.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/ofApp.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/ofApp.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/ofApp.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/ofApp.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/main.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/main.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/main.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/main.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/main.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/main.cpp")
+  
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/main.cpp")
+  
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/ofApp.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\ofApp.cpp(75,2): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\ofApp.cpp(8,8): warning C4996: 'ofTrueTypeFont::loadFont': Use load instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\ofApp.cpp(11,11): warning C4996: 'ofTrueTypeFont::loadFont': Use load instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\ofApp.cpp(560,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\ofApp.cpp(1602,11): warning C4996: 'ofxOscReceiver::getNextMessage': Pass a reference instead of a pointer [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\ofApp.cpp(1703,7): warning C4101: 'str': variable local sin referencia [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  jp_knob.cpp
+  jp_controller.cpp
+  jp_bang.cpp
+  jp_slider.cpp
+  jp_toogle.cpp
+  jp_complexslider.cpp
+  jp_tooglelist.cpp
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_bang.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_bang.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_bang.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_bang.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_bang.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_bang.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_tooglelist.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_tooglelist.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_tooglelist.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_tooglelist.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_tooglelist.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_tooglelist.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_complexslider.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_complexslider.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_knob.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_knob.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_complexslider.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_complexslider.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_complexslider.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_complexslider.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_knob.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_knob.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_knob.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_knob.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_toogle.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_toogle.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_toogle.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_toogle.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_toogle.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_toogle.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_controller.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_controller.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_controller.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_controller.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_controller.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_controller.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_slider.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_slider.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_slider.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_slider.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_slider.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPgui/jp_slider.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPgui\jp_tooglelist.cpp(55,2): warning C4996: 'ofRect': Use ofDrawRectangle instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPgui\jp_tooglelist.cpp(73,4): warning C4996: 'ofRotate': Use ofRotateDeg or ofRotateRad [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPgui\jp_toogle.cpp(69,4): warning C4996: 'ofRotate': Use ofRotateDeg or ofRotateRad [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPgui\jp_toogle.cpp(111,5): warning C4996: 'ofRotate': Use ofRotateDeg or ofRotateRad [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPgui\jp_bang.cpp(43,2): warning C4996: 'ofRect': Use ofDrawRectangle instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPgui\jp_toogle.cpp(168,3): warning C4996: 'ofRect': Use ofDrawRectangle instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPgui\jp_knob.cpp(58,6): warning C4551: la llamada a la función no tiene lista de argumentos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPgui\jp_knob.cpp(88,10): warning C4101: 'prevalue': variable local sin referencia [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPgui\jp_knob.cpp(98,10): warning C4101: 'prevalue': variable local sin referencia [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  jp_box_ndi.cpp
+  jp_box_shader.cpp
+  jp_box.cpp
+  jp_box_framedifference.cpp
+  jp_box_image.cpp
+  jp_box_cam.cpp
+  JPboxgroup.cpp
+  jp_box_video.cpp
+  jp_box_preset.cpp
+  jp_box_spout.cpp
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_ndi.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_ndi.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_ndi.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_ndi.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_ndi.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_ndi.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_video.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_video.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_video.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_video.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_video.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_video.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_spout.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_spout.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_spout.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_spout.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_spout.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_spout.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_image.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_image.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_shader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_shader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_image.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_image.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_image.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_image.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_shader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_shader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_shader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_shader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_framedifference.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_framedifference.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_framedifference.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_framedifference.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_framedifference.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_framedifference.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_preset.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_preset.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_preset.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_preset.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_preset.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_preset.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(326,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_cam.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(331,20): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_cam.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(912,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_cam.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(913,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_cam.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(914,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_cam.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\libs\openFrameworks\math\ofMatrix4x4.h(915,11): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_cam.cpp")
+  
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_ndi.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_video.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_video.cpp(94,5): warning C4996: 'ofFbo::destroy': Use clear() instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_spout.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_shader.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_shader.cpp(149,13): warning C4101: 'e': variable local sin referencia [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_shader.cpp(189,13): warning C4101: 'e': variable local sin referencia [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_shader.cpp(228,13): warning C4101: 'e': variable local sin referencia [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_shader.cpp(305,5): warning C4996: 'ofFbo::destroy': Use clear() instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_shader.cpp(331,3): warning C4996: 'ofRect': Use ofDrawRectangle instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_image.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_framedifference.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_image.cpp(8,5): warning C4996: 'ofImage_<unsigned char>::loadImage': Use load instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_image.cpp(15,5): warning C4996: 'ofImage_<unsigned char>::loadImage': Use load instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_framedifference.cpp(56,4): warning C4996: 'ofRect': Use ofDrawRectangle instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_image.cpp(45,6): warning C4996: 'ofImage_<unsigned char>::loadImage': Use load instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_framedifference.cpp(199,5): warning C4996: 'ofFbo::destroy': Use clear() instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_image.cpp(109,5): warning C4996: 'ofFbo::destroy': Use clear() instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box.cpp")
+  
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_ndi.cpp(63,5): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_ndi.cpp(152,5): warning C4996: 'ofFbo::destroy': Use clear() instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_preset.cpp")
+  
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\filesystem(12): warning STL4038: The contents of <filesystem> are available only with C++17 or later. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPutils\jp_fbohandler.h(139,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_cam.cpp")
+  
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_cam.cpp(49,35): warning C4267: '=': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_cam.cpp(84,12): warning C4996: 'ofVideoGrabber::initGrabber': Use setup instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_cam.cpp(143,5): warning C4996: 'ofFbo::destroy': Use clear() instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_spout.cpp(77,4): warning C4996: 'sprintf': This function or variable may be unsafe. Consider using sprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_spout.cpp(149,4): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_spout.cpp(242,5): warning C4996: 'ofFbo::destroy': Use clear() instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(256,4): warning C4996: 'ofRectRounded': Use ofDrawRectRounded instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(255,15): warning C4101: 'CENTER': variable local sin referencia [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(755,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(757,14): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(843,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(899,13): warning C4101: 'aux': variable local sin referencia [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(995,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box.cpp(39,3): warning C4996: 'ofRectRounded': Use ofDrawRectRounded instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(1210,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(1212,14): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(1374,14): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box.cpp(189,2): warning C4996: 'ofRectRounded': Use ofDrawRectRounded instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box.cpp(208,2): warning C4996: 'ofRectRounded': Use ofDrawRectRounded instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box.cpp(361,2): warning C4996: 'ofRotate': Use ofRotateDeg or ofRotateRad [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(1488,14): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box.cpp(394,5): warning C4996: 'ofFbo::destroy': Use clear() instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(2192,22): warning C4267: '=': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(2220,23): warning C4267: '=': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_preset.cpp(157,14): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\jp_box_preset.cpp(192,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(3356,14): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(3454,14): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(3876,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(4010,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(4684,19): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(5107,4): warning C4996: 'ofRectRounded': Use ofDrawRectRounded instead [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\src\JPbox\JPboxgroup.cpp(5106,15): warning C4101: 'CENTER': variable local sin referencia [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(787,5): error MSB6003: No se pudo ejecutar la tarea ejecutable especificada "CL.exe". System.IO.IOException: El proceso no puede obtener acceso al archivo 'D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\obj\x64\Release\guipper.tlog\CL.read.1.tlog' porque está siendo utilizado en otro proceso. [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(787,5): error MSB6003:    en System.IO.__Error.WinIOError(Int32 errorCode, String maybeFullPath) [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(787,5): error MSB6003:    en System.IO.FileStream.Init(String path, FileMode mode, FileAccess access, Int32 rights, Boolean useRights, FileShare share, Int32 bufferSize, FileOptions options, SECURITY_ATTRIBUTES secAttrs, String msgPath, Boolean bFromProxy, Boolean useLongPath, Boolean checkHost) [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(787,5): error MSB6003:    en System.IO.FileStream..ctor(String path, FileMode mode, FileAccess access, FileShare share, Int32 bufferSize, FileOptions options, String msgPath, Boolean bFromProxy, Boolean useLongPath, Boolean checkHost) [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(787,5): error MSB6003:    en System.IO.StreamWriter.CreateFile(String path, Boolean append, Boolean checkHost) [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(787,5): error MSB6003:    en System.IO.StreamWriter..ctor(String path, Boolean append, Encoding encoding, Int32 bufferSize, Boolean checkHost) [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(787,5): error MSB6003:    en System.IO.File.InternalWriteAllText(String path, String contents, Encoding encoding, Boolean checkHost) [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(787,5): error MSB6003:    en Microsoft.Build.Utilities.CanonicalTrackedInputFiles.SaveTlog(DependencyFilter includeInTLog) [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(787,5): error MSB6003:    en Microsoft.Build.CPPTasks.CL.PostExecuteTool(Int32 exitCode) [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(787,5): error MSB6003:    en Microsoft.Build.CPPTasks.TrackedVCToolTask.ExecuteTool(String pathToTool, String responseFileCommands, String commandLineCommands) [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(787,5): error MSB6003:    en Microsoft.Build.CPPTasks.CL.ExecuteTool(String pathToTool, String responseFileCommands, String commandLineCommands) [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(787,5): error MSB6003:    en Microsoft.Build.Utilities.ToolTask.Execute() [D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj]

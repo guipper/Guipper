@@ -883,7 +883,7 @@ void JPboxgroup::update(){
 		// PARA QUE RECARGUE EL SHADER AUTOMATICAMENTE PAP�.
 		if (!jp_constants::systemDialog_open && boxes[i]->getTipo() == boxes[i]->SHADERBOX){
 			if (ofFile(boxes[i]->dir).exists()){
-				auto lasttimemodified = std::filesystem::last_write_time(boxes[i]->dir);
+				auto lasttimemodified = std::filesystem::last_write_time(ofToDataPath(boxes[i]->dir));
 				if (lasttimemodified != boxes[i]->datemodified){
 					//	cout << "RELOAD SHADER " << endl;
 					// cout << "-------------------------------------" << endl;

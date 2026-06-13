@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<activerender>0</activerender>
+<box>
+	<nombre>artlab6</nombre>
+	<x>141</x>
+	<y>189</y>
+	<directory>data\savefiles\justvisuals\artlab6.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>

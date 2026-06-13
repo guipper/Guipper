@@ -269,7 +269,17 @@ void ofApp::draw_instrucciones() {
 	es[esLines++] = "/openguinumber/(value) : Control de active";
 	es[esLines++] = "/(shader)/(param) : Control por nombre";
 	es[esLines++] = "";
-	es[esLines++] = "Click en esta pantalla para cambiar idioma";
+	es[esLines++] = "UNIFORMES GLOBALES DISPONIBLES:";
+	es[esLines++] = "uniform float time;";
+	es[esLines++] = "uniform vec2  resolution;";
+	es[esLines++] = "uniform float bpm;";
+	es[esLines++] = "uniform vec4  mouse;";
+	es[esLines++] = "uniform vec2  window_mouse;";
+	es[esLines++] = "uniform int   globalframeNum;";
+	es[esLines++] = "uniform int   boxframeNum;";
+	es[esLines++] = "uniform sampler2D feedback;";
+	es[esLines++] = "";
+	es[esLines++] = "Boton [Lang] en la esquina para cambiar idioma";
 
 	// ENGLISH
 	en[enLines++] = "INSTRUCTIONS";
@@ -310,7 +320,17 @@ void ofApp::draw_instrucciones() {
 	en[enLines++] = "/openguinumber/(value) : Control active";
 	en[enLines++] = "/(shader)/(param) : Control by name";
 	en[enLines++] = "";
-	en[enLines++] = "Click this screen to switch language";
+	en[enLines++] = "AVAILABLE GLOBAL UNIFORMS:";
+	en[enLines++] = "uniform float time;";
+	en[enLines++] = "uniform vec2  resolution;";
+	en[enLines++] = "uniform float bpm;";
+	en[enLines++] = "uniform vec4  mouse;";
+	en[enLines++] = "uniform vec2  window_mouse;";
+	en[enLines++] = "uniform int   globalframeNum;";
+	en[enLines++] = "uniform int   boxframeNum;";
+	en[enLines++] = "uniform sampler2D feedback;";
+	en[enLines++] = "";
+	en[enLines++] = "Use [Lang] button at top-right to switch language";
 
 	int maxLines = (language == 0) ? esLines : enLines;
 	string* lines = (language == 0) ? es : en;
@@ -335,6 +355,24 @@ void ofApp::draw_instrucciones() {
 	ofSetColor(0, 230, 230);
 	font_p.drawString(lines[0], panelX + 15, panelY + 30);
 
+	// Language toggle button (top-right of panel)
+	float langBtnW = 52;
+	float langBtnH = 22;
+	float langBtnX = panelX + panelW - langBtnW - 15;
+	float langBtnY = panelY + 13;
+	string langLabel = (language == 0) ? "EN" : "ES";
+	ofSetColor(language == 0 ? ofColor(0, 180, 80) : ofColor(0, 120, 180));
+	ofDrawRectRounded(langBtnX, langBtnY, langBtnW, langBtnH, 4.0f);
+	ofNoFill();
+	ofSetColor(0, 230, 230);
+	ofSetLineWidth(1.5f);
+	ofDrawRectRounded(langBtnX, langBtnY, langBtnW, langBtnH, 4.0f);
+	ofFill();
+	ofSetLineWidth(1.0f);
+	ofSetColor(255);
+	float lw = font_p.stringWidth(langLabel);
+	font_p.drawString(langLabel, langBtnX + langBtnW / 2 - lw / 2, langBtnY + 16);
+
 	float drawY = panelY + 55;
 	for (int i = 0; i < maxLines; i++) {
 		if (drawY > panelY + panelH - 15) break;
@@ -347,20 +385,25 @@ void ofApp::draw_instrucciones() {
 
 		// Section headers (TECLAS:, COMANDOS OSC:)
 		if (line.find("TECLAS:") != string::npos || line.find("KEYS:") != string::npos ||
-			line.find("COMANDOS OSC") != string::npos || line.find("OSC COMMANDS") != string::npos) {
+			line.find("COMANDOS OSC") != string::npos || line.find("OSC COMMANDS") != string::npos ||
+			line.find("UNIFORMES GLOBALES") != string::npos || line.find("AVAILABLE GLOBAL") != string::npos) {
 			ofSetColor(0, 230, 230);
 			font_p.drawString(line, panelX + 15, drawY);
+		}
+		// Uniform declarations — dim cyan
+		else if (line.rfind("uniform ", 0) == 0) {
+			ofSetColor(100, 160, 180);
+			font_p.drawString(line, panelX + 25, drawY);
 		}
 		// First instruction line
 		else if (line.find("Cargar") != string::npos || line.find("Drag any") != string::npos) {
 			ofSetColor(180, 190, 200);
 			font_p.drawString(line, panelX + 15, drawY);
 		}
-		// Click hint
-		else if (line.find("Click") != string::npos) {
+		// Language toggle hint text (the actual button is at top-right)
+		else if (line.find("[Lang]") != string::npos) {
 			ofSetColor(80, 120, 140);
-			float lw = font_p.stringWidth(line);
-			font_p.drawString(line, panelX + panelW / 2 - lw / 2, drawY);
+			font_p.drawString(line, panelX + 20, drawY);
 		}
 		// Everything else
 		else {
@@ -1154,10 +1197,15 @@ void ofApp::mousePressed(int x, int y, int button) {
 		boxes.update_mousePressed(button);
 	}
 	if (pantallaActiva == TUTORIAL) {
-		if (language == 0) {
-			language = 1;
-		} else if (language == 1) {
-			language = 0;
+		// Language toggle — only click on the top-right button area
+		float panelX = 30, panelY = 30;
+		float panelW = ofGetWidth() - 60;
+		float langBtnW = 52;
+		float langBtnH = 22;
+		float langBtnX = panelX + panelW - langBtnW - 15;
+		float langBtnY = panelY + 13;
+		if (x >= langBtnX && x <= langBtnX + langBtnW && y >= langBtnY && y <= langBtnY + langBtnH) {
+			language = (language == 0) ? 1 : 0;
 		}
 	}
 	if (pantallaActiva == OPCIONES) {
