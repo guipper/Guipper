@@ -53,8 +53,10 @@ public:
 
 	int activeRender;
 
-	/*void setPos(float _x, float _y) {
-	JPdragobject::setPos(_x, _y);
-	//setfbohandler_nodepos();
-	}*/
+	// Exposed parameters: exposedParams[childBoxIndex][paramIndex] = true means exposed
+	vector<vector<bool>> exposedParams;
+	void setExposedParam(int childIndex, int paramIndex, bool exposed);
+	bool isParamExposed(int childIndex, int paramIndex) const;
+	void clearExposedParams();
+	void resizeExposedParams(int numChildren);
 };

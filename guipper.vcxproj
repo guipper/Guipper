@@ -193,6 +193,7 @@
     <ClCompile Include="src\JPgui\jp_bang.cpp" />
     <ClCompile Include="src\JPgui\jp_slider.cpp" />
     <ClCompile Include="src\JPgui\jp_toogle.cpp" />
+    <ClCompile Include="src\JPgui\jp_exposebutton.cpp" />
     <ClCompile Include="src\JPgui\jp_complexslider.cpp" />
     <ClCompile Include="src\JPgui\jp_tooglelist.cpp" />
     <ClCompile Include="src\JPbox\jp_box_ndi.cpp" />
@@ -262,6 +263,7 @@
     <ClInclude Include="src\JPgui\jp_tooglelist.h" />
     <ClInclude Include="src\JPgui\jp_slider.h" />
     <ClInclude Include="src\JPgui\jp_toogle.h" />
+    <ClInclude Include="src\JPgui\jp_exposebutton.h" />
     <ClInclude Include="src\JPgui\jp_controller.h" />
     <ClInclude Include="src\JPgui\jp_bang.h" />
     <ClInclude Include="src\JPbox\jp_box_spout.h" />

@@ -24,6 +24,7 @@
 #include "../JPgui/jp_bang.h"
 #include "../JPgui/jp_toogle.h"
 #include "../JPgui/jp_complexslider.h"
+#include "../JPgui/jp_exposebutton.h"
 // Esta clase como que va a manejar todos los shaderboxs y esas cosas:
 #include "../JPutils/jp_constants.h"
 #include "../JPutils/TransitionSR.h"
@@ -169,6 +170,7 @@ public:
 
 	vector<JPcontroller *> controllers; // ESTE ARRAY ES DINAMICO , QUIERE DECIR QUE DEPENDE DE CUANDO CAMBIEN LOS COSOS
 										// ESTO ES SOLO PARA QUE LERPEE LOS VALORES HACIA ESTO.
+	vector<JPExposeButton *> exposeButtons; // Expose buttons for group view inspector
 	vector<JPbox *> boxes;				// TODOS LOS SHADERRENDERS QUE TIENE EL OBJETO.
 
 	int openguinumber = -1;
@@ -362,4 +364,8 @@ private:
 	//Transition shader render : 
 	JPParameter galleryDurationParam;
 	JPSlider galleryDurationSlider;
+
+	// Exposed slider dragging state
+	int draggedExposedBoxIndex = -1;
+	int draggedExposedParamIndex = -1;
 };

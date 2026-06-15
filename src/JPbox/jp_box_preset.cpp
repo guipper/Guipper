@@ -116,6 +116,31 @@ void JPbox_preset::setup(string _directory, string _name)
 		}
 		boxes.push_back(bx);
 	}
+
+	// Initialize exposedParams based on loaded boxes
+	resizeExposedParams((int)boxes.size());
+
+	// Load exposedParams from XML
+	auto exposedChild = xml.getChild("exposedParams");
+	if (exposedChild)
+	{
+		auto boxNodes = exposedChild.getChildren();
+		for (auto &boxNode : boxNodes)
+		{
+			int childIndex = boxNode.getIntValue();
+			auto paramNodes = boxNode.getChildren();
+			for (auto &paramNode : paramNodes)
+			{
+				int paramIndex = paramNode.getIntValue();
+				if (childIndex >= 0 && childIndex < (int)exposedParams.size() &&
+					paramIndex >= 0 && paramIndex < (int)exposedParams[childIndex].size())
+				{
+					exposedParams[childIndex][paramIndex] = true;
+				}
+			}
+		}
+	}
+
 	// Una vez que cargo todas las cajitas les cargamos los links :
 	// Mira lo que esta este algoritmo para levantar los links entre cajitas papa !!!
 	int index1 = 0;
@@ -187,6 +212,43 @@ void JPbox_preset::draw()
 	JPbox::draw_outlet();
 }
 
+void JPbox_preset::setExposedParam(int childIndex, int paramIndex, bool exposed)
+{
+	if (childIndex < 0 || childIndex >= (int)exposedParams.size())
+		return;
+	if (paramIndex < 0 || paramIndex >= (int)exposedParams[childIndex].size())
+		return;
+	exposedParams[childIndex][paramIndex] = exposed;
+}
+
+bool JPbox_preset::isParamExposed(int childIndex, int paramIndex) const
+{
+	if (childIndex < 0 || childIndex >= (int)exposedParams.size())
+		return false;
+	if (paramIndex < 0 || paramIndex >= (int)exposedParams[childIndex].size())
+		return false;
+	return exposedParams[childIndex][paramIndex];
+}
+
+void JPbox_preset::clearExposedParams()
+{
+	exposedParams.clear();
+}
+
+void JPbox_preset::resizeExposedParams(int numChildren)
+{
+	exposedParams.resize(numChildren);
+	for (int i = 0; i < numChildren; i++)
+	{
+		int numParams = 0;
+		if (i >= 0 && i < (int)boxes.size())
+		{
+			numParams = boxes[i]->parameters.getSize();
+		}
+		exposedParams[i].assign(numParams, false);
+	}
+}
+
 void JPbox_preset::clear()
 {
 	for (int i = boxes.size() - 1; i >= 0; i--)
@@ -197,6 +259,7 @@ void JPbox_preset::clear()
 	}
 
 	boxes.clear();
+	exposedParams.clear();
 }
 
 void JPbox_preset::addBox(JPbox &_box)
