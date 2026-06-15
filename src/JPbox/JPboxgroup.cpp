@@ -4760,7 +4760,7 @@ void JPboxgroup::drawTabs()
 	}
 
 	const float tabBarX = 0;
-	const float tabBarY = 0;
+	const float tabBarY = tabBarOffsetY;
 	const float tabHeight = 28;
 	const float tabMinWidth = 90;
 	const float pad = 8;
@@ -4855,9 +4855,9 @@ int JPboxgroup::getTabAtScreenPos(int screenX, int screenY) const
 {
 	vector<vector<int>> presetPaths = collectAllPresetPaths();
 	int totalTabs = 1 + (int)presetPaths.size();
-	const float tabBarY = 0;
+	const float tabBarY = tabBarOffsetY;
 	const float tabHeight = 28;
-	if (totalTabs <= 1 || screenY < tabBarY || screenY > tabBarY + tabHeight + 8)
+	if (totalTabs <= 1 || screenY < tabBarY || screenY > tabBarY + tabHeight + 8 + tabBarOffsetY)
 	{
 		return -1;
 	}

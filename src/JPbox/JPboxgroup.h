@@ -138,6 +138,7 @@ public:
 	// Tab system
 	int activeTab = 0; // 0 = main, 1+ = preset group tabs
 	vector<int> activeGroupPath; // empty = main, [i] = preset at boxes[i], [i,j] = nested preset
+	float tabBarOffsetY = 32; // Offset for screen-level tabs above the boxgroup tabs
 	void drawTabs();
 	int getTabAtScreenPos(int screenX, int screenY) const;
 	bool handleTabClick();

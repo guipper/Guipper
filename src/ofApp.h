@@ -179,6 +179,10 @@ public:
 	int hoveredShaderIndex = -1;
 	bool showShaderHitBoxes = false;
 
+	// Shader index search
+	string shaderSearchText;
+	bool shaderSearchFocused = false;
+
 	// LOAD distribution counter
 	int loadBoxCount = 0;
 

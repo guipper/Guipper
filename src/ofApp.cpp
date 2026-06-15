@@ -49,18 +49,6 @@ void ofApp::setup() {
 
 	loadSettings();
 
-	// Load the default composition if one is configured
-	if (!defaultCompoPath.empty()) {
-		ofFile defaultFile(defaultCompoPath);
-		if (defaultFile.exists()) {
-			cout << "Loading default composition: " << defaultCompoPath << endl;
-			boxes.load(defaultCompoPath);
-			savedirectory = defaultCompoPath;
-		} else {
-			cout << "Default composition not found: " << defaultCompoPath << endl;
-		}
-	}
-
 	ofSetWindowTitle("GUIPPER");
 
 	loadAspreset = true; // Default: drag XML as boxgroup. Press 't' to toggle to full session load.
@@ -121,7 +109,21 @@ void ofApp::setup() {
 	// glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations
 	//ofDisableArbTex(); // needed for textures to work
 	// myTextureImage.loadImage("SpoutBox1.png");			// Load a texture image for the demo
-	loadSession(savedirectory);
+	// Load composition: use defaultCompoPath if configured, otherwise use savedirectory
+	if (!defaultCompoPath.empty()) {
+		ofFile defaultFile(ofToDataPath(defaultCompoPath));
+		if (defaultFile.exists()) {
+			cout << "Loading default composition: " << ofToDataPath(defaultCompoPath) << endl;
+			loadSession(defaultCompoPath);
+			savedirectory = defaultCompoPath;
+			cout << "Loaded, boxes: " << boxes.getBoxesSize() << endl;
+		} else {
+			cout << "Default composition not found, falling back: " << savedirectory << endl;
+			loadSession(savedirectory);
+		}
+	} else {
+		loadSession(savedirectory);
+	}
 	midiKeymap.load(ofToDataPath("midi_keymap.xml"));
 }
 void ofApp::update() {
@@ -888,8 +890,53 @@ void ofApp::draw_shaderindex() {
 	ofSetColor(0, 230, 230, 40);
 	ofDrawLine(dividerX, panelY + 60, dividerX, panelY + panelH - 20);
 
+	// ---- SEARCH BAR ----
+	float searchH = 22;
+	float searchY = y + 8;
+	float searchW = listW;
+
+	ofSetColor(25, 30, 35);
+	ofDrawRectRounded(listX, searchY, searchW, searchH, 4);
+	ofNoFill();
+	ofSetColor(0, 230, 230, shaderSearchFocused ? 120 : 50);
+	ofSetLineWidth(1.0f);
+	ofDrawRectRounded(listX, searchY, searchW, searchH, 4);
+	ofFill();
+	ofSetLineWidth(1.0f);
+
+	ofSetColor(80, 90, 100);
+	float searchLabelX = listX + 5;
+	string searchLabel = language == 0 ? "Search:" : "Buscar:";
+	font_p.drawString(searchLabel, searchLabelX, searchY + searchH - 5);
+
+	float textX = searchLabelX + font_p.stringWidth(searchLabel) + 3;
+	float textMaxW = searchW - (textX - listX) - 5;
+	string displayText = shaderSearchText;
+	// Truncate text if it exceeds available width
+	if (font_p.stringWidth(displayText) > textMaxW) {
+		while (!displayText.empty() && font_p.stringWidth(displayText) > textMaxW) {
+			displayText = displayText.substr(1);
+		}
+		displayText = ".." + displayText;
+	}
+
+	if (shaderSearchText.empty()) {
+		ofSetColor(60, 65, 70);
+		string ph = language == 0 ? "type shader name..." : "escribe nombre...";
+		font_p.drawString(ph, textX, searchY + searchH - 5);
+	} else {
+		ofSetColor(255);
+		font_p.drawString(displayText, textX, searchY + searchH - 5);
+		// Cursor blink
+		if (shaderSearchFocused && ((int)(ofGetElapsedTimef() * 2) % 2 == 0)) {
+			float cursorX = textX + font_p.stringWidth(displayText);
+			ofSetColor(0, 230, 230);
+			ofDrawLine(cursorX, searchY + 3, cursorX, searchY + searchH - 3);
+		}
+	}
+
 	// ---- FOLDER LIST ----
-	float drawTop = y + 6;
+	float drawTop = searchY + searchH + 20;
 	float drawBottom = panelY + panelH - 20;
 	float folderEntryH = 16;
 	float shaderEntryH = 14;
@@ -901,9 +948,35 @@ void ofApp::draw_shaderindex() {
 	// Calculate total visible lines for scroll
 	int totalLines = 0;
 	for (size_t f = 0; f < shaderFolders.size(); f++) {
-		totalLines++; // folder header
-		if (shaderFolders[f].expanded) {
-			totalLines += (int)shaderFolders[f].shaders.size();
+		// When searching, only count folders/shaders that match
+		bool searchActive = !shaderSearchText.empty();
+		if (searchActive) {
+			string searchLower = ofToLower(shaderSearchText);
+			string folderNameLower = ofToLower(shaderFolders[f].name);
+			bool folderMatch = folderNameLower.find(searchLower) != string::npos;
+			bool hasMatch = folderMatch;
+			if (!hasMatch) {
+				for (size_t ss = 0; ss < shaderFolders[f].shaders.size(); ss++) {
+					if (ofToLower(shaderFolders[f].shaders[ss].name).find(searchLower) != string::npos) {
+						hasMatch = true;
+						break;
+					}
+				}
+			}
+			if (!hasMatch) continue;
+			totalLines++; // folder header (always shown when match)
+			// Count only matching shaders
+			for (size_t ss = 0; ss < shaderFolders[f].shaders.size(); ss++) {
+				string sn = ofToLower(shaderFolders[f].shaders[ss].name);
+				if (folderMatch || sn.find(searchLower) != string::npos) {
+					totalLines++;
+				}
+			}
+		} else {
+			totalLines++; // folder header
+			if (shaderFolders[f].expanded) {
+				totalLines += (int)shaderFolders[f].shaders.size();
+			}
 		}
 	}
 	int visibleCount = (int)((drawBottom - drawTop) / folderEntryH);
@@ -923,6 +996,30 @@ void ofApp::draw_shaderindex() {
 
 	for (size_t f = 0; f < shaderFolders.size(); f++) {
 		if (drawY > drawBottom) break;
+
+		// Search filtering: skip folders with no matching content
+		bool searchActive = !shaderSearchText.empty();
+		bool folderNameMatch = false;
+		bool hasMatchingShader = false;
+		string searchLower = ofToLower(shaderSearchText);
+		if (searchActive) {
+			string folderNameLower = ofToLower(shaderFolders[f].name);
+			folderNameMatch = folderNameLower.find(searchLower) != string::npos;
+			if (!folderNameMatch) {
+				for (size_t ss = 0; ss < shaderFolders[f].shaders.size(); ss++) {
+					string shaderNameLower = ofToLower(shaderFolders[f].shaders[ss].name);
+					if (shaderNameLower.find(searchLower) != string::npos) {
+						hasMatchingShader = true;
+						break;
+					}
+				}
+			}
+			if (!folderNameMatch && !hasMatchingShader) {
+				continue;
+			}
+			// Force-expand when searching
+			shaderFolders[f].expanded = true;
+		}
 
 		// Folder header
 		currentLine++;
@@ -947,16 +1044,40 @@ void ofApp::draw_shaderindex() {
 					ofSetLineWidth(1.0f);
 				}
 
-				if (isHovered && !isSelected) {
+				bool arrowHovered = isHovered;
+				// Draw triangle arrow (right=empty, down=expanded)
+				float arrowSize = 5.0f;
+				float arrowX = listX + arrowSize;
+				float arrowYcenter = drawY - folderEntryH / 2.0f;
+				if (arrowHovered) {
 					ofSetColor(0, 255, 255);
 				} else if (isSelected) {
 					ofSetColor(0, 230, 230);
 				} else {
 					ofSetColor(120, 200, 255);
 				}
-				string arrow = shaderFolders[f].expanded ? "v" : ">";
-				string folderLabel = arrow + string("  ") + shaderFolders[f].name;
-				font_p.drawString(folderLabel, listX, drawY);
+				ofFill();
+				if (shaderFolders[f].expanded) {
+					// Downward triangle (expanded)
+					ofDrawTriangle(arrowX - arrowSize, arrowYcenter - arrowSize * 0.6f,
+							arrowX + arrowSize, arrowYcenter - arrowSize * 0.6f,
+							arrowX, arrowYcenter + arrowSize * 0.6f);
+				} else {
+					// Rightward triangle (collapsed)
+					ofDrawTriangle(arrowX - arrowSize * 0.6f, arrowYcenter - arrowSize,
+							arrowX - arrowSize * 0.6f, arrowYcenter + arrowSize,
+							arrowX + arrowSize * 0.6f, arrowYcenter);
+				}
+				// Folder name after arrow
+				float fnX = listX + arrowSize * 2 + 6;
+				if (arrowHovered) {
+					ofSetColor(0, 255, 255);
+				} else if (isSelected) {
+					ofSetColor(0, 230, 230);
+				} else {
+					ofSetColor(120, 200, 255);
+				}
+				font_p.drawString(shaderFolders[f].name, fnX, drawY);
 
 				// Draw shader count
 				ofSetColor(80, 90, 100);
@@ -971,6 +1092,13 @@ void ofApp::draw_shaderindex() {
 		// Shader entries (if expanded)
 		if (shaderFolders[f].expanded) {
 			for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
+				// Skip non-matching shaders when searching
+				if (searchActive) {
+					string shaderNameLower = ofToLower(shaderFolders[f].shaders[s].name);
+					if (!folderNameMatch && shaderNameLower.find(searchLower) == string::npos) {
+						continue;
+					}
+				}
 				currentLine++;
 				if (currentLine > shaderScroll) {
 					if (drawY + shaderEntryH > drawBottom) break;
@@ -1136,6 +1264,30 @@ void ofApp::keyPressed(int key) {
 			}
 		}
 		return; // consume other keys while focused
+	}
+
+	// Shader index search input
+	if (pantallaActiva == SHADER_INDEX && shaderSearchFocused) {
+		if (key == OF_KEY_BACKSPACE) {
+			if (!shaderSearchText.empty()) {
+				shaderSearchText.erase(shaderSearchText.size() - 1);
+			}
+			return;
+		}
+		if (key == OF_KEY_ESC) {
+			shaderSearchFocused = false;
+			return;
+		}
+		if (key == OF_KEY_RETURN || key == '\r') {
+			return;
+		}
+		// Accept any printable character
+		if (key >= 32 && key <= 126) {
+			shaderSearchText += (char)key;
+			shaderScroll = 0;
+			return;
+		}
+		return;
 	}
 
 	if (key == '1') {
@@ -1594,6 +1746,22 @@ void ofApp::mousePressed(int x, int y, int button) {
 		float previewY = panelY + 70;
 		float previewH = panelH - 80;
 
+		// ---- SEARCH BAR CLICK CHECK ----
+		float searchH = 22;
+		float searchY = panelY + 68;
+		string searchLabel = language == 0 ? "Search:" : "Buscar:";
+		float searchLabelX = listX + 5;
+		float textX = searchLabelX + font_p.stringWidth(searchLabel) + 3;
+		if (x >= listX && x <= listX + listW && y >= searchY && y <= searchY + searchH) {
+			shaderSearchFocused = true;
+			return;
+		}
+		// Click outside search bar unfocuses it
+		if (x < panelX || x > panelX + panelW || y < panelY || y > panelY + panelH) {
+			return;
+		}
+		shaderSearchFocused = false;
+
 		// Check if click is within panel
 		if (x < panelX || x > panelX + panelW || y < panelY || y > panelY + panelH) {
 			return;
@@ -1625,9 +1793,10 @@ void ofApp::mousePressed(int x, int y, int button) {
 		}
 
 		// ---- FOLDER/SHADER LIST (left side) ----
-		double clickStartY = panelY + 66;
+		// Search bar is 22px, list starts after gap, drawTop = searchY + searchH + 20 = panelY + 110
+		double clickStartY = panelY + 110;
 		if (x >= listX && x <= listX + listW && y >= clickStartY && y <= panelY + panelH - 20) {
-			float drawTop = panelY + 66;
+			float drawTop = panelY + 110;
 			float folderEntryH = 16;
 			float shaderEntryH = 14;
 			float indentStep = 12;
@@ -1735,7 +1904,8 @@ void ofApp::mouseMoved(int x, int y) {
 		hoveredShaderFolder = -1;
 		hoveredShaderIndex = -1;
 
-		double clickStartY = panelY + 66;
+		// Search bar offset: drawTop = searchY + searchH + 20 = panelY + 110
+		double clickStartY = panelY + 110;
 		if (x >= listX && x <= listX + listW && y >= clickStartY && y <= panelY + panelH - 20) {
 			float folderEntryH = 16;
 			float shaderEntryH = 14;
