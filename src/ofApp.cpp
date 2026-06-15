@@ -1806,6 +1806,25 @@ void ofApp::mousePressed(int x, int y, int button) {
 			float drawY = drawTop;
 
 			for (size_t f = 0; f < shaderFolders.size(); f++) {
+				// Search filtering: skip folders with no matching content
+				{
+					bool searchActive = !shaderSearchText.empty();
+					if (searchActive) {
+						string searchLower = ofToLower(shaderSearchText);
+						string folderNameLower = ofToLower(shaderFolders[f].name);
+						bool folderMatch = folderNameLower.find(searchLower) != string::npos;
+						bool hasMatch = folderMatch;
+						if (!hasMatch) {
+							for (size_t ss = 0; ss < shaderFolders[f].shaders.size(); ss++) {
+								if (ofToLower(shaderFolders[f].shaders[ss].name).find(searchLower) != string::npos) {
+									hasMatch = true;
+									break;
+								}
+							}
+						}
+						if (!hasMatch) continue;
+					}
+				}
 				currentLine++;
 				if (currentLine > shaderScroll) {
 					float folderTop = drawY - folderEntryH;
@@ -1821,7 +1840,23 @@ void ofApp::mousePressed(int x, int y, int button) {
 				}
 
 				if (shaderFolders[f].expanded) {
+					bool searchActive = !shaderSearchText.empty();
+					string searchLower;
+					string folderNameLower;
+					bool folderMatch = false;
+					if (searchActive) {
+						searchLower = ofToLower(shaderSearchText);
+						folderNameLower = ofToLower(shaderFolders[f].name);
+						folderMatch = folderNameLower.find(searchLower) != string::npos;
+					}
 					for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
+						// Skip non-matching shaders when searching
+						if (searchActive) {
+							string sn = ofToLower(shaderFolders[f].shaders[s].name);
+							if (!folderMatch && sn.find(searchLower) == string::npos) {
+								continue;
+							}
+						}
 						currentLine++;
 						if (currentLine > shaderScroll) {
 							float shaderTop = drawY - shaderEntryH;
@@ -1912,6 +1947,25 @@ void ofApp::mouseMoved(int x, int y) {
 			float drawY = clickStartY;
 
 			for (size_t f = 0; f < shaderFolders.size(); f++) {
+				// Search filtering: skip folders with no matching content
+				{
+					bool searchActive = !shaderSearchText.empty();
+					if (searchActive) {
+						string searchLower = ofToLower(shaderSearchText);
+						string folderNameLower = ofToLower(shaderFolders[f].name);
+						bool folderMatch = folderNameLower.find(searchLower) != string::npos;
+						bool hasMatch = folderMatch;
+						if (!hasMatch) {
+							for (size_t ss = 0; ss < shaderFolders[f].shaders.size(); ss++) {
+								if (ofToLower(shaderFolders[f].shaders[ss].name).find(searchLower) != string::npos) {
+									hasMatch = true;
+									break;
+								}
+							}
+						}
+						if (!hasMatch) continue;
+					}
+				}
 				if (y >= drawY - folderEntryH && y < drawY) {
 					hoveredShaderFolder = (int)f;
 					hoveredShaderIndex = -1;
@@ -1920,7 +1974,23 @@ void ofApp::mouseMoved(int x, int y) {
 				drawY += folderEntryH;
 
 				if (shaderFolders[f].expanded) {
+					bool searchActive = !shaderSearchText.empty();
+					string searchLower;
+					string folderNameLower;
+					bool folderMatch = false;
+					if (searchActive) {
+						searchLower = ofToLower(shaderSearchText);
+						folderNameLower = ofToLower(shaderFolders[f].name);
+						folderMatch = folderNameLower.find(searchLower) != string::npos;
+					}
 					for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
+						// Skip non-matching shaders when searching
+						if (searchActive) {
+							string sn = ofToLower(shaderFolders[f].shaders[s].name);
+							if (!folderMatch && sn.find(searchLower) == string::npos) {
+								continue;
+							}
+						}
 						if (y >= drawY - shaderEntryH && y < drawY) {
 							hoveredShaderFolder = (int)f;
 							hoveredShaderIndex = (int)s;
