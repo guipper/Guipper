@@ -783,10 +783,36 @@ void JPboxgroup::draw_paramswindow()
 										inspectorwindow_x - jp_constants::h_font.stringWidth(name) / 2,
 										inspectorwindow_sepy); // El y de esto esta puesto medio frutanga
 
-		// Draw header buttons in a row
-		inspectorreload.draw();
-		inspectorsetactive.draw();
-		inspectorrandom.draw();
+		// RDM button to the right of the shader name
+		{
+			float nameW = jp_constants::h_font.stringWidth(name);
+			float nameRight = inspectorwindow_x - nameW / 2 + nameW + 12;
+			float btnW = 48;
+			float btnH = 22;
+			float btnY = inspectorwindow_sepy - btnH / 2 + 1;
+			inspectorrandom.x = nameRight + btnW / 2;
+			inspectorrandom.y = btnY;
+			inspectorrandom.width = btnW;
+			inspectorrandom.height = btnH;
+
+			// Draw RDM button background
+			if (inspectorrandom.mouseOver()) {
+				ofSetColor(120, 60, 180);
+			} else {
+				ofSetColor(80, 40, 120);
+			}
+			ofDrawRectRounded(nameRight, btnY, btnW, btnH, 3.0f);
+			ofSetColor(200, 140, 255);
+			ofNoFill();
+			ofSetLineWidth(1.0f);
+			ofDrawRectRounded(nameRight, btnY, btnW, btnH, 3.0f);
+			ofFill();
+			ofSetLineWidth(1.0f);
+			ofSetColor(255);
+			jp_constants::p_font.drawString("RDM",
+				nameRight + btnW / 2 - jp_constants::p_font.stringWidth("RDM") / 2,
+				btnY + btnH / 2 + jp_constants::p_font.stringHeight("RDM") / 2 - 2);
+		}
 
 		int index = 0; // INDICE PARA LOS BOTONES :
 		for (int i = 0; i < controllers.size(); i++)

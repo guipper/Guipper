@@ -189,8 +189,8 @@ void ofApp::update() {
 		previewShader.setUniform1i("boxframeNum", ofGetFrameNum());
 		// Random uniform values for preview (set by RDM button)
 		if (previewRdmActive && !previewRdmValues.empty()) {
-			for (int i = 0; i < (int)previewRdmValues.size(); i++) {
-				previewShader.setUniform1f("rdm" + ofToString(i), previewRdmValues[i]);
+			for (int i = 0; i < (int)previewRdmValues.size() && i < (int)previewUniformNames.size(); i++) {
+				previewShader.setUniform1f(previewUniformNames[i], previewRdmValues[i]);
 			}
 		}
 		// Bind preview textures for imageprocessing/blending shaders
@@ -220,6 +220,7 @@ void ofApp::update() {
 void ofApp::draw() {
 	if (pantallaActiva == NODOS) {
 		boxes.drawNodeEditorBackground(ofGetWidth(), ofGetHeight());
+		drawScreenTabs();
 		boxes.draw();
 		ofSetColor(255, 255, 255, 255);
 		// outletimg.draw(ofGetWidth() / 2, ofGetHeight() / 2, 200, 200);
@@ -228,9 +229,11 @@ void ofApp::draw() {
 		}
 	}
 	else if (pantallaActiva == SHADER_INDEX) {
+		drawScreenTabs();
 		draw_shaderindex();
 	}
 	else {
+		drawScreenTabs();
 		boxes.draw_activerender(ofGetWidth(), ofGetHeight());
 	}
 	if (pantallaActiva == TUTORIAL) {
@@ -1818,13 +1821,55 @@ void ofApp::mousePressed(int x, int y, int button) {
 			float loadX = btnStartX;
 			float rdmX = btnStartX + btnW + btnGap;
 
-			// RDM button - randomize preview uniforms
+			// RDM button - parse shader uniforms and randomize them
 			if (x >= rdmX && x <= rdmX + btnW && y >= btnY && y <= btnY + btnH) {
 				previewRdmActive = true;
-				int numUniforms = 8;
+				// Parse uniform float declarations from the shader
+				string shaderPath = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
+				ofBuffer shaderBuf = ofBufferFromFile(shaderPath);
+				previewUniformNames.clear();
+				previewUniformMins.clear();
+				previewUniformMaxs.clear();
+				for (auto line : shaderBuf.getLines()) {
+					if (line.rfind("uniform", 0) == 0 && line.find("float") != string::npos) {
+						// Extract the uniform name
+						string s = line;
+						vector<string> tokens;
+						string tok;
+						for (char c : s) {
+							if (c == ' ' || c == '\t') {
+								if (!tok.empty()) { tokens.push_back(tok); tok.clear(); }
+							} else {
+								tok += c;
+							}
+						}
+						if (!tok.empty()) tokens.push_back(tok);
+						if (!tokens.empty()) {
+							string &last = tokens.back();
+							if (!last.empty() && last.back() == ';') last.pop_back();
+						}
+						for (int ti = 2; ti < (int)tokens.size(); ti++) {
+							if (tokens[ti] != "=" && tokens[ti] != "float" && tokens[ti] != "uniform") {
+								string uname = tokens[ti];
+								if (uname == "time" || uname == "resolution" || uname == "bpm" ||
+									uname == "mouse" || uname == "window_mouse" ||
+									uname == "globalframeNum" || uname == "boxframeNum" ||
+									uname == "texture1" || uname == "texture2" ||
+									uname == "textura" || uname == "textura1" || uname == "textura2" ||
+									uname == "tex0" || uname == "tex1" || uname == "input_texture" ||
+									uname == "texture") continue;
+								previewUniformNames.push_back(uname);
+								previewUniformMins.push_back(0.0f);
+								previewUniformMaxs.push_back(1.0f);
+								break;
+							}
+						}
+					}
+				}
+				int numUniforms = (int)previewUniformNames.size();
 				previewRdmValues.resize(numUniforms);
 				for (int i = 0; i < numUniforms; i++) {
-					previewRdmValues[i] = ofRandom(0.0f, 1.0f);
+					previewRdmValues[i] = ofRandom(previewUniformMins[i], previewUniformMaxs[i]);
 				}
 				// Rerender preview FBO with random values
 				if (previewFbo.isAllocated()) {
@@ -1843,8 +1888,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 						previewShader.setUniform2f("window_mouse", 0.5, 0.5);
 						previewShader.setUniform1i("globalframeNum", 0);
 						previewShader.setUniform1i("boxframeNum", 0);
-						for (int i = 0; i < numUniforms; i++) {
-							previewShader.setUniform1f("rdm" + ofToString(i), previewRdmValues[i]);
+						// Set random values using actual uniform names from shader
+						for (int i = 0; i < (int)previewUniformNames.size(); i++) {
+							previewShader.setUniform1f(previewUniformNames[i], previewRdmValues[i]);
 						}
 						if (previewImg1.isAllocated()) {
 							previewImg1.getTexture().bind(0);
@@ -1971,6 +2017,46 @@ void ofApp::mousePressed(int x, int y, int button) {
 								previewShaderLoaded = false;
 								if (previewShader.load("shaders/default.vert", shaderPath)) {
 									previewShaderLoaded = true;
+									// Parse user-defined uniform float declarations for RDM
+									previewUniformNames.clear();
+									previewUniformMins.clear();
+									previewUniformMaxs.clear();
+									previewRdmValues.clear();
+									ofBuffer shaderBuf2 = ofBufferFromFile(shaderPath);
+									for (auto line : shaderBuf2.getLines()) {
+										if (line.rfind("uniform", 0) == 0 && line.find("float") != string::npos) {
+											string s = line;
+											vector<string> tokens;
+											string tok;
+											for (char c : s) {
+												if (c == ' ' || c == '\t') { if (!tok.empty()) { tokens.push_back(tok); tok.clear(); } }
+												else { tok += c; }
+											}
+											if (!tok.empty()) tokens.push_back(tok);
+											if (!tokens.empty()) {
+												string &last = tokens.back();
+												if (!last.empty() && last.back() == ';') last.pop_back();
+											}
+											for (int ti = 2; ti < (int)tokens.size(); ti++) {
+												if (tokens[ti] != "=" && tokens[ti] != "float" && tokens[ti] != "uniform") {
+													string uname = tokens[ti];
+													if (uname == "time" || uname == "resolution" || uname == "bpm" ||
+														uname == "mouse" || uname == "window_mouse" ||
+														uname == "globalframeNum" || uname == "boxframeNum" ||
+														uname == "texture1" || uname == "texture2" ||
+														uname == "textura" || uname == "textura1" || uname == "textura2" ||
+														uname == "tex0" || uname == "tex1" || uname == "input_texture" ||
+														uname == "texture") continue;
+													previewUniformNames.push_back(uname);
+													previewUniformMins.push_back(0.0f);
+													previewUniformMaxs.push_back(1.0f);
+													previewRdmValues.push_back(0.0f);
+													break;
+												}
+											}
+										}
+									}
+									previewRdmActive = false;
 									if (!previewFbo.isAllocated()) {
 										previewFbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
 									}
@@ -2681,13 +2767,6 @@ void ofApp::drawScreenTabs() {
 		{"HELP", TUTORIAL},
 		{"IMPORT", SHADER_INDEX}
 	};
-
-	// Tab bar background
-	ofPushStyle();
-	ofSetRectMode(OF_RECTMODE_CORNER);
-	ofSetColor(18, 18, 22, 210);
-	ofDrawRectRounded(tabX + pad, tabY + pad, ofGetWidth() - pad * 2, tabH + gap * 2, 4);
-	ofPopStyle();
 
 	float x = tabX + pad;
 	const float y = tabY + pad;

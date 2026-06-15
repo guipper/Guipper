@@ -185,6 +185,9 @@ public:
 	string shaderSearchText;
 	bool shaderSearchFocused = false;
 	// Preview random values for RDM button
+	vector<string> previewUniformNames;
+	vector<float> previewUniformMins;
+	vector<float> previewUniformMaxs;
 	vector<float> previewRdmValues;
 	bool previewRdmActive = false;
 
