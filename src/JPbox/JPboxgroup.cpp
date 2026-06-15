@@ -2462,16 +2462,21 @@ bool JPboxgroup::setCueByIndex(int index)
 
 bool JPboxgroup::toggleCueByIndex(int index)
 {
+	cout << "toggleCueByIndex(" << index << ") boxes.size=" << boxes.size() << endl;
 	if (index < 0 || index >= boxes.size())
 	{
+		cout << "  -> index out of range, clearCue" << endl;
 		clearCue();
 		return true;
 	}
+	cout << "  hasCue=" << hasCue() << " sourceIndex=" << cueState.sourceIndex << endl;
 	if (hasCue() && cueState.sourceIndex == index)
 	{
+		cout << "  -> same index, clearing" << endl;
 		clearCue();
 		return true;
 	}
+	cout << "  -> calling setCueByIndex" << endl;
 	return setCueByIndex(index);
 }
 

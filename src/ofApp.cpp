@@ -1140,9 +1140,12 @@ void ofApp::keyPressed(int key) {
 		}
 
 		if (key == 'z') {
+			cout << "Z PRESSED: pantallaActiva=" << pantallaActiva << " saveModalActive=" << saveModalActive << " focusedOptionsField=" << focusedOptionsField;
 			if (boxes.isGroupViewActive()) {
+				cout << " groupView=TRUE groupInspectorIndex=" << boxes.groupInspectorIndex << endl;
 				boxes.toggleCueBoxByIndex(boxes.groupInspectorIndex);
 			} else {
+				cout << " groupView=FALSE openguinumber=" << boxes.openguinumber << " boxes.size=" << boxes.getBoxesSize() << endl;
 				boxes.toggleCueBoxByIndex(boxes.openguinumber);
 			}
 		}
