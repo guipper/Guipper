@@ -109,6 +109,11 @@ public:
 	bool applyCueDraftToSource();
 	void setCuePanelLayout(float x, float y, float w, float h);
 	void getCuePanelLayout(float &x, float &y, float &w, float &h) const;
+	// CUE target helpers (main boxes or preset boxes depending on context)
+	vector<JPbox *>& getCueTargetBoxes();
+	int getCueTargetBoxSize() const;
+	JPbox *getCueTargetBoxAt(int index) const;
+	int &getCueTargetActiveRender();
 	int getMaxParameterCount() const;
 	bool setOpenBoxParameterAtIndex(int parameterIndex, float value);
 	bool setLastBoxOnOff(bool value);
@@ -202,6 +207,7 @@ private:
 		JPbox *draftOutputBox = nullptr;
 		int draftOutputRealIndex = -1;
 		int stagedActiveRenderIndex = -1;
+		JPbox_preset *targetPreset = nullptr; // null = main boxes, non-null = preset boxes in group view
 	};
 
 	vector<JPTooglelist *> botones_modo;

@@ -1354,6 +1354,7 @@ void JPMidiKeymap::drawBoxMappingTargets()
 							   (pauseOver ? ofColor(255, 255, 255, 255) : ofColor(255, 255, 255, 170)));
 		ofDrawRectRounded(pausePos.x, pausePos.y, (box->onoff.width + 8) * zoom, (box->onoff.height + 8) * zoom, 4.0f * zoom);
 		ofFill();
+		ofSetRectMode(OF_RECTMODE_CORNER); // restore
 	}
 	JPdragobject::clearMouseOverride();
 }
@@ -1384,6 +1385,7 @@ void JPMidiKeymap::drawInspectorMappingTargets()
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		ofDrawRectRounded(controller->x, controller->y, controller->width + 8, controller->height + 8, 4.0f);
 		ofFill();
+		ofSetRectMode(OF_RECTMODE_CORNER); // restore
 
 		ofSetColor(bound ? ofColor(0, 255, 120, over ? 255 : 220) :
 						   ofColor(0, 255, 255, over ? 255 : 190));

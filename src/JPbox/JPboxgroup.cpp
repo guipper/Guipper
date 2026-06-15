@@ -2426,7 +2426,7 @@ bool JPboxgroup::setCueFromSelected()
 
 bool JPboxgroup::setCueByIndex(int index)
 {
-	if (index < 0 || index >= boxes.size())
+	if (index < 0 || index >= getCueTargetBoxSize())
 	{
 		clearCue();
 		return false;
@@ -2434,21 +2434,21 @@ bool JPboxgroup::setCueByIndex(int index)
 
 	bool wasInspectorTarget = isCueDraftMode() && openguinumber == cueState.sourceIndex;
 	clearCue();
-	if (wasInspectorTarget && openguinumber >= 0 && openguinumber < boxes.size())
+	if (wasInspectorTarget && openguinumber >= 0 && openguinumber < getCueTargetBoxSize())
 	{
 		setControllers();
 	}
-	if (*activerender >= 0 && *activerender < boxes.size())
+	if (getCueTargetActiveRender() >= 0 && getCueTargetActiveRender() < getCueTargetBoxSize())
 	{
-		if (cueApplySnapshotFbo.getWidth() != boxes[*activerender]->fbo.getWidth() ||
-			cueApplySnapshotFbo.getHeight() != boxes[*activerender]->fbo.getHeight())
+		if (cueApplySnapshotFbo.getWidth() != getCueTargetBoxAt(getCueTargetActiveRender())->fbo.getWidth() ||
+			cueApplySnapshotFbo.getHeight() != getCueTargetBoxAt(getCueTargetActiveRender())->fbo.getHeight())
 		{
-			cueApplySnapshotFbo.allocate(boxes[*activerender]->fbo.getWidth(), boxes[*activerender]->fbo.getHeight());
+			cueApplySnapshotFbo.allocate(getCueTargetBoxAt(getCueTargetActiveRender())->fbo.getWidth(), getCueTargetBoxAt(getCueTargetActiveRender())->fbo.getHeight());
 		}
 		cueApplySnapshotFbo.begin();
 		ofClear(0, 0, 0, 0);
 		ofSetColor(255, 255);
-		boxes[*activerender]->fbo.draw(0, 0, cueApplySnapshotFbo.getWidth(), cueApplySnapshotFbo.getHeight());
+		getCueTargetBoxAt(getCueTargetActiveRender())->fbo.draw(0, 0, cueApplySnapshotFbo.getWidth(), cueApplySnapshotFbo.getHeight());
 		cueApplySnapshotFbo.end();
 	}
 
@@ -2462,8 +2462,8 @@ bool JPboxgroup::setCueByIndex(int index)
 
 bool JPboxgroup::toggleCueByIndex(int index)
 {
-	cout << "toggleCueByIndex(" << index << ") boxes.size=" << boxes.size() << endl;
-	if (index < 0 || index >= boxes.size())
+	cout << "toggleCueByIndex(" << index << ") targetBoxSize=" << getCueTargetBoxSize() << endl;
+	if (index < 0 || index >= getCueTargetBoxSize())
 	{
 		cout << "  -> index out of range, clearCue" << endl;
 		clearCue();
@@ -2489,6 +2489,7 @@ void JPboxgroup::clearCue()
 	cueState.sourceIndex = -1;
 	cueState.previewIndex = -1;
 	cueState.stagedActiveRenderIndex = -1;
+	cueState.targetPreset = nullptr;
 	cueFullscreenPreview = false;
 	cueMonitorMode = CUE_MONITOR_FINAL_OUTPUT;
 	cuePanelApplyArmed = false;
@@ -2509,8 +2510,8 @@ bool JPboxgroup::applyCue()
 	if (isCueNormalPreviewMode())
 	{
 		if (cueState.stagedActiveRenderIndex >= 0 &&
-			cueState.stagedActiveRenderIndex < boxes.size() &&
-			cueState.stagedActiveRenderIndex != *activerender)
+			cueState.stagedActiveRenderIndex < getCueTargetBoxSize() &&
+			cueState.stagedActiveRenderIndex != getCueTargetActiveRender())
 		{
 			updateTransition(cueState.stagedActiveRenderIndex);
 		}
@@ -2536,12 +2537,49 @@ bool JPboxgroup::setCueBoxByName(string boxName)
 
 bool JPboxgroup::toggleCueBoxByIndex(int index)
 {
+	cout << "toggleCueBoxByIndex(" << index << ") called" << endl;
+	// When in group view, set the target preset for CUE operations
+	if (isGroupViewActive())
+	{
+		cueState.targetPreset = getActivePreset();
+		cout << "  -> targetPreset set for group view" << endl;
+	}
+	else
+	{
+		cueState.targetPreset = nullptr;
+	}
 	return toggleCueByIndex(index);
 }
 
 bool JPboxgroup::hasCueBox() const
 {
 	return hasCue();
+}
+
+// --- CUE target helpers ---
+vector<JPbox *>& JPboxgroup::getCueTargetBoxes()
+{
+	return (cueState.targetPreset != nullptr) ? cueState.targetPreset->boxes : boxes;
+}
+
+int JPboxgroup::getCueTargetBoxSize() const
+{
+	return (cueState.targetPreset != nullptr) ? (int)cueState.targetPreset->boxes.size() : (int)boxes.size();
+}
+
+JPbox *JPboxgroup::getCueTargetBoxAt(int index) const
+{
+	if (index < 0) return nullptr;
+	if (cueState.targetPreset != nullptr)
+	{
+		return (index < (int)cueState.targetPreset->boxes.size()) ? cueState.targetPreset->boxes[index] : nullptr;
+	}
+	return (index < (int)boxes.size()) ? boxes[index] : nullptr;
+}
+
+int &JPboxgroup::getCueTargetActiveRender()
+{
+	return (cueState.targetPreset != nullptr) ? cueState.targetPreset->activeRender : *activerender;
 }
 
 bool JPboxgroup::promoteCueToActive()
@@ -2596,14 +2634,30 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 
 	if (isCueNormalPreviewMode())
 	{
-		if (cueState.sourceIndex < 0 || cueState.sourceIndex >= boxes.size() ||
-			cueState.previewIndex < 0 || cueState.previewIndex >= boxes.size() ||
-			boxes[cueState.sourceIndex] == nullptr || boxes[cueState.previewIndex] == nullptr)
+		if (cueState.sourceIndex < 0 || cueState.sourceIndex >= getCueTargetBoxSize() ||
+			cueState.previewIndex < 0 || cueState.previewIndex >= getCueTargetBoxSize() ||
+			getCueTargetBoxAt(cueState.sourceIndex) == nullptr || getCueTargetBoxAt(cueState.previewIndex) == nullptr)
 		{
 			clearCue();
 			return false;
 		}
 		return true;
+	}
+
+	if (!isCueDraftMode())
+	{
+		return false;
+	}
+	// Rebuild the draft graph — check all draft real indices are still valid
+	for (int i = 0; i < (int)cueState.draftRealIndices.size(); i++)
+	{
+		int realIndex = cueState.draftRealIndices[i];
+		if (realIndex < 0 || realIndex >= getCueTargetBoxSize() ||
+			getCueTargetBoxAt(realIndex) == nullptr || cueState.draftBoxes[i] == nullptr)
+		{
+			clearCue();
+			return false;
+		}
 	}
 
 	if (!isCueDraftMode())
@@ -2739,7 +2793,7 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 
 bool JPboxgroup::beginCueDraftForActiveShader()
 {
-	return beginCueDraftForBoxIndex(*activerender);
+	return beginCueDraftForBoxIndex(getCueTargetActiveRender());
 }
 
 void JPboxgroup::clearCueDraft()
@@ -2776,33 +2830,36 @@ bool JPboxgroup::applyCueDraftToSource()
 	int sourceIndex = cueState.sourceIndex;
 	bool draftWasInspectorTarget = getCueDraftBoxForRealIndex(openguinumber) != nullptr;
 	int stagedActiveIndex = cueState.stagedActiveRenderIndex;
-	if (stagedActiveIndex < 0 || stagedActiveIndex >= boxes.size())
+	int targetSize = getCueTargetBoxSize();
+	int targetActiveRender = getCueTargetActiveRender();
+	if (stagedActiveIndex < 0 || stagedActiveIndex >= targetSize)
 	{
-		stagedActiveIndex = *activerender;
+		stagedActiveIndex = targetActiveRender;
 	}
-	bool activeRenderChanged = stagedActiveIndex != *activerender;
+	bool activeRenderChanged = stagedActiveIndex != targetActiveRender;
 	if (cueState.dirtyDraftRealIndices.empty() && !activeRenderChanged)
 	{
 		return true;
 	}
-	if (*activerender >= 0 && *activerender < boxes.size() &&
-		(cueApplySnapshotFbo.getWidth() != boxes[*activerender]->fbo.getWidth() ||
-		 cueApplySnapshotFbo.getHeight() != boxes[*activerender]->fbo.getHeight()))
+	if (targetActiveRender >= 0 && targetActiveRender < targetSize &&
+		(cueApplySnapshotFbo.getWidth() != getCueTargetBoxAt(targetActiveRender)->fbo.getWidth() ||
+		 cueApplySnapshotFbo.getHeight() != getCueTargetBoxAt(targetActiveRender)->fbo.getHeight()))
 	{
-		cueApplySnapshotFbo.allocate(boxes[*activerender]->fbo.getWidth(), boxes[*activerender]->fbo.getHeight());
+		cueApplySnapshotFbo.allocate(getCueTargetBoxAt(targetActiveRender)->fbo.getWidth(), getCueTargetBoxAt(targetActiveRender)->fbo.getHeight());
 	}
-	if (*activerender >= 0 && *activerender < boxes.size())
+	if (targetActiveRender >= 0 && targetActiveRender < targetSize)
 	{
 		cueApplySnapshotFbo.begin();
 		ofClear(0, 0, 0, 0);
 		ofSetColor(255, 255);
-		boxes[*activerender]->fbo.draw(0, 0, cueApplySnapshotFbo.getWidth(), cueApplySnapshotFbo.getHeight());
+		getCueTargetBoxAt(targetActiveRender)->fbo.draw(0, 0, cueApplySnapshotFbo.getWidth(), cueApplySnapshotFbo.getHeight());
 		cueApplySnapshotFbo.end();
 	}
 
 	vector<int> dirtyIndices = cueState.dirtyDraftRealIndices;
 	vector<int> deletedIndices = getCueDirtyIndices(CUE_DIRTY_DELETED);
 	std::sort(deletedIndices.begin(), deletedIndices.end(), std::greater<int>());
+	vector<JPbox*> &targetBoxes = getCueTargetBoxes();
 	for (int i = 0; i < dirtyIndices.size(); i++)
 	{
 		int realIndex = dirtyIndices[i];
@@ -2812,20 +2869,20 @@ bool JPboxgroup::applyCueDraftToSource()
 			continue;
 		}
 		int draftIndex = findCueDraftCloneIndexForRealIndex(realIndex);
-		if (realIndex < 0 || realIndex >= boxes.size() ||
+		if (realIndex < 0 || realIndex >= targetSize ||
 			draftIndex < 0 || draftIndex >= cueState.draftBoxes.size() ||
-			boxes[realIndex] == nullptr || cueState.draftBoxes[draftIndex] == nullptr)
+			targetBoxes[realIndex] == nullptr || cueState.draftBoxes[draftIndex] == nullptr)
 		{
 			continue;
 		}
 		if ((flags & (CUE_DIRTY_PARAMS | CUE_DIRTY_ADDED)) != 0)
 		{
-			copyParametersByNameOrIndex(boxes[realIndex]->parameters, cueState.draftBoxes[draftIndex]->parameters);
+			copyParametersByNameOrIndex(targetBoxes[realIndex]->parameters, cueState.draftBoxes[draftIndex]->parameters);
 		}
 		if ((flags & (CUE_DIRTY_BYPASS_PAUSE | CUE_DIRTY_ADDED)) != 0)
 		{
-			boxes[realIndex]->setonoff(cueState.draftBoxes[draftIndex]->getonoff());
-			boxes[realIndex]->setBypass(cueState.draftBoxes[draftIndex]->getBypass());
+			targetBoxes[realIndex]->setonoff(cueState.draftBoxes[draftIndex]->getonoff());
+			targetBoxes[realIndex]->setBypass(cueState.draftBoxes[draftIndex]->getBypass());
 		}
 		if ((flags & (CUE_DIRTY_LINKS | CUE_DIRTY_ADDED)) != 0)
 		{
@@ -2836,12 +2893,13 @@ bool JPboxgroup::applyCueDraftToSource()
 	for (int i = 0; i < deletedIndices.size(); i++)
 	{
 		int realIndex = deletedIndices[i];
-		if (realIndex >= 0 && realIndex < boxes.size() && !isCueAddedRealIndex(realIndex))
+		if (realIndex >= 0 && realIndex < targetSize && !isCueAddedRealIndex(realIndex))
 		{
+			// Use main deleteBoxAtIndex for preset boxes, it handles the correct vector
 			deleteBoxAtIndex(realIndex);
 			if (stagedActiveIndex == realIndex)
 			{
-				stagedActiveIndex = *activerender;
+				stagedActiveIndex = targetActiveRender;
 			}
 			else if (stagedActiveIndex > realIndex)
 			{
@@ -2852,26 +2910,26 @@ bool JPboxgroup::applyCueDraftToSource()
 	cueApplyingCommit = false;
 	cueState.cueAddedRealIndices.clear();
 	updateRealBoxesForCueApply();
-	if (stagedActiveIndex >= 0 && stagedActiveIndex < boxes.size())
+	if (stagedActiveIndex >= 0 && stagedActiveIndex < targetSize)
 	{
-		*activerender = stagedActiveIndex;
+		getCueTargetActiveRender() = stagedActiveIndex;
 		transition.setFboPointer1(&cueApplySnapshotFbo);
-		transition.setFboPointer2(&boxes[stagedActiveIndex]->fbo);
+		transition.setFboPointer2(&targetBoxes[stagedActiveIndex]->fbo);
 		transition.setLerpValue(0);
 	}
 
 	bool keepFullscreenPreview = cueFullscreenPreview;
 	CueMonitorMode keepMonitorMode = cueMonitorMode;
 	int rebuildSourceIndex = sourceIndex;
-	if (rebuildSourceIndex < 0 || rebuildSourceIndex >= boxes.size() || boxes[rebuildSourceIndex] == nullptr)
+	if (rebuildSourceIndex < 0 || rebuildSourceIndex >= targetSize || targetBoxes[rebuildSourceIndex] == nullptr)
 	{
 		rebuildSourceIndex = stagedActiveIndex;
 	}
-	if (rebuildSourceIndex < 0 || rebuildSourceIndex >= boxes.size() || boxes[rebuildSourceIndex] == nullptr)
+	if (rebuildSourceIndex < 0 || rebuildSourceIndex >= targetSize || targetBoxes[rebuildSourceIndex] == nullptr)
 	{
-		rebuildSourceIndex = *activerender;
+		rebuildSourceIndex = targetActiveRender;
 	}
-	if (rebuildSourceIndex >= 0 && rebuildSourceIndex < boxes.size() && buildCueDraftGraph(rebuildSourceIndex))
+	if (rebuildSourceIndex >= 0 && rebuildSourceIndex < targetSize && buildCueDraftGraph(rebuildSourceIndex))
 	{
 		cueFullscreenPreview = keepFullscreenPreview;
 		cueMonitorMode = keepMonitorMode;
@@ -2917,14 +2975,14 @@ JPbox *JPboxgroup::getInspectorBox()
 JPbox *JPboxgroup::getCuePreviewBox()
 {
 	if (cueMonitorMode == CUE_MONITOR_SELECTED_BOX &&
-		openguinumber >= 0 && openguinumber < boxes.size())
+		openguinumber >= 0 && openguinumber < getCueTargetBoxSize())
 	{
 		JPbox *draftBox = getCueDraftBoxForRealIndex(openguinumber);
 		if (draftBox != nullptr)
 		{
 			return draftBox;
 		}
-		return boxes[openguinumber];
+		return getCueTargetBoxAt(openguinumber);
 	}
 	if (isCueDraftMode())
 	{
@@ -2935,9 +2993,9 @@ JPbox *JPboxgroup::getCuePreviewBox()
 		return cueState.draftSourceBox;
 	}
 	if (isCueNormalPreviewMode() &&
-		cueState.previewIndex >= 0 && cueState.previewIndex < boxes.size())
+		cueState.previewIndex >= 0 && cueState.previewIndex < getCueTargetBoxSize())
 	{
-		return boxes[cueState.previewIndex];
+		return getCueTargetBoxAt(cueState.previewIndex);
 	}
 	return nullptr;
 }
@@ -2977,12 +3035,12 @@ JPbox *JPboxgroup::getEditableBoxForRealIndex(int index)
 
 bool JPboxgroup::beginCueDraftForBoxIndex(int index)
 {
-	if (index < 0 || index >= boxes.size() || boxes.empty() ||
-		*activerender < 0 || *activerender >= boxes.size())
+	if (index < 0 || index >= getCueTargetBoxSize() || getCueTargetBoxSize() == 0 ||
+		getCueTargetActiveRender() < 0 || getCueTargetActiveRender() >= getCueTargetBoxSize())
 	{
 		return false;
 	}
-	if (boxes[index] == nullptr)
+	if (getCueTargetBoxAt(index) == nullptr)
 	{
 		return false;
 	}
@@ -2991,8 +3049,8 @@ bool JPboxgroup::beginCueDraftForBoxIndex(int index)
 
 bool JPboxgroup::buildCueDraftGraph(int sourceIndex)
 {
-	if (sourceIndex < 0 || sourceIndex >= boxes.size() ||
-		boxes[sourceIndex] == nullptr)
+	if (sourceIndex < 0 || sourceIndex >= getCueTargetBoxSize() ||
+		getCueTargetBoxAt(sourceIndex) == nullptr)
 	{
 		clearCueDraft();
 		cueState.mode = CUE_NONE;
@@ -3004,9 +3062,10 @@ bool JPboxgroup::buildCueDraftGraph(int sourceIndex)
 	bool draftWasInspectorTarget = isCueDraftMode() && openguinumber == cueState.sourceIndex;
 	clearCueDraft();
 
-	for (int realIndex = 0; realIndex < boxes.size(); realIndex++)
+	vector<JPbox*> &targetBoxes = getCueTargetBoxes();
+	for (int realIndex = 0; realIndex < (int)targetBoxes.size(); realIndex++)
 	{
-		if (boxes[realIndex] == nullptr)
+		if (targetBoxes[realIndex] == nullptr)
 		{
 			continue;
 		}
@@ -3038,7 +3097,7 @@ bool JPboxgroup::buildCueDraftGraph(int sourceIndex)
 	cueState.mode = cueState.draftSourceBox != nullptr ? CUE_DRAFT_CHAIN : CUE_NONE;
 	cueState.sourceIndex = sourceIndex;
 	cueState.previewIndex = -1;
-	cueState.stagedActiveRenderIndex = *activerender;
+	cueState.stagedActiveRenderIndex = getCueTargetActiveRender();
 	setCueStagedActiveRenderIndex(cueState.stagedActiveRenderIndex);
 	cueFullscreenPreview = false;
 	rewireCueDraftGraph();
@@ -3095,12 +3154,12 @@ bool JPboxgroup::collectCueDraftPath(int currentIndex, int activeIndex, vector<i
 
 JPbox *JPboxgroup::cloneBoxForCueDraft(int index)
 {
-	if (index < 0 || index >= boxes.size() || boxes[index] == nullptr)
+	if (index < 0 || index >= getCueTargetBoxSize() || getCueTargetBoxAt(index) == nullptr)
 	{
 		return nullptr;
 	}
 
-	JPbox *source = boxes[index];
+	JPbox *source = getCueTargetBoxAt(index);
 	JPbox *draft = nullptr;
 	const int type = source->getTipo();
 	if (type == source->SHADERBOX ||
@@ -3201,21 +3260,17 @@ bool JPboxgroup::isCueNormalPreviewMode() const
 
 bool JPboxgroup::setCueStagedActiveRenderIndex(int index)
 {
-	if (!hasCue() || index < 0 || index >= boxes.size() || boxes[index] == nullptr)
+	if (!hasCue() || index < 0 || index >= getCueTargetBoxSize() || getCueTargetBoxAt(index) == nullptr)
 	{
 		return false;
 	}
 	cueState.stagedActiveRenderIndex = index;
-	cueState.draftOutputRealIndex = index;
-	int outputCloneIndex = findCueDraftCloneIndexForRealIndex(index);
-	cueState.draftOutputBox = outputCloneIndex >= 0 && outputCloneIndex < cueState.draftBoxes.size()
-								  ? cueState.draftBoxes[outputCloneIndex]
-								  : getCueDraftBoxForRealIndex(cueState.sourceIndex);
-	if (cueState.draftOutputBox == nullptr && index >= 0 && index < boxes.size())
+	if (cueState.draftOutputBox == nullptr && index >= 0 && index < getCueTargetBoxSize())
 	{
-		cueState.draftOutputBox = boxes[index];
+		cueState.draftOutputBox = getCueTargetBoxAt(index);
 	}
-	return true;
+	markCueDraftDirty(cueState.sourceIndex, CUE_DIRTY_STAGED_ACTIVE);
+	return false;
 }
 
 void JPboxgroup::markCueDraftDirty(int index, unsigned int flags)

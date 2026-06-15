@@ -255,11 +255,54 @@ Cambios:
 | 5 | Unificar update_mouseReleased | COMPLETED | |
 | 6 | Unificar draw() y drawGroupView() | COMPLETED | |
 | 7 | Limpiar header y zoom/pan | COMPLETED | |
-| 8 | Compilar y probar | COMPLETED (0 errores compilacion) | |
+| 9 | CUE en GROUP VIEW (TABS) | IN PROGRESS | |
 
 ---
 
 ## Notas de implementacion
 
-(Se va a llenar a medida que avancemos)
+### FASE 9: Hacer CUE funcionar en GROUP VIEW (TABS)
+
+**Problema detectado:**
+Todo el sistema CUE (toggleCueByIndex, setCueByIndex, beginCueDraftForBoxIndex, buildCueDraftGraph, cloneBoxForCueDraft, applyCueDraftToSource, etc.) opera SIEMPRE sobre el vector `boxes` (main). Cuando el usuario esta en group view y presiona 'z', se llama `toggleCueBoxByIndex(groupInspectorIndex)` que intenta operar sobre `boxes[groupInspectorIndex]` en vez de `preset->boxes[groupInspectorIndex]`. O referencias a indices incorrectos, o modifica boxes del main.
+
+**Solucion: Parametrizar el sistema CUE segun el contexto**
+
+Agregar a CueState un flag `targetPreset` que indique si el CUE opera sobre un preset. Crear helpers que devuelvan la referencia al vector y al activeRender correctos segun el contexto.
+
+**Funciones a modificar (~30 funciones):**
+
+| Funcion | Referencia actual | Reemplazar con |
+|---------|------------------|----------------|
+| `toggleCueByIndex` | `boxes.size()` | `getCueBoxSize()` |
+| `setCueByIndex` | `boxes.size()`, `boxes[...]`, `*activerender` | helpers |
+| `beginCueDraftForBoxIndex` | `boxes.size()`, `*activerender` | helpers |
+| `buildCueDraftGraph` | `boxes.size()`, `boxes[...]`, iteracion | helpers |
+| `cloneBoxForCueDraft` | `boxes[index]` | `getCueBox(index)` |
+| `applyCueDraftToSource` | `boxes.size()`, `boxes[...]`, `*activerender` | helpers |
+| `getCuePreviewBox` | `boxes[...]` | helper |
+| `getCueDraftBoxForRealIndex` | usa draftRealIndices | OK (ya usa indices del draft) |
+| `findCueDraftCloneIndexForRealIndex` | usa draftRealIndices | OK |
+| `isCueSourceIndex` | usa sourceIndex | OK |
+| Otras ~15 funciones | `boxes.size()`, `boxes[...]` | helpers |
+| `clearCue` | varios | reset targetPreset |
+| `getInspectorBox` | `boxes[...]` | OK (ya maneja group view) |
+| Key handler (ofApp) | `toggleCueBoxByIndex(index)` | Pasar contexto |
+
+**Helper methods a agregar:**
+```cpp
+vector<JPbox*>& getCueTargetBoxes();
+int getCueTargetBoxSize() const;
+JPbox* getCueTargetBoxAt(int index) const;
+int& getCueTargetActiveRender();
+int getCueTargetActiveRenderValue() const;
+```
+
+**Implementacion:**
+1. Agregar `JPbox_preset *targetPreset = nullptr` a CueState en JPboxgroup.h
+2. Agregar helpers en JPboxgroup.h y JPboxgroup.cpp
+3. Reemplazar referencias en ~30 funciones
+4. Modificar `toggleCueByIndex` y `setCueByIndex` para setear targetPreset
+5. Modificar `clearCue` para resetear targetPreset
+6. Actualizar el key handler de ofApp
 

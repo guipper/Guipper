@@ -1857,6 +1857,9 @@ bool ofApp::InitGLtexture(GLuint & texID, unsigned int width, unsigned int heigh
 void ofApp::drawSaveModal() {
 	if (!saveModalActive) return;
 
+	// Ensure CORNER rect mode — node editor (ventana 1) may leave CENTER set
+	ofSetRectMode(OF_RECTMODE_CORNER);
+
 	float w = ofGetWidth();
 	float h = ofGetHeight();
 
