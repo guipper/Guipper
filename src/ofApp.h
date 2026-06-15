@@ -174,6 +174,11 @@ public:
 	bool previewShaderLoaded = false;
 	ofImage previewImg1, previewImg2;
 
+	// Shader index hover state
+	int hoveredShaderFolder = -1;
+	int hoveredShaderIndex = -1;
+	bool showShaderHitBoxes = false;
+
 	// LOAD distribution counter
 	int loadBoxCount = 0;
 
@@ -190,7 +195,7 @@ public:
 	int language = 0;
 
 	// Options screen text fields
-	enum { FIELD_OSC_PORT_IN = 0, FIELD_OSC_PORT_OUT, FIELD_RENDER_WIDTH, FIELD_RENDER_HEIGHT, FIELD_BPM, OPTIONS_FIELD_COUNT };
+	enum { FIELD_OSC_PORT_IN = 0, FIELD_OSC_PORT_OUT, FIELD_RENDER_WIDTH, FIELD_RENDER_HEIGHT, FIELD_BPM, FIELD_OSC_IP_OUT, FIELD_DEFAULT_COMPO, OPTIONS_FIELD_COUNT };
 	string optionsFieldText[OPTIONS_FIELD_COUNT];
 	int focusedOptionsField = -1;
 	void applyOptionsField();
@@ -207,11 +212,15 @@ public:
 	// Track if options fields have been initialized to avoid reset on tab switch
 	bool optionsFieldsInitialized = false;
 
+	// Default composition path (loaded at startup)
+	string defaultCompoPath;
+
 	// Save-as modal state
 	bool saveModalActive = false;
 	string saveModalName = "";
 	void drawSaveModal();
 	void confirmSaveModal();
+	void updateSaveModal();
 	void cancelSaveModal();
 	ofTrueTypeFont modalFont; // Larger font for modal text
 

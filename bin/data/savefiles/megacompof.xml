@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<activerender>0</activerender>
+<box>
+	<nombre>randomfbm</nombre>
+	<x>-444</x>
+	<y>-231</y>
+	<directory>data\savefiles\justvisuals\randomfbm.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>

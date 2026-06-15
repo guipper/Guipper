@@ -49,6 +49,18 @@ void ofApp::setup() {
 
 	loadSettings();
 
+	// Load the default composition if one is configured
+	if (!defaultCompoPath.empty()) {
+		ofFile defaultFile(defaultCompoPath);
+		if (defaultFile.exists()) {
+			cout << "Loading default composition: " << defaultCompoPath << endl;
+			boxes.load(defaultCompoPath);
+			savedirectory = defaultCompoPath;
+		} else {
+			cout << "Default composition not found: " << defaultCompoPath << endl;
+		}
+	}
+
 	ofSetWindowTitle("GUIPPER");
 
 	loadAspreset = true; // Default: drag XML as boxgroup. Press 't' to toggle to full session load.
@@ -242,6 +254,10 @@ void ofApp::draw_debugInfo() {
 	font_p.drawString("FPS :" + ofToString(ofGetFrameRate()), 30, posy -= sepy);
 	font_p.drawString("Boxes size : " + ofToString(boxes.getBoxesSize()), 30, posy -= sepy);
 	font_p.drawString("Active Sequence : " + ofToString(boxes.activeSequence), 30, posy -= sepy);
+	// Active session file
+	string sessionName = ofFilePath::getFileName(savedirectory);
+	if (sessionName.empty()) sessionName = "none";
+	font_p.drawString("Active Compo : " + sessionName, 30, posy -= sepy);
 	//font_p.drawString("DIALOG BOX : " + ofToString(jp_constants::systemDialog_open), 30, posy -= sepy);
 }
 void ofApp::draw_instrucciones() {
@@ -446,7 +462,7 @@ void ofApp::draw_opciones() {
 	float fieldW = 200;
 	float rowH = 28;
 	float sepy = 40;
-	int totalRows = OPTIONS_FIELD_COUNT + 4; // fields + 2 toggles + save + osc ip
+	int totalRows = FIELD_OSC_IP_OUT + 6; // fields + spout + ndi + osc ip + compo + activecompo + save
 	float panelH = 55 + totalRows * sepy + 25;
 	float toggleBtnW = 70;
 
@@ -465,7 +481,7 @@ void ofApp::draw_opciones() {
 	font_p.drawString("SETTINGS.XML Configuration", panelX + 15, panelY + 30);
 
 	// Field labels & inputs
-	string labels[OPTIONS_FIELD_COUNT] = {
+	string labels[FIELD_OSC_IP_OUT] = {
 		"OSC Port In:",
 		"OSC Port Out:",
 		"Render Width:",
@@ -473,7 +489,7 @@ void ofApp::draw_opciones() {
 		"BPM:"
 	};
 
-	for (int i = 0; i < OPTIONS_FIELD_COUNT; i++) {
+	for (int i = 0; i < FIELD_OSC_IP_OUT; i++) {
 		float rowY = panelY + 55 + i * sepy;
 
 		// Label
@@ -517,7 +533,7 @@ void ofApp::draw_opciones() {
 	}
 
 	// --- Toggle: Spout ---
-	int toggleRow = OPTIONS_FIELD_COUNT;
+	int toggleRow = FIELD_OSC_IP_OUT;
 #ifdef SPOUT
 	{
 		float rowY = panelY + 55 + toggleRow * sepy;
@@ -551,11 +567,89 @@ void ofApp::draw_opciones() {
 	toggleRow++;
 #endif
 
-	// --- OSC IP Out info ---
+	// --- OSC IP Out (editable text field) ---
 	{
 		float rowY = panelY + 55 + toggleRow * sepy;
-		ofSetColor(160);
-		font_p.drawString("OSC IP Out: " + sender.getHost(), panelX + 15, rowY + rowH - 7);
+		ofSetColor(220);
+		font_p.drawString("OSC IP Out:", panelX + 15, rowY + rowH - 7);
+
+		int fieldIdx = FIELD_OSC_IP_OUT;
+		// Field background
+		ofSetColor(focusedOptionsField == fieldIdx ? ofColor(30, 40, 50) : ofColor(20, 25, 30));
+		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
+		// Field border
+		ofNoFill();
+		if (focusedOptionsField == fieldIdx) {
+			ofSetColor(0, 230, 230);
+			ofSetLineWidth(2.0f);
+		} else {
+			ofSetColor(60, 70, 80);
+			ofSetLineWidth(1.0f);
+		}
+		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
+		ofFill();
+		ofSetLineWidth(1.0f);
+		// Field text with cursor if focused
+		ofSetColor(255);
+		string displayText = optionsFieldText[fieldIdx];
+		if (focusedOptionsField == fieldIdx) {
+			displayText += "|";
+		}
+		font_p.drawString(displayText, fieldX + 6, rowY + rowH - 7);
+	}
+	toggleRow++;
+
+	// --- Default Compo (editable text field + browse button) ---
+	{
+		float rowY = panelY + 55 + toggleRow * sepy;
+		ofSetColor(220);
+		font_p.drawString("Default Compo:", panelX + 15, rowY + rowH - 7);
+
+		int fieldIdx = FIELD_DEFAULT_COMPO;
+		// Field background
+		ofSetColor(focusedOptionsField == fieldIdx ? ofColor(30, 40, 50) : ofColor(20, 25, 30));
+		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
+		// Field border
+		ofNoFill();
+		if (focusedOptionsField == fieldIdx) {
+			ofSetColor(0, 230, 230);
+			ofSetLineWidth(2.0f);
+		} else {
+			ofSetColor(60, 70, 80);
+			ofSetLineWidth(1.0f);
+		}
+		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
+		ofFill();
+		ofSetLineWidth(1.0f);
+		// Field text with cursor if focused
+		ofSetColor(255);
+		string displayText = optionsFieldText[fieldIdx];
+		if (focusedOptionsField == fieldIdx) {
+			displayText += "|";
+		}
+		font_p.drawString(displayText, fieldX + 6, rowY + rowH - 7);
+
+		// BROWSE button next to the field
+		float browseX = fieldX + fieldW + 10;
+		float browseW = 70;
+		ofSetColor(60, 80, 140);
+		ofDrawRectRounded(browseX, rowY, browseW, rowH, 4.0f);
+		ofSetColor(255);
+		font_p.drawString("BROWSE", browseX + 10, rowY + rowH - 7);
+	}
+	toggleRow++;
+
+	// --- Active Compo (read-only display) ---
+	{
+		float rowY = panelY + 55 + toggleRow * sepy;
+		ofSetColor(0, 230, 230);
+		font_p.drawString("Active Compo:", panelX + 15, rowY + rowH - 7);
+
+		// Show just the filename portion, or full path if short
+		string activeName = ofFilePath::getFileName(savedirectory);
+		if (activeName.empty()) activeName = "none";
+		ofSetColor(180, 200, 220);
+		font_p.drawString(activeName, fieldX, rowY + rowH - 7);
 	}
 	toggleRow++;
 
@@ -592,11 +686,19 @@ void ofApp::initOptionsFields() {
 	optionsFieldText[FIELD_RENDER_WIDTH] = ofToString(jp_constants::renderWidth);
 	optionsFieldText[FIELD_RENDER_HEIGHT] = ofToString(jp_constants::renderHeight);
 	optionsFieldText[FIELD_BPM] = ofToString((int)jp_constants::bpm);
+	optionsFieldText[FIELD_OSC_IP_OUT] = sender.getHost();
+	if (optionsFieldText[FIELD_OSC_IP_OUT].empty()) {
+		optionsFieldText[FIELD_OSC_IP_OUT] = "127.0.0.1";
+	}
+	optionsFieldText[FIELD_DEFAULT_COMPO] = defaultCompoPath;
+	if (optionsFieldText[FIELD_DEFAULT_COMPO].empty()) {
+		optionsFieldText[FIELD_DEFAULT_COMPO] = "savefiles/data.xml";
+	}
 	focusedOptionsField = -1;
 }
 
 void ofApp::applyOptionsField() {
-	for (int i = 0; i < OPTIONS_FIELD_COUNT; i++) {
+	for (int i = 0; i < FIELD_OSC_IP_OUT; i++) {
 		string text = optionsFieldText[i];
 		if (text.empty()) continue;
 		int val = ofToInt(text);
@@ -618,6 +720,22 @@ void ofApp::applyOptionsField() {
 				break;
 			}
 		}
+	// Apply OSC IP Out (string field)
+	{
+		string ip = optionsFieldText[FIELD_OSC_IP_OUT];
+		if (!ip.empty()) {
+			sender.setup(ip, sender.getPort());
+			cout << "OSC IP Out set to: " << ip << endl;
+		}
+	}
+	// Apply Default Compo path (string field)
+	{
+		string path = optionsFieldText[FIELD_DEFAULT_COMPO];
+		if (!path.empty()) {
+			defaultCompoPath = path;
+			cout << "Default compo set to: " << path << endl;
+		}
+	}
 	saveSettings();
 	focusedOptionsField = -1;
 }
@@ -811,7 +929,31 @@ void ofApp::draw_shaderindex() {
 		if (currentLine > shaderScroll) {
 			if (drawY + folderEntryH <= drawBottom) {
 				bool isSelected = ((int)f == selectedShaderFolder && selectedShaderIndex == -1);
-				ofSetColor(isSelected ? 0 : 120, isSelected ? 230 : 200, isSelected ? 230 : 255);
+				bool isHovered = ((int)f == hoveredShaderFolder && hoveredShaderIndex == -1);
+
+				// Hover highlight background
+				if (isHovered && !isSelected) {
+					ofSetColor(0, 230, 230, 30);
+					ofDrawRectangle(listX, drawY - folderEntryH, listW, folderEntryH);
+				}
+
+				// Hit box debug visualization
+				if (showShaderHitBoxes) {
+					ofNoFill();
+					ofSetColor(isHovered ? 255 : 80, isHovered ? 80 : 230, isHovered ? 80 : 0, isHovered ? 200 : 100);
+					ofSetLineWidth(1.0f);
+					ofDrawRectangle(listX, drawY - folderEntryH, listW, folderEntryH);
+					ofFill();
+					ofSetLineWidth(1.0f);
+				}
+
+				if (isHovered && !isSelected) {
+					ofSetColor(0, 255, 255);
+				} else if (isSelected) {
+					ofSetColor(0, 230, 230);
+				} else {
+					ofSetColor(120, 200, 255);
+				}
 				string arrow = shaderFolders[f].expanded ? "v" : ">";
 				string folderLabel = arrow + string("  ") + shaderFolders[f].name;
 				font_p.drawString(folderLabel, listX, drawY);
@@ -834,8 +976,28 @@ void ofApp::draw_shaderindex() {
 					if (drawY + shaderEntryH > drawBottom) break;
 
 					bool isSelected = ((int)f == selectedShaderFolder && (int)s == selectedShaderIndex);
+					bool isHovered = ((int)f == hoveredShaderFolder && (int)s == hoveredShaderIndex);
+
+					// Hover highlight background
+					if (isHovered && !isSelected) {
+						ofSetColor(0, 230, 230, 30);
+						ofDrawRectangle(listX + indentStep * 2, drawY - shaderEntryH, listW - indentStep * 2, shaderEntryH);
+					}
+
+					// Hit box debug visualization
+					if (showShaderHitBoxes) {
+						ofNoFill();
+						ofSetColor(isHovered ? 255 : 80, isHovered ? 80 : 230, isHovered ? 80 : 0, isHovered ? 200 : 100);
+						ofSetLineWidth(1.0f);
+						ofDrawRectangle(listX + indentStep * 2, drawY - shaderEntryH, listW - indentStep * 2, shaderEntryH);
+						ofFill();
+						ofSetLineWidth(1.0f);
+					}
+
 					if (isSelected) {
 						ofSetColor(0, 230, 230);
+					} else if (isHovered) {
+						ofSetColor(255, 255, 255);
 					} else {
 						ofSetColor(180, 180, 190);
 					}
@@ -959,10 +1121,19 @@ void ofApp::keyPressed(int key) {
 			}
 			return;
 		}
-		// Allow digits 0-9
-		if (key >= '0' && key <= '9') {
-			optionsFieldText[focusedOptionsField] += (char)key;
-			return;
+		// For IP and path fields, allow dots, slashes, letters, etc.
+		if (focusedOptionsField == FIELD_OSC_IP_OUT || focusedOptionsField == FIELD_DEFAULT_COMPO) {
+			// Accept any printable ASCII (32-126) except control chars
+			if (key >= 32 && key <= 126) {
+				optionsFieldText[focusedOptionsField] += (char)key;
+				return;
+			}
+		} else {
+			// Numeric fields: allow digits 0-9 only
+			if (key >= '0' && key <= '9') {
+				optionsFieldText[focusedOptionsField] += (char)key;
+				return;
+			}
 		}
 		return; // consume other keys while focused
 	}
@@ -1001,6 +1172,12 @@ void ofApp::keyPressed(int key) {
 	if (key == OF_KEY_ESC && pantallaActiva == SHADER_INDEX) {
 		pantallaActiva = NODOS;
 		focusedOptionsField = -1;
+		return;
+	}
+
+	// H toggles hit-box visualization in shader index
+	if (key == 'h' && pantallaActiva == SHADER_INDEX) {
+		showShaderHitBoxes = !showShaderHitBoxes;
 		return;
 	}
 
@@ -1176,7 +1353,18 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		if (!saveModalActive) {
 			saveModalActive = true;
 			saveModalName = "";
-			cout << "Save modal opened" << endl;
+			// Pre-fill with the active session filename (from savedirectory)
+			{
+				string sessionFile = ofFilePath::getFileName(savedirectory);
+				if (!sessionFile.empty()) {
+					// Strip .xml extension for the text field
+					if (sessionFile.size() > 4 && sessionFile.substr(sessionFile.size() - 4) == ".xml") {
+						sessionFile = sessionFile.substr(0, sessionFile.size() - 4);
+					}
+					saveModalName = sessionFile;
+				}
+			}
+			cout << "Save modal opened, name='" << saveModalName << "'" << endl;
 		}
 		return;
 	}
@@ -1210,6 +1398,50 @@ void ofApp::mouseDragged(int x, int y, int button) {
 	}
 }
 void ofApp::mousePressed(int x, int y, int button) {
+	// Save modal button clicks — consume before anything else when modal is active
+	if (saveModalActive) {
+		float w = ofGetWidth();
+		float h = ofGetHeight();
+		float boxW = 420;
+		float boxH = 240;
+		float boxX = (w - boxW) * 0.5f;
+		float boxY = (h - boxH) * 0.5f;
+		float pad = 20;
+		float btnY = boxY + boxH - 42;
+		float btnH = 28;
+		float btnGap = 12;
+		float totalBtnsW = boxW - pad * 2;
+		float btnW = (totalBtnsW - btnGap * 2) / 3.0f;
+
+		float saveBtnX = boxX + pad;
+		float updateBtnX = saveBtnX + btnW + btnGap;
+		float cancelBtnX = updateBtnX + btnW + btnGap;
+
+		// SAVE button
+		if (x >= saveBtnX && x <= saveBtnX + btnW &&
+			y >= btnY && y <= btnY + btnH) {
+			confirmSaveModal();
+			return;
+		}
+		// UPDATE button
+		if (x >= updateBtnX && x <= updateBtnX + btnW &&
+			y >= btnY && y <= btnY + btnH) {
+			updateSaveModal();
+			return;
+		}
+		// CANCEL button
+		if (x >= cancelBtnX && x <= cancelBtnX + btnW &&
+			y >= btnY && y <= btnY + btnH) {
+			cancelSaveModal();
+			return;
+		}
+		// Click outside modal box → cancel
+		if (x < boxX || x > boxX + boxW || y < boxY || y > boxY + boxH) {
+			cancelSaveModal();
+			return;
+		}
+	}
+
 	if (midiKeymap.mousePressed(x, y, button)) {
 		return;
 	}
@@ -1248,7 +1480,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 
 		// Check if clicked inside any text field
 		focusedOptionsField = -1;
-		for (int i = 0; i < OPTIONS_FIELD_COUNT; i++) {
+		for (int i = 0; i < FIELD_OSC_IP_OUT; i++) {
 			float rowY = panelY + 55 + i * sepy;
 			if (x >= fieldX && x <= fieldX + fieldW &&
 				y >= rowY && y <= rowY + rowH) {
@@ -1268,7 +1500,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 		}
 
 		// Check toggle buttons
-		int toggleRow = OPTIONS_FIELD_COUNT;
+		int toggleRow = FIELD_OSC_IP_OUT;
 
 #ifdef SPOUT
 		{
@@ -1294,7 +1526,47 @@ void ofApp::mousePressed(int x, int y, int button) {
 		toggleRow++;
 #endif
 
-		toggleRow++; // skip OSC IP info row (not clickable)
+		// Check OSC IP Out text field
+		{
+			float rowY = panelY + 55 + toggleRow * sepy;
+			// Click on text field area
+			if (x >= fieldX && x <= fieldX + fieldW &&
+				y >= rowY && y <= rowY + rowH) {
+				focusedOptionsField = FIELD_OSC_IP_OUT;
+				return;
+			}
+		}
+		toggleRow++;
+
+		// Check Default Compo text field + BROWSE button
+		{
+			float rowY = panelY + 55 + toggleRow * sepy;
+			// Click on text field area
+			if (x >= fieldX && x <= fieldX + fieldW &&
+				y >= rowY && y <= rowY + rowH) {
+				focusedOptionsField = FIELD_DEFAULT_COMPO;
+				return;
+			}
+			// Click on BROWSE button
+			float browseX = fieldX + fieldW + 10;
+			float browseW = 70;
+			if (x >= browseX && x <= browseX + browseW &&
+				y >= rowY && y <= rowY + rowH) {
+				// Launch system file dialog to select the XML
+				ofFileDialogResult result = ofSystemLoadDialog("Select default composition XML", false);
+				if (result.bSuccess) {
+					string path = result.getPath();
+					optionsFieldText[FIELD_DEFAULT_COMPO] = path;
+					defaultCompoPath = path;
+					cout << "Default compo selected: " << path << endl;
+				}
+				return;
+			}
+		}
+		toggleRow++;
+
+		// Skip "Active Compo" row (read-only, not clickable)
+		toggleRow++;
 
 		// Check Save button
 		{
@@ -1353,8 +1625,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 		}
 
 		// ---- FOLDER/SHADER LIST (left side) ----
-		if (x >= listX && x <= listX + listW && y >= panelY + 70 && y <= panelY + panelH - 20) {
-			float drawTop = panelY + 70;
+		double clickStartY = panelY + 66;
+		if (x >= listX && x <= listX + listW && y >= clickStartY && y <= panelY + panelH - 20) {
+			float drawTop = panelY + 66;
 			float folderEntryH = 16;
 			float shaderEntryH = 14;
 			float indentStep = 12;
@@ -1366,8 +1639,8 @@ void ofApp::mousePressed(int x, int y, int button) {
 			for (size_t f = 0; f < shaderFolders.size(); f++) {
 				currentLine++;
 				if (currentLine > shaderScroll) {
-					float folderBottom = drawY + folderEntryH;
-					if (y >= drawY && y < folderBottom) {
+					float folderTop = drawY - folderEntryH;
+					if (y >= folderTop && y < drawY) {
 						// Clicked on folder header - toggle expand
 						shaderFolders[f].expanded = !shaderFolders[f].expanded;
 						selectedShaderFolder = (int)f;
@@ -1382,8 +1655,8 @@ void ofApp::mousePressed(int x, int y, int button) {
 					for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
 						currentLine++;
 						if (currentLine > shaderScroll) {
-							float shaderBottom = drawY + shaderEntryH;
-							if (y >= drawY && y < shaderBottom) {
+							float shaderTop = drawY - shaderEntryH;
+							if (y >= shaderTop && y < drawY) {
 								// Clicked on shader entry - select for preview
 								selectedShaderFolder = (int)f;
 								selectedShaderIndex = (int)s;
@@ -1449,7 +1722,48 @@ void ofApp::windowResized(int w, int h) {
 	//	boxes.update_resized(jp_constants::renderWidth, jp_constants::renderHeight);
 }
 void ofApp::keyReleased(int key) { }
-void ofApp::mouseMoved(int x, int y) { }
+void ofApp::mouseMoved(int x, int y) {
+	if (pantallaActiva == SHADER_INDEX) {
+		float panelX = 30, panelY = 30;
+		float panelW = ofGetWidth() - 60;
+		float panelH = ofGetHeight() - 60;
+		float dividerX = panelX + panelW * 0.55f;
+		float listX = panelX + 15;
+		float listW = dividerX - listX - 10;
+
+		// Reset hover state
+		hoveredShaderFolder = -1;
+		hoveredShaderIndex = -1;
+
+		double clickStartY = panelY + 66;
+		if (x >= listX && x <= listX + listW && y >= clickStartY && y <= panelY + panelH - 20) {
+			float folderEntryH = 16;
+			float shaderEntryH = 14;
+			float drawY = clickStartY;
+
+			for (size_t f = 0; f < shaderFolders.size(); f++) {
+				if (y >= drawY - folderEntryH && y < drawY) {
+					hoveredShaderFolder = (int)f;
+					hoveredShaderIndex = -1;
+					break;
+				}
+				drawY += folderEntryH;
+
+				if (shaderFolders[f].expanded) {
+					for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
+						if (y >= drawY - shaderEntryH && y < drawY) {
+							hoveredShaderFolder = (int)f;
+							hoveredShaderIndex = (int)s;
+							break;
+						}
+						drawY += shaderEntryH;
+					}
+					if (hoveredShaderFolder >= 0) break;
+				}
+			}
+		}
+	}
+}
 void ofApp::mouseReleased(int x, int y, int button) {
 	midiKeymap.mouseReleased(x, y, button);
 	if (boxes.update_cueMouseReleased(button)) {
@@ -1586,6 +1900,7 @@ void ofApp::loadSettings() {
 	auto oscout1 = settings.getChild("oscout_mode1");
 	auto oscout2 = settings.getChild("oscout_mode2");
 	auto durationgallery = settings.getChild("durationgallery");
+	auto defaultCompoChild = settings.getChild("defaultcompo");
 	auto cuePanelX = settings.getChild("cue_panel_x");
 	auto cuePanelY = settings.getChild("cue_panel_y");
 	auto cuePanelW = settings.getChild("cue_panel_w");
@@ -1641,6 +1956,11 @@ void ofApp::loadSettings() {
 	oscout_mode1 = oscout1.getBoolValue();
 	oscout_mode2 = oscout2.getBoolValue();
 
+	if (defaultCompoChild) {
+		defaultCompoPath = defaultCompoChild.getValue();
+		cout << "defaultcompo: " << defaultCompoPath << endl;
+	}
+
 	receiver.setup(oscportin.getIntValue());
 	sender.setup(oscipout.getValue(), oscportout.getIntValue());
 	{
@@ -1693,6 +2013,7 @@ void ofApp::saveSettings() {
 	settings.appendChild("osc_ip_out").set(sender.getHost());
 	settings.appendChild("oscout_mode1").set(toXmlString(oscout_mode1));
 	settings.appendChild("oscout_mode2").set(toXmlString(oscout_mode2));
+	settings.appendChild("defaultcompo").set(defaultCompoPath);
 	settings.appendChild("bpm").set((int)jp_constants::bpm);
 
 	xml.save(settingsPath);
@@ -1853,7 +2174,8 @@ bool ofApp::InitGLtexture(GLuint & texID, unsigned int width, unsigned int heigh
 	return true;
 }
 
-// Save-as modal: draws a centered overlay with a text input field
+// Save-as modal: draws a centered overlay with a text input field and
+// SAVE / UPDATE / CANCEL buttons
 void ofApp::drawSaveModal() {
 	if (!saveModalActive) return;
 
@@ -1867,9 +2189,9 @@ void ofApp::drawSaveModal() {
 	ofSetColor(0, 0, 0, 180);
 	ofDrawRectangle(0, 0, w, h);
 
-	// Modal box dimensions
+	// Modal box dimensions — taller to fit buttons
 	float boxW = 420;
-	float boxH = 190;
+	float boxH = 240;
 	float boxX = (w - boxW) * 0.5f;
 	float boxY = (h - boxH) * 0.5f;
 	float corner = 10;
@@ -1935,14 +2257,42 @@ void ofApp::drawSaveModal() {
 	string preview = "savefiles/" + previewName + ".xml";
 	modalFont.drawString(preview, boxX + pad, fieldY + fieldH + 22);
 
-	// Bottom hint — Enter (cyan, left)
-	ofSetColor(0, 230, 230, 200);
-	modalFont.drawString("Enter  Save", boxX + pad, boxY + boxH - 14);
+	// ─── Buttons: SAVE | UPDATE | CANCEL ──────────────────────────────
+	float btnY = boxY + boxH - 42;
+	float btnH = 28;
+	float btnGap = 12;
 
-	// Bottom hint — Esc (gray, right)
-	ofSetColor(130, 140, 165);
-	string escHint = "Esc  Cancel";
-	modalFont.drawString(escHint, boxX + boxW - pad - modalFont.stringWidth(escHint), boxY + boxH - 14);
+	// Three buttons, evenly spaced
+	float totalBtnsW = boxW - pad * 2;
+	float btnW = (totalBtnsW - btnGap * 2) / 3.0f;
+
+	float saveBtnX = boxX + pad;
+	float updateBtnX = saveBtnX + btnW + btnGap;
+	float cancelBtnX = updateBtnX + btnW + btnGap;
+
+	// --- SAVE button (cyan) ---
+	ofSetColor(0, 200, 200, 230);
+	ofDrawRectRounded(saveBtnX, btnY, btnW, btnH, 4);
+	ofSetColor(12, 16, 20);
+	string saveLabel = "SAVE";
+	float saveLabelW = modalFont.stringWidth(saveLabel);
+	modalFont.drawString(saveLabel, saveBtnX + btnW / 2 - saveLabelW / 2, btnY + btnH / 2 + 5);
+
+	// --- UPDATE button (amber / gold) ---
+	ofSetColor(220, 190, 50, 230);
+	ofDrawRectRounded(updateBtnX, btnY, btnW, btnH, 4);
+	ofSetColor(12, 16, 20);
+	string updateLabel = "UPDATE";
+	float updateLabelW = modalFont.stringWidth(updateLabel);
+	modalFont.drawString(updateLabel, updateBtnX + btnW / 2 - updateLabelW / 2, btnY + btnH / 2 + 5);
+
+	// --- CANCEL button (gray) ---
+	ofSetColor(80, 90, 100, 230);
+	ofDrawRectRounded(cancelBtnX, btnY, btnW, btnH, 4);
+	ofSetColor(200, 210, 220);
+	string cancelLabel = "CANCEL";
+	float cancelLabelW = modalFont.stringWidth(cancelLabel);
+	modalFont.drawString(cancelLabel, cancelBtnX + btnW / 2 - cancelLabelW / 2, btnY + btnH / 2 + 5);
 }
 
 void ofApp::confirmSaveModal() {
@@ -1963,6 +2313,13 @@ void ofApp::confirmSaveModal() {
 
 void ofApp::cancelSaveModal() {
 	cout << "Save modal cancelled" << endl;
+	saveModalActive = false;
+	saveModalName = "";
+}
+
+void ofApp::updateSaveModal() {
+	cout << "Update save: " << savedirectory << endl;
+	saveSession(savedirectory);
 	saveModalActive = false;
 	saveModalName = "";
 }
