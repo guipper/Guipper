@@ -198,28 +198,67 @@ void JPboxgroup::draw()
 	// boxesdrawing.draw(offsetx, offsety, ofGetWidth(), ofGetHeight());
 	drawCuePreview();
 
-	// Group view mode: draw only the sub-boxes of the active preset
+	// Determine active box vector, render index, and inspector index
+	vector<JPbox *> *activeBoxesPtr = &boxes;
+	int activeRenderDisplayIndex = *activerender;
+	int activeInspectorIndex = openguinumber;
 	if (isGroupViewActive())
 	{
-		ofPushMatrix();
-		ofTranslate(viewportPan.x, viewportPan.y);
-		ofScale(viewportZoom, viewportZoom);
-		JPdragobject::setMouseOverride(screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY())));
-		drawGroupView();
-		JPdragobject::clearMouseOverride();
-		ofPopMatrix();
-		drawTabs();
-		draw_paramswindow();
-		drawGalleryDurationSlider();
-		return;
+		JPbox_preset *preset = getActivePreset();
+		if (preset != nullptr)
+		{
+			activeBoxesPtr = &preset->boxes;
+			activeRenderDisplayIndex = preset->activeRender;
+			activeInspectorIndex = groupInspectorIndex;
+		}
 	}
+	vector<JPbox *> &activeBoxes = *activeBoxesPtr;
 
 	ofPushMatrix();
 	ofTranslate(viewportPan.x, viewportPan.y);
 	ofScale(viewportZoom, viewportZoom);
 	JPdragobject::setMouseOverride(screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY())));
-	draw_conections();
 
+	// Draw connections (main view uses the dedicated function, group view draws inline)
+	if (isGroupViewActive())
+	{
+		ofSetLineWidth(2);
+		for (int i = (int)activeBoxes.size() - 1; i >= 0; i--)
+		{
+			for (int k = (int)activeBoxes.size() - 1; k >= 0; k--)
+			{
+				for (int l = activeBoxes[k]->fbohandlergroup.getSize() - 1; l >= 0; l--)
+				{
+					if (activeBoxes[k]->fbohandlergroup.getFboName(l) == activeBoxes[i]->name)
+					{
+						if (activeBoxes[i]->outletActiveFlag) {
+							activeBoxes[i]->triangleangle = atan2(JPdragobject::getMouseY() - activeBoxes[i]->outlet_y,
+								JPdragobject::getMouseX() - activeBoxes[i]->outlet_x);
+						}
+						else {
+							if (activeBoxes[k]->fbohandlergroup.getSize() > 0) {
+								activeBoxes[i]->triangleangle = atan2(activeBoxes[k]->fbohandlergroup.getPosY(l) - activeBoxes[i]->outlet_y,
+									activeBoxes[k]->fbohandlergroup.getPosX(l) - activeBoxes[i]->outlet_x);
+							}
+							else {
+								activeBoxes[i]->triangleangle = atan2(JPdragobject::getMouseY() - activeBoxes[i]->outlet_y,
+									JPdragobject::getMouseX() - activeBoxes[i]->outlet_x);
+							}
+						}
+						ofDrawLine(activeBoxes[k]->fbohandlergroup.getPosX(l),
+							activeBoxes[k]->fbohandlergroup.getPosY(l),
+							activeBoxes[i]->outlet_x + activeBoxes[i]->outlet_size / 2, activeBoxes[i]->outlet_y);
+					}
+				}
+			}
+		}
+	}
+	else
+	{
+		draw_conections();
+	}
+
+	// Selection rectangle (shared for both views)
 	if (draw_SelectionRect) {
 		ofSetColor(0, 180, 220, 45);
 		ofSetRectMode(OF_RECTMODE_CENTER);
@@ -227,7 +266,7 @@ void JPboxgroup::draw()
 		ofVec2f center = ofVec2f((selectionEnd.x + lastMouseClick.x) / 2, (selectionEnd.y + lastMouseClick.y) / 2);
 		float w = abs(selectionEnd.x - lastMouseClick.x);
 		float h = abs(selectionEnd.y - lastMouseClick.y);
-		ofDrawRectangle(center.x, center.y,w, h);
+		ofDrawRectangle(center.x, center.y, w, h);
 		ofNoFill();
 		ofSetLineWidth(2);
 		ofSetColor(0, 220, 255, 210);
@@ -237,70 +276,89 @@ void JPboxgroup::draw()
 		ofSetRectMode(OF_RECTMODE_CORNER);
 	}
 
-	for (int i = 0; i < boxes.size(); i++)
-	{	
-
-		float x = boxes[i]->x;
-		float y = boxes[i]->y + boxes[i]->height / 2 - 8;
+	// Iterate over active boxes (works for both main and group view)
+	for (int i = 0; i < (int)activeBoxes.size(); i++)
+	{
+		float x = activeBoxes[i]->x;
+		float y = activeBoxes[i]->y + activeBoxes[i]->height / 2 - 8;
 		ofSetRectMode(OF_RECTMODE_CENTER);
-		int activeRenderDisplayIndex = *activerender;
-		if (hasCue() &&
-			cueState.stagedActiveRenderIndex >= 0 &&
-			cueState.stagedActiveRenderIndex < boxes.size())
+
+		// Green box: active render indicator
 		{
-			activeRenderDisplayIndex = cueState.stagedActiveRenderIndex;
+			int displayIndex = activeRenderDisplayIndex;
+			// Cue staged render only applies to main view
+			if (!isGroupViewActive() && hasCue() &&
+				cueState.stagedActiveRenderIndex >= 0 &&
+				cueState.stagedActiveRenderIndex < (int)activeBoxes.size())
+			{
+				displayIndex = cueState.stagedActiveRenderIndex;
+			}
+			if (displayIndex == i) {
+				ofSetColor(40, 210, 90, 210);
+				ofRectMode(CENTER);
+				ofRectRounded(x, y - activeBoxes[i]->height / 2 + 10, activeBoxes[i]->width * 1.1, activeBoxes[i]->height * 1.1, 10);
+			}
 		}
-		if (activeRenderDisplayIndex == i) {
-			ofSetColor(40, 210, 90, 210);
-			ofRectMode(CENTER);
-			ofRectRounded(x, y - boxes[i]->height / 2+10, boxes[i]->width*1.1, boxes[i]->height*1.1,10);
-		}
-		boxes[i]->bypass.activable2 = !draw_SelectionRect;
-		boxes[i]->onoff.activable2 = !draw_SelectionRect;
-		JPbox *draftBox = getCueDraftBoxForRealIndex(i);
-		bool cueDraftBox = isCueSourceIndex(i);
-		bool cueDirtyBox = isCueDraftDirty(i);
-		if (cueDraftBox)
+
+		// Main view specific: bypass/onoff blocking during selection rect
+		if (!isGroupViewActive())
 		{
-			boxes[i]->setBackgroundOverride(cueDirtyBox ? ofColor(238, 190, 24, 245) : ofColor(196, 178, 105, 235),
-										   cueDirtyBox ? ofColor(255, 230, 85, 255) : ofColor(255, 205, 70, 225));
+			activeBoxes[i]->bypass.activable2 = !draw_SelectionRect;
+			activeBoxes[i]->onoff.activable2 = !draw_SelectionRect;
+		}
+
+		// Main view specific: cue draft overlay
+		if (!isGroupViewActive())
+		{
+			JPbox *draftBox = getCueDraftBoxForRealIndex(i);
+			bool cueDraftBox = isCueSourceIndex(i);
+			bool cueDirtyBox = isCueDraftDirty(i);
+			if (cueDraftBox)
+			{
+				activeBoxes[i]->setBackgroundOverride(cueDirtyBox ? ofColor(238, 190, 24, 245) : ofColor(196, 178, 105, 235),
+													   cueDirtyBox ? ofColor(255, 230, 85, 255) : ofColor(255, 205, 70, 225));
+			}
+			else
+			{
+				activeBoxes[i]->clearBackgroundOverride();
+			}
+			if (draftBox != nullptr)
+			{
+				bool realBypass = activeBoxes[i]->getBypass();
+				bool realOnOff = activeBoxes[i]->getonoff();
+				bool draftBypassBeforeDraw = draftBox->getBypass();
+				bool draftOnOffBeforeDraw = draftBox->getonoff();
+				activeBoxes[i]->setBypass(draftBypassBeforeDraw);
+				activeBoxes[i]->setonoff(draftOnOffBeforeDraw);
+				activeBoxes[i]->draw();
+				activeBoxes[i]->clearBackgroundOverride();
+				bool draftBypassAfterDraw = activeBoxes[i]->getBypass();
+				bool draftOnOffAfterDraw = activeBoxes[i]->getonoff();
+				if (draftBypassAfterDraw != draftBypassBeforeDraw)
+				{
+					draftBox->setBypass(draftBypassAfterDraw);
+					markCueDraftDirty(i, CUE_DIRTY_BYPASS_PAUSE);
+				}
+				if (draftOnOffAfterDraw != draftOnOffBeforeDraw)
+				{
+					draftBox->setonoff(draftOnOffAfterDraw);
+					markCueDraftDirty(i, CUE_DIRTY_BYPASS_PAUSE);
+				}
+				activeBoxes[i]->setBypass(realBypass);
+				activeBoxes[i]->setonoff(realOnOff);
+			}
+			else
+			{
+				activeBoxes[i]->draw();
+			}
 		}
 		else
 		{
-			boxes[i]->clearBackgroundOverride();
+			// Group view: simple draw, no cue draft
+			activeBoxes[i]->draw();
 		}
-		bool realBypass = false;
-		bool realOnOff = false;
-		bool draftBypassBeforeDraw = false;
-		bool draftOnOffBeforeDraw = false;
-		if (draftBox != nullptr)
-		{
-			realBypass = boxes[i]->getBypass();
-			realOnOff = boxes[i]->getonoff();
-			draftBypassBeforeDraw = draftBox->getBypass();
-			draftOnOffBeforeDraw = draftBox->getonoff();
-			boxes[i]->setBypass(draftBypassBeforeDraw);
-			boxes[i]->setonoff(draftOnOffBeforeDraw);
-		}
-		boxes[i]->draw();
-		boxes[i]->clearBackgroundOverride();
-		if (draftBox != nullptr)
-		{
-			bool draftBypassAfterDraw = boxes[i]->getBypass();
-			bool draftOnOffAfterDraw = boxes[i]->getonoff();
-			if (draftBypassAfterDraw != draftBypassBeforeDraw)
-			{
-				draftBox->setBypass(draftBypassAfterDraw);
-				markCueDraftDirty(i, CUE_DIRTY_BYPASS_PAUSE);
-			}
-			if (draftOnOffAfterDraw != draftOnOffBeforeDraw)
-			{
-				draftBox->setonoff(draftOnOffAfterDraw);
-				markCueDraftDirty(i, CUE_DIRTY_BYPASS_PAUSE);
-			}
-			boxes[i]->setBypass(realBypass);
-			boxes[i]->setonoff(realOnOff);
-		}
+
+		// Cyan outline: multi-selected box (shared)
 		if (isBoxSelected(i))
 		{
 			ofPushStyle();
@@ -308,31 +366,33 @@ void JPboxgroup::draw()
 			ofNoFill();
 			ofSetLineWidth(4);
 			ofSetColor(0, 220, 255, 255);
-			ofDrawRectRounded(boxes[i]->x, boxes[i]->y, boxes[i]->width + 14, boxes[i]->height + 14, 10);
+			ofDrawRectRounded(activeBoxes[i]->x, activeBoxes[i]->y, activeBoxes[i]->width + 14, activeBoxes[i]->height + 14, 10);
 			ofFill();
 			ofPopStyle();
 		}
-		// OSC preview selection (used by /nextshader and /prevshader before /setactiveshader)
-		if (openguinumber == i)
+
+		// Inspector outline (openguinumber for main, groupInspectorIndex for group)
+		if (activeInspectorIndex == i)
 		{
 			ofPushStyle();
 			ofSetRectMode(OF_RECTMODE_CENTER);
 			ofNoFill();
 			ofSetLineWidth(3);
 			ofSetColor(0, 220, 255, 255);
-			ofDrawRectRounded(x, y - boxes[i]->height / 2 + 10, boxes[i]->width * 1.22, boxes[i]->height * 1.22, 10);
+			ofDrawRectRounded(x, y - activeBoxes[i]->height / 2 + 10, activeBoxes[i]->width * 1.22, activeBoxes[i]->height * 1.22, 10);
 			ofPopStyle();
 		}
-		if (isCueAddedRealIndex(i))
+
+		// Main view specific: cue added "NEW" label
+		if (!isGroupViewActive() && isCueAddedRealIndex(i))
 		{
 			ofPushStyle();
 			ofSetColor(30, 20, 0, 230);
-			ofDrawRectangle(x - boxes[i]->width / 2 + 6, y - boxes[i]->height / 2 + 16, 30, 13);
+			ofDrawRectangle(x - activeBoxes[i]->width / 2 + 6, y - activeBoxes[i]->height / 2 + 16, 30, 13);
 			ofSetColor(255, 230, 80, 255);
-			ofDrawBitmapString("NEW", x - boxes[i]->width / 2 + 9, y - boxes[i]->height / 2 + 27);
+			ofDrawBitmapString("NEW", x - activeBoxes[i]->width / 2 + 9, y - activeBoxes[i]->height / 2 + 27);
 			ofPopStyle();
 		}
-		
 
 		ofDrawBitmapString(ofToString(i), x, y);
 	}
@@ -342,9 +402,6 @@ void JPboxgroup::draw()
 	draw_paramswindow();
 	drawGalleryDurationSlider();
 
-	
-	
-	
 }
 void JPboxgroup::drawCuePreview()
 {
@@ -1099,75 +1156,15 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 	ofVec2f canvasMouse = screenToCanvas(screenMouse);
 	ofVec2f previousCanvasMouse = screenToCanvas(previousScreenMouse);
 
-	// Group view mode: handle sub-box dragging and connections
+	// Determine active box vector based on context (main vs group view)
+	vector<JPbox *> *activeBoxesPtr = &boxes;
 	if (isGroupViewActive())
 	{
 		JPbox_preset *preset = getActivePreset();
 		if (preset == nullptr) return;
-
-		if (mousebutton == OF_MOUSE_BUTTON_MIDDLE || mousebutton == OF_MOUSE_BUTTON_RIGHT)
-		{
-			viewportPanning = true;
-			panViewport(screenMouse - previousScreenMouse);
-			return;
-		}
-
-		vector<JPbox *> &subBoxes = preset->boxes;
-
-		// Group selection rectangle dragging
-		if (groupDrawSelectionRect && mousebutton == OF_MOUSE_BUTTON_LEFT)
-		{
-			selectionEnd = canvasMouse;
-			updateGroupSelection();
-			return;
-		}
-
-		if (cualestaagarrado != -1 && cualestaagarrado < (int)subBoxes.size() && subBoxes[cualestaagarrado]->activeFlag)
-		{
-			float deltaX = canvasMouse.x - previousCanvasMouse.x;
-			float deltaY = canvasMouse.y - previousCanvasMouse.y;
-			if (!groupSelectedIndices.empty() &&
-				std::find(groupSelectedIndices.begin(), groupSelectedIndices.end(), cualestaagarrado) != groupSelectedIndices.end())
-			{
-				// Dragging a selected box — move all selected boxes
-				for (int selIdx : groupSelectedIndices)
-				{
-					if (selIdx >= 0 && selIdx < (int)subBoxes.size())
-					{
-						subBoxes[selIdx]->setPos(subBoxes[selIdx]->x + deltaX,
-												 subBoxes[selIdx]->y + deltaY);
-					}
-				}
-			}
-			else
-			{
-				subBoxes[cualestaagarrado]->setPos(subBoxes[cualestaagarrado]->x + deltaX,
-													subBoxes[cualestaagarrado]->y + deltaY);
-			}
-		}
-
-		// Connection dragging: release outlet over an input
-		JPdragobject::setMouseOverride(canvasMouse);
-		for (int i = (int)subBoxes.size() - 1; i >= 0; i--)
-		{
-			for (int k = (int)subBoxes.size() - 1; k >= 0; k--)
-			{
-				for (int l = subBoxes[k]->fbohandlergroup.getSize() - 1; l >= 0; l--)
-				{
-					if (subBoxes[k]->fbohandlergroup.mouseOver(l) &&
-						subBoxes[i]->outletActiveFlag)
-					{
-						if (subBoxes[k]->fbohandlergroup.getFboName(l) == subBoxes[i]->name)
-							continue;
-						subBoxes[k]->fbohandlergroup.setFboPointer(&subBoxes[i]->fbo,
-																	&subBoxes[i]->name, l);
-					}
-				}
-			}
-		}
-		JPdragobject::clearMouseOverride();
-		return;
+		activeBoxesPtr = &preset->boxes;
 	}
+	vector<JPbox *> &activeBoxes = *activeBoxesPtr;
 
 	if (mousebutton == OF_MOUSE_BUTTON_MIDDLE || mousebutton == OF_MOUSE_BUTTON_RIGHT)
 	{
@@ -1183,52 +1180,61 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 		return;
 	}
 
-	// Para hacer las conexiones :
-	if (cualestaagarrado != -1 && boxes[cualestaagarrado]->activeFlag)
+	// Multi-drag: move selected boxes or the grabbed box
+	if (cualestaagarrado != -1 && cualestaagarrado < (int)activeBoxes.size() && activeBoxes[cualestaagarrado]->activeFlag)
 	{
 		float deltaX = canvasMouse.x - previousCanvasMouse.x;
 		float deltaY = canvasMouse.y - previousCanvasMouse.y;
-		if (!selectedBoxIndices.empty() && isBoxSelected(cualestaagarrado))
+		if (!selectedBoxIndices.empty() &&
+			(isBoxSelected(cualestaagarrado) || std::find(selectedBoxIndices.begin(), selectedBoxIndices.end(), cualestaagarrado) != selectedBoxIndices.end()))
 		{
-			for (int i = 0; i < selectedBoxIndices.size(); i++)
+			// Dragging a selected box — move all selected boxes
+			for (int i = 0; i < (int)selectedBoxIndices.size(); i++)
 			{
 				int selectedIndex = selectedBoxIndices[i];
-				if (selectedIndex >= 0 && selectedIndex < boxes.size())
+				if (selectedIndex >= 0 && selectedIndex < (int)activeBoxes.size())
 				{
-					boxes[selectedIndex]->setPos(boxes[selectedIndex]->x + deltaX,
-												 boxes[selectedIndex]->y + deltaY);
+					activeBoxes[selectedIndex]->setPos(
+						activeBoxes[selectedIndex]->x + deltaX,
+						activeBoxes[selectedIndex]->y + deltaY);
 				}
 			}
 		}
 		else
 		{
-			boxes[cualestaagarrado]->setPos(boxes[cualestaagarrado]->x + deltaX,
-											boxes[cualestaagarrado]->y + deltaY);
+			activeBoxes[cualestaagarrado]->setPos(
+				activeBoxes[cualestaagarrado]->x + deltaX,
+				activeBoxes[cualestaagarrado]->y + deltaY);
 		}
 	}
+
+	// Connection dragging: release outlet over an input
 	JPdragobject::setMouseOverride(canvasMouse);
-	for (int i = boxes.size() - 1; i >= 0; i--)
+	for (int i = (int)activeBoxes.size() - 1; i >= 0; i--)
 	{
-		for (int k = boxes.size() - 1; k >= 0; k--)
+		for (int k = (int)activeBoxes.size() - 1; k >= 0; k--)
 		{
-			for (int l = boxes[k]->fbohandlergroup.getSize() - 1; l >= 0; l--)
+			for (int l = activeBoxes[k]->fbohandlergroup.getSize() - 1; l >= 0; l--)
 			{
-				if (boxes[k]->fbohandlergroup.mouseOver(l) &&
-					boxes[i]->outletActiveFlag)
+				if (activeBoxes[k]->fbohandlergroup.mouseOver(l) &&
+					activeBoxes[i]->outletActiveFlag)
 				{
-					if (boxes[k]->fbohandlergroup.getFboName(l) == boxes[i]->name)
+					if (activeBoxes[k]->fbohandlergroup.getFboName(l) == activeBoxes[i]->name)
 					{
 						continue;
 					}
-					if (isCueDraftMode())
+					if (!isGroupViewActive() && isCueDraftMode())
 					{
 						commitCueDraftLink(k, l, i);
 					}
 					else
 					{
-						boxes[k]->fbohandlergroup.setFboPointer(&boxes[i]->fbo,
-																&boxes[i]->name, l);
-						requestCueRebuild();
+						activeBoxes[k]->fbohandlergroup.setFboPointer(&activeBoxes[i]->fbo,
+																		&activeBoxes[i]->name, l);
+						if (!isGroupViewActive())
+						{
+							requestCueRebuild();
+						}
 					}
 				}
 			}
@@ -1337,7 +1343,11 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			JPdragobject::clearMouseOverride();
 			if (hitBox && clickedIndex >= 0)
 			{
-				clearGroupSelection();
+				// Match main view behavior: only clear selection if clicking a non-selected box
+				if (!isBoxSelected(clickedIndex))
+				{
+					clearSelection();
+				}
 				// Single click: select for inspector (blue box, like openguinumber in main view)
 				groupInspectorIndex = clickedIndex;
 				groupPreviewBoxIndex = -1;
@@ -1358,8 +1368,8 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				groupInspectorIndex = -1;
 				groupPreviewBoxIndex = -1;
 				setControllers();
-				clearGroupSelection();
-				groupDrawSelectionRect = true;
+				clearSelection();
+				draw_SelectionRect = true;
 				lastMouseClick = canvasMouse;
 				selectionEnd = lastMouseClick;
 			}
@@ -1538,56 +1548,43 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 }
 void JPboxgroup::update_mouseReleased(int mouseButton)
 {
-	// Group view mode: release grabbed sub-boxes
+	// Determine active box vector based on context (main vs group view)
+	vector<JPbox *> *activeBoxesPtr = &boxes;
+	JPbox_preset *activePreset = nullptr;
 	if (isGroupViewActive())
 	{
-		if (mouseButton == OF_MOUSE_BUTTON_MIDDLE || mouseButton == OF_MOUSE_BUTTON_RIGHT)
-		{
-			viewportPanning = false;
-		}
-		if (mouseButton == OF_MOUSE_BUTTON_LEFT)
-		{
-			if (shaderboxagarrado && cualestaagarrado != -1)
-			{
-				JPbox_preset *preset = getActivePreset();
-				if (preset != nullptr && cualestaagarrado < (int)preset->boxes.size())
-				{
-					preset->boxes[cualestaagarrado]->activeFlag = false;
-				}
-			}
-			if (ouletagarrado)
-			{
-				JPbox_preset *preset = getActivePreset();
-				if (preset != nullptr && outlet_cualestaagarrado != -1 && outlet_cualestaagarrado < (int)preset->boxes.size())
-				{
-					preset->boxes[outlet_cualestaagarrado]->outletActiveFlag = false;
-				}
-			}
-			shaderboxagarrado = false;
-			ouletagarrado = false;
-			cualestaagarrado = -1;
-			outlet_cualestaagarrado = -1;
-			viewportPanning = false;
-			if (groupDrawSelectionRect)
-			{
-				selectionEnd = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
-				updateGroupSelection();
-				groupDrawSelectionRect = false;
-			}
-		}
-		return;
+		activePreset = getActivePreset();
+		if (activePreset == nullptr) return;
+		activeBoxesPtr = &activePreset->boxes;
 	}
+	vector<JPbox *> &activeBoxes = *activeBoxesPtr;
 
 	if (mouseButton == OF_MOUSE_BUTTON_MIDDLE || mouseButton == OF_MOUSE_BUTTON_RIGHT)
 	{
 		viewportPanning = false;
 		return;
 	}
-	if (mouseButton == OF_MOUSE_BUTTON_LEFT && draw_SelectionRect)
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT)
 	{
-		selectionEnd = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
-		updateBoxSelection();
-		draw_SelectionRect = false;
+		if (shaderboxagarrado && cualestaagarrado != -1 && cualestaagarrado < (int)activeBoxes.size())
+		{
+			activeBoxes[cualestaagarrado]->activeFlag = false;
+		}
+		if (ouletagarrado && outlet_cualestaagarrado != -1 && outlet_cualestaagarrado < (int)activeBoxes.size())
+		{
+			activeBoxes[outlet_cualestaagarrado]->outletActiveFlag = false;
+		}
+		shaderboxagarrado = false;
+		ouletagarrado = false;
+		cualestaagarrado = -1;
+		outlet_cualestaagarrado = -1;
+		viewportPanning = false;
+		if (draw_SelectionRect)
+		{
+			selectionEnd = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
+			updateBoxSelection();
+			draw_SelectionRect = false;
+		}
 	}
 }
 bool JPboxgroup::update_cueMousePressed(int mouseButton)
@@ -3769,8 +3766,8 @@ bool JPboxgroup::mouseOverGui()
 }
 void JPboxgroup::addBox(string directory, float _x, float _y)
 {
-	// When in group view and dropping an .xml, add it to the active preset's sub-boxes
-	if (isGroupViewActive() && directory.find(".xml") != std::string::npos)
+	// When in group view, add any box type to the active preset's sub-boxes
+	if (isGroupViewActive())
 	{
 		JPbox_preset *preset = getActivePreset();
 		if (preset != nullptr)
@@ -3898,46 +3895,6 @@ void JPboxgroup::clearSelection()
 	draw_SelectionRect = false;
 }
 
-void JPboxgroup::clearGroupSelection()
-{
-	groupSelectedIndices.clear();
-	groupDrawSelectionRect = false;
-}
-
-bool JPboxgroup::boxIntersectsGroupSelection(JPbox *box) const
-{
-	if (box == nullptr)
-	{
-		return false;
-	}
-	float selectionLeft = std::min(lastMouseClick.x, selectionEnd.x);
-	float selectionRight = std::max(lastMouseClick.x, selectionEnd.x);
-	float selectionTop = std::min(lastMouseClick.y, selectionEnd.y);
-	float selectionBottom = std::max(lastMouseClick.y, selectionEnd.y);
-	float boxLeft = box->x - box->width / 2;
-	float boxRight = box->x + box->width / 2;
-	float boxTop = box->y - box->height / 2;
-	float boxBottom = box->y + box->height / 2;
-	return selectionLeft <= boxRight &&
-		   selectionRight >= boxLeft &&
-		   selectionTop <= boxBottom &&
-		   selectionBottom >= boxTop;
-}
-
-void JPboxgroup::updateGroupSelection()
-{
-	groupSelectedIndices.clear();
-	JPbox_preset *preset = getActivePreset();
-	if (preset == nullptr) return;
-	for (int i = 0; i < (int)preset->boxes.size(); i++)
-	{
-		if (boxIntersectsGroupSelection(preset->boxes[i]))
-		{
-			groupSelectedIndices.push_back(i);
-		}
-	}
-}
-
 bool JPboxgroup::boxIntersectsSelection(JPbox *box) const
 {
 	if (box == nullptr)
@@ -3961,9 +3918,10 @@ bool JPboxgroup::boxIntersectsSelection(JPbox *box) const
 void JPboxgroup::updateBoxSelection()
 {
 	selectedBoxIndices.clear();
-	for (int i = 0; i < boxes.size(); i++)
+	vector<JPbox *> &activeBoxes = isGroupViewActive() ? getActivePreset()->boxes : boxes;
+	for (int i = 0; i < (int)activeBoxes.size(); i++)
 	{
-		if (boxIntersectsSelection(boxes[i]))
+		if (boxIntersectsSelection(activeBoxes[i]))
 		{
 			selectedBoxIndices.push_back(i);
 		}
@@ -4215,13 +4173,13 @@ void JPboxgroup::deleteSelectedShader()
 		if (preset == nullptr) return;
 
 		// Priority 1: delete multi-selected boxes
-		if (!groupSelectedIndices.empty())
+		if (!selectedBoxIndices.empty())
 		{
 			// Sort descending so indices remain valid during deletion
-			vector<int> sortedIndices = groupSelectedIndices;
+			vector<int> sortedIndices = selectedBoxIndices;
 			std::sort(sortedIndices.begin(), sortedIndices.end(), std::greater<int>());
 			sortedIndices.erase(std::unique(sortedIndices.begin(), sortedIndices.end()), sortedIndices.end());
-			clearGroupSelection();
+			clearSelection();
 
 			for (int idx : sortedIndices)
 			{
@@ -4976,7 +4934,7 @@ bool JPboxgroup::handleTabClick()
 	}
 
 	activeTab = tabIndex;
-	clearGroupSelection();
+	clearSelection();
 
 	// Restore new tab's zoom/pan (or reset if first visit)
 	if (activeTab < (int)tabZooms.size())
@@ -5029,110 +4987,4 @@ void JPboxgroup::ensureTabStateSize()
 		tabZooms.push_back(1.0f);
 		tabPans.push_back(ofVec2f(0, 0));
 	}
-}
-void JPboxgroup::drawGroupView()
-{
-	JPbox_preset *preset = getActivePreset();
-	if (preset == nullptr || preset->boxes.empty())
-	{
-		return;
-	}
-
-	vector<JPbox *> &subBoxes = preset->boxes;
-
-	// Draw connections between sub-boxes
-	ofSetLineWidth(2);
-	for (int i = (int)subBoxes.size() - 1; i >= 0; i--)
-	{
-		for (int k = (int)subBoxes.size() - 1; k >= 0; k--)
-		{
-			for (int l = subBoxes[k]->fbohandlergroup.getSize() - 1; l >= 0; l--)
-			{
-				if (subBoxes[k]->fbohandlergroup.getFboName(l) == subBoxes[i]->name)
-				{
-					if (subBoxes[i]->outletActiveFlag) {
-						subBoxes[i]->triangleangle = atan2(JPdragobject::getMouseY() - subBoxes[i]->outlet_y,
-							JPdragobject::getMouseX() - subBoxes[i]->outlet_x);
-					}
-					else {
-						if (subBoxes[k]->fbohandlergroup.getSize() > 0) {
-							subBoxes[i]->triangleangle = atan2(subBoxes[k]->fbohandlergroup.getPosY(l) - subBoxes[i]->outlet_y,
-								subBoxes[k]->fbohandlergroup.getPosX(l) - subBoxes[i]->outlet_x);
-						}
-						else {
-							subBoxes[i]->triangleangle = atan2(JPdragobject::getMouseY() - subBoxes[i]->outlet_y,
-								JPdragobject::getMouseX() - subBoxes[i]->outlet_x);
-						}
-					}
-
-					ofDrawLine(subBoxes[k]->fbohandlergroup.getPosX(l),
-						subBoxes[k]->fbohandlergroup.getPosY(l),
-						subBoxes[i]->outlet_x + subBoxes[i]->outlet_size / 2, subBoxes[i]->outlet_y);
-				}
-			}
-		}
-	}
-
-	// Draw sub-boxes
-	JPdragobject::setMouseOverride(screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY())));
-
-	// Draw selection rectangle in group view
-	if (groupDrawSelectionRect) {
-		ofSetColor(0, 180, 220, 45);
-		ofSetRectMode(OF_RECTMODE_CENTER);
-		ofFill();
-		ofVec2f center = ofVec2f((selectionEnd.x + lastMouseClick.x) / 2, (selectionEnd.y + lastMouseClick.y) / 2);
-		float w = abs(selectionEnd.x - lastMouseClick.x);
-		float h = abs(selectionEnd.y - lastMouseClick.y);
-		ofDrawRectangle(center.x, center.y, w, h);
-		ofNoFill();
-		ofSetLineWidth(2);
-		ofSetColor(0, 220, 255, 210);
-		ofDrawRectangle(center.x, center.y, w, h);
-		ofFill();
-		ofSetLineWidth(1);
-		ofSetRectMode(OF_RECTMODE_CORNER);
-	}
-
-	for (int i = 0; i < (int)subBoxes.size(); i++)
-	{
-		float x = subBoxes[i]->x;
-		float y = subBoxes[i]->y + subBoxes[i]->height / 2 - 8;
-
-		ofSetRectMode(OF_RECTMODE_CENTER);
-		// Green box: active render (same style as main view's *activerender)
-		if (preset->activeRender == i) {
-			ofSetColor(40, 210, 90, 210);
-			ofRectMode(CENTER);
-			ofRectRounded(x, y - subBoxes[i]->height / 2 + 10, subBoxes[i]->width * 1.1, subBoxes[i]->height * 1.1, 10);
-		}
-		// Blue outline: selected/inspected box (same style as main view's openguinumber)
-		if (groupInspectorIndex == i)
-		{
-			ofPushStyle();
-			ofSetRectMode(OF_RECTMODE_CENTER);
-			ofNoFill();
-			ofSetLineWidth(3);
-			ofSetColor(0, 220, 255, 255);
-			ofDrawRectRounded(x, y - subBoxes[i]->height / 2 + 10, subBoxes[i]->width * 1.22, subBoxes[i]->height * 1.22, 10);
-			ofPopStyle();
-		}
-		// Cyan outline: multi-selected box (same style as main view's isBoxSelected)
-		if (std::find(groupSelectedIndices.begin(), groupSelectedIndices.end(), i) != groupSelectedIndices.end())
-		{
-			ofPushStyle();
-			ofSetRectMode(OF_RECTMODE_CENTER);
-			ofNoFill();
-			ofSetLineWidth(4);
-			ofSetColor(0, 220, 255, 255);
-			ofDrawRectRounded(subBoxes[i]->x, subBoxes[i]->y, subBoxes[i]->width + 14, subBoxes[i]->height + 14, 10);
-			ofFill();
-			ofPopStyle();
-		}
-
-		subBoxes[i]->draw();
-		ofDrawBitmapString(ofToString(i), x, y);
-	}
-
-	JPdragobject::clearMouseOverride();
 }

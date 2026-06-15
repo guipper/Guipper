@@ -125,7 +125,6 @@ public:
 	int getBoxesSize();
 
 	bool draw_SelectionRect = false;
-	bool groupDrawSelectionRect = false;
 	ofVec2f lastMouseClick;
 	float viewportZoom = 1.0f;
 	ofVec2f viewportPan = ofVec2f(0, 0);
@@ -137,7 +136,6 @@ public:
 	void drawTabs();
 	int getTabAtScreenPos(int screenX, int screenY) const;
 	bool handleTabClick();
-	void drawGroupView();
 	vector<vector<int>> collectAllPresetPaths() const;
 	void drawSingleTab(float x, float y, float h, const string &label, bool active);
 	bool isGroupViewActive() const { return !activeGroupPath.empty(); }
@@ -145,7 +143,6 @@ public:
 	void ensureTabStateSize();
 	int groupPreviewBoxIndex = -1; // sub-box index for double-click preview in group view
 	int groupInspectorIndex = -1; // sub-box index for inspector in group view (separate from openguinumber)
-	vector<int> groupSelectedIndices; // multi-selection indices for preset sub-boxes
 
 	// Per-tab zoom/pan state (index 0 = main, 1+ = preset tabs)
 	vector<float> tabZooms;
@@ -275,13 +272,10 @@ private:
 	bool mouseOverCueApplyIcon() const;
 	bool mouseOverCueMonitorModeIcon() const;
 	void clearSelection();
-	void clearGroupSelection();
 	void updateBoxSelection();
-	void updateGroupSelection();
 	void zoomViewport(const ofVec2f &screenAnchor, float zoomFactor);
 	void panViewport(const ofVec2f &screenDelta);
 	bool boxIntersectsSelection(JPbox *box) const;
-	bool boxIntersectsGroupSelection(JPbox *box) const;
 	bool isBoxSelected(int index) const;
 	bool deleteBoxAtIndex(int index);
 	bool deleteSelectedBoxes();
