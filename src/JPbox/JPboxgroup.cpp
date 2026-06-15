@@ -783,6 +783,11 @@ void JPboxgroup::draw_paramswindow()
 										inspectorwindow_x - jp_constants::h_font.stringWidth(name) / 2,
 										inspectorwindow_sepy); // El y de esto esta puesto medio frutanga
 
+		// Draw header buttons in a row
+		inspectorreload.draw();
+		inspectorsetactive.draw();
+		inspectorrandom.draw();
+
 		int index = 0; // INDICE PARA LOS BOTONES :
 		for (int i = 0; i < controllers.size(); i++)
 		{
@@ -1148,6 +1153,12 @@ void JPboxgroup::setinspectorsetactiveparams()
 						  inspectorwindow_setactivesize);
 
 	inspectorwindow_height += inspectorwindow_sepy;
+	inspectorrandom.setup(ofGetWidth() - inspectorwindow_width * 1 / 4,
+						 inspectorwindow_height,
+						 inspectorwindow_setactivesize * 2.,
+						 inspectorwindow_setactivesize);
+
+	inspectorwindow_height += inspectorwindow_sepy;
 }
 void JPboxgroup::update_mouseDragged(int mousebutton)
 {
@@ -1415,6 +1426,20 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		if (inspectorreload.mouseGrab())
 		{
 			// reloadActiveshader();
+		}
+		if (inspectorrandom.mouseGrab())
+		{
+			for (int i = 0; i < inspectorBox->parameters.getSize(); i++)
+			{
+				if (inspectorBox->parameters.getType(i) == JPParameter::FLOAT)
+				{
+					float mn = inspectorBox->parameters.getMin(i);
+					float mx = inspectorBox->parameters.getMax(i);
+					inspectorBox->parameters.setFloatValue(ofRandom(mn, mx), i);
+					// Also zero out lerp target so it snaps immediately
+					inspectorBox->parameters.setFloatLerpValue(inspectorBox->parameters.getFloatValue(i), i);
+				}
+			}
 		}
 		// Checkeo todos los controles.
 		bool isovercontrol = false;

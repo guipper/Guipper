@@ -147,12 +147,14 @@ public:
 
 	enum MENUACTIVO
 	{
-		NODOS,
-		OPCIONES,
-		TUTORIAL,
-		SHADER_INDEX
+		NODOS,       // NODES
+		OPCIONES,    // SETTINGS
+		TUTORIAL,    // HELP
+		SHADER_INDEX // IMPORT
 	};
 	int pantallaActiva;
+	void drawScreenTabs();
+	int getScreenTabAtPos(int x, int y);
 	bool loadAspreset; // ESTO ES PARA QUE TODO EL TIEMPO ME DIGA SI TENGO APRETADO EL BOTON DE LA IZQ O NO .
 
 	bool oscout_mode1;
@@ -182,6 +184,9 @@ public:
 	// Shader index search
 	string shaderSearchText;
 	bool shaderSearchFocused = false;
+	// Preview random values for RDM button
+	vector<float> previewRdmValues;
+	bool previewRdmActive = false;
 
 	// LOAD distribution counter
 	int loadBoxCount = 0;

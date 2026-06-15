@@ -109,21 +109,11 @@ void ofApp::setup() {
 	// glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations
 	//ofDisableArbTex(); // needed for textures to work
 	// myTextureImage.loadImage("SpoutBox1.png");			// Load a texture image for the demo
-	// Load composition: use defaultCompoPath if configured, otherwise use savedirectory
+	// If a default composition is configured, use it instead of savedirectory
 	if (!defaultCompoPath.empty()) {
-		ofFile defaultFile(ofToDataPath(defaultCompoPath));
-		if (defaultFile.exists()) {
-			cout << "Loading default composition: " << ofToDataPath(defaultCompoPath) << endl;
-			loadSession(defaultCompoPath);
-			savedirectory = defaultCompoPath;
-			cout << "Loaded, boxes: " << boxes.getBoxesSize() << endl;
-		} else {
-			cout << "Default composition not found, falling back: " << savedirectory << endl;
-			loadSession(savedirectory);
-		}
-	} else {
-		loadSession(savedirectory);
+		savedirectory = defaultCompoPath;
 	}
+	loadSession(savedirectory);
 	midiKeymap.load(ofToDataPath("midi_keymap.xml"));
 }
 void ofApp::update() {
@@ -197,6 +187,12 @@ void ofApp::update() {
 			ofMap(ofGetMouseY(), 0, ofGetHeight(), 0, 1));
 		previewShader.setUniform1i("globalframeNum", ofGetFrameNum());
 		previewShader.setUniform1i("boxframeNum", ofGetFrameNum());
+		// Random uniform values for preview (set by RDM button)
+		if (previewRdmActive && !previewRdmValues.empty()) {
+			for (int i = 0; i < (int)previewRdmValues.size(); i++) {
+				previewShader.setUniform1f("rdm" + ofToString(i), previewRdmValues[i]);
+			}
+		}
 		// Bind preview textures for imageprocessing/blending shaders
 		if (previewImg1.isAllocated()) {
 			previewImg1.getTexture().bind(0);
@@ -246,6 +242,8 @@ void ofApp::draw() {
 	midiKeymap.drawMappingTargets();
 	midiKeymap.draw();
 
+	drawScreenTabs();
+
 	drawSaveModal();
 }
 void ofApp::draw_debugInfo() {
@@ -283,6 +281,7 @@ void ofApp::draw_instrucciones() {
 	es[esLines++] = "2 : Configuracion (Settings)";
 	es[esLines++] = "3 : Instrucciones (esta pantalla)";
 	es[esLines++] = "4 : Shader Index (navegador de shaders)";
+	es[esLines++] = "Tambien podes usar los botones NODES, SETTINGS, HELP, IMPORT de arriba";
 	es[esLines++] = "t : Alternar carga como preset o sesion completa";
 	es[esLines++] = "w : Abre ventana de render aparte";
 	es[esLines++] = "f : FullScreen sobre ventana de render";
@@ -334,6 +333,7 @@ void ofApp::draw_instrucciones() {
 	en[enLines++] = "2 : Settings (XML Configuration)";
 	en[enLines++] = "3 : Instructions (this screen)";
 	en[enLines++] = "4 : Shader Index (shader browser)";
+	en[enLines++] = "You can also use the NODES, SETTINGS, HELP, IMPORT buttons above";
 	en[enLines++] = "t : Toggle load as preset or full session";
 	en[enLines++] = "w : Open separate render window";
 	en[enLines++] = "f : Fullscreen on render window";
@@ -1170,23 +1170,43 @@ void ofApp::draw_shaderindex() {
 			font_p.drawString(selPath, previewX + previewW / 2 - font_p.stringWidth(selPath) / 2, fboY + fboPreviewH + 34);
 		}
 
-		// LOAD button
-		float btnW = 120;
+		// LOAD + RDM buttons
+		float btnW = 80;
 		float btnH = 28;
-		float btnX = previewX + previewW / 2 - btnW / 2;
+		float btnGap = 8;
+		float btnTotalW = btnW * 2 + btnGap;
+		float btnStartX = previewX + previewW / 2 - btnTotalW / 2;
 		float btnY = previewY + previewH - 40;
+		float loadX = btnStartX;
+		float rdmX = btnStartX + btnW + btnGap;
+
+		// LOAD button
 		ofSetColor(0, 160, 160);
-		ofDrawRectRounded(btnX, btnY, btnW, btnH, 4.0f);
+		ofDrawRectRounded(loadX, btnY, btnW, btnH, 4.0f);
 		ofNoFill();
 		ofSetColor(0, 230, 230);
 		ofSetLineWidth(1.5f);
-		ofDrawRectRounded(btnX, btnY, btnW, btnH, 4.0f);
+		ofDrawRectRounded(loadX, btnY, btnW, btnH, 4.0f);
 		ofFill();
 		ofSetLineWidth(1.0f);
 		ofSetColor(255);
 		string loadLabel = language == 0 ? "[ LOAD ]" : "[ CARGAR ]";
 		float lw = font_p.stringWidth(loadLabel);
-		font_p.drawString(loadLabel, btnX + btnW / 2 - lw / 2, btnY + 20);
+		font_p.drawString(loadLabel, loadX + btnW / 2 - lw / 2, btnY + 20);
+
+		// RDM button
+		ofSetColor(160, 80, 200);
+		ofDrawRectRounded(rdmX, btnY, btnW, btnH, 4.0f);
+		ofNoFill();
+		ofSetColor(200, 100, 255);
+		ofSetLineWidth(1.5f);
+		ofDrawRectRounded(rdmX, btnY, btnW, btnH, 4.0f);
+		ofFill();
+		ofSetLineWidth(1.0f);
+		ofSetColor(255);
+		string rdmLabel = "[ RDM ]";
+		float rw = font_p.stringWidth(rdmLabel);
+		font_p.drawString(rdmLabel, rdmX + btnW / 2 - rw / 2, btnY + 20);
 
 	} else {
 		ofSetColor(80, 90, 100);
@@ -1601,6 +1621,26 @@ void ofApp::mousePressed(int x, int y, int button) {
 		return;
 	}
 
+	// Screen tab click handling
+	{
+		int tabScreen = getScreenTabAtPos(x, y);
+		if (tabScreen >= 0) {
+			if (pantallaActiva != tabScreen) {
+				pantallaActiva = tabScreen;
+				focusedOptionsField = -1;
+				if (tabScreen == OPCIONES) {
+					initOptionsFields();
+					optionsFieldsInitialized = true;
+				} else if (tabScreen == SHADER_INDEX) {
+					if (shaderFolders.empty()) {
+						scanShaders();
+					}
+				}
+			}
+			return;
+		}
+	}
+
 	if (pantallaActiva == NODOS) {
 		if (boxes.update_cueMousePressed(button)) {
 			return;
@@ -1767,13 +1807,73 @@ void ofApp::mousePressed(int x, int y, int button) {
 			return;
 		}
 
-		// ---- LOAD BUTTON ----
+		// ---- LOAD + RDM BUTTONS ----
 		if (selectedShaderFolder >= 0 && selectedShaderIndex >= 0) {
-			float btnW = 120;
+			float btnW = 80;
 			float btnH = 28;
-			float btnX = previewX + previewW / 2 - btnW / 2;
+			float btnGap = 8;
+			float btnTotalW = btnW * 2 + btnGap;
+			float btnStartX = previewX + previewW / 2 - btnTotalW / 2;
 			float btnY = previewY + previewH - 40;
-			if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) {
+			float loadX = btnStartX;
+			float rdmX = btnStartX + btnW + btnGap;
+
+			// RDM button - randomize preview uniforms
+			if (x >= rdmX && x <= rdmX + btnW && y >= btnY && y <= btnY + btnH) {
+				previewRdmActive = true;
+				int numUniforms = 8;
+				previewRdmValues.resize(numUniforms);
+				for (int i = 0; i < numUniforms; i++) {
+					previewRdmValues[i] = ofRandom(0.0f, 1.0f);
+				}
+				// Rerender preview FBO with random values
+				if (previewFbo.isAllocated()) {
+					string shaderPath = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
+					previewShader.unload();
+					previewShaderLoaded = false;
+					if (previewShader.load("shaders/default.vert", shaderPath)) {
+						previewShaderLoaded = true;
+						previewFbo.begin();
+						ofClear(0, 0, 0, 255);
+						previewShader.begin();
+						previewShader.setUniform1f("time", ofGetElapsedTimef());
+						previewShader.setUniform2f("resolution", previewFbo.getWidth(), previewFbo.getHeight());
+						previewShader.setUniform1f("bpm", jp_constants::bpm);
+						previewShader.setUniform4f("mouse", 0.5, 0.5, 0.5, 0.5);
+						previewShader.setUniform2f("window_mouse", 0.5, 0.5);
+						previewShader.setUniform1i("globalframeNum", 0);
+						previewShader.setUniform1i("boxframeNum", 0);
+						for (int i = 0; i < numUniforms; i++) {
+							previewShader.setUniform1f("rdm" + ofToString(i), previewRdmValues[i]);
+						}
+						if (previewImg1.isAllocated()) {
+							previewImg1.getTexture().bind(0);
+							previewShader.setUniform1i("texture1", 0);
+							previewShader.setUniform1i("textura1", 0);
+							previewShader.setUniform1i("input_texture", 0);
+							previewShader.setUniform1i("tex0", 0);
+							previewShader.setUniform1i("textura", 0);
+							previewShader.setUniform1i("texture", 0);
+						}
+						if (previewImg2.isAllocated()) {
+							previewImg2.getTexture().bind(1);
+							previewShader.setUniform1i("texture2", 1);
+							previewShader.setUniform1i("textura2", 1);
+							previewShader.setUniform1i("tex1", 1);
+						}
+						ofSetColor(255);
+						ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
+						previewShader.end();
+						if (previewImg1.isAllocated()) previewImg1.getTexture().unbind(0);
+						if (previewImg2.isAllocated()) previewImg2.getTexture().unbind(1);
+						previewFbo.end();
+					}
+				}
+				return;
+			}
+
+			// LOAD button
+			if (x >= loadX && x <= loadX + btnW && y >= btnY && y <= btnY + btnH) {
 				// Load this shader onto the canvas
 				string path = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
 				cout << "SHADER INDEX: Loading " << path << endl;
@@ -2562,4 +2662,111 @@ void ofApp::updateSaveModal() {
 	saveSession(savedirectory);
 	saveModalActive = false;
 	saveModalName = "";
+}
+
+void ofApp::drawScreenTabs() {
+	const float tabX = 0;
+	const float tabY = 0;
+	const float tabH = 28;
+	const float pad = 8;
+	const float gap = 2;
+
+	struct ScreenTab {
+		string label;
+		int screenId;
+	};
+	vector<ScreenTab> tabs = {
+		{"NODES", NODOS},
+		{"SETTINGS", OPCIONES},
+		{"HELP", TUTORIAL},
+		{"IMPORT", SHADER_INDEX}
+	};
+
+	// Tab bar background
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofSetColor(18, 18, 22, 210);
+	ofDrawRectRounded(tabX + pad, tabY + pad, ofGetWidth() - pad * 2, tabH + gap * 2, 4);
+	ofPopStyle();
+
+	float x = tabX + pad;
+	const float y = tabY + pad;
+
+	for (int i = 0; i < (int)tabs.size(); i++) {
+		const string &label = tabs[i].label;
+		int screenId = tabs[i].screenId;
+		bool active = (pantallaActiva == screenId);
+
+		float textW = jp_constants::p_font.stringWidth(label);
+		float tabMinWidth = 90;
+		float tabW = max(tabMinWidth, textW + 24);
+
+		// Draw tab background
+		ofPushStyle();
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		if (active) {
+			ofSetColor(40, 180, 80, 235);
+		} else {
+			ofSetColor(35, 35, 42, 225);
+		}
+		ofDrawRectRounded(x, y, tabW, tabH, 3);
+
+		// Border
+		ofNoFill();
+		ofSetLineWidth(1);
+		if (active) {
+			ofSetColor(60, 220, 100, 255);
+		} else {
+			ofSetColor(55, 55, 65, 200);
+		}
+		ofDrawRectRounded(x, y, tabW, tabH, 3);
+		ofFill();
+
+		// Text
+		ofSetColor(active ? 255 : 200);
+		jp_constants::p_font.drawString(label, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
+
+		ofPopStyle();
+
+		x += tabW + gap;
+	}
+}
+
+int ofApp::getScreenTabAtPos(int x, int y) {
+	const float tabX = 0;
+	const float tabY = 0;
+	const float tabH = 28;
+	const float pad = 8;
+	const float gap = 2;
+
+	// Check if y is within screen tab bar
+	if (y < tabY || y > tabY + tabH + pad * 2 + gap * 2) {
+		return -1;
+	}
+
+	struct ScreenTab {
+		string label;
+		int screenId;
+	};
+	vector<ScreenTab> tabs = {
+		{"NODES", NODOS},
+		{"SETTINGS", OPCIONES},
+		{"HELP", TUTORIAL},
+		{"IMPORT", SHADER_INDEX}
+	};
+
+	float cx = tabX + pad;
+	float cy = tabY + pad;
+
+	for (int i = 0; i < (int)tabs.size(); i++) {
+		float textW = jp_constants::p_font.stringWidth(tabs[i].label);
+		float tabMinWidth = 90;
+		float tabW = max(tabMinWidth, textW + 24);
+
+		if (x >= cx && x <= cx + tabW && y >= cy && y <= cy + tabH) {
+			return tabs[i].screenId;
+		}
+		cx += tabW + gap;
+	}
+	return -1;
 }
