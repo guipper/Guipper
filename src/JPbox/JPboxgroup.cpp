@@ -4772,53 +4772,87 @@ int JPboxgroup::getActiverenderNum() {
 }*/
 
 // ============================================================
-// TAB SYSTEM
+// CONTEXTUAL TAB SYSTEM - Breadcrumb Navigation
+// ============================================================
+// Tabs are organized as: MAIN | breadcrumb[1] | ... | breadcrumb[N] | child[0] | child[1] | ...
+// - Tab 0: MAIN (always)
+// - Tabs 1..activeGroupPath.size(): clickable breadcrumb to go back to that level
+// - Tabs beyond: direct child presets of the current view
+// This ensures you can ALWAYS navigate backwards.
 // ============================================================
 
-vector<vector<int>> JPboxgroup::collectAllPresetPaths() const
+vector<int> JPboxgroup::getDirectChildPresetIndices() const
 {
-	vector<vector<int>> paths;
+	vector<int> indices;
+	const vector<JPbox *> *boxList = &boxes;
 
-	// Helper to recursively find presets
-	function<void(const vector<int> &basePath, const vector<JPbox *> &boxList)> findPresets;
-	findPresets = [&](const vector<int> &basePath, const vector<JPbox *> &boxList)
+	if (isGroupViewActive())
 	{
-		for (int i = 0; i < (int)boxList.size(); i++)
+		JPbox_preset *preset = getActivePreset();
+		if (preset != nullptr)
 		{
-			if (boxList[i] != nullptr && boxList[i]->getTipo() == JPbox::PRESETBOX)
-			{
-				vector<int> path = basePath;
-				path.push_back(i);
-				paths.push_back(path);
-				// Recurse into nested presets
-				JPbox_preset *innerPreset = static_cast<JPbox_preset *>(boxList[i]);
-				findPresets(path, innerPreset->boxes);
-			}
+			boxList = &preset->boxes;
 		}
-	};
+	}
 
-	findPresets(vector<int>(), boxes);
-	return paths;
+	for (int i = 0; i < (int)boxList->size(); i++)
+	{
+		if ((*boxList)[i] != nullptr && (*boxList)[i]->getTipo() == JPbox::PRESETBOX)
+		{
+			indices.push_back(i);
+		}
+	}
+	return indices;
+}
+
+// Breadcrumb helpers
+static string getBreadcrumbNameAtLevel(const vector<int> &activeGroupPath, const vector<JPbox *> &boxes, int level)
+{
+	// level 0 = root (MAIN)
+	if (level == 0) return "MAIN";
+	if (level < 0 || level > (int)activeGroupPath.size()) return "?";
+
+	// Navigate path to find the box at this level
+	JPbox *box = boxes[activeGroupPath[0]];
+	if (box == nullptr) return "?";
+	if (level == 1) return box->name;
+
+	JPbox_preset *preset = (box->getTipo() == JPbox::PRESETBOX) ? static_cast<JPbox_preset *>(box) : nullptr;
+	for (int d = 1; d < level && preset != nullptr; d++)
+	{
+		int idx = activeGroupPath[d];
+		if (idx >= 0 && idx < (int)preset->boxes.size())
+			box = preset->boxes[idx];
+		else
+			box = nullptr;
+		preset = (box && box->getTipo() == JPbox::PRESETBOX) ? static_cast<JPbox_preset *>(box) : nullptr;
+	}
+	return (box != nullptr) ? box->name : "?";
 }
 
 void JPboxgroup::drawTabs()
 {
-	vector<vector<int>> presetPaths = collectAllPresetPaths();
-	int totalTabs = 1 + (int)presetPaths.size(); // main + preset tabs
+	vector<int> childIndices = getDirectChildPresetIndices();
+	int pathLen = (int)activeGroupPath.size();
+
+	// Total tabs = MAIN(1) + breadcrumb(pathLen) + children(childIndices.size())
+	int totalTabs = 1 + pathLen + (int)childIndices.size();
 	if (totalTabs <= 1)
 	{
-		return; // No preset boxes, no tabs to show
+		return; // Only MAIN, no presets at all
 	}
 
-	const float tabBarX = 0;
-	const float tabBarY = tabBarOffsetY;
-	const float tabHeight = 28;
+	// activeTab logic:
+	// In MAIN view, activeTab = 0 (MAIN tab)
+	// In group view, activeTab = pathLen (the last breadcrumb tab)
+	int activeTabIndex = isGroupViewActive() ? pathLen : 0;
+
 	const float tabMinWidth = 90;
 	const float pad = 8;
 	const float gap = 2;
-	const float tabH = tabHeight;
-	float x = tabBarX + pad;
-	const float y = tabBarY + pad;
+	const float tabH = 28;
+	float x = pad;
+	const float y = tabBarOffsetY + pad;
 
 	// Draw tab bar background
 	ofPushStyle();
@@ -4827,136 +4861,180 @@ void JPboxgroup::drawTabs()
 	ofDrawRectRounded(x, y, ofGetWidth() - pad * 2, tabH + gap * 2, 4);
 	ofPopStyle();
 
-	// Draw "Main" tab (activeTab == 0)
-	drawSingleTab(x, y, tabH, "MAIN", activeTab == 0);
+	// Draw each tab
+	int tabCounter = 0;
 
-	// Measure main tab width
-	float mainTabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth("MAIN") + 20);
-	x += mainTabW + gap;
-
-	// Draw preset group tabs
-	for (int ti = 0; ti < (int)presetPaths.size(); ti++)
+	// TAB 0: MAIN (always)
 	{
-		const vector<int> &path = presetPaths[ti];
-		// Get the name from the deepest preset in the path
-		JPbox *labelBox = boxes[path[0]];
-		JPbox_preset *labelPreset = (labelBox && labelBox->getTipo() == JPbox::PRESETBOX)
-			? static_cast<JPbox_preset *>(labelBox) : nullptr;
-		for (size_t d = 1; d < path.size() && labelPreset != nullptr; d++)
-		{
-			if (path[d] < (int)labelPreset->boxes.size())
-				labelBox = labelPreset->boxes[path[d]];
-			else
-				labelBox = nullptr;
-			labelPreset = (labelBox && labelBox->getTipo() == JPbox::PRESETBOX)
-				? static_cast<JPbox_preset *>(labelBox) : nullptr;
-		}
-		string tabName = (labelBox != nullptr) ? labelBox->name : "";
-		if (tabName.empty())
-		{
-			tabName = "Group " + ofToString(ti);
-		}
-		float tabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth(tabName) + 24);
-		drawSingleTab(x, y, tabH, tabName, activeTab == (ti + 1));
+		string name = "MAIN";
+		float textW = jp_constants::p_font.stringWidth(name);
+		float tabW = std::max(tabMinWidth, textW + 24);
+		bool isActive = (activeTabIndex == tabCounter);
+
+		ofPushStyle();
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		ofSetColor(isActive ? ofColor(40, 180, 80, 235) : ofColor(35, 35, 42, 225));
+		ofDrawRectRounded(x, y, tabW, tabH, 3);
+		ofNoFill(); ofSetLineWidth(1);
+		ofSetColor(isActive ? ofColor(60, 220, 100, 255) : ofColor(55, 55, 65, 200));
+		ofDrawRectRounded(x, y, tabW, tabH, 3); ofFill();
+		ofSetColor(isActive ? 255 : 200);
+		jp_constants::p_font.drawString(name, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
+		ofPopStyle();
+
 		x += tabW + gap;
+		tabCounter++;
 	}
-}
 
-void JPboxgroup::drawSingleTab(float x, float y, float h, const string &label, bool active)
-{
-	ofPushStyle();
-	ofSetRectMode(OF_RECTMODE_CORNER);
-
-	const float tabMinWidth = 90;
-	float textW = jp_constants::p_font.stringWidth(label);
-	float tabW = std::max(tabMinWidth, textW + 24);
-
-	if (active)
+	// Breadcrumb tabs (level 1..pathLen) - each is clickable to go back
+	if (isGroupViewActive())
 	{
-		ofSetColor(40, 180, 80, 235);
-	}
-	else
-	{
-		ofSetColor(35, 35, 42, 225);
-	}
-	ofDrawRectRounded(x, y, tabW, h, 3);
+		for (int level = 1; level <= pathLen; level++)
+		{
+			string name = getBreadcrumbNameAtLevel(activeGroupPath, boxes, level);
+			float textW = jp_constants::p_font.stringWidth(name);
+			float tabW = std::max(tabMinWidth, textW + 24);
+			bool isActive = (activeTabIndex == tabCounter);
 
-	// Border
-	ofNoFill();
-	ofSetLineWidth(1);
-	if (active)
-	{
-		ofSetColor(60, 220, 100, 255);
-	}
-	else
-	{
-		ofSetColor(55, 55, 65, 200);
-	}
-	ofDrawRectRounded(x, y, tabW, h, 3);
-	ofFill();
+			ofPushStyle();
+			ofSetRectMode(OF_RECTMODE_CORNER);
+			if (isActive)
+			{
+				// Current level - highlighted green
+				ofSetColor(40, 180, 80, 235);
+			}
+			else if (level < pathLen)
+			{
+				// Parent level - clickable to go back, amber style
+				ofSetColor(65, 55, 35, 225);
+			}
+			else
+			{
+				// Should not happen, but just in case
+				ofSetColor(45, 45, 50, 225);
+			}
+			ofDrawRectRounded(x, y, tabW, tabH, 3);
+			ofNoFill(); ofSetLineWidth(1);
+			ofSetColor(isActive ? ofColor(60, 220, 100, 255) : ofColor(90, 75, 50, 200));
+			ofDrawRectRounded(x, y, tabW, tabH, 3); ofFill();
 
-	// Text
-	ofSetColor(active ? 255 : 200);
-	jp_constants::p_font.drawString(label, x + (tabW - textW) * 0.5f, y + h * 0.5f + 5);
+			// Small ">" separator before breadcrumb levels (except first)
+			if (level > 1)
+			{
+				ofSetColor(120, 100, 60);
+				jp_constants::p_font.drawString(">", x - gap - 10, y + tabH * 0.5f + 5);
+			}
 
-	ofPopStyle();
+			ofSetColor(isActive ? 255 : (level < pathLen ? 230 : 180));
+			jp_constants::p_font.drawString(name, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
+			ofPopStyle();
+
+			x += tabW + gap;
+			tabCounter++;
+		}
+	}
+
+	// Child preset tabs (direct children)
+	for (int ti = 0; ti < (int)childIndices.size(); ti++)
+	{
+		int idx = childIndices[ti];
+		string tabName = "?";
+
+		const vector<JPbox *> *boxList = &boxes;
+		if (isGroupViewActive())
+		{
+			JPbox_preset *preset = getActivePreset();
+			if (preset != nullptr) boxList = &preset->boxes;
+		}
+		if (idx >= 0 && idx < (int)boxList->size() && (*boxList)[idx] != nullptr)
+			tabName = (*boxList)[idx]->name;
+		if (tabName.empty()) tabName = "Group " + ofToString(ti);
+
+		float textW = jp_constants::p_font.stringWidth(tabName);
+		float tabW = std::max(tabMinWidth, textW + 24);
+		bool isActive = (activeTabIndex == tabCounter);
+
+		ofPushStyle();
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		ofSetColor(isActive ? ofColor(40, 180, 80, 235) : ofColor(35, 35, 42, 225));
+		ofDrawRectRounded(x, y, tabW, tabH, 3);
+		ofNoFill(); ofSetLineWidth(1);
+		ofSetColor(isActive ? ofColor(60, 220, 100, 255) : ofColor(55, 55, 65, 200));
+		ofDrawRectRounded(x, y, tabW, tabH, 3); ofFill();
+		ofSetColor(isActive ? 255 : 200);
+		jp_constants::p_font.drawString(tabName, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
+		ofPopStyle();
+
+		x += tabW + gap;
+		tabCounter++;
+	}
 }
 
 int JPboxgroup::getTabAtScreenPos(int screenX, int screenY) const
 {
-	vector<vector<int>> presetPaths = collectAllPresetPaths();
-	int totalTabs = 1 + (int)presetPaths.size();
-	const float tabBarY = tabBarOffsetY;
+	vector<int> childIndices = getDirectChildPresetIndices();
+	int pathLen = (int)activeGroupPath.size();
+	int totalTabs = 1 + pathLen + (int)childIndices.size();
+
 	const float tabHeight = 28;
-	if (totalTabs <= 1 || screenY < tabBarY || screenY > tabBarY + tabHeight + 8 + tabBarOffsetY)
+	const float tabMinWidth = 90;
+	const float pad = 8;
+	const float gap = 2;
+
+	if (totalTabs <= 1 || screenY < tabBarOffsetY || screenY > tabBarOffsetY + tabHeight + pad * 2 + tabBarOffsetY)
 	{
 		return -1;
 	}
 
-	const float tabBarX = 0;
-	const float tabMinWidth = 90;
-	const float pad = 8;
-	const float gap = 2;
-	const float tabH = tabHeight;
-	float x = tabBarX + pad;
+	float x = pad;
 
-	// Check Main tab
-	float mainTabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth("MAIN") + 20);
-	if (screenX >= x && screenX <= x + mainTabW)
-	{
-		return 0; // Main tab
-	}
-	x += mainTabW + gap;
+	// Iterate tabs in same order as drawTabs() and find hit
+	int tabIndex = 0;
 
-	// Check preset tabs
-	for (int ti = 0; ti < (int)presetPaths.size(); ti++)
+	// MAIN
 	{
-		const vector<int> &path = presetPaths[ti];
-		// Get name from the deepest preset in the path
-		JPbox *labelBox = boxes[path[0]];
-		JPbox_preset *labelPreset = (labelBox && labelBox->getTipo() == JPbox::PRESETBOX)
-			? static_cast<JPbox_preset *>(labelBox) : nullptr;
-		for (size_t d = 1; d < path.size() && labelPreset != nullptr; d++)
-		{
-			if (path[d] < (int)labelPreset->boxes.size())
-				labelBox = labelPreset->boxes[path[d]];
-			else
-				labelBox = nullptr;
-			labelPreset = (labelBox && labelBox->getTipo() == JPbox::PRESETBOX)
-				? static_cast<JPbox_preset *>(labelBox) : nullptr;
-		}
-		string tabName = (labelBox != nullptr) ? labelBox->name : "";
-		if (tabName.empty())
-		{
-			tabName = "Group " + ofToString(ti);
-		}
-		float tabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth(tabName) + 24);
-		if (screenX >= x && screenX <= x + tabW)
-		{
-			return ti + 1;
-		}
+		float tabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth("MAIN") + 24);
+		if (screenX >= x && screenX <= x + tabW) return tabIndex;
 		x += tabW + gap;
+		tabIndex++;
 	}
+
+	// Breadcrumb
+	if (isGroupViewActive())
+	{
+		for (int level = 1; level <= pathLen; level++)
+		{
+			string name = getBreadcrumbNameAtLevel(activeGroupPath, boxes, level);
+			float tabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth(name) + 24);
+			// Account for ">" separator space
+			if (level > 1) x += 12;
+			if (screenX >= x && screenX <= x + tabW) return tabIndex;
+			x += tabW + gap;
+			tabIndex++;
+		}
+	}
+
+	// Children
+	for (int ti = 0; ti < (int)childIndices.size(); ti++)
+	{
+		int idx = childIndices[ti];
+		string tabName = "?";
+		const vector<JPbox *> *boxList = &boxes;
+		if (isGroupViewActive())
+		{
+			JPbox_preset *preset = getActivePreset();
+			if (preset != nullptr) boxList = &preset->boxes;
+		}
+		if (idx >= 0 && idx < (int)boxList->size() && (*boxList)[idx] != nullptr)
+			tabName = (*boxList)[idx]->name;
+		if (tabName.empty()) tabName = "Group " + ofToString(ti);
+
+		float tabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth(tabName) + 24);
+		if (screenX >= x && screenX <= x + tabW) return tabIndex;
+		x += tabW + gap;
+		tabIndex++;
+	}
+
 	return -1;
 }
 
@@ -4964,12 +5042,10 @@ JPbox_preset *JPboxgroup::getActivePreset() const
 {
 	if (activeGroupPath.empty()) return nullptr;
 
-	// Navigate the path to find the target preset
 	JPbox *box = boxes[activeGroupPath[0]];
 	if (box == nullptr || box->getTipo() != JPbox::PRESETBOX) return nullptr;
 	JPbox_preset *preset = static_cast<JPbox_preset *>(box);
 
-	// For nested presets, go deeper
 	for (size_t depth = 1; depth < activeGroupPath.size(); depth++)
 	{
 		int idx = activeGroupPath[depth];
@@ -4980,6 +5056,128 @@ JPbox_preset *JPboxgroup::getActivePreset() const
 	return preset;
 }
 
+bool JPboxgroup::navigateToBreadcrumbLevel(int level)
+{
+	// level = number of path elements to keep (0 = MAIN, 1 = first level, etc.)
+	if (level < 0 || level > (int)activeGroupPath.size())
+	{
+		return false;
+	}
+
+	// Save zoom before navigating
+	ensureTabStateSize();
+	int oldTabIndex = isGroupViewActive() ? (int)activeGroupPath.size() : 0;
+	if (oldTabIndex < (int)tabZooms.size())
+	{
+		tabZooms[oldTabIndex] = viewportZoom;
+		tabPans[oldTabIndex] = viewportPan;
+	}
+
+	if (level == 0)
+	{
+		// Go to MAIN
+		activeGroupPath.clear();
+		openguinumber = -1;
+		groupInspectorIndex = -1;
+		groupPreviewBoxIndex = -1;
+		clearSelection();
+
+		// Restore MAIN zoom
+		if (0 < (int)tabZooms.size())
+		{
+			viewportZoom = tabZooms[0];
+			viewportPan = tabPans[0];
+		}
+		else
+		{
+			viewportZoom = 1.0f;
+			viewportPan = ofVec2f(0, 0);
+		}
+		return true;
+	}
+
+	// Truncate path to keep only 'level' elements
+	activeGroupPath.resize(level);
+	openguinumber = -1;
+	groupInspectorIndex = -1;
+	groupPreviewBoxIndex = -1;
+	clearSelection();
+
+	// Restore zoom for this level
+	if (level < (int)tabZooms.size())
+	{
+		viewportZoom = tabZooms[level];
+		viewportPan = tabPans[level];
+	}
+	else
+	{
+		viewportZoom = 1.0f;
+		viewportPan = ofVec2f(0, 0);
+	}
+
+	return true;
+}
+
+bool JPboxgroup::navigateToChildPreset(int childIndex)
+{
+	vector<int> childIndices = getDirectChildPresetIndices();
+	if (childIndex < 0 || childIndex >= (int)childIndices.size())
+	{
+		return false;
+	}
+
+	int realIndex = childIndices[childIndex];
+
+	// Save current zoom before navigating
+	ensureTabStateSize();
+	int oldTabIndex = isGroupViewActive() ? (int)activeGroupPath.size() : 0;
+	if (oldTabIndex < (int)tabZooms.size())
+	{
+		tabZooms[oldTabIndex] = viewportZoom;
+		tabPans[oldTabIndex] = viewportPan;
+	}
+
+	// Build the new path: current activeGroupPath + child's real index
+	vector<int> newPath = activeGroupPath;
+	newPath.push_back(realIndex);
+
+	// Verify the target exists and is a valid preset
+	JPbox *box = boxes[newPath[0]];
+	if (box == nullptr || box->getTipo() != JPbox::PRESETBOX) return false;
+	JPbox_preset *preset = static_cast<JPbox_preset *>(box);
+	for (size_t d = 1; d < newPath.size(); d++)
+	{
+		int idx = newPath[d];
+		if (idx < 0 || idx >= (int)preset->boxes.size() || preset->boxes[idx] == nullptr) return false;
+		if (d < newPath.size() - 1)
+		{
+			if (preset->boxes[idx]->getTipo() != JPbox::PRESETBOX) return false;
+			preset = static_cast<JPbox_preset *>(preset->boxes[idx]);
+		}
+	}
+
+	activeGroupPath = newPath;
+	openguinumber = -1;
+	groupInspectorIndex = -1;
+	groupPreviewBoxIndex = -1;
+	clearSelection();
+
+	// Reset zoom for the new level (or load saved)
+	int newLevel = (int)newPath.size();
+	if (newLevel < (int)tabZooms.size())
+	{
+		viewportZoom = tabZooms[newLevel];
+		viewportPan = tabPans[newLevel];
+	}
+	else
+	{
+		viewportZoom = 1.0f;
+		viewportPan = ofVec2f(0, 0);
+	}
+
+	return true;
+}
+
 bool JPboxgroup::handleTabClick()
 {
 	int tabIndex = getTabAtScreenPos(ofGetMouseX(), ofGetMouseY());
@@ -4988,112 +5186,102 @@ bool JPboxgroup::handleTabClick()
 		return false;
 	}
 
-	// Handle double-click on an ALREADY active tab → rename
-	if (tabIndex == activeTab && isDoubleClick)
+	int pathLen = (int)activeGroupPath.size();
+	vector<int> childIndices = getDirectChildPresetIndices();
+
+	// Tab index breakdown:
+	// 0 = MAIN
+	// 1..pathLen = breadcrumb levels (clickable to go back)
+	// pathLen+1.. = child presets (clickable to go forward)
+
+	if (tabIndex == 0)
 	{
-		vector<vector<int>> presetPaths = collectAllPresetPaths();
-		int ti = tabIndex - 1;
-		if (tabIndex > 0 && ti >= 0 && ti < (int)presetPaths.size())
+		// MAIN tab
+		if (!isGroupViewActive())
 		{
-			// Navigate path to find the preset box
-			const vector<int> &path = presetPaths[ti];
-			JPbox *targetBox = boxes[path[0]];
-			JPbox_preset *targetPreset = (targetBox && targetBox->getTipo() == JPbox::PRESETBOX)
-				? static_cast<JPbox_preset *>(targetBox) : nullptr;
-			for (size_t d = 1; d < path.size() && targetPreset != nullptr; d++)
+			// Already in MAIN - reset zoom
+			viewportZoom = 1.0f;
+			viewportPan = ofVec2f(0, 0);
+			ensureTabStateSize();
+			if (0 < (int)tabZooms.size())
 			{
-				if (path[d] < (int)targetPreset->boxes.size())
-					targetBox = targetPreset->boxes[path[d]];
-				else
-					targetBox = nullptr;
-				targetPreset = (targetBox && targetBox->getTipo() == JPbox::PRESETBOX)
-					? static_cast<JPbox_preset *>(targetBox) : nullptr;
+				tabZooms[0] = viewportZoom;
+				tabPans[0] = viewportPan;
 			}
-			if (targetBox != nullptr)
+		}
+		else
+		{
+			navigateToBreadcrumbLevel(0);
+		}
+		return true;
+	}
+
+	if (tabIndex >= 1 && tabIndex <= pathLen)
+	{
+		// Clicked a breadcrumb level - navigate back
+		if (tabIndex == pathLen && isGroupViewActive())
+		{
+			// Clicked the current level - reset zoom
+			viewportZoom = 1.0f;
+			viewportPan = ofVec2f(0, 0);
+			ensureTabStateSize();
+			if (tabIndex < (int)tabZooms.size())
 			{
-				string newName = ofSystemTextBoxDialog("Rename group", targetBox->name);
+				tabZooms[tabIndex] = viewportZoom;
+				tabPans[tabIndex] = viewportPan;
+			}
+		}
+		else
+		{
+			// Navigate back to that breadcrumb level
+			navigateToBreadcrumbLevel(tabIndex);
+		}
+		return true;
+	}
+
+	// Child preset tab
+	int childIndex = tabIndex - pathLen - 1;
+	if (childIndex >= 0 && childIndex < (int)childIndices.size())
+	{
+		// Handle double-click on child -> rename
+		if (isDoubleClick)
+		{
+			int realIdx = childIndices[childIndex];
+			const vector<JPbox *> *boxList = &boxes;
+			if (isGroupViewActive())
+			{
+				JPbox_preset *preset = getActivePreset();
+				if (preset != nullptr) boxList = &preset->boxes;
+			}
+			if (realIdx >= 0 && realIdx < (int)boxList->size() && (*boxList)[realIdx] != nullptr)
+			{
+				string newName = ofSystemTextBoxDialog("Rename group", (*boxList)[realIdx]->name);
 				if (!newName.empty())
 				{
-					targetBox->name = newName;
+					(*boxList)[realIdx]->name = newName;
 				}
 			}
+			return true;
 		}
+
+		// Navigate into child preset
+		navigateToChildPreset(childIndex);
 		return true;
 	}
 
-	if (tabIndex == activeTab)
-	{
-		// Clicking the same tab: just reset zoom
-		viewportZoom = 1.0f;
-		viewportPan = ofVec2f(0, 0);
-		// Store the reset state for this tab
-		ensureTabStateSize();
-		if (tabIndex < (int)tabZooms.size())
-		{
-			tabZooms[tabIndex] = viewportZoom;
-			tabPans[tabIndex] = viewportPan;
-		}
-		return true;
-	}
-
-	// Save current tab's zoom/pan before switching
-	ensureTabStateSize();
-	if (activeTab < (int)tabZooms.size())
-	{
-		tabZooms[activeTab] = viewportZoom;
-		tabPans[activeTab] = viewportPan;
-	}
-
-	activeTab = tabIndex;
-	clearSelection();
-
-	// Restore new tab's zoom/pan (or reset if first visit)
-	if (activeTab < (int)tabZooms.size())
-	{
-		viewportZoom = tabZooms[activeTab];
-		viewportPan = tabPans[activeTab];
-	}
-	else
-	{
-		viewportZoom = 1.0f;
-		viewportPan = ofVec2f(0, 0);
-		ensureTabStateSize();
-		if (activeTab < (int)tabZooms.size())
-		{
-			tabZooms[activeTab] = viewportZoom;
-			tabPans[activeTab] = viewportPan;
-		}
-	}
-
-	if (activeTab == 0)
-	{
-		// Switch to main view
-		activeGroupPath.clear();
-		openguinumber = -1;
-		groupInspectorIndex = -1;
-		groupPreviewBoxIndex = -1;
-	}
-	else
-	{
-		// Switch to group view - show sub-boxes
-		vector<vector<int>> presetPaths = collectAllPresetPaths();
-		int ti = activeTab - 1;
-		if (ti >= 0 && ti < (int)presetPaths.size())
-		{
-			activeGroupPath = presetPaths[ti];
-			openguinumber = -1;
-			groupInspectorIndex = -1;
-			groupPreviewBoxIndex = -1;
-		}
-	}
-
-	return true;
+	return false;
 }
 
 void JPboxgroup::ensureTabStateSize()
 {
-	int totalTabs = 1 + (int)collectAllPresetPaths().size();
-	while ((int)tabZooms.size() < totalTabs)
+	vector<int> childIndices = getDirectChildPresetIndices();
+	int pathLen = (int)activeGroupPath.size();
+	int neededTabs = 1 + pathLen + (int)childIndices.size();
+	// Also allocate for potential deeper paths
+	int maxPossibleDepth = pathLen + 1 + (int)childIndices.size();
+	neededTabs = std::max(neededTabs, maxPossibleDepth);
+
+	while ((int)tabZooms.size() < neededTabs)
 	{
 		tabZooms.push_back(1.0f);
 		tabPans.push_back(ofVec2f(0, 0));

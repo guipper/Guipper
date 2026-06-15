@@ -135,18 +135,31 @@ public:
 	ofVec2f viewportPan = ofVec2f(0, 0);
 	bool viewportPanning = false;
 
-	// Tab system
-	int activeTab = 0; // 0 = main, 1+ = preset group tabs
-	vector<int> activeGroupPath; // empty = main, [i] = preset at boxes[i], [i,j] = nested preset
+	// Tab system - contextual navigation
+	// activeTab: 0 = MAIN, 1+ = direct child presets of current context
+	// activeGroupPath: empty = MAIN, [i] = preset at boxes[i], [i,j] = nested preset
+	int activeTab = 0;
+	vector<int> activeGroupPath;
 	float tabBarOffsetY = 32; // Offset for screen-level tabs above the boxgroup tabs
 	void drawTabs();
 	int getTabAtScreenPos(int screenX, int screenY) const;
 	bool handleTabClick();
-	vector<vector<int>> collectAllPresetPaths() const;
-	void drawSingleTab(float x, float y, float h, const string &label, bool active);
-	bool isGroupViewActive() const { return !activeGroupPath.empty(); }
+
+	// Get indices of direct child presets in the current context (MAIN or active preset)
+	vector<int> getDirectChildPresetIndices() const;
+
+	// Navigate into a child preset tab
+	bool navigateToChildPreset(int childIndex);
+
+	// Navigate back to a breadcrumb level (0 = MAIN, 1 = first level, etc.)
+	bool navigateToBreadcrumbLevel(int level);
+
 	JPbox_preset *getActivePreset() const;
+	bool isGroupViewActive() const { return !activeGroupPath.empty(); }
 	void ensureTabStateSize();
+
+	// Max recursion depth for preset traversal (safety against infinite loops)
+	static const int MAX_PRESET_DEPTH = 128;
 	int groupPreviewBoxIndex = -1; // sub-box index for double-click preview in group view
 	int groupInspectorIndex = -1; // sub-box index for inspector in group view (separate from openguinumber)
 

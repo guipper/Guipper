@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<activerender>0</activerender>
+<box>
+	<nombre>artlab17</nombre>
+	<x>411</x>
+	<y>875</y>
+	<directory>data\savefiles\artlab\artlab17.xml</directory>
+</box>
+<box>
+	<nombre>artlab16</nombre>
+	<x>407</x>
+	<y>693</y>
+	<directory>data\savefiles\artlab\artlab16.xml</directory>
+</box>
+<box>
+	<nombre>artlab15</nombre>
+	<x>399</x>
+	<y>541</y>
+	<directory>data\savefiles\artlab\artlab15.xml</directory>
+</box>
+<box>
+	<nombre>artlab13</nombre>
+	<x>397</x>
+	<y>383</y>
+	<directory>data\savefiles\artlab\artlab13.xml</directory>
+</box>
+<box>
+	<nombre>3</nombre>
+	<x>390</x>
+	<y>226</y>
+	<directory>data\savefiles\algorave\3.xml</directory>
+</box>
+<box>
+	<nombre>metrev1</nombre>
+	<x>388</x>
+	<y>90</y>
+	<directory>data\savefiles\algorave\1.xml</directory>
+</box>
