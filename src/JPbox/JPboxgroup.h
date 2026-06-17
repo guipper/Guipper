@@ -67,6 +67,7 @@ public:
 	void addBox(string dir);
 	void triggerCodeOnActiveShader();
 	void deleteSelectedShader();
+	void keyPressed(int key); // For inline tab renaming
 
 	// ACA ESTA TODO LO QUE TENGA QUE VER CON EL INSPECTOR PANEL DIGAMOS :
 	// ESTO TE DICE QUE PANEL ESTA ABIERTO. SI EL PANEL QUE ESTA ABIERTO ES -1 ENTONCES EL PANEL NO ESTA ABIERTO
@@ -145,6 +146,11 @@ public:
 	void drawTabs();
 	int getTabAtScreenPos(int screenX, int screenY) const;
 	bool handleTabClick();
+
+	// Inline tab rename state
+	bool tabRenaming = false;
+	int tabRenameTabIndex = -1; // Which tab (0-based across all tabs) is being renamed
+	string tabRenameBuffer;
 
 	// Get indices of direct child presets in the current context (MAIN or active preset)
 	vector<int> getDirectChildPresetIndices() const;

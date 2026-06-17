@@ -5098,7 +5098,32 @@ void JPboxgroup::drawTabs()
 			}
 
 			ofSetColor(isActive ? 255 : (level < pathLen ? 230 : 180));
-			jp_constants::p_font.drawString(name, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
+
+			if (tabRenaming && tabCounter == tabRenameTabIndex)
+			{
+				// Draw text input field overlay on this breadcrumb tab
+				float inputPad = 4;
+				ofSetRectMode(OF_RECTMODE_CORNER);
+				ofSetColor(240, 240, 245);
+				ofDrawRectRounded(x + inputPad, y + inputPad, tabW - inputPad * 2, tabH - inputPad * 2, 2);
+				ofSetColor(20, 20, 28);
+				float txtW = jp_constants::p_font.stringWidth(tabRenameBuffer.empty() ? " " : tabRenameBuffer);
+				float txtX = x + (tabW - txtW) * 0.5f;
+				float txtY = y + tabH * 0.5f + 5;
+				float maxTextX = x + tabW - inputPad - 4;
+				if (txtX + txtW > maxTextX) txtX = maxTextX - txtW;
+				if (txtX < x + inputPad + 2) txtX = x + inputPad + 2;
+				jp_constants::p_font.drawString(tabRenameBuffer, txtX, txtY);
+				if ((ofGetFrameNum() / 20) % 2 == 0)
+				{
+					ofSetColor(20, 20, 28);
+					ofDrawRectRounded(txtX + txtW + 1, y + inputPad + 3, 2, tabH - inputPad * 2 - 6, 1);
+				}
+			}
+			else
+			{
+				jp_constants::p_font.drawString(name, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
+			}
 			ofPopStyle();
 
 			x += tabW + gap;
@@ -5133,8 +5158,37 @@ void JPboxgroup::drawTabs()
 		ofNoFill(); ofSetLineWidth(1);
 		ofSetColor(isActive ? ofColor(60, 220, 100, 255) : ofColor(55, 55, 65, 200));
 		ofDrawRectRounded(x, y, tabW, tabH, 3); ofFill();
-		ofSetColor(isActive ? 255 : 200);
-		jp_constants::p_font.drawString(tabName, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
+
+		if (tabRenaming && tabCounter == tabRenameTabIndex)
+		{
+			// Draw text input field overlay on this tab
+			float inputPad = 4;
+			ofSetRectMode(OF_RECTMODE_CORNER);
+			ofSetColor(240, 240, 245);
+			ofDrawRectRounded(x + inputPad, y + inputPad, tabW - inputPad * 2, tabH - inputPad * 2, 2);
+			ofSetColor(20, 20, 28);
+			string displayText = tabRenameBuffer;
+			if (displayText.empty()) displayText = " ";
+			float textWidth = jp_constants::p_font.stringWidth(displayText);
+			float textX = x + (tabW - textWidth) * 0.5f;
+			float textY = y + tabH * 0.5f + 5;
+			// Clamp textX so cursor is always visible
+			float maxTextX = x + tabW - inputPad - 4;
+			if (textX + textWidth > maxTextX) textX = maxTextX - textWidth;
+			if (textX < x + inputPad + 2) textX = x + inputPad + 2;
+			jp_constants::p_font.drawString(tabRenameBuffer, textX, textY);
+			// Blinking cursor
+			if ((ofGetFrameNum() / 20) % 2 == 0)
+			{
+				ofSetColor(20, 20, 28);
+				ofDrawRectRounded(textX + textWidth + 1, y + inputPad + 3, 2, tabH - inputPad * 2 - 6, 1);
+			}
+		}
+		else
+		{
+			ofSetColor(isActive ? 255 : 200);
+			jp_constants::p_font.drawString(tabName, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
+		}
 		ofPopStyle();
 
 		x += tabW + gap;
@@ -5390,6 +5444,54 @@ bool JPboxgroup::handleTabClick()
 
 	if (tabIndex >= 1 && tabIndex <= pathLen)
 	{
+		// Handle double-click on the last breadcrumb tab (current level) -> inline rename
+		if (isDoubleClick && tabIndex == pathLen && pathLen > 0)
+		{
+			int realIdx = activeGroupPath[pathLen - 1];
+			const vector<JPbox *> *boxList = nullptr;
+
+			if (pathLen == 1)
+			{
+				// Direct child of JPboxgroup (top-level preset)
+				boxList = &boxes;
+			}
+			else
+			{
+				// Traverse activeGroupPath up to pathLen-1 to get the parent preset
+				JPbox *parentBox = boxes[activeGroupPath[0]];
+				if (parentBox != nullptr && parentBox->getTipo() == JPbox::PRESETBOX)
+				{
+					JPbox_preset *parentPreset = static_cast<JPbox_preset *>(parentBox);
+					bool valid = true;
+					for (int d = 1; d < pathLen - 1 && valid; d++)
+					{
+						int idx = activeGroupPath[d];
+						if (idx >= 0 && idx < (int)parentPreset->boxes.size() && parentPreset->boxes[idx] != nullptr &&
+							parentPreset->boxes[idx]->getTipo() == JPbox::PRESETBOX)
+						{
+							parentPreset = static_cast<JPbox_preset *>(parentPreset->boxes[idx]);
+						}
+						else
+						{
+							valid = false;
+						}
+					}
+					if (valid)
+					{
+						boxList = &parentPreset->boxes;
+					}
+				}
+			}
+
+			if (boxList != nullptr && realIdx >= 0 && realIdx < (int)boxList->size() && (*boxList)[realIdx] != nullptr)
+			{
+				tabRenaming = true;
+				tabRenameTabIndex = tabIndex;
+				tabRenameBuffer = (*boxList)[realIdx]->name;
+			}
+			return true;
+		}
+
 		// Clicked a breadcrumb level - navigate back
 		if (tabIndex == pathLen && isGroupViewActive())
 		{
@@ -5415,7 +5517,7 @@ bool JPboxgroup::handleTabClick()
 	int childIndex = tabIndex - pathLen - 1;
 	if (childIndex >= 0 && childIndex < (int)childIndices.size())
 	{
-		// Handle double-click on child -> rename
+		// Handle double-click on child -> inline rename
 		if (isDoubleClick)
 		{
 			int realIdx = childIndices[childIndex];
@@ -5427,11 +5529,10 @@ bool JPboxgroup::handleTabClick()
 			}
 			if (realIdx >= 0 && realIdx < (int)boxList->size() && (*boxList)[realIdx] != nullptr)
 			{
-				string newName = ofSystemTextBoxDialog("Rename group", (*boxList)[realIdx]->name);
-				if (!newName.empty())
-				{
-					(*boxList)[realIdx]->name = newName;
-				}
+				// Start inline rename
+				tabRenaming = true;
+				tabRenameTabIndex = tabIndex;
+				tabRenameBuffer = (*boxList)[realIdx]->name;
 			}
 			return true;
 		}
@@ -5457,5 +5558,112 @@ void JPboxgroup::ensureTabStateSize()
 	{
 		tabZooms.push_back(1.0f);
 		tabPans.push_back(ofVec2f(0, 0));
+	}
+}
+
+void JPboxgroup::keyPressed(int key)
+{
+	if (!tabRenaming)
+		return;
+
+	// Cancel on Escape
+	if (key == OF_KEY_ESC)
+	{
+		tabRenaming = false;
+		tabRenameTabIndex = -1;
+		tabRenameBuffer.clear();
+		return;
+	}
+
+	// Commit on Enter
+	if (key == OF_KEY_RETURN || key == '\r')
+	{
+		if (!tabRenameBuffer.empty())
+		{
+			// Find the box and apply the new name
+			int pathLen = (int)activeGroupPath.size();
+			vector<int> childIndices = getDirectChildPresetIndices();
+			int childIndex = tabRenameTabIndex - pathLen - 1;
+			bool renamed = false;
+
+			if (childIndex >= 0 && childIndex < (int)childIndices.size())
+			{
+				// Case 1: Child tab rename (tabRenameTabIndex > pathLen)
+				int realIdx = childIndices[childIndex];
+				const vector<JPbox *> *boxList = &boxes;
+				if (isGroupViewActive())
+				{
+					JPbox_preset *preset = getActivePreset();
+					if (preset != nullptr) boxList = &preset->boxes;
+				}
+				if (realIdx >= 0 && realIdx < (int)boxList->size() && (*boxList)[realIdx] != nullptr)
+				{
+					(*boxList)[realIdx]->name = tabRenameBuffer;
+					renamed = true;
+				}
+			}
+			else if (tabRenameTabIndex >= 1 && tabRenameTabIndex <= pathLen && pathLen > 0)
+			{
+				// Case 2: Breadcrumb tab rename (tabRenameTabIndex in 1..pathLen)
+				int realIdx = activeGroupPath[pathLen - 1];
+				const vector<JPbox *> *boxList = nullptr;
+
+				if (pathLen == 1)
+				{
+					boxList = &boxes;
+				}
+				else
+				{
+					JPbox *parentBox = boxes[activeGroupPath[0]];
+					if (parentBox != nullptr && parentBox->getTipo() == JPbox::PRESETBOX)
+					{
+						JPbox_preset *parentPreset = static_cast<JPbox_preset *>(parentBox);
+						bool valid = true;
+						for (int d = 1; d < pathLen - 1 && valid; d++)
+						{
+							int idx = activeGroupPath[d];
+							if (idx >= 0 && idx < (int)parentPreset->boxes.size() && parentPreset->boxes[idx] != nullptr &&
+								parentPreset->boxes[idx]->getTipo() == JPbox::PRESETBOX)
+							{
+								parentPreset = static_cast<JPbox_preset *>(parentPreset->boxes[idx]);
+							}
+							else
+							{
+								valid = false;
+							}
+						}
+						if (valid)
+						{
+							boxList = &parentPreset->boxes;
+						}
+					}
+				}
+				if (boxList != nullptr && realIdx >= 0 && realIdx < (int)boxList->size() && (*boxList)[realIdx] != nullptr)
+				{
+					(*boxList)[realIdx]->name = tabRenameBuffer;
+					renamed = true;
+				}
+			}
+		}
+		tabRenaming = false;
+		tabRenameTabIndex = -1;
+		tabRenameBuffer.clear();
+		return;
+	}
+
+	// Backspace
+	if (key == OF_KEY_BACKSPACE)
+	{
+		if (!tabRenameBuffer.empty())
+		{
+			tabRenameBuffer.erase(tabRenameBuffer.size() - 1);
+		}
+		return;
+	}
+
+	// Allow valid characters
+	if (key >= 32 && key <= 126 && tabRenameBuffer.size() < 64)
+	{
+		tabRenameBuffer += (char)key;
 	}
 }

@@ -1230,6 +1230,12 @@ void ofApp::keyPressed(int key) {
 		return;
 	}
 
+	// Forward key to boxgroup for inline tab renaming
+	if (boxes.tabRenaming) {
+		boxes.keyPressed(key);
+		return;
+	}
+
 	// Save-as modal input handling
 	if (saveModalActive) {
 		if (key == OF_KEY_RETURN || key == '\r') {
