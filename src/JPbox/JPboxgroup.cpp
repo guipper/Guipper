@@ -396,78 +396,6 @@ void JPboxgroup::draw()
 
 		ofDrawBitmapString(ofToString(i), x, y);
 
-		// Draw exposed sliders on boxes in group view when box is selected
-		if (isGroupViewActive() && activeBoxes[i]->activeFlag)
-		{
-			JPbox_preset *preset = getActivePreset();
-			if (preset != nullptr && i < (int)preset->exposedParams.size())
-			{
-				int numExposed = 0;
-				for (int ei = 0; ei < (int)preset->exposedParams[i].size(); ei++)
-				{
-					if (preset->exposedParams[i][ei])
-					{
-						// Found an exposed parameter
-						JPbox *childBox = activeBoxes[i];
-						if (ei < childBox->parameters.getSize())
-						{
-							float sliderW = childBox->width * 0.85;
-							float sliderH = 10;
-							float sliderX = childBox->x;
-							float sliderY = childBox->y + childBox->height / 2 + 12 + numExposed * 18;
-							float labelY = sliderY - sliderH / 2 + 2;
-							string paramName = childBox->parameters.getName(ei);
-							float paramVal = childBox->parameters.getFloatValue(ei);
-
-							// Background for each slider row
-							ofSetRectMode(OF_RECTMODE_CENTER);
-							ofSetColor(30, 30, 30, 200);
-							ofDrawRectangle(sliderX, sliderY, sliderW + 20, 16);
-							ofSetRectMode(OF_RECTMODE_CORNER);
-
-							// Label
-							ofSetColor(200, 200, 200);
-							string shortName = paramName;
-							if (jp_constants::p_font.stringWidth(shortName) > sliderW * 0.35)
-							{
-								while (!shortName.empty() && jp_constants::p_font.stringWidth(shortName) > sliderW * 0.35 - 6)
-									shortName.pop_back();
-								shortName += "..";
-							}
-							jp_constants::p_font.drawString(shortName,
-								sliderX - sliderW / 2 + 4,
-								labelY + jp_constants::p_font.stringHeight(shortName) / 2);
-
-							// Value bar background
-							float barX = sliderX + sliderW * 0.05;
-							float barW = sliderW * 0.55;
-							ofSetRectMode(OF_RECTMODE_CORNER);
-							ofSetColor(50, 50, 50, 200);
-							ofDrawRectangle(barX, sliderY - sliderH / 2, barW, sliderH);
-							// Value bar fill
-							ofSetColor(100, 200, 150, 220);
-							ofDrawRectangle(barX, sliderY - sliderH / 2, barW * paramVal, sliderH);
-							// Border
-							ofNoFill();
-							ofSetColor(100, 100, 100, 180);
-							ofDrawRectangle(barX, sliderY - sliderH / 2, barW, sliderH);
-							ofFill();
-							ofSetRectMode(OF_RECTMODE_CENTER);
-
-							// Value text
-							ofSetColor(255);
-							string valStr = ofToString(paramVal, 2);
-							jp_constants::p_font.drawString(valStr,
-								barX + barW + 8,
-								labelY + jp_constants::p_font.stringHeight(valStr) / 2);
-
-							ofSetRectMode(OF_RECTMODE_CORNER);
-							numExposed++;
-						}
-					}
-				}
-			}
-		}
 	}
 	JPdragobject::clearMouseOverride();
 	ofPopMatrix();
@@ -897,11 +825,13 @@ void JPboxgroup::draw_paramswindow()
 			// Draw expose button AFTER the controller (right side) when in group view
 			if (i < (int)exposeButtons.size())
 			{
+				// Save current boolValue to detect changes after draw (activeFlag
+				// can't be used because the button's internal draw clears it)
+				bool prevBoolValue = exposeButtons[i]->boolValue;
 				exposeButtons[i]->draw();
 				// Sync button state back to preset's exposedParams on toggle
-				if (exposeButtons[i]->activeFlag)
+				if (exposeButtons[i]->boolValue != prevBoolValue)
 				{
-					exposeButtons[i]->activeFlag = false;
 					JPbox_preset *preset = getActivePreset();
 					if (preset != nullptr && groupInspectorIndex >= 0 &&
 						groupInspectorIndex < (int)preset->exposedParams.size() &&
@@ -1003,68 +933,14 @@ void JPboxgroup::update(){
 			}
 		}
 
-		// Handle exposed slider dragging on boxes in group view
-		if (preset != nullptr && ofGetMousePressed())
-		{
-			JPdragobject::setMouseOverride(canvasMouse);
-			if (draggedExposedBoxIndex < 0 && draggedExposedParamIndex < 0)
-			{
-				// Find if mouse is over an exposed slider bar
-				for (int bi = 0; bi < (int)preset->boxes.size() && bi < (int)preset->exposedParams.size(); bi++)
-				{
-					int numExposed = 0;
-					for (int ei = 0; ei < (int)preset->exposedParams[bi].size(); ei++)
-					{
-						if (preset->exposedParams[bi][ei] && preset->boxes[bi]->activeFlag)
-						{
-							if (ei < preset->boxes[bi]->parameters.getSize() && preset->boxes[bi]->parameters.getType(ei) == preset->boxes[bi]->parameters.FLOAT)
-							{
-								JPbox *childBox = preset->boxes[bi];
-								float sliderW = childBox->width * 0.85;
-								float sliderX = childBox->x;
-								float sliderY = childBox->y + childBox->height / 2 + 12 + numExposed * 18;
-								float barX = sliderX + sliderW * 0.05;
-								float barW = sliderW * 0.55;
-								float mx = JPdragobject::getMouseX();
-								float my = JPdragobject::getMouseY();
-								if (mx >= barX && mx <= barX + barW && my >= sliderY - 6 && my <= sliderY + 6)
-								{
-									draggedExposedBoxIndex = bi;
-									draggedExposedParamIndex = ei;
-									break;
-								}
-							}
-							numExposed++;
-						}
-					}
-					if (draggedExposedBoxIndex >= 0) break;
-				}
-			}
-			// Update dragged slider value
-			if (draggedExposedBoxIndex >= 0 && draggedExposedParamIndex >= 0)
-			{
-				JPbox *childBox = preset->boxes[draggedExposedBoxIndex];
-				int ei = draggedExposedParamIndex;
-				if (ei < childBox->parameters.getSize())
-				{
-					float sliderW = childBox->width * 0.85;
-					float barX = childBox->x + sliderW * 0.05;
-					float barW = sliderW * 0.55;
-					float mx = JPdragobject::getMouseX();
-					float newVal = ofClamp((mx - barX) / barW, 0.0, 1.0);
-					childBox->parameters.setFloatLerpValue(newVal, ei);
-					childBox->parameters.setFloatValue(newVal, ei);
-				}
-			}
-			JPdragobject::clearMouseOverride();
-		}
-		else
-		{
-			draggedExposedBoxIndex = -1;
-			draggedExposedParamIndex = -1;
-		}
-
 		// Do NOT return here - main boxes must keep updating even in group view
+	}
+
+	// Reset dragging state when mouse is not pressed
+	if (!ofGetMousePressed())
+	{
+		draggedExposedBoxIndex = -1;
+		draggedExposedParamIndex = -1;
 	}
 
 	float lerpAmount = 0.3;
@@ -1431,34 +1307,20 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 			{
 				slideragarrado = true;
 
-				if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT && inspectorBox->parameters.getMovType(i) == 0)
+				// Check if this is a normal controller or an exposed one
+				if (i < inspectorBox->parameters.getSize() &&
+					inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT && inspectorBox->parameters.getMovType(i) == 0)
 				{
-					// float valf = ofLerp(controllers[i]->value, boxes[openguinumber]->parameters.getFloatValue(i), 0.1);
-					// boxes[openguinumber]->parameters.setFloatValue(valf, i);
-
-					///				float slidervaluewidth = width * 3 / 4;
-					/*slider_value.setup(x, y,
-						slidervaluewidth,
-						height * 8 / 10,
-						0.0,
-						1.0,
-						value,
-						name);
-						*/
-					// controllers
-
-					// Esto es porque si esta en movtype 0 no actualiza para que no pise con el OSC , entonces hay que actualizarlo manualmente
-					// Esta es la actualizaci�n manual. Acordate que si el movtype esta en 0 el valor NO SE ACTUALIZA.
+					// This is because if movtype is 0, it doesn't update to avoid OSC overwrite
+					// Manual update for movtype 0 sliders
 					controllers[i]->value = ofMap(ofGetMouseX(), controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
 												  controllers[i]->x + (controllers[i]->width * 3 / 4) / 2, 0.0, 1.0, true);
 
 					inspectorBox->parameters.setFloatValue(controllers[i]->value, i);
 					inspectorBox->parameters.setFloatLerpValue(controllers[i]->value, i);
 					markCueDraftDirty(openguinumber);
-					// boxes[openguinumber]->parameters.setSpeed(controllers[i]->speed, i);
-					// boxes[openguinumber]->parameters.setMin(controllers[i]->min, i);
-					// boxes[openguinumber]->parameters.setMax(controllers[i]->max, i);
 				}
+				// Exposed controllers: value update is handled by JPSlider::draw() via the internal parameter pointer
 			}
 		}
 		// Si invertimos el for en este crashea. habra que cambiarlo en otro lugar tambien?
@@ -1466,9 +1328,20 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 		{
 			for (int i = 0; i < controllers.size(); i++)
 			{
-				if ((controllers[i]->mouseOver()) && mousebutton == OF_MOUSE_BUTTON_LEFT)
+				// Use visual slider area (width*3/4) instead of full JPComplexSlider width
+				float sliderVisualWidth = controllers[i]->width * 3.0f / 4.0f;
+				float sliderLeft = controllers[i]->x - sliderVisualWidth / 2.0f;
+				float sliderRight = controllers[i]->x + sliderVisualWidth / 2.0f;
+				float mx = ofGetMouseX();
+				float my = ofGetMouseY();
+				if (mx >= sliderLeft && mx <= sliderRight &&
+					my >= controllers[i]->y - controllers[i]->height / 2 &&
+					my <= controllers[i]->y + controllers[i]->height / 2 &&
+					mousebutton == OF_MOUSE_BUTTON_LEFT)
 				{
-					if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT)
+					// Normal controllers: check type from inspectorBox; exposed controllers handled by their own mouseOver in update_paramswindow
+					if (i < inspectorBox->parameters.getSize() &&
+						inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT)
 					{
 						controllers[i]->activeFlag = true;
 					}
@@ -1614,22 +1487,38 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		int activeone = -1;
 		for (int i = 0; i < controllers.size(); i++)
 		{
-			if (controllers[i]->mouseOver())
+			// Use visual slider area (width*3/4) instead of full JPComplexSlider width
+			float sliderVisualWidth = controllers[i]->width * 3.0f / 4.0f;
+			float sliderLeft = controllers[i]->x - sliderVisualWidth / 2.0f;
+			float sliderRight = controllers[i]->x + sliderVisualWidth / 2.0f;
+			float mx = ofGetMouseX();
+			float my = ofGetMouseY();
+			bool overVisualSlider = (mx >= sliderLeft && mx <= sliderRight &&
+				my >= controllers[i]->y - controllers[i]->height / 2 &&
+				my <= controllers[i]->y + controllers[i]->height / 2);
+			if (overVisualSlider)
 			{
 				// cout << "MOUSE OVER " << controllers[i]->name << endl;
 				isovercontrol = true;
-				if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT)
+				// Exposed controllers have i >= inspectorBox->parameters.getSize()
+				// and are handled by their own JPComplexSlider::update()
+				if (i < inspectorBox->parameters.getSize())
 				{
-					controllers[i]->activeFlag = true;
-					activeone = i;
-				}
-				else if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.BOOL)
-				{
-					inspectorBox->parameters.setBoolValue(controllers[i]->boolValue, i);
-					markCueDraftDirty(openguinumber);
+					if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT)
+					{
+						controllers[i]->activeFlag = true;
+						activeone = i;
+					}
+					else if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.BOOL)
+					{
+						inspectorBox->parameters.setBoolValue(controllers[i]->boolValue, i);
+						markCueDraftDirty(openguinumber);
+					}
 				}
 			}
-			if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT)
+			// Only count normal FLOAT controllers for the index
+			if (i < inspectorBox->parameters.getSize() &&
+				inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT)
 			{
 				index++;
 			}
@@ -1708,6 +1597,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 					clearSelection();
 				}
 				openguinumber = i;
+				boxes[i]->activeFlag = true;
 				if (!mouseOverGui())
 				{
 					setControllers();
@@ -1727,6 +1617,11 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		if (mouseButton == OF_MOUSE_BUTTON_LEFT)
 		{
 			clearSelection();
+			// Clear activeFlag on all boxes when deselecting
+			for (int i = 0; i < (int)boxes.size(); i++)
+			{
+				boxes[i]->activeFlag = false;
+			}
 			draw_SelectionRect = true;
 			lastMouseClick = canvasMouse;
 			selectionEnd = lastMouseClick;
@@ -2371,20 +2266,73 @@ void JPboxgroup::setControllers(){
 				inspectorwindow_height += complexsliderheight;
 			}
 		}
-	}
+		}
 
-	// Create expose buttons for group view (one per controller)
+		// Clear exposed controller mapping
+		exposedControllerMapping.clear();
+
+		// MAIN view: add exposed sliders from preset children to the inspector
+		if (!isGroupViewActive() && openguinumber >= 0 && openguinumber < (int)boxes.size() &&
+			boxes[openguinumber]->getTipo() == JPbox::PRESETBOX)
+		{
+			JPbox_preset *preset = dynamic_cast<JPbox_preset *>(boxes[openguinumber]);
+			if (preset != nullptr)
+			{
+				for (int bi = 0; bi < (int)preset->boxes.size() && bi < (int)preset->exposedParams.size(); bi++)
+				{
+					// Add spacing between different children
+					bool hasExposedInThisChild = false;
+					for (int ei = 0; ei < (int)preset->exposedParams[bi].size(); ei++)
+					{
+						if (preset->exposedParams[bi][ei])
+						{
+							if (!hasExposedInThisChild && bi > 0)
+							{
+								inspectorwindow_height += inspectorwindow_sepy * 0.5;
+							}
+							hasExposedInThisChild = true;
+
+							if (ei < preset->boxes[bi]->parameters.getSize() &&
+								preset->boxes[bi]->parameters.getType(ei) == preset->boxes[bi]->parameters.FLOAT)
+							{
+								float complexsliderheight = inspectorwindow_sepy * 1.0;
+								if (preset->boxes[bi]->parameters.getMovType(ei) != 0)
+								{
+									complexsliderheight = inspectorwindow_sepy * 2.0;
+								}
+
+								JPComplexSlider *sl = new JPComplexSlider();
+								sl->setup(inspectorwindow_x,
+										  inspectorwindow_height, inspectorwindow_width, complexsliderheight,
+										  preset->boxes[bi]->parameters.parameters[ei]);
+
+								// Prepend child box name to the slider name for identification
+								sl->name = preset->boxes[bi]->name + "." + sl->name;
+
+								controllers.push_back(sl);
+								exposedControllerMapping.push_back({bi, ei});
+
+								inspectorwindow_height += complexsliderheight;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Create expose buttons for group view (one per controller)
 	if (isGroupViewActive())
 	{
 		JPbox_preset *preset = getActivePreset();
 		if (preset != nullptr && groupInspectorIndex >= 0 &&
 			groupInspectorIndex < (int)preset->exposedParams.size())
 		{
-			float btnSize = 14;
+			float btnSize = 24;
+			float btnRightMargin = 4;
 			for (int k = 0; k < (int)controllers.size(); k++)
 			{
-				// Position button at the right side of the inspector panel
-				float btnX = inspectorwindow_x + inspectorwindow_width / 2 - btnSize / 2 - 6;
+				// Position button at the far right edge of the inspector panel
+				float btnX = inspectorwindow_x + inspectorwindow_width / 2 - btnSize / 2 - btnRightMargin;
 				float btnY = controllers[k]->y;
 
 				JPExposeButton *btn = new JPExposeButton();

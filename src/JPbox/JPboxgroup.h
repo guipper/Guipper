@@ -368,4 +368,8 @@ private:
 	// Exposed slider dragging state
 	int draggedExposedBoxIndex = -1;
 	int draggedExposedParamIndex = -1;
+
+	// Mapping from controller index to (childIndex, paramIndex) for exposed sliders in MAIN view
+	// When openguinumber selects a PRESETBOX, these controllers link to the child's real parameters
+	vector<pair<int, int>> exposedControllerMapping;
 };

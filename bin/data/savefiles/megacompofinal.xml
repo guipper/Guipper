@@ -1,52 +1,20 @@
 <?xml version="1.0"?>
-<activerender>0</activerender>
+<activerender>1</activerender>
 <box>
-	<nombre>anillos3D</nombre>
-	<x>168</x>
-	<y>242</y>
-	<directory>data\shaders\generative\anillos3D.frag</directory>
+	<nombre>metrovisuals</nombre>
+	<x>473.322</x>
+	<y>218.98</y>
+	<directory>data/groups/group_2026-06-15-19-31-07-338.xml</directory>
+	<onoff>0</onoff>
+	<bypass>0</bypass>
+	<exposedParams />
+</box>
+<box>
+	<nombre>group_2026-06-15-20-53-24-363</nombre>
+	<x>367.986</x>
+	<y>452.567</y>
+	<directory>data/groups/group_2026-06-15-20-53-24-363.xml</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
-	<parameters>
-		<param>
-			<name>rotx1</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.873333</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>roty1</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.828889</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>size1</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.79037</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>tile1</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.172185</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>gordura</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.602741</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-	</parameters>
+	<exposedParams />
 </box>
