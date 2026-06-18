@@ -10,7 +10,7 @@
 	<parameters>
 		<param>
 			<name>invertbpm</name>
-			<value>0</value>
+			<value>1</value>
 		</param>
 		<param>
 			<name>ss</name>
@@ -87,7 +87,7 @@
 			<name>offsetx</name>
 			<min>0.245122</min>
 			<max>0.65</max>
-			<value>0.466999</value>
+			<value>0.560122</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -95,7 +95,7 @@
 			<name>offsety</name>
 			<min>0.27439</min>
 			<max>0.669512</max>
-			<value>0.493389</value>
+			<value>0.39139</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -103,7 +103,7 @@
 			<name>rotacion</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.321</value>
+			<value>0.906999</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -111,7 +111,7 @@
 			<name>sc</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.345</value>
+			<value>0.882999</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -449,9 +449,4 @@
 		<input_texture>lighting3D</input_texture>
 	</fboslinks>
 </box>
-<exposedParams>
-	<box>0<param>0</param>
-	</box>
-	<box>0<param>2</param>
-	</box>
-</exposedParams>
+<exposedParams />

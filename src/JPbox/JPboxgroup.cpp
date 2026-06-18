@@ -306,6 +306,12 @@ void JPboxgroup::draw()
 			activeBoxes[i]->bypass.activable2 = !draw_SelectionRect;
 			activeBoxes[i]->onoff.activable2 = !draw_SelectionRect;
 		}
+		else
+		{
+			// Group view: ensure bypass/onoff buttons are clickable
+			activeBoxes[i]->bypass.activable2 = true;
+			activeBoxes[i]->onoff.activable2 = true;
+		}
 
 		// Main view specific: cue draft overlay
 		if (!isGroupViewActive())
@@ -786,7 +792,8 @@ void JPboxgroup::draw_paramswindow()
 										inspectorwindow_x - jp_constants::h_font.stringWidth(name) / 2,
 										inspectorwindow_sepy); // El y de esto esta puesto medio frutanga
 
-		// RDM button to the right of the shader name
+		// RDM button to the right of the shader name (only if box has uniforms/sliders)
+		if (inspectorBox->parameters.getSize() > 0)
 		{
 			float nameW = jp_constants::h_font.stringWidth(name);
 			float nameRight = inspectorwindow_x - nameW / 2 + nameW + 12;
@@ -798,20 +805,20 @@ void JPboxgroup::draw_paramswindow()
 			inspectorrandom.width = btnW;
 			inspectorrandom.height = btnH;
 
-			// Draw RDM button background
+			// Draw RDM button background (monochromatic, matching inspector style)
 			if (inspectorrandom.mouseOver()) {
-				ofSetColor(120, 60, 180);
+				ofSetColor(60, 70, 80);
 			} else {
-				ofSetColor(80, 40, 120);
+				ofSetColor(40, 48, 55);
 			}
 			ofDrawRectRounded(nameRight, btnY, btnW, btnH, 3.0f);
-			ofSetColor(200, 140, 255);
+			ofSetColor(140, 160, 180);
 			ofNoFill();
 			ofSetLineWidth(1.0f);
 			ofDrawRectRounded(nameRight, btnY, btnW, btnH, 3.0f);
 			ofFill();
 			ofSetLineWidth(1.0f);
-			ofSetColor(255);
+			ofSetColor(200);
 			jp_constants::p_font.drawString("RDM",
 				nameRight + btnW / 2 - jp_constants::p_font.stringWidth("RDM") / 2,
 				btnY + btnH / 2 + jp_constants::p_font.stringHeight("RDM") / 2 - 2);
@@ -1143,7 +1150,12 @@ void JPboxgroup::update_paramswindow()
 			int paramCount = (box != nullptr) ? box->parameters.getSize() : controllers.size();
 			if (i < paramCount)
 			{
-				controllers[i]->activable2 = false;
+				// Skip BOOL controllers (JPToogle) - they manage their own activeFlag in draw(), not in update()
+				// Clearing activable2 here would prevent the toggle from ever being clicked
+				if (box != nullptr && box->parameters.getType(i) != box->parameters.BOOL)
+				{
+					controllers[i]->activable2 = false;
+				}
 			}
 			// Exposed controllers (i >= paramCount): keep activable2 true so they can be independently interacted with
 		}

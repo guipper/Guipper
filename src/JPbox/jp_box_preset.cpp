@@ -176,13 +176,18 @@ void JPbox_preset::update()
 
 void JPbox_preset::updateFBO()
 {
+	// Check if this preset itself is bypassed (PAUSE) - pass input through instead of rendering
+	if (tryPassThroughFBO())
+	{
+		return;
+	}
 	// onoff.boolValue = true;
 	if (onoff.boolValue)
 	{
 		for (int i = boxes.size() - 1; i >= 0; i--)
 		{
 			boxes[i]->update();
-			boxes[i]->onoff.boolValue = true;
+			// Do NOT force children onoff to true - respect user's PAUSE/onoff clicks
 		}
 		if (boxes.empty() || activeRender < 0 || activeRender >= (int)boxes.size())
 		{
