@@ -81,6 +81,18 @@ void JPbox_preset::setup(string _directory, string _name)
 		bx->setup(directory.getValue(), nombre.getValue());
 		bx->setPos(x.getIntValue(), y.getIntValue());
 
+		// Load onoff and bypass states
+		auto onoffChild = box.getChild("onoff");
+		if (onoffChild)
+		{
+			bx->setonoff(onoffChild.getBoolValue());
+		}
+		auto bypassChild = box.getChild("bypass");
+		if (bypassChild)
+		{
+			bx->setBypass(bypassChild.getBoolValue());
+		}
+
 		int index = 0;
 		auto parameters = box.getChild("parameters").getChildren();
 		// cout << "PARAMETER SIZE SB " << sb->parameters.getSize() << endl;
@@ -128,14 +140,33 @@ void JPbox_preset::setup(string _directory, string _name)
 		for (auto &boxNode : boxNodes)
 		{
 			int childIndex = boxNode.getIntValue();
-			auto paramNodes = boxNode.getChildren();
-			for (auto &paramNode : paramNodes)
+			// Check for origBox/origParam (propagated expose)
+			auto origBoxChild = boxNode.getChild("origBox");
+			auto origParamChild = boxNode.getChild("origParam");
+			auto paramChild = boxNode.getChild("param");
+			if (paramChild)
 			{
-				int paramIndex = paramNode.getIntValue();
+				int paramIndex = paramChild.getIntValue();
 				if (childIndex >= 0 && childIndex < (int)exposedParams.size() &&
 					paramIndex >= 0 && paramIndex < (int)exposedParams[childIndex].size())
 				{
 					exposedParams[childIndex][paramIndex] = true;
+					// Load propagation indices for propagated exposes
+					if (origBoxChild && origParamChild)
+					{
+						if (childIndex >= (int)exposedParamOriginalIndices.size())
+						{
+							exposedParamOriginalIndices.resize(childIndex + 1);
+						}
+						if (paramIndex >= (int)exposedParamOriginalIndices[childIndex].size())
+						{
+							exposedParamOriginalIndices[childIndex].resize(paramIndex + 1, {-1, -1});
+						}
+						exposedParamOriginalIndices[childIndex][paramIndex] = {
+							origBoxChild.getIntValue(),
+							origParamChild.getIntValue()
+						};
+					}
 				}
 			}
 		}
@@ -187,7 +218,9 @@ void JPbox_preset::updateFBO()
 		for (int i = boxes.size() - 1; i >= 0; i--)
 		{
 			boxes[i]->update();
-			// Do NOT force children onoff to true - respect user's PAUSE/onoff clicks
+			// Force children onoff to true so they render by default.
+			// PAUSE (bypass) is NOT affected and can be toggled independently.
+			boxes[i]->onoff.boolValue = true;
 		}
 		if (boxes.empty() || activeRender < 0 || activeRender >= (int)boxes.size())
 		{
@@ -238,11 +271,13 @@ bool JPbox_preset::isParamExposed(int childIndex, int paramIndex) const
 void JPbox_preset::clearExposedParams()
 {
 	exposedParams.clear();
+	exposedParamOriginalIndices.clear();
 }
 
 void JPbox_preset::resizeExposedParams(int numChildren)
 {
 	exposedParams.resize(numChildren);
+	exposedParamOriginalIndices.resize(numChildren);
 	for (int i = 0; i < numChildren; i++)
 	{
 		int numParams = 0;
@@ -251,6 +286,7 @@ void JPbox_preset::resizeExposedParams(int numChildren)
 			numParams = boxes[i]->parameters.getSize();
 		}
 		exposedParams[i].assign(numParams, false);
+		exposedParamOriginalIndices[i].assign(numParams, {-1, -1});
 	}
 }
 
@@ -357,6 +393,17 @@ void JPbox_preset::save()
 					boxNode.set(ci);
 					auto paramNode = boxNode.appendChild("param");
 					paramNode.set(pi);
+					// For propagated exposes (beyond child's own params), save original indices
+					if (ci < (int)boxes.size() && boxes[ci] != nullptr &&
+						pi >= boxes[ci]->parameters.getSize() &&
+						ci < (int)exposedParamOriginalIndices.size() &&
+						pi < (int)exposedParamOriginalIndices[ci].size())
+					{
+						auto origBoxNode = boxNode.appendChild("origBox");
+						origBoxNode.set(exposedParamOriginalIndices[ci][pi].first);
+						auto origParamNode = boxNode.appendChild("origParam");
+						origParamNode.set(exposedParamOriginalIndices[ci][pi].second);
+					}
 				}
 			}
 		}

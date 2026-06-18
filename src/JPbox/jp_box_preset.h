@@ -55,6 +55,10 @@ public:
 
 	// Exposed parameters: exposedParams[childBoxIndex][paramIndex] = true means exposed
 	vector<vector<bool>> exposedParams;
+	// For propagated exposes (from grandchildren): stores (grandchildBoxIndex, paramIndex) for each exposedParams entry
+	// exposedParamOriginalIndices[childBoxIndex][paramIndex] = {grandchildIndex, paramIndex}
+	// Used when an exposed param comes from a child's child (propagated one more level)
+	vector<vector<pair<int,int>>> exposedParamOriginalIndices;
 	void setExposedParam(int childIndex, int paramIndex, bool exposed);
 	bool isParamExposed(int childIndex, int paramIndex) const;
 	void clearExposedParams();

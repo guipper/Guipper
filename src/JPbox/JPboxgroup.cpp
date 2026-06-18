@@ -2466,14 +2466,90 @@ void JPboxgroup::setControllers(){
 			}
 		};
 
-		// MAIN view: add exposed sliders from the clicked preset's children (recursive)
+		// MAIN view: add exposed sliders from the clicked preset's DIRECT children only (one level)
+		// Exposed params should bubble up exactly ONE level, not recursively through all nested presets
 		if (!isGroupViewActive() && openguinumber >= 0 && openguinumber < (int)boxes.size() &&
 			boxes[openguinumber]->getTipo() == JPbox::PRESETBOX)
 		{
 			JPbox_preset *rootPreset = dynamic_cast<JPbox_preset *>(boxes[openguinumber]);
 			if (rootPreset != nullptr)
 			{
-				collectExposedParams(rootPreset, "");
+				for (int bi = 0; bi < (int)rootPreset->boxes.size() && bi < (int)rootPreset->exposedParams.size(); bi++)
+				{
+					if (rootPreset->boxes[bi] == nullptr) continue;
+
+					bool hasExposedInThisChild = false;
+					for (int ei = 0; ei < (int)rootPreset->exposedParams[bi].size(); ei++)
+					{
+						if (rootPreset->exposedParams[bi][ei])
+						{
+							if (!hasExposedInThisChild && bi > 0)
+							{
+								inspectorwindow_height += inspectorwindow_sepy * 0.5;
+							}
+							hasExposedInThisChild = true;
+
+							if (ei < rootPreset->boxes[bi]->parameters.getSize() &&
+								rootPreset->boxes[bi]->parameters.getType(ei) == rootPreset->boxes[bi]->parameters.FLOAT)
+							{
+								float complexsliderheight = inspectorwindow_sepy * 1.0;
+								if (rootPreset->boxes[bi]->parameters.getMovType(ei) != 0)
+								{
+									complexsliderheight = inspectorwindow_sepy * 2.0;
+								}
+
+								JPComplexSlider *sl = new JPComplexSlider();
+								sl->setup(inspectorwindow_x,
+										  inspectorwindow_height, inspectorwindow_width, complexsliderheight,
+										  rootPreset->boxes[bi]->parameters.parameters[ei]);
+
+								// Prepend child name to the slider label
+								string fullName = rootPreset->boxes[bi]->name + "." + sl->name;
+								sl->name = fullName;
+
+								controllers.push_back(sl);
+								exposedControllerMapping.push_back({bi, ei});
+
+								inspectorwindow_height += complexsliderheight;
+							}
+							// Propagated expose: the exposed param comes from a grandchild (child's child)
+							// Use exposedParamOriginalIndices[bi][ei] to find the original parameter
+							else if (ei >= rootPreset->boxes[bi]->parameters.getSize() &&
+									 rootPreset->boxes[bi]->getTipo() == JPbox::PRESETBOX &&
+									 bi < (int)rootPreset->exposedParamOriginalIndices.size() &&
+									 ei < (int)rootPreset->exposedParamOriginalIndices[bi].size())
+							{
+								int ci = rootPreset->exposedParamOriginalIndices[bi][ei].first;
+								int pi = rootPreset->exposedParamOriginalIndices[bi][ei].second;
+								JPbox_preset *childPreset = dynamic_cast<JPbox_preset *>(rootPreset->boxes[bi]);
+								if (childPreset != nullptr && ci >= 0 && ci < (int)childPreset->boxes.size() &&
+									pi >= 0 && pi < childPreset->boxes[ci]->parameters.getSize() &&
+									childPreset->boxes[ci]->parameters.getType(pi) == childPreset->boxes[ci]->parameters.FLOAT)
+								{
+									float complexsliderheight = inspectorwindow_sepy * 1.0;
+									if (childPreset->boxes[ci]->parameters.getMovType(pi) != 0)
+									{
+										complexsliderheight = inspectorwindow_sepy * 2.0;
+									}
+
+									JPComplexSlider *sl = new JPComplexSlider();
+									sl->setup(inspectorwindow_x,
+											  inspectorwindow_height, inspectorwindow_width, complexsliderheight,
+											  childPreset->boxes[ci]->parameters.parameters[pi]);
+
+									string fullName = rootPreset->boxes[bi]->name + "."
+										+ childPreset->boxes[ci]->name + "." + sl->name;
+									sl->name = fullName;
+
+									controllers.push_back(sl);
+									exposedControllerMapping.push_back({bi, ei});
+
+									inspectorwindow_height += complexsliderheight;
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 
@@ -2524,6 +2600,23 @@ void JPboxgroup::setControllers(){
 		if (preset != nullptr && groupInspectorIndex >= 0 &&
 			groupInspectorIndex < (int)preset->exposedParams.size())
 		{
+			// Resize exposedParams to match total controllers (own params + propagated)
+			JPbox *childBox = preset->boxes[groupInspectorIndex];
+			int childOwnParams = (childBox != nullptr) ? childBox->parameters.getSize() : 0;
+			if ((int)preset->exposedParams[groupInspectorIndex].size() < (int)controllers.size())
+			{
+				preset->exposedParams[groupInspectorIndex].resize(controllers.size(), false);
+			}
+			// Resize exposedParamOriginalIndices to match
+			if ((int)preset->exposedParamOriginalIndices.size() <= groupInspectorIndex)
+			{
+				preset->exposedParamOriginalIndices.resize(groupInspectorIndex + 1);
+			}
+			if ((int)preset->exposedParamOriginalIndices[groupInspectorIndex].size() < (int)controllers.size())
+			{
+				preset->exposedParamOriginalIndices[groupInspectorIndex].resize(controllers.size(), {-1, -1});
+			}
+
 			float btnSize = 24;
 			float btnRightMargin = 4;
 			for (int k = 0; k < (int)controllers.size(); k++)
@@ -2538,6 +2631,13 @@ void JPboxgroup::setControllers(){
 				if (k < (int)preset->exposedParams[groupInspectorIndex].size())
 				{
 					btn->boolValue = preset->exposedParams[groupInspectorIndex][k];
+				}
+				// For propagated controllers (beyond child's own params), store original indices
+				if (k >= childOwnParams && k < (int)exposedControllerMapping.size())
+				{
+					int ci = exposedControllerMapping[k].first;
+					int pi = exposedControllerMapping[k].second;
+					preset->exposedParamOriginalIndices[groupInspectorIndex][k] = {ci, pi};
 				}
 				exposeButtons.push_back(btn);
 			}

@@ -77,7 +77,7 @@
 </box>
 <box>
 	<nombre>autodisplace</nombre>
-	<x>241</x>
+	<x>239</x>
 	<y>207</y>
 	<directory>data\shaders\imageprocessing\autodisplace.frag</directory>
 	<onoff>1</onoff>
@@ -87,7 +87,7 @@
 			<name>offsetx</name>
 			<min>0.245122</min>
 			<max>0.65</max>
-			<value>0.560122</value>
+			<value>0.367999</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -95,7 +95,7 @@
 			<name>offsety</name>
 			<min>0.27439</min>
 			<max>0.669512</max>
-			<value>0.39139</value>
+			<value>0.38839</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -103,7 +103,7 @@
 			<name>rotacion</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.906999</value>
+			<value>0.030997</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -111,7 +111,7 @@
 			<name>sc</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.882999</value>
+			<value>0.054997</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -207,8 +207,8 @@
 </box>
 <box>
 	<nombre>edges2</nombre>
-	<x>238</x>
-	<y>366</y>
+	<x>229</x>
+	<y>376</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -260,8 +260,8 @@
 </box>
 <box>
 	<nombre>lighting3D</nombre>
-	<x>385</x>
-	<y>356</y>
+	<x>362</x>
+	<y>378</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -379,7 +379,7 @@
 			<name>scale_factor</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.535556</value>
+			<value>0.544444</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -398,8 +398,8 @@
 </box>
 <box>
 	<nombre>edges3</nombre>
-	<x>512</x>
-	<y>357</y>
+	<x>492</x>
+	<y>376</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -449,4 +449,7 @@
 		<input_texture>lighting3D</input_texture>
 	</fboslinks>
 </box>
-<exposedParams />
+<exposedParams>
+	<box>6<param>2</param>
+	</box>
+</exposedParams>
