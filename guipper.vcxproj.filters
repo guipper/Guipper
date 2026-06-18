@@ -196,6 +196,12 @@
     <ClCompile Include="src\JPutils\TransitionSR.cpp">
       <Filter>src\JPutils</Filter>
     </ClCompile>
+    <ClCompile Include="src\JPgui\jp_exposebutton.cpp">
+      <Filter>src\JPgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPgui\jp_shader_editor.cpp">
+      <Filter>src\JPgui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">
@@ -547,6 +553,12 @@
     </ClInclude>
     <ClInclude Include="src\JPutils\TransitionSR.h">
       <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPgui\jp_exposebutton.h">
+      <Filter>src\JPgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPgui\jp_shader_editor.h">
+      <Filter>src\JPgui</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

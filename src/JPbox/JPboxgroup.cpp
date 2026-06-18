@@ -1,4 +1,5 @@
 #include "JPboxgroup.h"
+#include "../JPgui/jp_shader_editor.h"
 #include <filesystem>
 #include <algorithm>
 #include <functional>
@@ -824,6 +825,48 @@ void JPboxgroup::draw_paramswindow()
 				btnY + btnH / 2 + jp_constants::p_font.stringHeight("RDM") / 2 - 2);
 		}
 
+		// EDIT button — open shader in code editor (only for SHADERBOX nodes)
+		if (inspectorBox->getTipo() == inspectorBox->SHADERBOX && shaderEditor != nullptr)
+		{
+			string shaderDir = inspectorBox->dir;
+			if (!shaderDir.empty())
+			{
+				float nameW = jp_constants::h_font.stringWidth(name);
+				float nameRight = inspectorwindow_x - nameW / 2 + nameW + 12;
+				// Place EDIT to the right of RDM, or right after name if no RDM
+				float editX = nameRight;
+				if (inspectorBox->parameters.getSize() > 0) {
+					editX += 48 + 6; // RDM button width + gap
+				}
+				float btnW = 52;
+				float btnH = 22;
+				float btnY = inspectorwindow_sepy - btnH / 2 + 1;
+
+				editbutton.x = editX + btnW / 2;
+				editbutton.y = btnY + btnH / 2;
+				editbutton.width = btnW;
+				editbutton.height = btnH;
+
+				// Draw EDIT button
+				if (editbutton.mouseOver()) {
+					ofSetColor(55, 65, 75);
+				} else {
+					ofSetColor(42, 50, 58);
+				}
+				ofDrawRectRounded(editX, btnY, btnW, btnH, 3.0f);
+				ofSetColor(180, 140, 50);
+				ofNoFill();
+				ofSetLineWidth(1.0f);
+				ofDrawRectRounded(editX, btnY, btnW, btnH, 3.0f);
+				ofFill();
+				ofSetLineWidth(1.0f);
+				ofSetColor(220, 200, 100);
+				jp_constants::p_font.drawString("EDIT",
+					editX + btnW / 2 - jp_constants::p_font.stringWidth("EDIT") / 2,
+					btnY + btnH / 2 + jp_constants::p_font.stringHeight("EDIT") / 2 - 2);
+			}
+		}
+
 		int index = 0; // INDICE PARA LOS BOTONES :
 
 		for (int i = 0; i < controllers.size(); i++)
@@ -1594,6 +1637,14 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				}
 			}
 		}
+		if (editbutton.mouseGrab() && shaderEditor != nullptr)
+		{
+			string shaderDir = inspectorBox->dir;
+			string shaderName = inspectorBox->name;
+			if (!shaderDir.empty()) {
+				shaderEditor->openShader(shaderDir, shaderName, openguinumber);
+			}
+		}
 		// Checkeo todos los controles.
 		bool isovercontrol = false;
 		// ESTE PARECE QUE NO HACE QUE CRASHEE COMO EL RESTO DE LOS CONTROLADORES
@@ -2050,6 +2101,17 @@ void JPboxgroup::save(string outputPath)
 
 	ofFilePath::createEnclosingDirectory(outputPath);
 	xml.save(outputPath);
+
+	// Save current viewport zoom/pan to the active preset (if in group view)
+	if (isGroupViewActive())
+	{
+		JPbox_preset *activePreset = getActivePreset();
+		if (activePreset != nullptr)
+		{
+			activePreset->viewportZoom = viewportZoom;
+			activePreset->viewportPan = viewportPan;
+		}
+	}
 
 	// After saving the main project file, save all preset children to their own XML files
 	for (int i = 0; i < (int)boxes.size(); i++)
@@ -5600,7 +5662,17 @@ bool JPboxgroup::navigateToBreadcrumbLevel(int level)
 		return false;
 	}
 
-	// Save zoom before navigating
+	// Save current viewport to the preset being exited (if any)
+	if (isGroupViewActive())
+	{
+		JPbox_preset *currentPreset = getActivePreset();
+		if (currentPreset != nullptr)
+		{
+			currentPreset->viewportZoom = viewportZoom;
+			currentPreset->viewportPan = viewportPan;
+		}
+	}
+	// Also save to tabZooms for MAIN level fallback
 	ensureTabStateSize();
 	int oldTabIndex = isGroupViewActive() ? (int)activeGroupPath.size() : 0;
 	if (oldTabIndex < (int)tabZooms.size())
@@ -5639,16 +5711,23 @@ bool JPboxgroup::navigateToBreadcrumbLevel(int level)
 	groupPreviewBoxIndex = -1;
 	clearSelection();
 
-	// Restore zoom for this level
-	if (level < (int)tabZooms.size())
+	// Load viewport from the preset at this path level
+	JPbox_preset *targetPreset = getActivePreset();
+	if (targetPreset != nullptr)
 	{
-		viewportZoom = tabZooms[level];
-		viewportPan = tabPans[level];
+		viewportZoom = targetPreset->viewportZoom;
+		viewportPan = targetPreset->viewportPan;
 	}
 	else
 	{
 		viewportZoom = 1.0f;
 		viewportPan = ofVec2f(0, 0);
+	}
+	// Also update tabZooms for consistency
+	if (level < (int)tabZooms.size())
+	{
+		tabZooms[level] = viewportZoom;
+		tabPans[level] = viewportPan;
 	}
 
 	return true;
@@ -5664,7 +5743,17 @@ bool JPboxgroup::navigateToChildPreset(int childIndex)
 
 	int realIndex = childIndices[childIndex];
 
-	// Save current zoom before navigating
+	// Save current viewport to the preset being exited (if any)
+	if (isGroupViewActive())
+	{
+		JPbox_preset *currentPreset = getActivePreset();
+		if (currentPreset != nullptr)
+		{
+			currentPreset->viewportZoom = viewportZoom;
+			currentPreset->viewportPan = viewportPan;
+		}
+	}
+	// Also save to tabZooms for MAIN level fallback
 	ensureTabStateSize();
 	int oldTabIndex = isGroupViewActive() ? (int)activeGroupPath.size() : 0;
 	if (oldTabIndex < (int)tabZooms.size())
@@ -5698,17 +5787,24 @@ bool JPboxgroup::navigateToChildPreset(int childIndex)
 	groupPreviewBoxIndex = -1;
 	clearSelection();
 
-	// Reset zoom for the new level (or load saved)
+	// Load viewport from the target preset
 	int newLevel = (int)newPath.size();
-	if (newLevel < (int)tabZooms.size())
+	JPbox_preset *targetPreset = getActivePreset();
+	if (targetPreset != nullptr)
 	{
-		viewportZoom = tabZooms[newLevel];
-		viewportPan = tabPans[newLevel];
+		viewportZoom = targetPreset->viewportZoom;
+		viewportPan = targetPreset->viewportPan;
 	}
 	else
 	{
 		viewportZoom = 1.0f;
 		viewportPan = ofVec2f(0, 0);
+	}
+	// Also update tabZooms for consistency
+	if (newLevel < (int)tabZooms.size())
+	{
+		tabZooms[newLevel] = viewportZoom;
+		tabPans[newLevel] = viewportPan;
 	}
 
 	return true;

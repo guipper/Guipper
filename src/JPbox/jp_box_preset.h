@@ -59,6 +59,11 @@ public:
 	// exposedParamOriginalIndices[childBoxIndex][paramIndex] = {grandchildIndex, paramIndex}
 	// Used when an exposed param comes from a child's child (propagated one more level)
 	vector<vector<pair<int,int>>> exposedParamOriginalIndices;
+
+	// Per-preset viewport zoom/pan - saved/loaded from XML
+	float viewportZoom = 1.0f;
+	ofVec2f viewportPan = ofVec2f(0, 0);
+
 	void setExposedParam(int childIndex, int paramIndex, bool exposed);
 	bool isParamExposed(int childIndex, int paramIndex) const;
 	void clearExposedParams();

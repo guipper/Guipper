@@ -18,6 +18,7 @@
 #include "JPutils/jp_fileloader.h"
 #include "JPutils/jp_constants.h"
 #include "JPutils/jp_midi_keymap.h"
+#include "JPgui/jp_shader_editor.h"
 #include "ofxOsc.h"
 #ifdef NDI
 #include "ofxNDI.h"
@@ -235,5 +236,8 @@ public:
 	void updateSaveModal();
 	void cancelSaveModal();
 	ofTrueTypeFont modalFont; // Larger font for modal text
+
+	// Shader Editor
+	JPShaderEditor shaderEditor;
 
 };

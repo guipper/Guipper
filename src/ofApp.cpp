@@ -10,6 +10,10 @@ void ofApp::setup() {
 	// Modal font - loaded at readable size for the save dialog
 	modalFont.loadFont("font/Montserrat-Medium.ttf", 14);
 
+	// Shader editor
+	shaderEditor.setup();
+	boxes.shaderEditor = &shaderEditor;
+
 	ofSetVerticalSync(false);
 	// FreeConsole();
 
@@ -246,6 +250,9 @@ void ofApp::draw() {
 	midiKeymap.draw();
 
 	drawScreenTabs();
+
+	// Shader Editor (on top of everything)
+	shaderEditor.draw();
 
 	drawSaveModal();
 }
@@ -1173,15 +1180,16 @@ void ofApp::draw_shaderindex() {
 			font_p.drawString(selPath, previewX + previewW / 2 - font_p.stringWidth(selPath) / 2, fboY + fboPreviewH + 34);
 		}
 
-		// LOAD + RDM buttons
-		float btnW = 80;
+		// LOAD + RDM + EDIT buttons
+		float btnW = 72;
 		float btnH = 28;
-		float btnGap = 8;
-		float btnTotalW = btnW * 2 + btnGap;
+		float btnGap = 6;
+		float btnTotalW = btnW * 3 + btnGap * 2;
 		float btnStartX = previewX + previewW / 2 - btnTotalW / 2;
 		float btnY = previewY + previewH - 40;
 		float loadX = btnStartX;
 		float rdmX = btnStartX + btnW + btnGap;
+		float editX = btnStartX + (btnW + btnGap) * 2;
 
 		// LOAD button
 		ofSetColor(0, 160, 160);
@@ -1193,7 +1201,7 @@ void ofApp::draw_shaderindex() {
 		ofFill();
 		ofSetLineWidth(1.0f);
 		ofSetColor(255);
-		string loadLabel = language == 0 ? "[ LOAD ]" : "[ CARGAR ]";
+		string loadLabel = language == 0 ? "LOAD" : "CARGAR";
 		float lw = font_p.stringWidth(loadLabel);
 		font_p.drawString(loadLabel, loadX + btnW / 2 - lw / 2, btnY + 20);
 
@@ -1207,9 +1215,23 @@ void ofApp::draw_shaderindex() {
 		ofFill();
 		ofSetLineWidth(1.0f);
 		ofSetColor(255);
-		string rdmLabel = "[ RDM ]";
+		string rdmLabel = "RDM";
 		float rw = font_p.stringWidth(rdmLabel);
 		font_p.drawString(rdmLabel, rdmX + btnW / 2 - rw / 2, btnY + 20);
+
+		// EDIT button
+		ofSetColor(180, 130, 50);
+		ofDrawRectRounded(editX, btnY, btnW, btnH, 4.0f);
+		ofNoFill();
+		ofSetColor(240, 180, 80);
+		ofSetLineWidth(1.5f);
+		ofDrawRectRounded(editX, btnY, btnW, btnH, 4.0f);
+		ofFill();
+		ofSetLineWidth(1.0f);
+		ofSetColor(255);
+		string editLabel = "EDIT";
+		float ew2 = font_p.stringWidth(editLabel);
+		font_p.drawString(editLabel, editX + btnW / 2 - ew2 / 2, btnY + 20);
 
 	} else {
 		ofSetColor(80, 90, 100);
@@ -1227,6 +1249,12 @@ void ofApp::drawRender() {
 void ofApp::keyPressed(int key) {
 
 	if (midiKeymap.keyPressed(key)) {
+		return;
+	}
+
+	// Shader Editor key capture (when visible, consumes all keys)
+	if (shaderEditor.wantsKeyCapture()) {
+		shaderEditor.keyPressed(key);
 		return;
 	}
 
@@ -1529,8 +1557,13 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	// CUANDO APRETAS CONTROL TE TOMA COMO DOS INPUTS EN EL MOMENTO.
 	cout << "-------------------------------------" << endl;
 
-	// Ctrl+S (keycodes 46 or 19 depending on platform) -> open save-as modal
+	// Ctrl+S (keycodes 46 or 19 depending on platform) -> save-as modal or save shader
 	if (e.key == 46 || e.key == 19) {
+		// If shader editor is visible, save the shader file instead
+		if (shaderEditor.wantsKeyCapture()) {
+			shaderEditor.saveCurrentTab();
+			return;
+		}
 		if (!saveModalActive) {
 			saveModalActive = true;
 			saveModalName = "";
@@ -1579,6 +1612,12 @@ void ofApp::mouseDragged(int x, int y, int button) {
 	}
 }
 void ofApp::mousePressed(int x, int y, int button) {
+	// Shader Editor click handling (when visible, check before anything else except modal)
+	if (shaderEditor.isVisible()) {
+		shaderEditor.mousePressed(x, y, button);
+		return;
+	}
+
 	// Save modal button clicks — consume before anything else when modal is active
 	if (saveModalActive) {
 		float w = ofGetWidth();
@@ -1816,16 +1855,17 @@ void ofApp::mousePressed(int x, int y, int button) {
 			return;
 		}
 
-		// ---- LOAD + RDM BUTTONS ----
+		// ---- LOAD + RDM + EDIT BUTTONS ----
 		if (selectedShaderFolder >= 0 && selectedShaderIndex >= 0) {
-			float btnW = 80;
+			float btnW = 72;
 			float btnH = 28;
-			float btnGap = 8;
-			float btnTotalW = btnW * 2 + btnGap;
+			float btnGap = 6;
+			float btnTotalW = btnW * 3 + btnGap * 2;
 			float btnStartX = previewX + previewW / 2 - btnTotalW / 2;
 			float btnY = previewY + previewH - 40;
 			float loadX = btnStartX;
 			float rdmX = btnStartX + btnW + btnGap;
+			float editX = btnStartX + (btnW + btnGap) * 2;
 
 			// RDM button - parse shader uniforms and randomize them
 			if (x >= rdmX && x <= rdmX + btnW && y >= btnY && y <= btnY + btnH) {
@@ -1940,6 +1980,14 @@ void ofApp::mousePressed(int x, int y, int button) {
 				float startY = canvasCenter.y;
 				boxes.addBox(path, startX + col * sepx, startY + row * sepy);
 				loadBoxCount++;
+				return;
+			}
+
+			// EDIT button — open shader in the code editor
+			if (x >= editX && x <= editX + btnW && y >= btnY && y <= btnY + btnH) {
+				string path = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
+				string name = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].name;
+				shaderEditor.openShader(path, name);
 				return;
 			}
 		}
@@ -2209,6 +2257,11 @@ void ofApp::mouseReleased(int x, int y, int button) {
 }
 void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 	if (midiKeymap.mouseScrolled(x, y, scrollX, scrollY)) {
+		return;
+	}
+	// Forward to shader editor when visible
+	if (shaderEditor.isVisible()) {
+		shaderEditor.mouseScrolled(x, y, scrollX, scrollY);
 		return;
 	}
 	if (pantallaActiva == SHADER_INDEX) {

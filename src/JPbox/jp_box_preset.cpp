@@ -87,6 +87,11 @@ void JPbox_preset::setup(string _directory, string _name)
 		{
 			bx->setonoff(onoffChild.getBoolValue());
 		}
+		else
+		{
+			// Default to true for backward compatibility (older XMLs without onoff)
+			bx->setonoff(true);
+		}
 		auto bypassChild = box.getChild("bypass");
 		if (bypassChild)
 		{
@@ -197,6 +202,20 @@ void JPbox_preset::setup(string _directory, string _name)
 	}
 	//activeRender = xml.getChild("activerender").getIntValue();
 	activeRender = int(ofClamp(xml.getChild("activerender").getIntValue(), 0, boxes.size() - 1));
+
+	// Load viewport zoom/pan
+	auto zoomChild = xml.getChild("viewportZoom");
+	if (zoomChild)
+	{
+		viewportZoom = zoomChild.getFloatValue();
+	}
+	auto panXChild = xml.getChild("viewportPanX");
+	auto panYChild = xml.getChild("viewportPanY");
+	if (panXChild && panYChild)
+	{
+		viewportPan.x = panXChild.getFloatValue();
+		viewportPan.y = panYChild.getFloatValue();
+	}
 }
 
 void JPbox_preset::update()
@@ -218,9 +237,8 @@ void JPbox_preset::updateFBO()
 		for (int i = boxes.size() - 1; i >= 0; i--)
 		{
 			boxes[i]->update();
-			// Force children onoff to true so they render by default.
-			// PAUSE (bypass) is NOT affected and can be toggled independently.
-			boxes[i]->onoff.boolValue = true;
+			// Do NOT force onoff - user can toggle PAUSE freely in group view.
+			// Initial onoff state is loaded from XML (defaults to true if not found).
 		}
 		if (boxes.empty() || activeRender < 0 || activeRender >= (int)boxes.size())
 		{
@@ -317,6 +335,14 @@ void JPbox_preset::save()
 	// Save activerender
 	auto activerender_save = xml.appendChild("activerender");
 	activerender_save.set(activeRender);
+
+	// Save viewport zoom/pan
+	auto viewportZoom_save = xml.appendChild("viewportZoom");
+	viewportZoom_save.set(viewportZoom);
+	auto viewportPanX_save = xml.appendChild("viewportPanX");
+	viewportPanX_save.set(viewportPan.x);
+	auto viewportPanY_save = xml.appendChild("viewportPanY");
+	viewportPanY_save.set(viewportPan.y);
 
 	for (int i = 0; i < (int)boxes.size(); i++)
 	{

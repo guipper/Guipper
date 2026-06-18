@@ -2,16 +2,16 @@
 <activerender>0</activerender>
 <box>
 	<nombre>artlab15</nombre>
-	<x>100</x>
-	<y>194</y>
+	<x>99</x>
+	<y>192</y>
 	<directory>data\savefiles\artlab\artlab15.xml</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>aesteticpolys2</nombre>
-	<x>520</x>
-	<y>254</y>
+	<x>108</x>
+	<y>332</y>
 	<directory>data\shaders\generative\aesteticpolys.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -20,7 +20,7 @@
 			<name>cant</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.714743</value>
+			<value>0.15037</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -28,7 +28,7 @@
 			<name>poly1_puntas</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.0581988</value>
+			<value>0.18</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -60,7 +60,7 @@
 			<name>poly2_puntas</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.96292</value>
+			<value>0.574074</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -93,6 +93,8 @@
 <exposedParams>
 	<box>0<param>0</param>
 		<origBox>6</origBox>
-		<origParam>2</origParam>
+		<origParam>1</origParam>
+	</box>
+	<box>1<param>1</param>
 	</box>
 </exposedParams>

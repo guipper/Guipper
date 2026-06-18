@@ -10,6 +10,8 @@
 #include "jp_box_video.h"
 #include "jp_box_cam.h"
 
+class JPShaderEditor; // forward declaration
+
 #ifdef SPOUT
 #include "jp_box_spout.h"
 #endif
@@ -188,6 +190,9 @@ public:
 	string clipboardXml;
 	void copySelectedBoxes();
 	void pasteBoxes();
+
+	// Shader editor pointer (set by ofApp)
+	JPShaderEditor* shaderEditor = nullptr;
 private:
 	enum CueMode
 	{
@@ -316,7 +321,8 @@ private:
 
 	JPBang inspectorsetactive;			 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA
 	JPBang inspectorreload;				 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA
-	JPBang inspectorrandom;				 // Randomiza todos los parametros del shader en el inspector
+	JPBang inspectorrandom;              // Randomiza todos los parametros del shader en el inspector
+	JPBang editbutton;                   // Boton EDIT para abrir el shader en el editor de codigo
 	float inspectorwindow_setactivesize; // Para el size del setactive:
 
 	void draw_conections();
