@@ -265,3 +265,98 @@ void JPbox_preset::clear()
 void JPbox_preset::addBox(JPbox &_box)
 {
 }
+
+void JPbox_preset::save()
+{
+	// Save internal boxes back to this preset's XML file
+	if (dir.empty()) return;
+
+	ofXml xml;
+
+	// Save activerender
+	auto activerender_save = xml.appendChild("activerender");
+	activerender_save.set(activeRender);
+
+	for (int i = 0; i < (int)boxes.size(); i++)
+	{
+		if (boxes[i] == nullptr) continue;
+
+		auto data = xml.appendChild("box");
+		data.appendChild("nombre").set(boxes[i]->name);
+		data.appendChild("x").set(boxes[i]->x);
+		data.appendChild("y").set(boxes[i]->y);
+		data.appendChild("directory").set(boxes[i]->dir);
+		data.appendChild("onoff").set(boxes[i]->getonoff());
+		data.appendChild("bypass").set(boxes[i]->getBypass());
+
+		if (boxes[i]->parameters.getSize() > 0)
+		{
+			auto parameters = data.appendChild("parameters");
+			for (int k = 0; k < boxes[i]->parameters.getSize(); k++)
+			{
+				if (boxes[i]->parameters.getType(k) == boxes[i]->parameters.BOOL)
+				{
+					auto param = parameters.appendChild("param");
+					param.appendChild("name").set(boxes[i]->parameters.getName(k));
+					param.appendChild("value").set(boxes[i]->parameters.getBoolValue(k));
+				}
+				else
+				{
+					auto param = parameters.appendChild("param");
+					param.appendChild("name").set(boxes[i]->parameters.getName(k));
+					param.appendChild("min").set(boxes[i]->parameters.getMin(k));
+					param.appendChild("max").set(boxes[i]->parameters.getMax(k));
+					param.appendChild("value").set(boxes[i]->parameters.getFloatValue(k));
+					param.appendChild("movtype").set(boxes[i]->parameters.getMovType(k));
+					param.appendChild("speed").set(boxes[i]->parameters.getSpeed(k));
+				}
+			}
+		}
+
+		// Save FBO links
+		if (boxes[i]->fbohandlergroup.getPointerSetsSize() > 0)
+		{
+			auto fboslinks = data.appendChild("fboslinks");
+			for (int k = 0; k < boxes[i]->fbohandlergroup.getSize(); k++)
+			{
+				if (boxes[i]->fbohandlergroup.getisPointerSet(k))
+				{
+					fboslinks.appendChild(boxes[i]->fbohandlergroup.getName(k))
+						.set(boxes[i]->fbohandlergroup.getFboName(k));
+				}
+			}
+		}
+
+		// Recursively save nested presets
+		if (boxes[i]->getTipo() == JPbox::PRESETBOX)
+		{
+			JPbox_preset *childPreset = dynamic_cast<JPbox_preset *>(boxes[i]);
+			if (childPreset != nullptr)
+			{
+				childPreset->save();
+			}
+		}
+	}
+
+	// Save exposedParams at root level (to match setup() load format: xml.getChild("exposedParams"))
+	if (!exposedParams.empty())
+	{
+		auto exposedNode = xml.appendChild("exposedParams");
+		for (int ci = 0; ci < (int)exposedParams.size(); ci++)
+		{
+			for (int pi = 0; pi < (int)exposedParams[ci].size(); pi++)
+			{
+				if (exposedParams[ci][pi])
+				{
+					auto boxNode = exposedNode.appendChild("box");
+					boxNode.set(ci);
+					auto paramNode = boxNode.appendChild("param");
+					paramNode.set(pi);
+				}
+			}
+		}
+	}
+
+	ofFilePath::createEnclosingDirectory(dir);
+	xml.save(dir);
+}

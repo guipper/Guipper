@@ -59,4 +59,5 @@ public:
 	bool isParamExposed(int childIndex, int paramIndex) const;
 	void clearExposedParams();
 	void resizeExposedParams(int numChildren);
+	void save();
 };

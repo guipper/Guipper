@@ -1372,25 +1372,54 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		return;
 	}
 
-	// In group view mode: handle click on sub-box and deselect on empty space click
+	// In group view mode: handle click on sub-box, deselect on empty space, and handle outlet dragging
 	if (isGroupViewActive() && mouseButton == OF_MOUSE_BUTTON_LEFT)
 	{
 		JPbox_preset *preset = getActivePreset();
 		if (preset != nullptr)
 		{
 			JPdragobject::setMouseOverride(canvasMouse);
+			bool hitOutlet = false;
 			bool hitBox = false;
 			int clickedIndex = -1;
-			for (int i = 0; i < (int)preset->boxes.size(); i++)
+
+			// First check outlets (like MAIN view does at line 1581)
+			for (int i = (int)preset->boxes.size() - 1; i >= 0; i--)
 			{
-				if (preset->boxes[i]->mouseOver() && !preset->boxes[i]->mouseOverOutlet())
+				if (preset->boxes[i]->mouseOverOutlet())
 				{
-					hitBox = true;
-					clickedIndex = i;
+					hitOutlet = true;
+					clearSelection();
+					preset->boxes[i]->outletActiveFlag = true;
+					ouletagarrado = true;
+					shaderboxagarrado = false;
+					outlet_cualestaagarrado = i;
+					cualestaagarrado = -1;
 					break;
 				}
 			}
+
+			// Then check box body (non-outlet area)
+			if (!hitOutlet)
+			{
+				for (int i = 0; i < (int)preset->boxes.size(); i++)
+				{
+					if (preset->boxes[i]->mouseOver() && !preset->boxes[i]->mouseOverOutlet())
+					{
+						hitBox = true;
+						clickedIndex = i;
+						break;
+					}
+				}
+			}
+
 			JPdragobject::clearMouseOverride();
+
+			if (hitOutlet)
+			{
+				return;
+			}
+
 			if (hitBox && clickedIndex >= 0)
 			{
 				// Match main view behavior: only clear selection if clicking a non-selected box
@@ -1406,8 +1435,65 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				if (isDoubleClick)
 				{
 					preset->activeRender = clickedIndex;
+
+					// Propagate active render up the preset chain
+					// e.g. MAIN -> A[idx=2] -> B[idx=1] -> C (clicked)
+					// Need: A->activeRender = 1 (B), MAIN renders A (already done below)
 					if (!activeGroupPath.empty())
 					{
+						// Walk the path from bottom to top, setting each parent's activeRender
+						for (int level = (int)activeGroupPath.size() - 1; level >= 0; level--)
+						{
+							if (level == 0)
+							{
+								// Top-level: parent is the JPboxgroup itself, use requestSetActiveRender
+								break;
+							}
+							else
+							{
+								// Find the parent of this level
+								JPbox_preset *parentPreset = nullptr;
+								if (level == 1)
+								{
+									// Parent is a top-level box
+									int parentIdx = activeGroupPath[0];
+									if (parentIdx >= 0 && parentIdx < (int)boxes.size() &&
+										boxes[parentIdx]->getTipo() == JPbox::PRESETBOX)
+									{
+										parentPreset = dynamic_cast<JPbox_preset *>(boxes[parentIdx]);
+									}
+								}
+								else
+								{
+									// Parent is a nested preset - traverse the path
+									JPbox *parentBox = boxes[activeGroupPath[0]];
+									if (parentBox != nullptr && parentBox->getTipo() == JPbox::PRESETBOX)
+									{
+										parentPreset = dynamic_cast<JPbox_preset *>(parentBox);
+										for (int d = 1; d < level && parentPreset != nullptr; d++)
+										{
+											int idx = activeGroupPath[d];
+											if (idx >= 0 && idx < (int)parentPreset->boxes.size() &&
+												parentPreset->boxes[idx] != nullptr &&
+												parentPreset->boxes[idx]->getTipo() == JPbox::PRESETBOX)
+											{
+												parentPreset = dynamic_cast<JPbox_preset *>(parentPreset->boxes[idx]);
+											}
+											else
+											{
+												parentPreset = nullptr;
+											}
+										}
+									}
+								}
+								if (parentPreset != nullptr)
+								{
+									// Set this parent's activeRender to point to the next level
+									int childIndex = activeGroupPath[level];
+									parentPreset->activeRender = childIndex;
+								}
+							}
+						}
 						requestSetActiveRender(activeGroupPath[0]);
 					}
 				}
@@ -1936,6 +2022,19 @@ void JPboxgroup::save(string outputPath)
 
 	ofFilePath::createEnclosingDirectory(outputPath);
 	xml.save(outputPath);
+
+	// After saving the main project file, save all preset children to their own XML files
+	for (int i = 0; i < (int)boxes.size(); i++)
+	{
+		if (boxes[i]->getTipo() == boxes[i]->PRESETBOX)
+		{
+			JPbox_preset *preset = dynamic_cast<JPbox_preset *>(boxes[i]);
+			if (preset != nullptr)
+			{
+				preset->save();
+			}
+		}
+	}
 }
 void JPboxgroup::load2(string _dirinput)
 {
@@ -2271,56 +2370,126 @@ void JPboxgroup::setControllers(){
 		// Clear exposed controller mapping
 		exposedControllerMapping.clear();
 
-		// MAIN view: add exposed sliders from preset children to the inspector
-		if (!isGroupViewActive() && openguinumber >= 0 && openguinumber < (int)boxes.size() &&
-			boxes[openguinumber]->getTipo() == JPbox::PRESETBOX)
+		// Recursive lambda: walk through preset children and collect exposed params
+		std::function<void(JPbox_preset *, const string &)> collectExposedParams;
+		collectExposedParams = [&](JPbox_preset *preset, const string &namePrefix)
 		{
-			JPbox_preset *preset = dynamic_cast<JPbox_preset *>(boxes[openguinumber]);
-			if (preset != nullptr)
+			if (preset == nullptr) return;
+
+			for (int bi = 0; bi < (int)preset->boxes.size() && bi < (int)preset->exposedParams.size(); bi++)
 			{
-				for (int bi = 0; bi < (int)preset->boxes.size() && bi < (int)preset->exposedParams.size(); bi++)
+				if (preset->boxes[bi] == nullptr) continue;
+
+				// First, recursively collect from nested presets (grandchildren)
+				if (preset->boxes[bi]->getTipo() == JPbox::PRESETBOX)
 				{
-					// Add spacing between different children
-					bool hasExposedInThisChild = false;
-					for (int ei = 0; ei < (int)preset->exposedParams[bi].size(); ei++)
+					JPbox_preset *childPreset = dynamic_cast<JPbox_preset *>(preset->boxes[bi]);
+					if (childPreset != nullptr)
 					{
-						if (preset->exposedParams[bi][ei])
+						string childPrefix = namePrefix.empty()
+							? preset->boxes[bi]->name
+							: namePrefix + "." + preset->boxes[bi]->name;
+						collectExposedParams(childPreset, childPrefix);
+					}
+				}
+
+				// Then collect this preset's own exposed params for this child
+				bool hasExposedInThisChild = false;
+				for (int ei = 0; ei < (int)preset->exposedParams[bi].size(); ei++)
+				{
+					if (preset->exposedParams[bi][ei])
+					{
+						cout << "  collectExposedParams: found exposed param bi=" << bi << " ei=" << ei
+							 << " in preset \"" << preset->name << "\" child \""
+							 << preset->boxes[bi]->name << "\"" << endl;
+						if (!hasExposedInThisChild && bi > 0)
 						{
-							if (!hasExposedInThisChild && bi > 0)
+							inspectorwindow_height += inspectorwindow_sepy * 0.5;
+						}
+						hasExposedInThisChild = true;
+
+						if (ei < preset->boxes[bi]->parameters.getSize() &&
+							preset->boxes[bi]->parameters.getType(ei) == preset->boxes[bi]->parameters.FLOAT)
+						{
+							float complexsliderheight = inspectorwindow_sepy * 1.0;
+							if (preset->boxes[bi]->parameters.getMovType(ei) != 0)
 							{
-								inspectorwindow_height += inspectorwindow_sepy * 0.5;
+								complexsliderheight = inspectorwindow_sepy * 2.0;
 							}
-							hasExposedInThisChild = true;
 
-							if (ei < preset->boxes[bi]->parameters.getSize() &&
-								preset->boxes[bi]->parameters.getType(ei) == preset->boxes[bi]->parameters.FLOAT)
-							{
-								float complexsliderheight = inspectorwindow_sepy * 1.0;
-								if (preset->boxes[bi]->parameters.getMovType(ei) != 0)
-								{
-									complexsliderheight = inspectorwindow_sepy * 2.0;
-								}
+							JPComplexSlider *sl = new JPComplexSlider();
+							sl->setup(inspectorwindow_x,
+									  inspectorwindow_height, inspectorwindow_width, complexsliderheight,
+									  preset->boxes[bi]->parameters.parameters[ei]);
 
-								JPComplexSlider *sl = new JPComplexSlider();
-								sl->setup(inspectorwindow_x,
-										  inspectorwindow_height, inspectorwindow_width, complexsliderheight,
-										  preset->boxes[bi]->parameters.parameters[ei]);
+							// Prepend full path to the slider name
+							string fullName = namePrefix.empty()
+								? preset->boxes[bi]->name + "." + sl->name
+								: namePrefix + "." + preset->boxes[bi]->name + "." + sl->name;
+							sl->name = fullName;
 
-								// Prepend child box name to the slider name for identification
-								sl->name = preset->boxes[bi]->name + "." + sl->name;
+							controllers.push_back(sl);
+							exposedControllerMapping.push_back({bi, ei});
 
-								controllers.push_back(sl);
-								exposedControllerMapping.push_back({bi, ei});
-
-								inspectorwindow_height += complexsliderheight;
-							}
+							inspectorwindow_height += complexsliderheight;
 						}
 					}
 				}
 			}
+		};
+
+		// MAIN view: add exposed sliders from the clicked preset's children (recursive)
+		if (!isGroupViewActive() && openguinumber >= 0 && openguinumber < (int)boxes.size() &&
+			boxes[openguinumber]->getTipo() == JPbox::PRESETBOX)
+		{
+			JPbox_preset *rootPreset = dynamic_cast<JPbox_preset *>(boxes[openguinumber]);
+			if (rootPreset != nullptr)
+			{
+				collectExposedParams(rootPreset, "");
+			}
 		}
 
-		// Create expose buttons for group view (one per controller)
+		// GROUP view: when the selected child box is a PRESETBOX, also show its children's exposed params
+		if (isGroupViewActive() && groupInspectorIndex >= 0)
+		{
+			JPbox_preset *activePreset = getActivePreset();
+			cout << "GROUPVIEW: activePreset=" << (activePreset ? activePreset->name : "NULL")
+				 << " gIdx=" << groupInspectorIndex;
+			if (activePreset != nullptr) cout << " boxCount=" << (int)activePreset->boxes.size();
+			cout << endl;
+			if (activePreset != nullptr && groupInspectorIndex < (int)activePreset->boxes.size())
+			{
+				JPbox *selectedBox = activePreset->boxes[groupInspectorIndex];
+				cout << "GROUPVIEW: selectedBox=" << (selectedBox ? selectedBox->name : "NULL")
+					 << " tipo=" << (selectedBox ? ofToString(selectedBox->getTipo()) : "N/A")
+					 << " PRESETBOX=" << JPbox::PRESETBOX << endl;
+				if (selectedBox != nullptr && selectedBox->getTipo() == JPbox::PRESETBOX)
+				{
+					JPbox_preset *childPreset = dynamic_cast<JPbox_preset *>(selectedBox);
+					cout << "GROUPVIEW: childPreset=" << (childPreset ? childPreset->name : "NULL")
+						 << " children=" << (childPreset ? (int)childPreset->boxes.size() : -1)
+						 << " exposedSize=" << (childPreset ? (int)childPreset->exposedParams.size() : -1) << endl;
+					if (childPreset != nullptr)
+					{
+						// Check exposedParams contents
+						for (int ci = 0; ci < (int)childPreset->exposedParams.size() && ci < (int)childPreset->boxes.size(); ci++)
+						{
+							for (int pi = 0; pi < (int)childPreset->exposedParams[ci].size(); pi++)
+							{
+								if (childPreset->exposedParams[ci][pi])
+								{
+									cout << "GROUPVIEW: FOUND exposed: child[" << ci << "]=" << childPreset->boxes[ci]->name
+										 << " param[" << pi << "]" << endl;
+								}
+							}
+						}
+						collectExposedParams(childPreset, childPreset->name);
+					}
+				}
+				}
+				}
+
+				// Create expose buttons for group view (one per controller)
 	if (isGroupViewActive())
 	{
 		JPbox_preset *preset = getActivePreset();
@@ -2348,6 +2517,12 @@ void JPboxgroup::setControllers(){
 	}
 
 	inspectorwindow_y = inspectorwindow_height / 2;
+
+	cout << "setControllers done: controllers=" << (int)controllers.size()
+		 << " exposeButtons=" << (int)exposeButtons.size()
+		 << " groupActive=" << isGroupViewActive()
+		 << " gIdx=" << groupInspectorIndex
+		 << " openNum=" << openguinumber << endl;
 }
 void JPboxgroup::reloadActiveshader()
 {
@@ -4065,6 +4240,12 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 			bx->setonoff(true);
 			bx->setPos(_x, _y);
 			preset->boxes.push_back(bx);
+			// Resize exposedParams to match the new box count
+			preset->resizeExposedParams((int)preset->boxes.size());
+			// Auto-select the new box so controllers and expose buttons appear immediately
+			groupInspectorIndex = (int)preset->boxes.size() - 1;
+			groupPreviewBoxIndex = -1;
+			setControllers();
 			cout << "addBox: added sub-box \"" << nombre << "\" to active preset (group view)" << endl;
 			return;
 		}
@@ -4771,6 +4952,7 @@ void JPboxgroup::pasteBoxes()
 			bx->setonoff(true);
 			bx->setPos(pastePos.x + pasteIndex * 30.0f, pastePos.y + pasteIndex * 30.0f);
 			targetPreset->boxes.push_back(bx);
+			targetPreset->resizeExposedParams((int)targetPreset->boxes.size());
 		}
 		else
 		{

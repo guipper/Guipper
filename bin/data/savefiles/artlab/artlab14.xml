@@ -6,6 +6,7 @@
 	<y>86</y>
 	<directory>data\shaders\contrib\starnest.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>iterations</name>
@@ -127,6 +128,7 @@
 	<y>82</y>
 	<directory>data\shaders\blending\mixdisplace.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>offsetx</name>
@@ -156,12 +158,17 @@
 	<y>237</y>
 	<directory>data\shaders\generative\metro.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
+		<param>
+			<name>invertbpm</name>
+			<value>0</value>
+		</param>
 		<param>
 			<name>ss</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.298519</value>
+			<value>0.283704</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -169,7 +176,15 @@
 			<name>dif</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.283704</value>
+			<value>0.745598</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>shape</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.581591</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -181,6 +196,7 @@
 	<y>288</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -233,6 +249,7 @@
 	<y>129</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -325,6 +342,7 @@
 	<y>71</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -354,6 +372,7 @@
 	<y>160</y>
 	<directory>data\shaders\imageprocessing\rotatecolor.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>rd1</name>
@@ -390,6 +409,7 @@
 	<y>473</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -419,6 +439,7 @@
 	<y>240</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -471,6 +492,7 @@
 	<y>219</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -563,6 +585,7 @@
 	<y>459</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -655,6 +678,7 @@
 	<y>421</y>
 	<directory>data\shaders\imageprocessing\VHStapeeffect.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>range</name>
@@ -707,6 +731,7 @@
 	<y>381</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -759,6 +784,7 @@
 	<y>605</y>
 	<directory>data\shaders\imageprocessing\rotatecolor.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>rd1</name>
@@ -795,6 +821,7 @@
 	<y>622</y>
 	<directory>data\shaders\imageprocessing\matrixiterations.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>fase</name>
@@ -871,6 +898,7 @@
 	<y>456</y>
 	<directory>data\shaders\imageprocessing\smoothstep.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>min</name>
@@ -899,6 +927,7 @@
 	<y>619</y>
 	<directory>data\shaders\imageprocessing\transform.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>scaley</name>
@@ -951,6 +980,7 @@
 	<y>278</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -1003,6 +1033,7 @@
 	<y>531</y>
 	<directory>data\shaders\imageprocessing\feedbackmix.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>feedbackst</name>
@@ -1031,6 +1062,7 @@
 	<y>611</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -1083,6 +1115,7 @@
 	<y>615</y>
 	<directory>ndiReceiver</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>scalex</name>
@@ -1136,6 +1169,7 @@
 	<y>436</y>
 	<directory>ndiReceiver</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>scalex</name>
@@ -1183,3 +1217,4 @@
 		</param>
 	</parameters>
 </box>
+<exposedParams />
