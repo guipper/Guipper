@@ -2,8 +2,8 @@
 <activerender>7</activerender>
 <box>
 	<nombre>metro</nombre>
-	<x>138</x>
-	<y>321</y>
+	<x>90</x>
+	<y>213</y>
 	<directory>data\shaders\generative\metro.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -24,7 +24,7 @@
 			<name>dif</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0</value>
+			<value>0.606667</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -40,8 +40,8 @@
 </box>
 <box>
 	<nombre>rotatecolor</nombre>
-	<x>519</x>
-	<y>369</y>
+	<x>93</x>
+	<y>373</y>
 	<directory>data\shaders\imageprocessing\rotatecolor.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -77,8 +77,8 @@
 </box>
 <box>
 	<nombre>autodisplace</nombre>
-	<x>275</x>
-	<y>354</y>
+	<x>241</x>
+	<y>207</y>
 	<directory>data\shaders\imageprocessing\autodisplace.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -87,7 +87,7 @@
 			<name>offsetx</name>
 			<min>0.245122</min>
 			<max>0.65</max>
-			<value>0.425121</value>
+			<value>0.466999</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -95,7 +95,7 @@
 			<name>offsety</name>
 			<min>0.27439</min>
 			<max>0.669512</max>
-			<value>0.667391</value>
+			<value>0.493389</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -103,7 +103,7 @@
 			<name>rotacion</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.150997</value>
+			<value>0.321</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -111,7 +111,7 @@
 			<name>sc</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.126997</value>
+			<value>0.345</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -122,8 +122,8 @@
 </box>
 <box>
 	<nombre>feedbacklimitdisplace42</nombre>
-	<x>558</x>
-	<y>156</y>
+	<x>522</x>
+	<y>208</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace4.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -207,8 +207,8 @@
 </box>
 <box>
 	<nombre>edges2</nombre>
-	<x>677</x>
-	<y>164</y>
+	<x>238</x>
+	<y>366</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -260,8 +260,8 @@
 </box>
 <box>
 	<nombre>lighting3D</nombre>
-	<x>656</x>
-	<y>325</y>
+	<x>385</x>
+	<y>356</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -353,8 +353,8 @@
 </box>
 <box>
 	<nombre>kaleidoscope</nombre>
-	<x>416</x>
-	<y>229</y>
+	<x>387</x>
+	<y>207</y>
 	<directory>data\shaders\imageprocessing\kaleidoscope.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -398,8 +398,8 @@
 </box>
 <box>
 	<nombre>edges3</nombre>
-	<x>788</x>
-	<y>504</y>
+	<x>512</x>
+	<y>357</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -449,4 +449,9 @@
 		<input_texture>lighting3D</input_texture>
 	</fboslinks>
 </box>
-<exposedParams />
+<exposedParams>
+	<box>0<param>0</param>
+	</box>
+	<box>0<param>2</param>
+	</box>
+</exposedParams>

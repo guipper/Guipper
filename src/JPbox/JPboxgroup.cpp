@@ -1139,7 +1139,13 @@ void JPboxgroup::update_paramswindow()
 		}
 		else
 		{
-			controllers[i]->activable2 = false;
+			JPbox *box = getInspectorBox();
+			int paramCount = (box != nullptr) ? box->parameters.getSize() : controllers.size();
+			if (i < paramCount)
+			{
+				controllers[i]->activable2 = false;
+			}
+			// Exposed controllers (i >= paramCount): keep activable2 true so they can be independently interacted with
 		}
 	}
 }
@@ -1314,11 +1320,21 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 					// This is because if movtype is 0, it doesn't update to avoid OSC overwrite
 					// Manual update for movtype 0 sliders
 					controllers[i]->value = ofMap(ofGetMouseX(), controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
-												  controllers[i]->x + (controllers[i]->width * 3 / 4) / 2, 0.0, 1.0, true);
+													  controllers[i]->x + (controllers[i]->width * 3 / 4) / 2, 0.0, 1.0, true);
 
 					inspectorBox->parameters.setFloatValue(controllers[i]->value, i);
 					inspectorBox->parameters.setFloatLerpValue(controllers[i]->value, i);
 					markCueDraftDirty(openguinumber);
+				}
+				// Exposed controllers (i >= inspectorBox->parameters.getSize()): update via their own parameter pointer
+				else if (i >= inspectorBox->parameters.getSize())
+				{
+					// Exposed controller: update the value via its internal parameter pointer
+					float newVal = ofMap(ofGetMouseX(), controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
+										  controllers[i]->x + (controllers[i]->width * 3 / 4) / 2, 0.0, 1.0, true);
+					controllers[i]->value = newVal;
+					controllers[i]->parameters->floatValue = newVal;
+					controllers[i]->parameters->floatLerpValue = newVal;
 				}
 				// Exposed controllers: value update is handled by JPSlider::draw() via the internal parameter pointer
 			}
@@ -1612,7 +1628,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		// PONGO EN FALSE TODOS LOS QUE NO TENGO ACTIVOS:
 		for (int i = 0; i < controllers.size(); i++)
 		{
-			if (i != activeone)
+			if (i != activeone && i < inspectorBox->parameters.getSize())
 			{
 				controllers[i]->activeFlag = false;
 			}
