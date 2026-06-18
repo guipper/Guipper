@@ -11,11 +11,11 @@ using namespace std;
 // ============================================================
 // COLOR PALETTE (VS Code Dark+ inspired)
 // ============================================================
-static const ofColor COL_BG(30, 30, 30);            // Editor background
-static const ofColor COL_GUTTER_BG(37, 37, 38);     // Line number gutter
+static const ofColor COL_BG(30, 30, 30, 220);       // Editor background (semi-transparent)
+static const ofColor COL_GUTTER_BG(37, 37, 38, 220); // Line number gutter
 static const ofColor COL_LINE_NUM(133, 133, 133);   // Line numbers
 static const ofColor COL_LINE_NUM_ACTIVE(198, 198, 198); // Active line number
-static const ofColor COL_CURRENT_LINE(42, 45, 46);   // Current line highlight
+static const ofColor COL_CURRENT_LINE(42, 45, 46, 180);  // Current line highlight
 static const ofColor COL_CURSOR(255, 255, 255);      // Cursor
 static const ofColor COL_SELECTION(38, 79, 120);     // Selection
 static const ofColor COL_DEFAULT(212, 212, 212);     // Default text
@@ -28,9 +28,10 @@ static const ofColor COL_STRING(206, 145, 120);      // Strings
 static const ofColor COL_PREPROC(155, 155, 155);     // Preprocessor: #ifdef, #define...
 static const ofColor COL_UNIFORM(78, 201, 176);      // Storage: uniform, varying...
 static const ofColor COL_TOP_BAR(50, 50, 55);        // Top bar background
-static const ofColor COL_TAB_ACTIVE(30, 30, 30);     // Active tab
-static const ofColor COL_TAB_INACTIVE(45, 45, 50);   // Inactive tab
-static const ofColor COL_TAB_BORDER(60, 60, 65);     // Tab border
+static const ofColor COL_TAB_ACTIVE(55, 55, 60);     // Active tab (must differ from COL_BG)
+static const ofColor COL_TAB_INACTIVE(37, 37, 42);   // Inactive tab
+static const ofColor COL_TAB_BAR_BG(32, 32, 36);     // Tab bar background
+static const ofColor COL_TAB_BORDER(70, 70, 75);     // Tab border
 static const ofColor COL_TAB_MODIFIED(255, 200, 50); // Modified dot
 static const ofColor COL_TAB_CLOSE_HOVER(200, 60, 60);// Close button hover
 static const ofColor COL_BTN_SAVE(40, 140, 100);     // Save button
@@ -154,6 +155,7 @@ void JPShaderEditor::openShader(string filePath, string shaderName, int boxIndex
 	if (existing >= 0) {
 		activeTab = existing;
 		visible = true;
+		_justOpened = true;
 		return;
 	}
 
@@ -172,6 +174,7 @@ void JPShaderEditor::openShader(string filePath, string shaderName, int boxIndex
 	tabs.push_back(tab);
 	activeTab = (int)tabs.size() - 1;
 	visible = true;
+	_justOpened = true;
 
 	// Make sure font is set
 	reloadFont(tab.fontSize);
@@ -235,7 +238,16 @@ vector<string> JPShaderEditor::loadFileLines(const string& path)
 			if (!line.empty() && line.back() == '\r') {
 				line.pop_back();
 			}
-			result.push_back(line);
+			// Expand tab characters to 4 spaces
+			string expanded;
+			for (char c : line) {
+				if (c == '\t') {
+					expanded += "    ";
+				} else {
+					expanded += c;
+				}
+			}
+			result.push_back(expanded);
 		}
 	}
 	// Ensure at least one empty line
@@ -294,9 +306,11 @@ vector<JPShaderEditor::ColorSegment> JPShaderEditor::tokenizeLine(const string& 
 
 	int i = 0;
 	while (i < len) {
-		// ---- Skip whitespace ----
+		// ---- Whitespace (group and draw as default-colored text) ----
 		if (line[i] == ' ' || line[i] == '\t') {
-			i++;
+			int start = i;
+			while (i < len && (line[i] == ' ' || line[i] == '\t')) i++;
+			result.push_back({start, i - start, COL_DEFAULT});
 			continue;
 		}
 
@@ -378,11 +392,16 @@ void JPShaderEditor::draw()
 {
 	if (!visible) return;
 
+	// Save GL state to prevent rectMode leaks
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofFill();
+
 	float sw = ofGetWidth();
 	float sh = ofGetHeight();
 
-	// Full screen overlay
-	ofSetColor(0, 0, 0, 200);
+	// Full screen overlay — 50% transparent so shader preview shows through
+	ofSetColor(0, 0, 0, 128);
 	ofDrawRectangle(0, 0, sw, sh);
 
 	// Editor panel
@@ -412,6 +431,8 @@ void JPShaderEditor::draw()
 		cursorVisible = !cursorVisible;
 		lastBlinkTime = now;
 	}
+
+	ofPopStyle();
 }
 
 void JPShaderEditor::drawTopBar()
@@ -466,7 +487,7 @@ void JPShaderEditor::drawTabBar()
 	float ey = MARGIN + TOP_BAR_H;
 	float ew = sw - MARGIN * 2;
 
-	ofSetColor(45, 45, 50);
+	ofSetColor(COL_TAB_BAR_BG);
 	ofDrawRectangle(ex, ey, ew, TAB_BAR_H);
 
 	// Bottom border
@@ -485,7 +506,7 @@ void JPShaderEditor::drawTabBar()
 		string label = tab.shaderName;
 		if (tab.modified) label = "● " + label;
 		float labelW = jp_constants::p_font.stringWidth(label);
-		float tabW = labelW + 28; // padding + close button space
+		float tabW = max(80.0f, labelW + 28); // minimum width + padding + close button space
 
 		// Tab background
 		if (i == activeTab) {
@@ -606,6 +627,15 @@ void JPShaderEditor::drawCodeLines(int tabIndex, float codeX, float codeY, float
 		ofDrawRectangle(textX, hlY, textW, lineH);
 	}
 
+	// Compute normalized selection range for drawing
+	int selL1 = tab.selStartLine, selC1 = tab.selStartCol;
+	int selL2 = tab.selEndLine, selC2 = tab.selEndCol;
+	if (tab.hasSelection()) {
+		if (selL1 > selL2 || (selL1 == selL2 && selC1 > selC2)) {
+			swap(selL1, selL2); swap(selC1, selC2);
+		}
+	}
+
 	for (int i = tab.scrollLine; i < totalLines; i++) {
 		if (textY > codeY + codeH + lineH) break;
 
@@ -613,19 +643,32 @@ void JPShaderEditor::drawCodeLines(int tabIndex, float codeX, float codeY, float
 		vector<ColorSegment> segments = tokenizeLine(line);
 
 		// Horizontal scroll offset
-		float drawX = textX - tab.scrollCol * getCharWidth();
+		float baseX = textX - tab.scrollCol * getCharWidth();
+		float drawX = baseX;
+
+		// Draw selection highlight for this line
+		if (tab.hasSelection() && i >= selL1 && i <= selL2) {
+			int selStart = (i == selL1) ? selC1 : 0;
+			int selEnd = (i == selL2) ? selC2 : (int)line.size();
+			if (selStart < selEnd) {
+				float selX = baseX + selStart * getCharWidth();
+				float selW = (selEnd - selStart) * getCharWidth();
+				ofSetColor(COL_SELECTION);
+				ofDrawRectangle(selX, textY + 2, selW, lineH - 4);
+			}
+		}
 
 		if (segments.empty() && !line.empty()) {
-			// No color segments — draw whole line in default color
 			ofSetColor(COL_DEFAULT);
 			editorFont.drawString(line, drawX, textY);
 		} else {
+			float charW = getCharWidth();
 			for (const auto& seg : segments) {
 				if (seg.start + seg.len > (int)line.size()) break;
 				string part = line.substr(seg.start, seg.len);
+				float segX = baseX + seg.start * charW;
 				ofSetColor(seg.color);
-				editorFont.drawString(part, drawX, textY);
-				drawX += editorFont.stringWidth(part);
+				editorFont.drawString(part, segX, textY);
 			}
 		}
 
@@ -889,6 +932,7 @@ void JPShaderEditor::mousePressed(int x, int y, int button)
 
 	tab.cursorLine = clickedLine;
 	tab.cursorCol = clickedCol;
+	tab.clearSelection();  // Clear selection on simple click (drag restarts it)
 	cursorVisible = true;
 	lastBlinkTime = ofGetElapsedTimef();
 }
@@ -949,22 +993,46 @@ void JPShaderEditor::keyPressed(int key)
 	switch (key) {
 	// ---- Navigation ----
 	case OF_KEY_UP:
+	{
+		bool shift = ofGetKeyPressed(OF_KEY_SHIFT);
+		if (shift && !tab.hasSelection()) {
+			tab.selStartLine = tab.cursorLine;
+			tab.selStartCol = tab.cursorCol;
+		}
 		if (tab.cursorLine > 0) {
 			tab.cursorLine--;
 			int newLen = (int)tab.lines[tab.cursorLine].size();
 			if (tab.cursorCol > newLen) tab.cursorCol = newLen;
 		}
+		if (shift) { tab.selEndLine = tab.cursorLine; tab.selEndCol = tab.cursorCol; }
+		else { tab.clearSelection(); }
 		break;
+	}
 
 	case OF_KEY_DOWN:
+	{
+		bool shift = ofGetKeyPressed(OF_KEY_SHIFT);
+		if (shift && !tab.hasSelection()) {
+			tab.selStartLine = tab.cursorLine;
+			tab.selStartCol = tab.cursorCol;
+		}
 		if (tab.cursorLine < (int)tab.lines.size() - 1) {
 			tab.cursorLine++;
 			int newLen = (int)tab.lines[tab.cursorLine].size();
 			if (tab.cursorCol > newLen) tab.cursorCol = newLen;
 		}
+		if (shift) { tab.selEndLine = tab.cursorLine; tab.selEndCol = tab.cursorCol; }
+		else { tab.clearSelection(); }
 		break;
+	}
 
 	case OF_KEY_LEFT:
+	{
+		bool shift = ofGetKeyPressed(OF_KEY_SHIFT);
+		if (shift && !tab.hasSelection()) {
+			tab.selStartLine = tab.cursorLine;
+			tab.selStartCol = tab.cursorCol;
+		}
 		if (tab.cursorCol > 0) {
 			tab.cursorCol--;
 		} else if (tab.cursorLine > 0) {
@@ -972,9 +1040,19 @@ void JPShaderEditor::keyPressed(int key)
 			tab.cursorLine--;
 			tab.cursorCol = (int)tab.lines[tab.cursorLine].size();
 		}
+		if (shift) { tab.selEndLine = tab.cursorLine; tab.selEndCol = tab.cursorCol; }
+		else { tab.clearSelection(); }
 		break;
+	}
 
 	case OF_KEY_RIGHT:
+	{
+		bool shift = ofGetKeyPressed(OF_KEY_SHIFT);
+		if (shift && !tab.hasSelection()) {
+			tab.selStartLine = tab.cursorLine;
+			tab.selStartCol = tab.cursorCol;
+		}
+		int lineLen = (int)tab.lines[tab.cursorLine].size();
 		if (tab.cursorCol < lineLen) {
 			tab.cursorCol++;
 		} else if (tab.cursorLine < (int)tab.lines.size() - 1) {
@@ -982,7 +1060,10 @@ void JPShaderEditor::keyPressed(int key)
 			tab.cursorLine++;
 			tab.cursorCol = 0;
 		}
+		if (shift) { tab.selEndLine = tab.cursorLine; tab.selEndCol = tab.cursorCol; }
+		else { tab.clearSelection(); }
 		break;
+	}
 
 	case OF_KEY_HOME:
 		tab.cursorCol = 0;
@@ -1014,6 +1095,7 @@ void JPShaderEditor::keyPressed(int key)
 
 	// ---- Editing ----
 	case OF_KEY_BACKSPACE:
+		if (tab.hasSelection()) { deleteSelection(activeTab); break; }
 		if (tab.cursorCol > 0) {
 			currentLine.erase(currentLine.begin() + tab.cursorCol - 1);
 			tab.cursorCol--;
@@ -1029,6 +1111,7 @@ void JPShaderEditor::keyPressed(int key)
 		break;
 
 	case OF_KEY_DEL:
+		if (tab.hasSelection()) { deleteSelection(activeTab); break; }
 		if (tab.cursorCol < lineLen) {
 			currentLine.erase(currentLine.begin() + tab.cursorCol);
 			tab.modified = true;
@@ -1042,6 +1125,7 @@ void JPShaderEditor::keyPressed(int key)
 
 	case OF_KEY_RETURN:
 	{
+		if (tab.hasSelection()) { deleteSelection(activeTab); }
 		// Split line at cursor
 		string rest = currentLine.substr(tab.cursorCol);
 		currentLine = currentLine.substr(0, tab.cursorCol);
@@ -1054,6 +1138,7 @@ void JPShaderEditor::keyPressed(int key)
 
 	case OF_KEY_TAB:
 	{
+		if (tab.hasSelection()) { deleteSelection(activeTab); }
 		// Insert 4 spaces
 		currentLine.insert(tab.cursorCol, "    ");
 		tab.cursorCol += 4;
@@ -1068,6 +1153,7 @@ void JPShaderEditor::keyPressed(int key)
 	// ---- Printable characters ----
 	default:
 		if (key >= 32 && key <= 126) {
+			if (tab.hasSelection()) { deleteSelection(activeTab); }
 			currentLine.insert(currentLine.begin() + tab.cursorCol, (char)key);
 			tab.cursorCol++;
 			tab.modified = true;
@@ -1085,4 +1171,206 @@ void JPShaderEditor::keyPressed(int key)
 	// Reset blink on keypress
 	cursorVisible = true;
 	lastBlinkTime = ofGetElapsedTimef();
+}
+
+// ============================================================
+// Keyboard: Ctrl+key combinations (copy, paste, cut, select all)
+// ============================================================
+
+void JPShaderEditor::keycodePressed(int keycode)
+{
+	if (!visible || activeTab < 0 || activeTab >= (int)tabs.size()) return;
+	EditorTab& tab = tabs[activeTab];
+
+	// Ctrl+A (key=1): Select all
+	if (keycode == 1) {
+		tab.selStartLine = 0;
+		tab.selStartCol = 0;
+		tab.selEndLine = (int)tab.lines.size() - 1;
+		tab.selEndCol = (int)tab.lines.back().size();
+		return;
+	}
+
+	// Ctrl+C (key=3): Copy
+	if (keycode == 3) {
+		if (!tab.hasSelection()) {
+			// Select current line if no selection
+			tab.selStartLine = tab.cursorLine;
+			tab.selStartCol = 0;
+			tab.selEndLine = tab.cursorLine;
+			tab.selEndCol = (int)tab.lines[tab.cursorLine].size();
+		}
+		string sel;
+		getSelectedText(sel, activeTab);
+		if (!sel.empty()) {
+			_clipboard = sel;
+		}
+		return;
+	}
+
+	// Ctrl+V (key=22): Paste
+	if (keycode == 22) {
+		string clip = _clipboard;
+		if (!clip.empty()) {
+			// Delete selection if any
+			if (tab.hasSelection()) {
+				deleteSelection(activeTab);
+			}
+			// Split clipboard by newlines and insert
+			vector<string> pasteLines;
+			string cur;
+			for (char c : clip) {
+				if (c == '\n') { pasteLines.push_back(cur); cur.clear(); }
+				else if (c != '\r') { cur += c; }
+			}
+			pasteLines.push_back(cur);
+
+			if (pasteLines.size() == 1) {
+				// Single line paste
+				tab.lines[tab.cursorLine].insert(tab.cursorCol, pasteLines[0]);
+				tab.cursorCol += (int)pasteLines[0].size();
+			} else {
+				// Multi-line paste
+				string afterCursor = tab.lines[tab.cursorLine].substr(tab.cursorCol);
+				tab.lines[tab.cursorLine] = tab.lines[tab.cursorLine].substr(0, tab.cursorCol) + pasteLines[0];
+				for (int i = 1; i < (int)pasteLines.size(); i++) {
+					tab.lines.insert(tab.lines.begin() + tab.cursorLine + i, pasteLines[i]);
+				}
+				tab.lines[tab.cursorLine + (int)pasteLines.size() - 1] += afterCursor;
+				tab.cursorLine += (int)pasteLines.size() - 1;
+				tab.cursorCol = (int)pasteLines.back().size();
+			}
+			tab.clearSelection();
+			tab.modified = true;
+			clampCursor(activeTab);
+		}
+		return;
+	}
+
+	// Ctrl+X (key=24): Cut
+	if (keycode == 24) {
+		if (tab.hasSelection()) {
+			string sel;
+			getSelectedText(sel, activeTab);
+			if (!sel.empty()) {
+				_clipboard = sel;
+			}
+			deleteSelection(activeTab);
+		}
+		return;
+	}
+}
+
+// ============================================================
+// Mouse drag — extend selection
+// ============================================================
+
+void JPShaderEditor::mouseDragged(int x, int y, int button)
+{
+	if (!visible || activeTab < 0 || activeTab >= (int)tabs.size()) return;
+
+	EditorTab& tab = tabs[activeTab];
+	float sw = ofGetWidth();
+	float sh = ofGetHeight();
+	float ex = MARGIN;
+	float ey = MARGIN + TOP_BAR_H + TAB_BAR_H;
+	float eh = sh - MARGIN * 2;
+	float codeY = ey;
+	float codeH = eh - TOP_BAR_H - TAB_BAR_H - STATUS_BAR_H;
+	float codeStartX = ex + LINE_NUMBER_W + 8;
+
+	// Check if within code area
+	if (y < codeY || y > codeY + codeH || x < codeStartX) return;
+	if (x >= ex + (sw - MARGIN * 2) - SCROLLBAR_W) return;
+
+	float lineH = tab.fontSize + 2.0f;
+	float charW = getCharWidth();
+
+	int clickedLine = tab.scrollLine + (int)((y - codeY) / lineH);
+	if (clickedLine < 0) clickedLine = 0;
+	if (clickedLine >= (int)tab.lines.size()) clickedLine = (int)tab.lines.size() - 1;
+
+	int clickedCol = tab.scrollCol + (int)((x - codeStartX) / charW + 0.5f);
+	if (clickedCol < 0) clickedCol = 0;
+	if (clickedCol > (int)tab.lines[clickedLine].size())
+		clickedCol = (int)tab.lines[clickedLine].size();
+
+	// Start or extend selection
+	if (!tab.hasSelection()) {
+		tab.selStartLine = tab.cursorLine;
+		tab.selStartCol = tab.cursorCol;
+	}
+	tab.selEndLine = clickedLine;
+	tab.selEndCol = clickedCol;
+
+	tab.cursorLine = clickedLine;
+	tab.cursorCol = clickedCol;
+	cursorVisible = true;
+	lastBlinkTime = ofGetElapsedTimef();
+}
+
+// ============================================================
+// Selection helpers
+// ============================================================
+
+void JPShaderEditor::getSelectedText(string& out, int tabIndex) const
+{
+	if (tabIndex < 0 || tabIndex >= (int)tabs.size()) return;
+	const EditorTab& tab = tabs[tabIndex];
+	if (!tab.hasSelection()) return;
+
+	int sl1 = tab.selStartLine, sc1 = tab.selStartCol;
+	int sl2 = tab.selEndLine, sc2 = tab.selEndCol;
+	if (sl1 > sl2 || (sl1 == sl2 && sc1 > sc2)) {
+		swap(sl1, sl2); swap(sc1, sc2);
+	}
+
+	out.clear();
+	for (int l = sl1; l <= sl2 && l < (int)tab.lines.size(); l++) {
+		const string& line = tab.lines[l];
+		int start = (l == sl1) ? sc1 : 0;
+		int end = (l == sl2) ? sc2 : (int)line.size();
+		if (start < 0) start = 0;
+		if (end > (int)line.size()) end = (int)line.size();
+		if (end > start) {
+			out += line.substr(start, end - start);
+		}
+		if (l < sl2) out += "\n";
+	}
+}
+
+void JPShaderEditor::deleteSelection(int tabIndex)
+{
+	if (tabIndex < 0 || tabIndex >= (int)tabs.size()) return;
+	EditorTab& tab = tabs[tabIndex];
+	if (!tab.hasSelection()) return;
+
+	int sl1 = tab.selStartLine, sc1 = tab.selStartCol;
+	int sl2 = tab.selEndLine, sc2 = tab.selEndCol;
+	if (sl1 > sl2 || (sl1 == sl2 && sc1 > sc2)) {
+		swap(sl1, sl2); swap(sc1, sc2);
+	}
+
+	// If single line
+	if (sl1 == sl2) {
+		string& line = tab.lines[sl1];
+		if (sc1 >= 0 && sc2 <= (int)line.size() && sc2 > sc1) {
+			line.erase(sc1, sc2 - sc1);
+		}
+		tab.cursorLine = sl1;
+		tab.cursorCol = sc1;
+	} else {
+		// Multi-line: keep start of first line + end of last line
+		string& firstLine = tab.lines[sl1];
+		string& lastLine = tab.lines[sl2];
+		firstLine = firstLine.substr(0, sc1) + lastLine.substr(sc2);
+		// Remove lines between (in reverse)
+		for (int l = sl2; l > sl1; l--) {
+			tab.lines.erase(tab.lines.begin() + l);
+		}
+		tab.cursorLine = sl1;
+		tab.cursorCol = sc1;
+	}
+	tab.clearSelection();
+	tab.modified = true;
 }

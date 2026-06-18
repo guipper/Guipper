@@ -37,6 +37,14 @@ public:
 		float fontSize = 16.0f; // Current font size for this tab
 		bool modified = false;  // Unsaved changes flag
 		int targetBoxIndex = -1;// Index in boxes[] if opened from inspector, -1 if from shader index
+
+		// Selection
+		int selStartLine = -1;
+		int selStartCol = -1;
+		int selEndLine = -1;
+		int selEndCol = -1;
+		bool hasSelection() const { return selStartLine >= 0 && selEndLine >= 0; }
+		void clearSelection() { selStartLine = selEndLine = -1; }
 	};
 
 	// ---- Lifecycle ----
@@ -59,10 +67,14 @@ public:
 	void show() { visible = true; }
 	void hide() { visible = false; }
 	bool wantsKeyCapture() const { return visible && activeTab >= 0; }
+	bool justOpened() const { return _justOpened; }
+	void clearJustOpened() { _justOpened = false; }
 
 	// ---- Input ----
 	void keyPressed(int key);
+	void keycodePressed(int keycode);
 	void mousePressed(int x, int y, int button);
+	void mouseDragged(int x, int y, int button);
 	void mouseScrolled(int x, int y, float scrollX, float scrollY);
 
 	// ---- Save ----
@@ -126,4 +138,12 @@ private:
 	// ---- Blink ----
 	float lastBlinkTime = 0.0f;
 	bool  cursorVisible = true;
+	bool  _justOpened = false;       // Set by openShader, cleared by ofApp
+
+	// Internal clipboard (avoids dependency on OS clipboard API)
+	string _clipboard;
+
+	// ---- Selection helpers ----
+	void deleteSelection(int tabIndex);
+	void getSelectedText(string& out, int tabIndex) const;
 };

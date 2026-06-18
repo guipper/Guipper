@@ -122,6 +122,13 @@ void ofApp::setup() {
 }
 void ofApp::update() {
 	boxes.update();
+
+	// Auto-switch to EDITOR screen when a shader is opened from inspector/index
+	if (shaderEditor.justOpened()) {
+		shaderEditor.clearJustOpened();
+		pantallaActiva = EDITOR;
+	}
+
 	midiKeymap.update();
 
 #ifdef SPOUT
@@ -236,6 +243,12 @@ void ofApp::draw() {
 		drawScreenTabs();
 		draw_shaderindex();
 	}
+	else if (pantallaActiva == EDITOR) {
+		// Draw active render as background behind the editor
+		boxes.draw_activerender(ofGetWidth(), ofGetHeight());
+		drawScreenTabs();
+		shaderEditor.draw();
+	}
 	else {
 		drawScreenTabs();
 		boxes.draw_activerender(ofGetWidth(), ofGetHeight());
@@ -250,9 +263,6 @@ void ofApp::draw() {
 	midiKeymap.draw();
 
 	drawScreenTabs();
-
-	// Shader Editor (on top of everything)
-	shaderEditor.draw();
 
 	drawSaveModal();
 }
@@ -1350,6 +1360,7 @@ void ofApp::keyPressed(int key) {
 	if (key == '1') {
 		pantallaActiva = NODOS;
 		focusedOptionsField = -1;
+		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
 	}
 
 	if (key == '2') {
@@ -1362,25 +1373,42 @@ void ofApp::keyPressed(int key) {
 			// (keep existing text as-is)
 		}
 		focusedOptionsField = -1;
+		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
 	}
 
 	if (key == '3') {
 		pantallaActiva = TUTORIAL;
 		focusedOptionsField = -1;
+		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
 	}
 
 	if (key == '4') {
 		pantallaActiva = SHADER_INDEX;
 		focusedOptionsField = -1;
+		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
 		if (shaderFolders.empty()) {
 			scanShaders();
 		}
+	}
+
+	if (key == '5') {
+		pantallaActiva = EDITOR;
+		focusedOptionsField = -1;
+		shaderEditor.setVisible(true);
 	}
 
 	// ESC from shader index goes back to NODOS
 	if (key == OF_KEY_ESC && pantallaActiva == SHADER_INDEX) {
 		pantallaActiva = NODOS;
 		focusedOptionsField = -1;
+		return;
+	}
+
+	// ESC from editor goes back to NODOS
+	if (key == OF_KEY_ESC && pantallaActiva == EDITOR) {
+		pantallaActiva = NODOS;
+		focusedOptionsField = -1;
+		shaderEditor.setVisible(false);
 		return;
 	}
 
@@ -1557,6 +1585,12 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	// CUANDO APRETAS CONTROL TE TOMA COMO DOS INPUTS EN EL MOMENTO.
 	cout << "-------------------------------------" << endl;
 
+	// Forward Ctrl+key combos to shader editor (copy/paste/cut/select all)
+	if (shaderEditor.wantsKeyCapture()) {
+		shaderEditor.keycodePressed(e.key);
+		// Don't return yet — Ctrl+S also needs to save
+	}
+
 	// Ctrl+S (keycodes 46 or 19 depending on platform) -> save-as modal or save shader
 	if (e.key == 46 || e.key == 19) {
 		// If shader editor is visible, save the shader file instead
@@ -1603,6 +1637,12 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 }
 void ofApp::mouseDragged(int x, int y, int button) {
 	midiKeymap.mouseDragged(x, y, button);
+
+	// Forward to shader editor for selection dragging
+	if (shaderEditor.isVisible()) {
+		shaderEditor.mouseDragged(x, y, button);
+	}
+
 	if (pantallaActiva == NODOS) {
 		if (boxes.update_cueMouseDragged(button)) {
 			return;
@@ -1612,11 +1652,6 @@ void ofApp::mouseDragged(int x, int y, int button) {
 	}
 }
 void ofApp::mousePressed(int x, int y, int button) {
-	// Shader Editor click handling (when visible, check before anything else except modal)
-	if (shaderEditor.isVisible()) {
-		shaderEditor.mousePressed(x, y, button);
-		return;
-	}
 
 	// Save modal button clicks — consume before anything else when modal is active
 	if (saveModalActive) {
@@ -1676,6 +1711,10 @@ void ofApp::mousePressed(int x, int y, int button) {
 			if (pantallaActiva != tabScreen) {
 				pantallaActiva = tabScreen;
 				focusedOptionsField = -1;
+
+				// Hide editor when leaving EDITOR screen
+				if (pantallaActiva != EDITOR) shaderEditor.setVisible(false);
+
 				if (tabScreen == OPCIONES) {
 					initOptionsFields();
 					optionsFieldsInitialized = true;
@@ -1683,10 +1722,18 @@ void ofApp::mousePressed(int x, int y, int button) {
 					if (shaderFolders.empty()) {
 						scanShaders();
 					}
+				} else if (tabScreen == EDITOR) {
+					shaderEditor.setVisible(true);
 				}
 			}
 			return;
 		}
+	}
+
+	// Shader Editor clicks
+	if (pantallaActiva == EDITOR && shaderEditor.isVisible()) {
+		shaderEditor.mousePressed(x, y, button);
+		return;
 	}
 
 	if (pantallaActiva == NODOS) {
@@ -2824,7 +2871,8 @@ void ofApp::drawScreenTabs() {
 		{"NODES", NODOS},
 		{"SETTINGS", OPCIONES},
 		{"HELP", TUTORIAL},
-		{"IMPORT", SHADER_INDEX}
+		{"IMPORT", SHADER_INDEX},
+		{"EDITOR", EDITOR}
 	};
 
 	float x = tabX + pad;
@@ -2890,7 +2938,8 @@ int ofApp::getScreenTabAtPos(int x, int y) {
 		{"NODES", NODOS},
 		{"SETTINGS", OPCIONES},
 		{"HELP", TUTORIAL},
-		{"IMPORT", SHADER_INDEX}
+		{"IMPORT", SHADER_INDEX},
+		{"EDITOR", EDITOR}
 	};
 
 	float cx = tabX + pad;

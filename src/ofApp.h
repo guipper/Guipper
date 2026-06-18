@@ -151,7 +151,8 @@ public:
 		NODOS,       // NODES
 		OPCIONES,    // SETTINGS
 		TUTORIAL,    // HELP
-		SHADER_INDEX // IMPORT
+		SHADER_INDEX,// IMPORT
+		EDITOR       // SHADER EDITOR
 	};
 	int pantallaActiva;
 	void drawScreenTabs();
