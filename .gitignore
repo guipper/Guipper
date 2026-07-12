@@ -5,8 +5,11 @@ addons/
 bin/*.dll
 bin/*.so
 bin/data/exportimgs/*
+bin/data/rgba2yuv/
 bin/data/settings.xml
 bin/data/video/*
+bin/data/yuv2rgba/
+bin/Guipper
 bin/guipper
 bin/guipper_debug
 bin/guipper_debug.*
