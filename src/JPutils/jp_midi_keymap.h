@@ -131,6 +131,7 @@ private:
 	void closeInputs();
 	void setActiveMapDevice(string deviceName);
 	bool isActiveMapDevice(string deviceName) const;
+	string normalizeDeviceName(string deviceName) const;
 	vector<string> getMapDeviceNames() const;
 	void ensureActiveMapDevice();
 	void processKey(const MidiKey &key);

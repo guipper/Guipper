@@ -153,6 +153,7 @@ void JPMidiKeymap::openInputs()
 		{
 			portName = "port " + ofToString(i);
 		}
+		portName = normalizeDeviceName(portName);
 		if (std::find(availableDeviceNames.begin(), availableDeviceNames.end(), portName) == availableDeviceNames.end())
 		{
 			availableDeviceNames.push_back(portName);
@@ -198,7 +199,51 @@ void JPMidiKeymap::setActiveMapDevice(string deviceName)
 
 bool JPMidiKeymap::isActiveMapDevice(string deviceName) const
 {
-	return activeMapDeviceName.empty() || deviceName == activeMapDeviceName;
+	return activeMapDeviceName.empty() ||
+		   normalizeDeviceName(deviceName) == normalizeDeviceName(activeMapDeviceName);
+}
+
+// Strip a trailing ALSA "client:port" id so a controller keeps the same profile
+// across replug/reboot (its id can change, e.g. "Impulse  24:0" -> "Impulse  28:0").
+// Leaves names without such a suffix untouched (e.g. the "port N" fallback).
+string JPMidiKeymap::normalizeDeviceName(string deviceName) const
+{
+	auto rtrim = [](string &s)
+	{
+		while (!s.empty() && std::isspace((unsigned char)s.back()))
+		{
+			s.pop_back();
+		}
+	};
+
+	rtrim(deviceName);
+	size_t spacePos = deviceName.find_last_of(' ');
+	if (spacePos == string::npos)
+	{
+		return deviceName;
+	}
+
+	string tail = deviceName.substr(spacePos + 1);
+	size_t colonPos = tail.find(':');
+	if (colonPos == string::npos || colonPos == 0 || colonPos == tail.size() - 1)
+	{
+		return deviceName;
+	}
+	for (size_t i = 0; i < tail.size(); i++)
+	{
+		if (i == colonPos)
+		{
+			continue;
+		}
+		if (!std::isdigit((unsigned char)tail[i]))
+		{
+			return deviceName;
+		}
+	}
+
+	deviceName = deviceName.substr(0, spacePos);
+	rtrim(deviceName);
+	return deviceName;
 }
 
 vector<string> JPMidiKeymap::getMapDeviceNames() const
@@ -224,7 +269,16 @@ void JPMidiKeymap::ensureActiveMapDevice()
 	{
 		return;
 	}
-	activeMapDeviceName = names.empty() ? "" : names[0];
+	// Prefer a currently-connected device so the panel opens on a controller
+	// you can actually press; fall back to any device that has bindings.
+	if (!availableDeviceNames.empty())
+	{
+		activeMapDeviceName = availableDeviceNames[0];
+	}
+	else
+	{
+		activeMapDeviceName = names.empty() ? "" : names[0];
+	}
 }
 
 void JPMidiKeymap::update()
@@ -246,7 +300,7 @@ void JPMidiKeymap::update()
 void JPMidiKeymap::newMidiMessage(ofxMidiMessage &msg)
 {
 	MidiKey key;
-	key.deviceName = msg.portName.empty() ? "port " + ofToString(msg.portNum) : msg.portName;
+	key.deviceName = normalizeDeviceName(msg.portName.empty() ? "port " + ofToString(msg.portNum) : msg.portName);
 	key.channel = msg.channel;
 
 	if (msg.status == MIDI_NOTE_ON)
@@ -300,11 +354,10 @@ void JPMidiKeymap::processKey(const MidiKey &key)
 		learnKey(key);
 		return;
 	}
-	if (!isActiveMapDevice(key.deviceName))
-	{
-		return;
-	}
 
+	// All connected devices are live simultaneously: apply the binding for the
+	// device that actually sent this message, regardless of which profile the
+	// panel is currently editing (activeMapDeviceName).
 	int index = findBindingForKey(key);
 	if (index >= 0)
 	{
@@ -554,17 +607,12 @@ void JPMidiKeymap::removeBindingForKey(const MidiKey &key, bool saveChange)
 
 int JPMidiKeymap::findBindingForKey(const MidiKey &key) const
 {
-	if (!isActiveMapDevice(key.deviceName))
-	{
-		return -1;
-	}
+	// Device-specific match via getKeyId (which includes the normalized device
+	// name), but NOT restricted to the active profile, so every connected
+	// device drives its own bindings.
 	string keyId = getKeyId(key);
 	for (int i = 0; i < bindings.size(); i++)
 	{
-		if (!isActiveMapDevice(bindings[i].key.deviceName))
-		{
-			continue;
-		}
 		if (getKeyId(bindings[i].key) == keyId)
 		{
 			return i;
@@ -1051,7 +1099,7 @@ vector<JPMidiKeymap::Action> JPMidiKeymap::getBoxActions() const
 
 string JPMidiKeymap::getKeyId(const MidiKey &key) const
 {
-	return key.deviceName + "|" + ofToString(key.channel) + "|" + key.messageType + "|" + ofToString(key.number);
+	return normalizeDeviceName(key.deviceName) + "|" + ofToString(key.channel) + "|" + key.messageType + "|" + ofToString(key.number);
 }
 
 string JPMidiKeymap::getKeyLabel(const MidiKey &key) const
@@ -2311,13 +2359,13 @@ void JPMidiKeymap::load(string path)
 	auto activeDevice = keymap.getChild("active_device");
 	if (activeDevice)
 	{
-		activeMapDeviceName = activeDevice.getValue();
+		activeMapDeviceName = normalizeDeviceName(activeDevice.getValue());
 	}
 
 	for (auto &bindingNode : keymap.getChildren("binding"))
 	{
 		Binding binding;
-		binding.key.deviceName = bindingNode.getChild("device").getValue();
+		binding.key.deviceName = normalizeDeviceName(bindingNode.getChild("device").getValue());
 		binding.key.channel = bindingNode.getChild("channel").getIntValue();
 		binding.key.messageType = bindingNode.getChild("type").getValue();
 		binding.key.number = bindingNode.getChild("number").getIntValue();
