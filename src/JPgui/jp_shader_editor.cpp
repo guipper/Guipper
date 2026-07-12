@@ -128,8 +128,9 @@ void JPShaderEditor::reloadFont(float size)
 	string fontPath = "font/consola.ttf";
 	ofFile f(ofToDataPath(fontPath, true));
 	if (!f.exists()) {
-		// Fallback: try absolute Windows path
-		fontPath = "C:/Windows/Fonts/consola.ttf";
+		// Bundled cross-platform fallback (consola.ttf is the preferred monospace).
+		// The old fallback was a Windows-only absolute path that never resolves on Linux/macOS.
+		fontPath = "font/Montserrat-Regular.ttf";
 	}
 
 	editorFont.load(fontPath, (int)size);
