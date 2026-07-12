@@ -2218,7 +2218,7 @@ void JPboxgroup::load(string _dirinput)
 			bx = new JPbox_framedifference();
 		}
 
-		bx->setup(directory.getValue(), nombre.getValue());
+		bx->setup(jp_normalizePath(directory.getValue()), nombre.getValue());
 		bx->setPos(x.getIntValue(), y.getIntValue());
 		bx->setonoff(onoff ? onoff.getBoolValue() : true);
 		bx->setBypass(bypass ? bypass.getBoolValue() : false);
@@ -5129,7 +5129,7 @@ void JPboxgroup::pasteBoxes()
 
 		if (!nombre || !directory) continue;
 
-		string dir = directory.getValue();
+		string dir = jp_normalizePath(directory.getValue());
 
 		// Reuse the same addBox pattern but without requiring an xml file on disk
 		string nombreFinal = makeUniqueBoxName(makeNameFromDirectory(dir));

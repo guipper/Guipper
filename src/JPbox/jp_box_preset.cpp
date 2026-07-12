@@ -78,7 +78,7 @@ void JPbox_preset::setup(string _directory, string _name)
 		{
 			bx = new JPbox_framedifference();
 		}
-		bx->setup(directory.getValue(), nombre.getValue());
+		bx->setup(jp_normalizePath(directory.getValue()), nombre.getValue());
 		bx->setPos(x.getIntValue(), y.getIntValue());
 
 		// Load onoff and bypass states

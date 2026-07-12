@@ -10,6 +10,14 @@
 #include "../JPutils/jp_dragobject.h"
 #include "../JPgui/jp_toogle.h"
 
+// Normalize a stored file path so sessions saved on Windows (which use '\'
+// separators) load on Linux/macOS. Only the separator needs fixing; the
+// "data/" prefix is handled by ofToDataPath. Idempotent for Unix-style paths.
+inline std::string jp_normalizePath(std::string p) {
+	for (char &c : p) { if (c == '\\') c = '/'; }
+	return p;
+}
+
 // Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
 
 class JPbox : public JPdragobject
@@ -84,7 +92,10 @@ public:
 
 	int getTipo();
 	void setTipo(int _tipo);
-	std::time_t datemodified;
+	// File-modification timestamp used to auto-reload shaders when the source
+	// file changes. Must match std::filesystem::last_write_time()'s return type:
+	// on Linux/macOS file_time_type does not implicitly convert to time_t.
+	std::filesystem::file_time_type datemodified;
 
 	// Me perturba que el nombre de la variable sea tan verga.
 	void setonoff(bool _val);
