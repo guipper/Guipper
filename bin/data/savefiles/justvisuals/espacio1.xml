@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>11</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>starnest</nombre>
 	<x>75</x>
 	<y>87</y>
 	<directory>data\shaders\contrib\starnest.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>iterations</name>
@@ -127,6 +131,7 @@
 	<y>526</y>
 	<directory>data\shaders\generative\videosinte.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>v1</name>
@@ -240,6 +245,7 @@
 	<y>84</y>
 	<directory>data\shaders\imageprocessing\matrixiterations2_colorbuffers.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>cnt</name>
@@ -350,6 +356,7 @@
 	<y>92</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -402,6 +409,7 @@
 	<y>115</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -454,6 +462,7 @@
 	<y>82</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -546,6 +555,7 @@
 	<y>330</y>
 	<directory>data\shaders\blending\mixdisplace.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>offsetx</name>
@@ -575,6 +585,7 @@
 	<y>223</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -604,6 +615,7 @@
 	<y>322</y>
 	<directory>data\shaders\generative\videosinte.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>v1</name>
@@ -717,6 +729,7 @@
 	<y>304</y>
 	<directory>data\shaders\imageprocessing\huerotate.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>hue</name>
@@ -737,6 +750,7 @@
 	<y>400</y>
 	<directory>data\shaders\imageprocessing\smoothstep.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>min</name>
@@ -765,6 +779,7 @@
 	<y>409</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -811,3 +826,4 @@
 		<input_texture>smoothstep</input_texture>
 	</fboslinks>
 </box>
+<exposedParams />

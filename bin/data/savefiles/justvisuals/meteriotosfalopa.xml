@@ -1,9 +1,14 @@
 <?xml version="1.0"?>
 <activerender>0</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>metioritosfalopa</nombre>
 	<x>119</x>
 	<y>134</y>
 	<directory>data\shaders\generative\metioritosfalopa.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 </box>
+<exposedParams />

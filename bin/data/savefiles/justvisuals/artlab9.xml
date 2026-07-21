@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>11</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>voronoiinvoronoi</nombre>
 	<x>113</x>
 	<y>89</y>
 	<directory>data\shaders\generative\voronoiinvoronoi.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>speed</name>
@@ -39,6 +43,7 @@
 	<y>108</y>
 	<directory>data\shaders\imageprocessing\recolor.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>red1</name>
@@ -99,6 +104,7 @@
 	<y>98</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -151,6 +157,7 @@
 	<y>95</y>
 	<directory>data\shaders\imageprocessing\bloom.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>force</name>
@@ -187,6 +194,7 @@
 	<y>334</y>
 	<directory>data\shaders\imageprocessing\autodisplace.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>offsetx</name>
@@ -231,6 +239,7 @@
 	<y>296</y>
 	<directory>data\shaders\blending\mixdisplace.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>offsetx</name>
@@ -260,6 +269,7 @@
 	<y>346</y>
 	<directory>data\shaders\generative\baby.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>startRandom</name>
@@ -277,6 +287,7 @@
 	<y>283</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -369,6 +380,7 @@
 	<y>570</y>
 	<directory>data\shaders\generative\inversionmachine.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>allblendingmodesinoneshader</nombre>
@@ -376,6 +388,7 @@
 	<y>576</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -405,6 +418,7 @@
 	<y>594</y>
 	<directory>data\shaders\imageprocessing\mirrorquad.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>flipx</name>
@@ -449,6 +463,7 @@
 	<y>554</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -535,3 +550,4 @@
 		<texture1>allblendingmodesinoneshader</texture1>
 	</fboslinks>
 </box>
+<exposedParams />

@@ -60,24 +60,24 @@ void JPHandler::draw()
 
 	if (mouseGrab())
 	{
-		ofSetColor(100, 50);
+		ofSetColor(COL_TEXT_MUTED, 50);
 	}
 	else if (mouseOver())
 	{
-		ofSetColor(20, 50);
+		ofSetColor(COL_BG_INPUT, 50);
 	}
 	else
 	{
-		ofSetColor(150, 50);
+		ofSetColor(COL_TEXT_DIM, 50);
 	}
 	// ofSetColor(255, 0, 0);
 	ofDrawRectangle(x, y,
 					width, height);
-	ofSetColor(255, 255);
+	ofSetColor(COL_TEXT_PRIMARY, 255);
 	if (useTexture)
 	{
 		// ofSetColor(255, 255);
-		ofSetColor(0, 255);
+		ofSetColor(COL_ACCENT_CYAN, 255);
 
 		float tsize = 20;
 		float twidth = 0.75;
@@ -179,7 +179,7 @@ float JPComplexSlider::getValue()
 void JPComplexSlider::draw()
 {
 
-	ofSetColor(255, 100);
+	ofSetColor(COL_TEXT_PRIMARY, 100);
 	ofSetRectMode(OF_RECTMODE_CENTER);
 	jp_constants_img::fondo_parametro.draw(x, y, width, height);
 
@@ -189,7 +189,7 @@ void JPComplexSlider::draw()
 
 		// ESTO TAL VEZ HABRIA QUE METERLO EN EL SLIDER VALUE !?=!?!?!?!?!?!?!?!
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		ofSetColor(122, 108, 196);
+		ofSetColor(COL_ACCENT_CYAN);
 		float xcuadraditoceleste = handler1.x;
 		float cuadritoceleste_height = 20;
 		ofDrawRectangle(xcuadraditoceleste,
@@ -202,7 +202,7 @@ void JPComplexSlider::draw()
 		{
 			Strvalue = blendModeNameFromValue(parameters->floatValue);
 		}
-		ofSetColor(255, 255);
+		ofSetColor(COL_TEXT_PRIMARY, 255);
 
 		// DIBUJAR EL FONDO DEL VALOR:
 		/*jp_constants_img::drawCenterImage(jp_constants_img::fondo_valor,
@@ -210,7 +210,7 @@ void JPComplexSlider::draw()
 			y - jp_constants::p_font.stringHeight(Strvalue) - jp_constants_img::fondo_valor.getHeight() * 0.25 / 2,
 		0.4);*/
 
-		ofSetColor(0, 255);
+		ofSetColor(COL_ACCENT_CYAN, 255);
 		jp_constants::p_font.drawString(Strvalue,
 										x - jp_constants::p_font.stringWidth(Strvalue),
 										y - jp_constants::p_font.stringHeight(Strvalue));
@@ -228,7 +228,7 @@ void JPComplexSlider::draw()
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		handler1.draw();
 		handler2.draw();
-		ofSetColor(0, 255);
+		ofSetColor(COL_ACCENT_CYAN, 255);
 
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		// slider_value.value = value;
@@ -315,7 +315,10 @@ void JPComplexSlider::update()
 				boton_direccion.activable2 = false;
 			}
 		}
-		boton_collapse.activable2 = !slider_value.activeFlag;
+		// boton_collapse siempre debe ser clickeable (collapse/expand animation).
+		// No condicionarlo al activeFlag del slider_value, porque si se traba nunca responde.
+		// activable2 se maneja en el loop de update_paramswindow() segun controllerselected.
+		boton_collapse.activable2 = true;
 	}
 }
 void JPComplexSlider::setPosAndSize()
@@ -429,4 +432,5 @@ void JPComplexSlider::setPosAndSize()
 	boton_random.setUseTexture(boton_idayvuelta.RAN);
 	boton_direccion.setUseTexture(boton_idayvuelta.GODER);
 	boton_collapse.setUseTexture(boton_collapse.COLLAPSE);
+	boton_collapse.activable = true; // Force activable after setUseTexture (needsUpdate may be true during setControllers)
 }

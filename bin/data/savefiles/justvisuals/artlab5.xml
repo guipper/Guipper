@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>6</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>allblendingmodesinoneshader2</nombre>
 	<x>301</x>
 	<y>406</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -25,7 +29,7 @@
 		</param>
 	</parameters>
 	<fboslinks>
-		<textura2>rotatecolor</textura2>
+		<textura1>rotatecolor</textura1>
 	</fboslinks>
 </box>
 <box>
@@ -34,128 +38,7 @@
 	<y>254</y>
 	<directory>data\shaders\generative\redbullstarnestfxhash.frag</directory>
 	<onoff>1</onoff>
-	<parameters>
-		<param>
-			<name>speedx</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.963591</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>speedy</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.47203</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>animationspeed1</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.621481</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>iterations</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.431852</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>formuparam</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.846667</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>volsteps</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.63037</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>stepsize</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.144444</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>zoom</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.295556</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>tile</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.331111</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>darkmatter</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.62</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>distfading</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.565185</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>saturation</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.42</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>displacey</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.488148</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>fbmsc</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.811111</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>fbmseed</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.730033</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-	</parameters>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>rotatecolor</nombre>
@@ -163,6 +46,7 @@
 	<y>230</y>
 	<directory>data\shaders\imageprocessing\rotatecolor.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>rd1</name>
@@ -199,6 +83,7 @@
 	<y>248</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -251,6 +136,7 @@
 	<y>461</y>
 	<directory>data\shaders\generative\crazyraymarchingsphere2.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sph_size</name>
@@ -345,6 +231,7 @@
 	<y>653</y>
 	<directory>data\shaders\generative\circuloresolution.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>size</name>
@@ -386,6 +273,7 @@
 	<y>485</y>
 	<directory>data\shaders\blending\mask.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<fboslinks>
 		<textura1>starnest</textura1>
 		<textura2>rotatecolor</textura2>
@@ -398,6 +286,7 @@
 	<y>535</y>
 	<directory>data\shaders\generative\baby.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>startRandom</name>
@@ -415,6 +304,7 @@
 	<y>616</y>
 	<directory>data\shaders\imageprocessing\saturationbrightness.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>saturation</name>
@@ -443,6 +333,7 @@
 	<y>649</y>
 	<directory>data\shaders\generative\fbm.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>speedx</name>
@@ -508,6 +399,7 @@
 	<y>683</y>
 	<directory>data\shaders\contrib\starnest.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>iterations</name>
@@ -623,3 +515,4 @@
 		</param>
 	</parameters>
 </box>
+<exposedParams />

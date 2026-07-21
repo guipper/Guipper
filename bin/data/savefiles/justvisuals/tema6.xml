@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>1</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>circuloresolution</nombre>
 	<x>314</x>
 	<y>173</y>
 	<directory>data\shaders\generative\circuloresolution.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>size</name>
@@ -47,6 +51,7 @@
 	<y>127</y>
 	<directory>data\shaders\blending\mixdisplace.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>offsetx</name>
@@ -76,6 +81,7 @@
 	<y>378</y>
 	<directory>data\shaders\imageprocessing\matrixiterations.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>fase</name>
@@ -146,3 +152,4 @@
 		<textura1>mixdisplace</textura1>
 	</fboslinks>
 </box>
+<exposedParams />

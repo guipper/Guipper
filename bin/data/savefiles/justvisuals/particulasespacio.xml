@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>13</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>starnest</nombre>
 	<x>75</x>
 	<y>87</y>
 	<directory>data\shaders\contrib\starnest.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>iterations</name>
@@ -127,6 +131,7 @@
 	<y>272</y>
 	<directory>data\shaders\generative\videosinte.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>v1</name>
@@ -240,6 +245,7 @@
 	<y>77</y>
 	<directory>data\shaders\imageprocessing\matrixiterations2_colorbuffers.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>cnt</name>
@@ -350,6 +356,7 @@
 	<y>435</y>
 	<directory>data\shaders\generative\videosinte.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>v1</name>
@@ -463,6 +470,7 @@
 	<y>320</y>
 	<directory>data\shaders\generative\radialmadness.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>iterations</name>
@@ -544,6 +552,7 @@
 	<y>98</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace5.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -636,6 +645,7 @@
 	<y>85</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace5.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -728,6 +738,7 @@
 	<y>106</y>
 	<directory>data\shaders\imageprocessing\chromakey.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>chroma_red</name>
@@ -780,6 +791,7 @@
 	<y>95</y>
 	<directory>data\shaders\imageprocessing\radialblur_advance.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -824,6 +836,7 @@
 	<y>302</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -876,6 +889,7 @@
 	<y>352</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -928,6 +942,7 @@
 	<y>271</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -1020,6 +1035,7 @@
 	<y>383</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace5.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -1112,6 +1128,7 @@
 	<y>403</y>
 	<directory>data\shaders\imageprocessing\chromakey.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>chroma_red</name>
@@ -1158,3 +1175,4 @@
 		<input_texture>feedbacklimitdisplace53</input_texture>
 	</fboslinks>
 </box>
+<exposedParams />

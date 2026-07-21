@@ -41,20 +41,20 @@ void jp_constants::init(int _renderwidth, int _renderheight, int _window_width, 
 	Cback.clear();
 	Cactive.clear();
 
-	// Seteamos los colores.
-	// Paleta 1: standart
-	CmouseOver.push_back(ofColor(220, 255));
-	Cfront.push_back(ofColor(180));
-	Cback.push_back(ofColor(100));
-	Cactive.push_back(ofColor(255));
+	// Seteamos los colores con la nueva paleta unificada
+	// Paleta 0: standard (cyan aesthetic)
+	CmouseOver.push_back(COL_ACCENT_CYAN);
+	Cfront.push_back(COL_TEXT_SECONDARY);
+	Cback.push_back(COL_BG_SLIDER);
+	Cactive.push_back(COL_TEXT_PRIMARY);
 
-	// Paleta 2: SPEED SLIDER
+	// Paleta 1: SPEED SLIDER (red)
 	CmouseOver.push_back(ofColor(220, 0, 0, 255));
 	Cfront.push_back(ofColor(180, 0, 0));
 	Cback.push_back(ofColor(100, 0, 0));
 	Cactive.push_back(ofColor(255, 0, 0));
 
-	textcolor = ofColor(0);
+	textcolor = COL_TEXT_PRIMARY;
 	string dir = "img/design/componentes/";
 	addImage(dir + "actual.png");
 	addImage(dir + "der.png");

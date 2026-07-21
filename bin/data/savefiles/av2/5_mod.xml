@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>16</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>221.962</viewportPanX>
+<viewportPanY>226.721</viewportPanY>
 <box>
-	<nombre>Sopa de letras</nombre>
-	<x>64</x>
-	<y>70</y>
+	<nombre>Guipper</nombre>
+	<x>-90</x>
+	<y>155</y>
 	<directory>spoutReceiver</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>scalex</name>
@@ -59,6 +63,7 @@
 	<y>84</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -88,6 +93,7 @@
 	<y>79</y>
 	<directory>data\shaders\generative\fbm.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>speedx</name>
@@ -153,6 +159,7 @@
 	<y>69</y>
 	<directory>data\shaders\blending\mixdisplace.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>offsetx</name>
@@ -172,7 +179,7 @@
 		</param>
 	</parameters>
 	<fboslinks>
-		<textura1>Sopa de letras</textura1>
+		<textura1>Guipper</textura1>
 		<textura2>fbm</textura2>
 	</fboslinks>
 </box>
@@ -182,6 +189,7 @@
 	<y>115</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -234,6 +242,7 @@
 	<y>119</y>
 	<directory>data\shaders\imageprocessing\recolor.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>red1</name>
@@ -294,6 +303,7 @@
 	<y>163</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -346,6 +356,7 @@
 	<y>93</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -438,6 +449,7 @@
 	<y>154</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace4.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -522,6 +534,7 @@
 	<y>187</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -551,6 +564,7 @@
 	<y>287</y>
 	<directory>data\shaders\imageprocessing\displace3d.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>image_scale_x</name>
@@ -682,7 +696,7 @@
 		</param>
 	</parameters>
 	<fboslinks>
-		<textura>Sopa de letras</textura>
+		<textura>Guipper</textura>
 	</fboslinks>
 </box>
 <box>
@@ -691,6 +705,7 @@
 	<y>308</y>
 	<directory>data\shaders\imageprocessing\flip.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>flipx</name>
@@ -735,6 +750,7 @@
 	<y>309</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -827,6 +843,7 @@
 	<y>298</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -879,6 +896,7 @@
 	<y>464</y>
 	<directory>data\shaders\generative\radialmadness.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>iterations</name>
@@ -960,6 +978,7 @@
 	<y>453</y>
 	<directory>data\shaders\imageprocessing\huerotate.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>hue</name>
@@ -980,6 +999,7 @@
 	<y>303</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -1009,6 +1029,7 @@
 	<y>484</y>
 	<directory>data\shaders\imageprocessing\displace3d.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>image_scale_x</name>
@@ -1143,3 +1164,4 @@
 		<textura>huerotate</textura>
 	</fboslinks>
 </box>
+<exposedParams />

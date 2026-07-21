@@ -126,6 +126,11 @@ JPbox *JPboxgroup::createBoxForDirectory(const string &directory, string &name) 
 
 string JPboxgroup::makeUniqueBoxName(const string &baseName) const
 {
+	return makeUniqueBoxName(baseName, boxes);
+}
+
+string JPboxgroup::makeUniqueBoxName(const string &baseName, const vector<JPbox *> &checkBoxes) const
+{
 	string nombre = baseName;
 	string nombreaux = nombre;
 	bool existenombre = false;
@@ -133,9 +138,9 @@ string JPboxgroup::makeUniqueBoxName(const string &baseName) const
 	do
 	{
 		existenombre = false;
-		for (int i = 0; i < boxes.size(); i++)
+		for (int i = 0; i < checkBoxes.size(); i++)
 		{
-			if (boxes[i] != nullptr && nombre.compare(boxes[i]->name) == 0)
+			if (checkBoxes[i] != nullptr && nombre.compare(checkBoxes[i]->name) == 0)
 			{
 				existenombre = true;
 			}
@@ -261,7 +266,7 @@ void JPboxgroup::draw()
 
 	// Selection rectangle (shared for both views)
 	if (draw_SelectionRect) {
-		ofSetColor(0, 180, 220, 45);
+		ofSetColor(COL_ACCENT_CYAN, 45);
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		ofFill();
 		ofVec2f center = ofVec2f((selectionEnd.x + lastMouseClick.x) / 2, (selectionEnd.y + lastMouseClick.y) / 2);
@@ -270,7 +275,7 @@ void JPboxgroup::draw()
 		ofDrawRectangle(center.x, center.y, w, h);
 		ofNoFill();
 		ofSetLineWidth(2);
-		ofSetColor(0, 220, 255, 210);
+		ofSetColor(COL_ACCENT_CYAN, 210);
 		ofDrawRectangle(center.x, center.y, w, h);
 		ofFill();
 		ofSetLineWidth(1);
@@ -295,7 +300,7 @@ void JPboxgroup::draw()
 				displayIndex = cueState.stagedActiveRenderIndex;
 			}
 			if (displayIndex == i) {
-				ofSetColor(40, 210, 90, 210);
+				ofSetColor(COL_ACCENT_GREEN_BR, 210);
 				ofRectMode(CENTER);
 				ofRectRounded(x, y - activeBoxes[i]->height / 2 + 10, activeBoxes[i]->width * 1.1, activeBoxes[i]->height * 1.1, 10);
 			}
@@ -322,8 +327,8 @@ void JPboxgroup::draw()
 			bool cueDirtyBox = isCueDraftDirty(i);
 			if (cueDraftBox)
 			{
-				activeBoxes[i]->setBackgroundOverride(cueDirtyBox ? ofColor(238, 190, 24, 245) : ofColor(196, 178, 105, 235),
-													   cueDirtyBox ? ofColor(255, 230, 85, 255) : ofColor(255, 205, 70, 225));
+				activeBoxes[i]->setBackgroundOverride(cueDirtyBox ? ofColor(COL_ACCENT_CYAN_DARK, 245) : ofColor(COL_ACCENT_CYAN_DARK, 200),
+													   cueDirtyBox ? ofColor(COL_ACCENT_CYAN, 255) : ofColor(COL_ACCENT_CYAN_DIM, 225));
 			}
 			else
 			{
@@ -372,7 +377,7 @@ void JPboxgroup::draw()
 			ofSetRectMode(OF_RECTMODE_CENTER);
 			ofNoFill();
 			ofSetLineWidth(4);
-			ofSetColor(0, 220, 255, 255);
+			ofSetColor(COL_ACCENT_CYAN, 255);
 			ofDrawRectRounded(activeBoxes[i]->x, activeBoxes[i]->y, activeBoxes[i]->width + 14, activeBoxes[i]->height + 14, 10);
 			ofFill();
 			ofPopStyle();
@@ -385,7 +390,7 @@ void JPboxgroup::draw()
 			ofSetRectMode(OF_RECTMODE_CENTER);
 			ofNoFill();
 			ofSetLineWidth(3);
-			ofSetColor(0, 220, 255, 255);
+			ofSetColor(COL_ACCENT_CYAN, 255);
 			ofDrawRectRounded(x, y - activeBoxes[i]->height / 2 + 10, activeBoxes[i]->width * 1.22, activeBoxes[i]->height * 1.22, 10);
 			ofPopStyle();
 		}
@@ -394,9 +399,9 @@ void JPboxgroup::draw()
 		if (!isGroupViewActive() && isCueAddedRealIndex(i))
 		{
 			ofPushStyle();
-			ofSetColor(30, 20, 0, 230);
+			ofSetColor(COL_BG_DARK, 230);
 			ofDrawRectangle(x - activeBoxes[i]->width / 2 + 6, y - activeBoxes[i]->height / 2 + 16, 30, 13);
-			ofSetColor(255, 230, 80, 255);
+			ofSetColor(COL_ACCENT_CYAN, 255);
 			ofDrawBitmapString("NEW", x - activeBoxes[i]->width / 2 + 9, y - activeBoxes[i]->height / 2 + 27);
 			ofPopStyle();
 		}
@@ -441,17 +446,17 @@ void JPboxgroup::drawCuePreview()
 
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
-	ofSetColor(18, 20, 22, 230);
+	ofSetColor(COL_BG_TAB, 230);
 	ofDrawRectRounded(cuePanelX, cuePanelY, cuePanelW, cuePanelH, 6);
-	ofSetColor(30, 25, 12, 235);
+	ofSetColor(COL_BG_PANEL, 235);
 	ofDrawRectRounded(cuePanelX, cuePanelY, cuePanelW, headerH, 6);
 	ofNoFill();
 	ofSetLineWidth(2);
-	ofSetColor(255, 180, 0, 230);
+	ofSetColor(COL_ACCENT_GOLD, 230);
 	ofDrawRectRounded(cuePanelX, cuePanelY, cuePanelW, cuePanelH, 6);
 	ofFill();
 
-	ofSetColor(255, 180, 0);
+	ofSetColor(COL_ACCENT_GOLD);
 	string displayName = previewBox->name;
 	if (cueMonitorMode == CUE_MONITOR_SELECTED_BOX &&
 		openguinumber >= 0 && openguinumber < boxes.size())
@@ -497,19 +502,19 @@ void JPboxgroup::drawCuePreview()
 	const float iconY = cuePanelY + (headerH - iconSize) * 0.5f;
 	ofNoFill();
 	ofSetLineWidth(1.5f);
-	ofSetColor(255, 215, 120, 230);
+	ofSetColor(COL_ACCENT_GOLD_DIM, 230);
 	ofDrawRectRounded(monitorX, iconY, iconSize, iconSize, 3);
 	ofDrawRectRounded(applyX, iconY, iconSize, iconSize, 3);
 	ofDrawRectRounded(fullX, iconY, iconSize, iconSize, 3);
 	if (cueFullscreenPreview)
 	{
 		ofFill();
-		ofSetColor(255, 180, 0, 210);
+		ofSetColor(COL_ACCENT_GOLD, 210);
 		ofDrawRectRounded(fullX + 1, iconY + 1, iconSize - 2, iconSize - 2, 3);
 		ofNoFill();
 	}
-	ofColor monitorGlyphColor(255, 215, 120, 230);
-	ofColor swapGlyphColor = cueFullscreenPreview ? ofColor(24, 20, 10, 245) : ofColor(255, 215, 120, 230);
+	ofColor monitorGlyphColor(COL_ACCENT_GOLD_DIM, 230);
+	ofColor swapGlyphColor = cueFullscreenPreview ? ofColor(COL_BG_DARK, 245) : ofColor(COL_ACCENT_GOLD_DIM, 230);
 	ofSetColor(monitorGlyphColor);
 	if (cueMonitorMode == CUE_MONITOR_SELECTED_BOX)
 	{
@@ -543,7 +548,7 @@ void JPboxgroup::drawCuePreview()
 	ofDrawLine(fullX + 13, iconY + 7, fullX + 5, iconY + 14);
 	ofDrawLine(fullX + 5, iconY + 14, fullX + 8, iconY + 14);
 	ofDrawLine(fullX + 5, iconY + 14, fullX + 5, iconY + 11);
-	ofSetColor(255, 215, 120, 230);
+	ofSetColor(COL_ACCENT_GOLD_DIM, 230);
 	ofDrawLine(closeX + 4, iconY + 4, closeX + iconSize - 4, iconY + iconSize - 4);
 	ofDrawLine(closeX + iconSize - 4, iconY + 4, closeX + 4, iconY + iconSize - 4);
 	ofFill();
@@ -557,12 +562,12 @@ void JPboxgroup::drawCuePreview()
 	{
 		previewBox->fbo.draw(previewX, previewY, previewW, previewH);
 	}
-	ofSetColor(cueFullscreenPreview ? ofColor(0, 220, 255, 235) : ofColor(255, 180, 0, 235));
+	ofSetColor(cueFullscreenPreview ? ofColor(COL_ACCENT_CYAN, 235) : ofColor(COL_ACCENT_GOLD, 235));
 	ofDrawRectangle(previewX, previewY, previewW, 22);
-	ofSetColor(18, 20, 22, 245);
+	ofSetColor(COL_BG_TAB, 245);
 	jp_constants::p_font.drawString(panelMode, previewX + 8, previewY + 16);
 
-	ofSetColor(255, 180, 0, 220);
+	ofSetColor(COL_ACCENT_GOLD, 220);
 	ofDrawLine(cuePanelX + cuePanelW - handleSize, cuePanelY + cuePanelH - 4,
 			   cuePanelX + cuePanelW - 4, cuePanelY + cuePanelH - handleSize);
 	ofDrawLine(cuePanelX + cuePanelW - handleSize * 0.65f, cuePanelY + cuePanelH - 4,
@@ -779,13 +784,13 @@ void JPboxgroup::draw_paramswindow()
 		ofDrawRectangle(inspectorwindow_x, inspectorwindow_y, ancho2, alto2);
 		*/
 		ofSetRectMode(OF_RECTMODE_CENTER);
-		ofSetColor(120, 255);
+		ofSetColor(COL_BG_PANEL);
 		// constants_img::background.draw(inspectorwindow_x, inspectorwindow_y, inspectorwindow_width, inspectorwindow_height);
 		ofDrawRectangle(inspectorwindow_x, inspectorwindow_y, inspectorwindow_width, inspectorwindow_height);
 		ofSetRectMode(OF_RECTMODE_CORNER);
 
 		string name = getCueDraftBoxForRealIndex(openguinumber) != nullptr ? inspectorBox->name + " DRAFT" : inspectorBox->name;
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 
 		// DIBUJAR EL NOMBRE DEL SHADER
 		// jp_constants::p2_font
@@ -808,9 +813,9 @@ void JPboxgroup::draw_paramswindow()
 
 			// Draw RDM button background (monochromatic, matching inspector style)
 			if (inspectorrandom.mouseOver()) {
-				ofSetColor(60, 70, 80);
+				ofSetColor(COL_MAPPED_OFF);
 			} else {
-				ofSetColor(40, 48, 55);
+				ofSetColor(COL_BG_HOVER);
 			}
 			ofDrawRectRounded(nameRight, btnY, btnW, btnH, 3.0f);
 			ofSetColor(140, 160, 180);
@@ -819,7 +824,7 @@ void JPboxgroup::draw_paramswindow()
 			ofDrawRectRounded(nameRight, btnY, btnW, btnH, 3.0f);
 			ofFill();
 			ofSetLineWidth(1.0f);
-			ofSetColor(200);
+			ofSetColor(COL_TEXT_SECONDARY);
 			jp_constants::p_font.drawString("RDM",
 				nameRight + btnW / 2 - jp_constants::p_font.stringWidth("RDM") / 2,
 				btnY + btnH / 2 + jp_constants::p_font.stringHeight("RDM") / 2 - 2);
@@ -2449,11 +2454,7 @@ void JPboxgroup::setControllers(){
 			toogle->setup(inspectorwindow_x,
 						  inspectorwindow_height, slider_width, slider_height, inspectorBox->parameters.getName(k), inspectorBox->parameters.getBoolValue(k));
 			controllers.push_back(toogle);
-			// Esto es para que no lo agregue si es el ultimo elemento :
-			if (k != inspectorBox->parameters.getSize() - 1)
-			{
-				inspectorwindow_height += complexsliderheight;
-			}
+			inspectorwindow_height += complexsliderheight;
 		}
 		}
 
@@ -4420,7 +4421,7 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 		JPbox_preset *preset = getActivePreset();
 		if (preset != nullptr)
 		{
-			string nombre = makeUniqueBoxName(makeNameFromDirectory(directory));
+			string nombre = makeUniqueBoxName(makeNameFromDirectory(directory), preset->boxes);
 			JPbox *bx = createBoxForDirectory(directory, nombre);
 			if (bx == nullptr)
 			{
@@ -5132,7 +5133,15 @@ void JPboxgroup::pasteBoxes()
 		string dir = directory.getValue();
 
 		// Reuse the same addBox pattern but without requiring an xml file on disk
-		string nombreFinal = makeUniqueBoxName(makeNameFromDirectory(dir));
+		string nombreFinal;
+		if (targetPreset != nullptr)
+		{
+			nombreFinal = makeUniqueBoxName(makeNameFromDirectory(dir), targetPreset->boxes);
+		}
+		else
+		{
+			nombreFinal = makeUniqueBoxName(makeNameFromDirectory(dir));
+		}
 		JPbox *bx = createBoxForDirectory(dir, nombreFinal);
 		if (bx == nullptr) continue;
 
@@ -5401,7 +5410,7 @@ void JPboxgroup::drawTabs()
 	// Draw tab bar background
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
-	ofSetColor(18, 18, 22, 210);
+	ofSetColor(COL_BG_TAB, 210);
 	ofDrawRectRounded(x, y, ofGetWidth() - pad * 2, tabH + gap * 2, 4);
 	ofPopStyle();
 
@@ -5417,12 +5426,12 @@ void JPboxgroup::drawTabs()
 
 		ofPushStyle();
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		ofSetColor(isActive ? ofColor(40, 180, 80, 235) : ofColor(35, 35, 42, 225));
+		ofSetColor(isActive ? ofColor(COL_ACCENT_GREEN, 235) : ofColor(COL_TAB_INACTIVE_BG, 225));
 		ofDrawRectRounded(x, y, tabW, tabH, 3);
 		ofNoFill(); ofSetLineWidth(1);
-		ofSetColor(isActive ? ofColor(60, 220, 100, 255) : ofColor(55, 55, 65, 200));
+		ofSetColor(isActive ? ofColor(COL_ACCENT_GREEN_BR, 255) : ofColor(COL_TAB_INACTIVE_BRD, 200));
 		ofDrawRectRounded(x, y, tabW, tabH, 3); ofFill();
-		ofSetColor(isActive ? 255 : 200);
+		ofSetColor(isActive ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
 		jp_constants::p_font.drawString(name, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
 		ofPopStyle();
 
@@ -5445,31 +5454,31 @@ void JPboxgroup::drawTabs()
 			if (isActive)
 			{
 				// Current level - highlighted green
-				ofSetColor(40, 180, 80, 235);
+				ofSetColor(COL_ACCENT_GREEN, 235);
 			}
 			else if (level < pathLen)
 			{
-				// Parent level - clickable to go back, amber style
-				ofSetColor(65, 55, 35, 225);
+				// Parent level - clickable to go back
+				ofSetColor(COL_BG_HOVER, 225);
 			}
 			else
 			{
 				// Should not happen, but just in case
-				ofSetColor(45, 45, 50, 225);
+				ofSetColor(COL_TAB_INACTIVE_BG, 225);
 			}
 			ofDrawRectRounded(x, y, tabW, tabH, 3);
 			ofNoFill(); ofSetLineWidth(1);
-			ofSetColor(isActive ? ofColor(60, 220, 100, 255) : ofColor(90, 75, 50, 200));
+			ofSetColor(isActive ? ofColor(COL_ACCENT_GREEN_BR, 255) : ofColor(COL_BORDER_MUTED, 200));
 			ofDrawRectRounded(x, y, tabW, tabH, 3); ofFill();
 
 			// Small ">" separator before breadcrumb levels (except first)
 			if (level > 1)
 			{
-				ofSetColor(120, 100, 60);
+				ofSetColor(COL_TEXT_DIM);
 				jp_constants::p_font.drawString(">", x - gap - 10, y + tabH * 0.5f + 5);
 			}
 
-			ofSetColor(isActive ? 255 : (level < pathLen ? 230 : 180));
+			ofSetColor(isActive ? COL_TEXT_PRIMARY : (level < pathLen ? COL_TEXT_SECONDARY : COL_TEXT_DIM));
 
 			if (tabRenaming && tabCounter == tabRenameTabIndex)
 			{
@@ -5478,7 +5487,7 @@ void JPboxgroup::drawTabs()
 				ofSetRectMode(OF_RECTMODE_CORNER);
 				ofSetColor(240, 240, 245);
 				ofDrawRectRounded(x + inputPad, y + inputPad, tabW - inputPad * 2, tabH - inputPad * 2, 2);
-				ofSetColor(20, 20, 28);
+				ofSetColor(COL_TEXT_DARK);
 				float txtW = jp_constants::p_font.stringWidth(tabRenameBuffer.empty() ? " " : tabRenameBuffer);
 				float txtX = x + (tabW - txtW) * 0.5f;
 				float txtY = y + tabH * 0.5f + 5;
@@ -5488,7 +5497,7 @@ void JPboxgroup::drawTabs()
 				jp_constants::p_font.drawString(tabRenameBuffer, txtX, txtY);
 				if ((ofGetFrameNum() / 20) % 2 == 0)
 				{
-					ofSetColor(20, 20, 28);
+					ofSetColor(COL_TEXT_DARK);
 					ofDrawRectRounded(txtX + txtW + 1, y + inputPad + 3, 2, tabH - inputPad * 2 - 6, 1);
 				}
 			}
@@ -5525,10 +5534,10 @@ void JPboxgroup::drawTabs()
 
 		ofPushStyle();
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		ofSetColor(isActive ? ofColor(40, 180, 80, 235) : ofColor(35, 35, 42, 225));
+		ofSetColor(isActive ? ofColor(COL_ACCENT_GREEN, 235) : ofColor(COL_TAB_INACTIVE_BG, 225));
 		ofDrawRectRounded(x, y, tabW, tabH, 3);
 		ofNoFill(); ofSetLineWidth(1);
-		ofSetColor(isActive ? ofColor(60, 220, 100, 255) : ofColor(55, 55, 65, 200));
+		ofSetColor(isActive ? ofColor(COL_ACCENT_GREEN_BR, 255) : ofColor(COL_TAB_INACTIVE_BRD, 200));
 		ofDrawRectRounded(x, y, tabW, tabH, 3); ofFill();
 
 		if (tabRenaming && tabCounter == tabRenameTabIndex)
@@ -5538,7 +5547,7 @@ void JPboxgroup::drawTabs()
 			ofSetRectMode(OF_RECTMODE_CORNER);
 			ofSetColor(240, 240, 245);
 			ofDrawRectRounded(x + inputPad, y + inputPad, tabW - inputPad * 2, tabH - inputPad * 2, 2);
-			ofSetColor(20, 20, 28);
+			ofSetColor(COL_TEXT_DARK);
 			string displayText = tabRenameBuffer;
 			if (displayText.empty()) displayText = " ";
 			float textWidth = jp_constants::p_font.stringWidth(displayText);
@@ -5552,13 +5561,13 @@ void JPboxgroup::drawTabs()
 			// Blinking cursor
 			if ((ofGetFrameNum() / 20) % 2 == 0)
 			{
-				ofSetColor(20, 20, 28);
+				ofSetColor(COL_TEXT_DARK);
 				ofDrawRectRounded(textX + textWidth + 1, y + inputPad + 3, 2, tabH - inputPad * 2 - 6, 1);
 			}
 		}
 		else
 		{
-			ofSetColor(isActive ? 255 : 200);
+			ofSetColor(isActive ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
 			jp_constants::p_font.drawString(tabName, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
 		}
 		ofPopStyle();

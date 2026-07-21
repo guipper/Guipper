@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>11</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>nubes</nombre>
 	<x>56</x>
 	<y>358</y>
 	<directory>data\shaders\generative\nubes.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>cloudscale</name>
@@ -71,6 +75,7 @@
 	<y>256</y>
 	<directory>data\shaders\generative\circuloresolution.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>size</name>
@@ -112,6 +117,7 @@
 	<y>501</y>
 	<directory>data\shaders\blending\mixdisplace.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>offsetx</name>
@@ -141,6 +147,7 @@
 	<y>527</y>
 	<directory>data\shaders\generative\metro.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>invertbpm</name>
@@ -178,6 +185,7 @@
 	<y>410</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace4.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -262,6 +270,7 @@
 	<y>211</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -314,6 +323,7 @@
 	<y>65</y>
 	<directory>data\shaders\generative\videosinte.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>v1</name>
@@ -427,6 +437,7 @@
 	<y>268</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -456,6 +467,7 @@
 	<y>193</y>
 	<directory>data\shaders\imageprocessing\feedback_advance.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>eforce</name>
@@ -512,6 +524,7 @@
 	<y>64</y>
 	<directory>data\shaders\generative\rxrpure.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -585,6 +598,7 @@
 	<y>419</y>
 	<directory>data\shaders\imageprocessing\bloom.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>force</name>
@@ -621,6 +635,7 @@
 	<y>576</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -707,3 +722,4 @@
 		<texture1>bloom</texture1>
 	</fboslinks>
 </box>
+<exposedParams />

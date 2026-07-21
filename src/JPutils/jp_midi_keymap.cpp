@@ -34,44 +34,44 @@ namespace
 	}
 
 	void drawButton(float x, float y, float w, float h, const string &label, bool selected)
-	{
-		ofSetRectMode(OF_RECTMODE_CORNER);
-		ofSetColor(selected ? ofColor(0, 160, 160, 220) : ofColor(25, 30, 35, 230));
-		ofDrawRectRounded(x, y, w, h, 4.0f);
-		ofNoFill();
-		if (mouseInRect(x, y, w, h)) {
-			ofSetColor(255);
-			ofSetLineWidth(1.5f);
-		} else {
-			ofSetColor(selected ? ofColor(0, 230, 230, 200) : ofColor(70, 80, 90, 150));
+		{
+			ofSetRectMode(OF_RECTMODE_CORNER);
+			ofSetColor(selected ? ofColor(COL_ACCENT_CYAN_DIM, 220) : ofColor(COL_BG_BUTTON, 230));
+			ofDrawRectRounded(x, y, w, h, 4.0f);
+			ofNoFill();
+			if (mouseInRect(x, y, w, h)) {
+				ofSetColor(COL_TEXT_PRIMARY);
+				ofSetLineWidth(1.5f);
+			} else {
+				ofSetColor(selected ? ofColor(COL_ACCENT_CYAN, 200) : ofColor(COL_BORDER_DEFAULT, 150));
+				ofSetLineWidth(1.0f);
+			}
+			ofDrawRectRounded(x, y, w, h, 4.0f);
+			ofFill();
 			ofSetLineWidth(1.0f);
-		}
-		ofDrawRectRounded(x, y, w, h, 4.0f);
-		ofFill();
-		ofSetLineWidth(1.0f);
-		ofSetColor(255);
+			ofSetColor(COL_TEXT_PRIMARY);
 		jp_constants::p_font.drawString(label, x + 8, y + h - 7);
 	}
 
 	void drawSelectField(float x, float y, float w, float h, const string &label, bool open)
 	{
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		ofSetColor(ofColor(15, 20, 25, 240));
+		ofSetColor(ofColor(COL_BG_PANEL, 240));
 		ofDrawRectRounded(x, y, w, h, 4.0f);
 		ofNoFill();
 		if (mouseInRect(x, y, w, h) || open) {
-			ofSetColor(0, 230, 230, 255);
+			ofSetColor(ofColor(COL_ACCENT_CYAN, 255));
 			ofSetLineWidth(1.5f);
 		} else {
-			ofSetColor(80, 90, 100, 180);
+			ofSetColor(ofColor(COL_TEXT_MUTED, 180));
 			ofSetLineWidth(1.0f);
 		}
 		ofDrawRectRounded(x, y, w, h, 4.0f);
 		ofFill();
 		ofSetLineWidth(1.0f);
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		jp_constants::p_font.drawString(label, x + 8, y + h - 7);
-		ofSetColor(0, 230, 230, 255);
+		ofSetColor(ofColor(COL_ACCENT_CYAN, 255));
 		jp_constants::p_font.drawString(open ? "^" : "v", x + w - 18, y + h - 7);
 	}
 
@@ -88,7 +88,7 @@ namespace
 		ofSetColor(30, 30, 30, 220);
 		ofDrawRectRounded(x, y, w, h, 4.0f);
 		ofFill();
-		ofSetColor(20, 20, 20, 255);
+		ofSetColor(COL_TEXT_DARK);
 		jp_constants::p_font.drawString("MIDI MAP ON", x + 10, y + h - 7);
 	}
 
@@ -1129,12 +1129,12 @@ void JPMidiKeymap::draw()
 	ofSetRectMode(OF_RECTMODE_CORNER);
 	
 	// Glassmorphism background panel
-	ofSetColor(12, 16, 20, 235);
+	ofSetColor(ofColor(COL_BG_DARK, 235));
 	ofDrawRectRounded(PANEL_X, PANEL_Y, PANEL_W, layout.panelH, 12.0f);
 	
 	// Neon cyan border
 	ofNoFill();
-	ofSetColor(0, 230, 230, 255);
+	ofSetColor(ofColor(COL_ACCENT_CYAN, 255));
 	ofSetLineWidth(2.0f);
 	ofDrawRectRounded(PANEL_X, PANEL_Y, PANEL_W, layout.panelH, 12.0f);
 	ofFill();
@@ -1150,7 +1150,7 @@ void JPMidiKeymap::draw()
 
 	if (editMode)
 	{
-		ofSetColor(0, 230, 230, 255);
+		ofSetColor(ofColor(COL_ACCENT_CYAN, 255));
 		string hint = learning ? "Press a MIDI key/control..." : "MIDI map edit: click a box button or inspector slider, then press MIDI";
 		jp_constants::p_font.drawString(hint, layout.innerX, PANEL_Y + layout.panelH - 16);
 	}
@@ -1160,10 +1160,10 @@ void JPMidiKeymap::draw()
 	{
 		vector<string> names = getMapDeviceNames();
 		DropdownLayout dropdown = getMapDeviceDropdownLayout(layout);
-		ofSetColor(15, 20, 25, 245);
+		ofSetColor(ofColor(COL_BG_PANEL, 245));
 		ofDrawRectRounded(dropdown.x, dropdown.y, dropdown.w, dropdown.h, 6.0f);
 		ofNoFill();
-		ofSetColor(0, 230, 230, 255);
+		ofSetColor(ofColor(COL_ACCENT_CYAN, 255));
 		ofSetLineWidth(1.5f);
 		ofDrawRectRounded(dropdown.x, dropdown.y, dropdown.w, dropdown.h, 6.0f);
 		ofFill();
@@ -1174,13 +1174,13 @@ void JPMidiKeymap::draw()
 			float optionY = dropdown.y + 2 + i * (ROW_H + 2);
 			bool isSelected = names[i] == activeMapDeviceName;
 			bool isHovered = pointInRect(ofGetMouseX(), ofGetMouseY(), dropdown.x + 2, optionY, dropdown.w - 4, ROW_H);
-			ofSetColor(isSelected ? ofColor(0, 160, 160, 220) : (isHovered ? ofColor(40, 50, 60, 230) : ofColor(20, 25, 30, 200)));
+			ofSetColor(isSelected ? ofColor(COL_ACCENT_CYAN_DIM, 220) : (isHovered ? ofColor(COL_BG_HOVER, 230) : ofColor(COL_BG_INPUT, 200)));
 			ofDrawRectRounded(dropdown.x + 2, optionY, dropdown.w - 4, ROW_H, 3.0f);
 			ofNoFill();
-			ofSetColor(isHovered ? ofColor(255) : (isSelected ? ofColor(0, 230, 230, 200) : ofColor(60, 70, 80, 100)));
+			ofSetColor(isHovered ? COL_TEXT_PRIMARY : (isSelected ? ofColor(COL_ACCENT_CYAN, 200) : ofColor(COL_MAPPED_OFF, 100)));
 			ofDrawRectRounded(dropdown.x + 2, optionY, dropdown.w - 4, ROW_H, 3.0f);
 			ofFill();
-			ofSetColor(255);
+			ofSetColor(COL_TEXT_PRIMARY);
 			jp_constants::p_font.drawString(fitLabel(names[i], dropdown.w - 20), dropdown.x + 10, optionY + ROW_H - 7);
 		}
 	}
@@ -1192,12 +1192,12 @@ void JPMidiKeymap::draw()
 		float scrollbarW = 12.0f;
 
 		// Dropdown container background
-		ofSetColor(15, 20, 25, 245);
+		ofSetColor(ofColor(COL_BG_PANEL, 245));
 		ofDrawRectRounded(dropdown.x, dropdown.y, dropdown.w, dropdown.h, 6.0f);
 
 		// Dropdown border
 		ofNoFill();
-		ofSetColor(0, 230, 230, 255);
+		ofSetColor(ofColor(COL_ACCENT_CYAN, 255));
 		ofSetLineWidth(1.5f);
 		ofDrawRectRounded(dropdown.x, dropdown.y, dropdown.w, dropdown.h, 6.0f);
 		ofFill();
@@ -1235,15 +1235,15 @@ void JPMidiKeymap::draw()
 				isHovered = true;
 			}
 
-			ofSetColor(isSelected ? ofColor(0, 160, 160, 220) : (isHovered ? ofColor(40, 50, 60, 230) : ofColor(20, 25, 30, 200)));
+			ofSetColor(isSelected ? ofColor(COL_ACCENT_CYAN_DIM, 220) : (isHovered ? ofColor(COL_BG_HOVER, 230) : ofColor(COL_BG_INPUT, 200)));
 			ofDrawRectRounded(dropdown.x + 2, optionY, btnW, ROW_H, 3.0f);
 			
 			ofNoFill();
-			ofSetColor(isHovered ? ofColor(255) : (isSelected ? ofColor(0, 230, 230, 200) : ofColor(60, 70, 80, 100)));
+			ofSetColor(isHovered ? COL_TEXT_PRIMARY : (isSelected ? ofColor(COL_ACCENT_CYAN, 200) : ofColor(COL_MAPPED_OFF, 100)));
 			ofDrawRectRounded(dropdown.x + 2, optionY, btnW, ROW_H, 3.0f);
 			ofFill();
 
-			ofSetColor(255);
+			ofSetColor(COL_TEXT_PRIMARY);
 			jp_constants::p_font.drawString(optionLabel, dropdown.x + 10, optionY + ROW_H - 7);
 		}
 
@@ -1256,7 +1256,7 @@ void JPMidiKeymap::draw()
 			float trackY = dropdown.y + 2;
 			float trackH = dropdown.h - 4;
 			
-			ofSetColor(30, 35, 40, 200);
+			ofSetColor(ofColor(COL_BG_SLIDER, 200));
 			ofDrawRectRounded(trackX, trackY, scrollbarW, trackH, 4.0f);
 
 			float thumbH = (dropdown.h / dropdown.contentH) * trackH;
@@ -1266,7 +1266,7 @@ void JPMidiKeymap::draw()
 			bool thumbHover = ofGetMouseX() >= trackX && ofGetMouseX() <= trackX + scrollbarW &&
 							  ofGetMouseY() >= thumbY && ofGetMouseY() <= thumbY + thumbH;
 
-			ofSetColor((scrollbarDragging || thumbHover) ? ofColor(0, 230, 230, 255) : ofColor(90, 100, 110, 200));
+			ofSetColor((scrollbarDragging || thumbHover) ? ofColor(COL_ACCENT_CYAN, 255) : ofColor(COL_BG_SCROLLBAR, 200));
 			ofDrawRectRounded(trackX + 2, thumbY, scrollbarW - 4, thumbH, 3.0f);
 		}
 	}
@@ -1275,11 +1275,11 @@ void JPMidiKeymap::draw()
 	{
 		DropdownLayout dropdown = getActionDropdownLayout(layout);
 		
-		ofSetColor(15, 20, 25, 245);
+		ofSetColor(ofColor(COL_BG_PANEL, 245));
 		ofDrawRectRounded(dropdown.x, dropdown.y, dropdown.w, dropdown.h, 6.0f);
 		
 		ofNoFill();
-		ofSetColor(0, 230, 230, 255);
+		ofSetColor(ofColor(COL_ACCENT_CYAN, 255));
 		ofDrawRectRounded(dropdown.x, dropdown.y, dropdown.w, dropdown.h, 6.0f);
 		ofFill();
 		
@@ -1291,15 +1291,15 @@ void JPMidiKeymap::draw()
 			bool isHovered = ofGetMouseX() >= dropdown.x && ofGetMouseX() <= dropdown.x + dropdown.w &&
 							 ofGetMouseY() >= optionY && ofGetMouseY() <= optionY + ROW_H;
 							 
-			ofSetColor(isSelected ? ofColor(0, 160, 160, 220) : (isHovered ? ofColor(40, 50, 60, 230) : ofColor(20, 25, 30, 200)));
+			ofSetColor(isSelected ? ofColor(COL_ACCENT_CYAN_DIM, 220) : (isHovered ? ofColor(COL_BG_HOVER, 230) : ofColor(COL_BG_INPUT, 200)));
 			ofDrawRectRounded(dropdown.x + 2, optionY, dropdown.w - 4, ROW_H, 3.0f);
 			
 			ofNoFill();
-			ofSetColor(isHovered ? ofColor(255) : (isSelected ? ofColor(0, 230, 230, 200) : ofColor(60, 70, 80, 100)));
+			ofSetColor(isHovered ? COL_TEXT_PRIMARY : (isSelected ? ofColor(COL_ACCENT_CYAN, 200) : ofColor(COL_MAPPED_OFF, 100)));
 			ofDrawRectRounded(dropdown.x + 2, optionY, dropdown.w - 4, ROW_H, 3.0f);
 			ofFill();
 			
-			ofSetColor(255);
+			ofSetColor(COL_TEXT_PRIMARY);
 			jp_constants::p_font.drawString(getActionName(actions[i]), dropdown.x + 10, optionY + ROW_H - 7);
 		}
 	}
@@ -1339,19 +1339,19 @@ void JPMidiKeymap::drawBoxMappingTargets()
 
 		ofNoFill();
 		ofSetLineWidth((boxOver || boxBound) ? 3 : 2);
-		ofSetColor(boxBound ? ofColor(0, 255, 120, boxOver ? 255 : 220) :
+		ofSetColor(boxBound ? ofColor(COL_MAPPED_ON, boxOver ? 255 : 220) :
 							  (boxOver ? ofColor(255, 255, 0, 230) : ofColor(255, 255, 0, 120)));
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		ofDrawRectRounded(boxPos.x, boxPos.y, (box->width + 8) * zoom, (box->height + 8) * zoom, 8.0f * zoom);
 
 		ofSetLineWidth((bypassOver || bypassBound) ? 3 : 2);
-		ofSetColor(bypassBound ? ofColor(0, 255, 120, bypassOver ? 255 : 220) :
-								 (bypassOver ? ofColor(255, 80, 80, 255) : ofColor(255, 80, 80, 170)));
+		ofSetColor(bypassBound ? ofColor(COL_MAPPED_ON, bypassOver ? 255 : 220) :
+								(bypassOver ? COL_ACCENT_RED : ofColor(COL_ACCENT_RED, 170)));
 		ofDrawRectRounded(bypassPos.x, bypassPos.y, (box->bypass.width + 8) * zoom, (box->bypass.height + 8) * zoom, 4.0f * zoom);
 
 		ofSetLineWidth((pauseOver || pauseBound) ? 3 : 2);
-		ofSetColor(pauseBound ? ofColor(0, 255, 120, pauseOver ? 255 : 220) :
-							   (pauseOver ? ofColor(255, 255, 255, 255) : ofColor(255, 255, 255, 170)));
+		ofSetColor(pauseBound ? ofColor(COL_MAPPED_ON, pauseOver ? 255 : 220) :
+							   (pauseOver ? COL_TEXT_PRIMARY : ofColor(COL_TEXT_PRIMARY, 170)));
 		ofDrawRectRounded(pausePos.x, pausePos.y, (box->onoff.width + 8) * zoom, (box->onoff.height + 8) * zoom, 4.0f * zoom);
 		ofFill();
 		ofSetRectMode(OF_RECTMODE_CORNER); // restore
@@ -1380,15 +1380,15 @@ void JPMidiKeymap::drawInspectorMappingTargets()
 		bool bound = hasBindingForAction(PARAMETER, "", i);
 		ofNoFill();
 		ofSetLineWidth((over || bound) ? 3 : 2);
-		ofSetColor(bound ? ofColor(0, 255, 120, over ? 255 : 220) :
-						   (over ? ofColor(0, 255, 255, 255) : ofColor(0, 255, 255, 160)));
+		ofSetColor(bound ? ofColor(COL_MAPPED_ON, over ? 255 : 220) :
+					   (over ? ofColor(COL_ACCENT_CYAN, 255) : ofColor(COL_ACCENT_CYAN, 160)));
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		ofDrawRectRounded(controller->x, controller->y, controller->width + 8, controller->height + 8, 4.0f);
 		ofFill();
 		ofSetRectMode(OF_RECTMODE_CORNER); // restore
 
-		ofSetColor(bound ? ofColor(0, 255, 120, over ? 255 : 220) :
-						   ofColor(0, 255, 255, over ? 255 : 190));
+		ofSetColor(bound ? ofColor(COL_MAPPED_ON, over ? 255 : 220) :
+					   ofColor(COL_ACCENT_CYAN, over ? 255 : 190));
 		jp_constants::p_font.drawString("p" + ofToString(i),
 										controller->x + controller->width / 2 + 8,
 										controller->y + 4);
@@ -1397,7 +1397,7 @@ void JPMidiKeymap::drawInspectorMappingTargets()
 
 void JPMidiKeymap::drawPanelHeader(float x, float y, float w)
 {
-	ofSetColor(255);
+	ofSetColor(COL_TEXT_PRIMARY);
 	jp_constants::h_font.drawString("MIDI Keymap", x, y + 18);
 	drawButton(x + w - 264, y + 4, 82, 24, editMode ? "Map On" : "Map Off", editMode);
 	drawButton(x + w - 174, y + 4, 82, 24, "Rescan", false);
@@ -1409,7 +1409,7 @@ void JPMidiKeymap::drawPanelHeader(float x, float y, float w)
 	jp_constants::p_font.drawString(last, x + 110, y + 46);
 
 	ensureActiveMapDevice();
-	ofSetColor(255);
+	ofSetColor(COL_TEXT_PRIMARY);
 	jp_constants::p_font.drawString("Map", x, y + 72);
 	string mapLabel = activeMapDeviceName.empty() ? "No MIDI device" : activeMapDeviceName;
 	mapLabel = fitLabel(mapLabel, w - 66);
@@ -1418,7 +1418,7 @@ void JPMidiKeymap::drawPanelHeader(float x, float y, float w)
 
 void JPMidiKeymap::drawBoxSelector(float x, float y, float w)
 {
-	ofSetColor(255);
+	ofSetColor(COL_TEXT_PRIMARY);
 	jp_constants::p_font.drawString("Target box", x, y);
 	if (boxes == nullptr || boxes->boxes.empty())
 	{
@@ -1433,7 +1433,7 @@ void JPMidiKeymap::drawBoxSelector(float x, float y, float w)
 
 void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 {
-	ofSetColor(255);
+	ofSetColor(COL_TEXT_PRIMARY);
 	jp_constants::p_font.drawString("Parameter index", x, y);
 	drawButton(x + w - 78, y - SELECT_FIELD_Y_OFFSET, 78, ROW_H,
 			   parameterSectionCollapsed ? "Show" : "Hide",
@@ -1449,7 +1449,7 @@ void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 		return;
 	}
 
-	ofSetColor(160);
+	ofSetColor(COL_TEXT_DIM);
 	jp_constants::p_font.drawString("MIDI binding", x + w * 0.34, y);
 
 	JPbox *parameterBox = getSelectedParameterBox();
@@ -1470,38 +1470,38 @@ void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 		if (isBoolParameter)
 		{
 			ofSetColor(boolValue ? ofColor(245, 245, 245, 235) :
-								   (over ? ofColor(110, 110, 110, 230) : ofColor(85, 85, 85, 220)));
+								   (over ? ofColor(COL_TEXT_MUTED, 230) : ofColor(COL_TEXT_MUTED, 220)));
 		}
 		else
 		{
-			ofSetColor(selected ? ofColor(0, 160, 160, 220) :
-								 (over ? ofColor(40, 48, 56, 230) : ofColor(25, 30, 35, 210)));
+			ofSetColor(selected ? ofColor(COL_ACCENT_CYAN_DIM, 220) :
+								 (over ? ofColor(COL_BG_HOVER, 230) : ofColor(COL_BG_BUTTON, 210)));
 		}
 		ofDrawRectRounded(x, rowY, w, ROW_H, 4.0f);
 		
 		ofNoFill();
 		if (selected)
 		{
-			ofSetColor(0, 230, 230, 255);
+			ofSetColor(ofColor(COL_ACCENT_CYAN, 255));
 		}
 		else
 		{
-			ofSetColor(mapped ? ofColor(0, 230, 120, over ? 255 : 210) :
-								(over ? ofColor(255) : ofColor(80, 90, 100, 150)));
+			ofSetColor(mapped ? ofColor(COL_MAPPED_ON, over ? 255 : 210) :
+								(over ? COL_TEXT_PRIMARY : ofColor(COL_TEXT_MUTED, 150)));
 		}
 		ofDrawRectRounded(x, rowY, w, ROW_H, 4.0f);
 		ofFill();
 
-		ofColor textColor = boolValue ? ofColor(20, 20, 20, 255) : ofColor(255);
+		ofColor textColor = boolValue ? COL_TEXT_DARK : COL_TEXT_PRIMARY;
 		ofSetColor(textColor);
 		jp_constants::p_font.drawString("p" + ofToString(i), x + 8, rowY + ROW_H - 7);
 		if (isBoolParameter)
 		{
-			ofSetColor(boolValue ? ofColor(20, 20, 20, 255) : ofColor(230));
+			ofSetColor(boolValue ? COL_TEXT_DARK : COL_TEXT_SECONDARY);
 		}
 		else
 		{
-			ofSetColor(mapped ? ofColor(0, 230, 120, 255) : ofColor(170));
+			ofSetColor(mapped ? COL_MAPPED_ON : COL_TEXT_DIM);
 		}
 		string keyLabel = mapped ? getKeyLabel(bindings[bindingIndex].key) : "Unmapped";
 		float keyMaxW = w - w * 0.34 - 116;
@@ -1519,7 +1519,7 @@ void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 
 void JPMidiKeymap::drawGlobalFunctionsSelector(float x, float y, float w)
 {
-	ofSetColor(255);
+	ofSetColor(COL_TEXT_PRIMARY);
 	jp_constants::p_font.drawString("Global functions", x, y);
 	drawButton(x + w - 78, y - SELECT_FIELD_Y_OFFSET, 78, ROW_H,
 			   globalFunctionsCollapsed ? "Show" : "Hide",
@@ -1534,7 +1534,7 @@ void JPMidiKeymap::drawGlobalFunctionsSelector(float x, float y, float w)
 		return;
 	}
 
-	ofSetColor(160);
+	ofSetColor(COL_TEXT_DIM);
 	jp_constants::p_font.drawString("MIDI binding", x + w * 0.34, y);
 
 	vector<Action> globalActions = getGlobalActions();
@@ -1548,19 +1548,19 @@ void JPMidiKeymap::drawGlobalFunctionsSelector(float x, float y, float w)
 		bool over = mouseInRect(x, rowY, w, ROW_H);
 
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		ofSetColor(selected ? ofColor(0, 160, 160, 220) :
-							 (over ? ofColor(40, 48, 56, 230) : ofColor(25, 30, 35, 210)));
+		ofSetColor(selected ? ofColor(COL_ACCENT_CYAN_DIM, 220) :
+							 (over ? ofColor(COL_BG_HOVER, 230) : ofColor(COL_BG_BUTTON, 210)));
 		ofDrawRectRounded(x, rowY, w, ROW_H, 4.0f);
 		
 		ofNoFill();
-		ofSetColor(mapped ? ofColor(0, 230, 120, over ? 255 : 210) :
-							(over ? ofColor(255) : ofColor(80, 90, 100, 150)));
+		ofSetColor(mapped ? ofColor(COL_MAPPED_ON, over ? 255 : 210) :
+							(over ? COL_TEXT_PRIMARY : ofColor(COL_TEXT_MUTED, 150)));
 		ofDrawRectRounded(x, rowY, w, ROW_H, 4.0f);
 		ofFill();
 
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		jp_constants::p_font.drawString(getActionName(globalActions[i]), x + 8, rowY + ROW_H - 7);
-		ofSetColor(mapped ? ofColor(0, 230, 120, 255) : ofColor(170));
+		ofSetColor(mapped ? COL_MAPPED_ON : COL_TEXT_DIM);
 		string keyLabel = mapped ? getKeyLabel(bindings[bindingIndex].key) : "Unmapped";
 		float keyMaxW = w - w * 0.34 - 116;
 		keyLabel = fitLabel(keyLabel, keyMaxW);
@@ -1576,7 +1576,7 @@ void JPMidiKeymap::drawGlobalFunctionsSelector(float x, float y, float w)
 void JPMidiKeymap::drawAddShaderSelector(float x, float y, float w)
 {
 	ensureAddShaderDraftRow();
-	ofSetColor(255);
+	ofSetColor(COL_TEXT_PRIMARY);
 	jp_constants::p_font.drawString("Add shader box", x, y);
 	drawButton(x + w - 78, y - SELECT_FIELD_Y_OFFSET, 78, ROW_H,
 			   addShaderSectionCollapsed ? "Show" : "Hide",
@@ -1598,28 +1598,28 @@ void JPMidiKeymap::drawAddShaderSelector(float x, float y, float w)
 		bool focused = focusedAddShaderRow == i;
 
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		ofSetColor(focused ? ofColor(0, 160, 160, 220) :
-							 (mouseInRect(x, rowY, w, ROW_H) ? ofColor(40, 48, 56, 230) : ofColor(25, 30, 35, 210)));
+		ofSetColor(focused ? ofColor(COL_ACCENT_CYAN_DIM, 220) :
+							 (mouseInRect(x, rowY, w, ROW_H) ? ofColor(COL_BG_HOVER, 230) : ofColor(COL_BG_BUTTON, 210)));
 		ofDrawRectRounded(x, rowY, w, ROW_H, 4.0f);
 
 		ofNoFill();
-		ofSetColor(!query.empty() && !resolved ? ofColor(230, 70, 70, 220) :
-					(mapped ? ofColor(0, 230, 120, 230) :
-							  (focused ? ofColor(0, 230, 230, 255) : ofColor(80, 90, 100, 150))));
+		ofSetColor(!query.empty() && !resolved ? COL_ERROR_BR :
+					(mapped ? ofColor(COL_MAPPED_ON, 230) :
+							  (focused ? ofColor(COL_ACCENT_CYAN, 255) : ofColor(COL_TEXT_MUTED, 150))));
 		ofDrawRectRounded(x, rowY, w, ROW_H, 4.0f);
 		ofFill();
 
 		string queryLabel = query.empty() ? "type shader name" : query;
 		queryLabel = fitLabel(queryLabel, w * 0.34 - 16);
-		ofSetColor(query.empty() ? ofColor(150) : ofColor(255));
+		ofSetColor(query.empty() ? COL_TEXT_DIM : COL_TEXT_PRIMARY);
 		jp_constants::p_font.drawString(queryLabel, x + 8, rowY + ROW_H - 7);
 
 		string keyLabel = mapped ? getKeyLabel(bindings[bindingIndex].key) :
 						  (!query.empty() && searched && !resolved ? "Not found" :
 						   (!query.empty() && resolved ? "Found" : "Unmapped"));
 		keyLabel = fitLabel(keyLabel, w - w * 0.34 - 166);
-		ofSetColor(mapped ? ofColor(0, 230, 120, 255) :
-					(!query.empty() && !resolved ? ofColor(255, 120, 120, 255) : ofColor(170)));
+		ofSetColor(mapped ? COL_MAPPED_ON :
+					(!query.empty() && !resolved ? COL_ACCENT_RED_DIM : COL_TEXT_DIM));
 		jp_constants::p_font.drawString(keyLabel, x + w * 0.34, rowY + ROW_H - 7);
 
 		bool learningThisRow = learning && selectedAction == ADD_SHADER_BOX && addShaderQuery == query;
@@ -1632,14 +1632,14 @@ void JPMidiKeymap::drawAddShaderSelector(float x, float y, float w)
 
 void JPMidiKeymap::drawActionSelector(float x, float y, float w)
 {
-	ofSetColor(255);
+	ofSetColor(COL_TEXT_PRIMARY);
 	jp_constants::p_font.drawString("Action", x, y);
 	drawSelectField(x + SELECT_LABEL_W, y - SELECT_FIELD_Y_OFFSET, 200, ROW_H, getActionName(selectedAction), actionSelectOpen);
 }
 
 void JPMidiKeymap::drawBindings(float x, float y, float w)
 {
-	ofSetColor(255);
+	ofSetColor(COL_TEXT_PRIMARY);
 	jp_constants::p_font.drawString("Bindings", x, y);
 	int rowIndex = 0;
 	for (int i = 0; i < bindings.size(); i++)
@@ -1663,15 +1663,15 @@ void JPMidiKeymap::drawBindings(float x, float y, float w)
 		{
 			unresolved = bindings[i].shaderPath.empty();
 		}
-		ofSetColor(unresolved ? ofColor(120, 30, 30, 190) : ofColor(25, 30, 35, 210));
+		ofSetColor(unresolved ? ofColor(COL_ERROR_BG, 190) : ofColor(COL_BG_BUTTON, 210));
 		ofDrawRectRounded(x, rowY, w, ROW_H, 4.0f);
 		
 		ofNoFill();
-		ofSetColor(unresolved ? ofColor(230, 70, 70, 200) : ofColor(0, 230, 230, 80));
+		ofSetColor(unresolved ? ofColor(COL_ERROR_TEXT, 200) : ofColor(COL_ACCENT_CYAN, 80));
 		ofDrawRectRounded(x, rowY, w, ROW_H, 4.0f);
 		ofFill();
 
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		string targetLabel = isGlobalAction(bindings[i].action) ? "Global" : bindings[i].boxName;
 		if (bindings[i].action == ADD_SHADER_BOX)
 		{

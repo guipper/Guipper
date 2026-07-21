@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>17</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>edges2</nombre>
 	<x>255</x>
 	<y>496</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -58,6 +62,7 @@
 	<y>503</y>
 	<directory>data\shaders\contrib\attackflower.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>speed</name>
@@ -75,6 +80,7 @@
 	<y>503</y>
 	<directory>data\shaders\imageprocessing\mirrorquad.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>flipx</name>
@@ -119,6 +125,7 @@
 	<y>483</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace4.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -203,6 +210,7 @@
 	<y>65</y>
 	<directory>data\shaders\generative\metro.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>invertbpm</name>
@@ -240,6 +248,7 @@
 	<y>102</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -269,6 +278,7 @@
 	<y>290</y>
 	<directory>data\shaders\generative\fbm.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>speedx</name>
@@ -334,6 +344,7 @@
 	<y>153</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -426,6 +437,7 @@
 	<y>164</y>
 	<directory>data\shaders\blending\mixdisplace.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>offsetx</name>
@@ -455,6 +467,7 @@
 	<y>347</y>
 	<directory>data\shaders\contrib\discostartunnel.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>feedbackadd_advance</nombre>
@@ -462,6 +475,7 @@
 	<y>304</y>
 	<directory>data\shaders\imageprocessing\feedbackadd_advance.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>eforce</name>
@@ -518,6 +532,7 @@
 	<y>481</y>
 	<directory>data\shaders\imageprocessing\smoothstep.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>min</name>
@@ -546,6 +561,7 @@
 	<y>299</y>
 	<directory>data\shaders\generative\rxrpure.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -619,6 +635,7 @@
 	<y>666</y>
 	<directory>data\shaders\imageprocessing\mirrorquad.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>flipx</name>
@@ -663,6 +680,7 @@
 	<y>679</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -715,6 +733,7 @@
 	<y>693</y>
 	<directory>data\shaders\imageprocessing\radialblur_advance.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -759,6 +778,7 @@
 	<y>522</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -808,6 +828,7 @@
 	<y>471</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -894,3 +915,4 @@
 		<texture1>radialblur_advance</texture1>
 	</fboslinks>
 </box>
+<exposedParams />

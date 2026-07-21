@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>22</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>3</nombre>
 	<x>77</x>
 	<y>78</y>
 	<directory>data\savefiles\justvisuals\3.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>artlab2</nombre>
@@ -13,6 +17,7 @@
 	<y>106</y>
 	<directory>data\savefiles\justvisuals\artlab2.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>artlab3</nombre>
@@ -20,6 +25,7 @@
 	<y>134</y>
 	<directory>data\savefiles\justvisuals\artlab3.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>artlab4</nombre>
@@ -27,6 +33,7 @@
 	<y>79</y>
 	<directory>data\savefiles\justvisuals\artlab4.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>artlab5</nombre>
@@ -34,6 +41,7 @@
 	<y>111</y>
 	<directory>data\savefiles\justvisuals\artlab5.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>artlab6</nombre>
@@ -41,6 +49,7 @@
 	<y>137</y>
 	<directory>data\savefiles\justvisuals\artlab6.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>artlab7</nombre>
@@ -48,6 +57,7 @@
 	<y>168</y>
 	<directory>data\savefiles\justvisuals\artlab7.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>artlab8</nombre>
@@ -55,6 +65,7 @@
 	<y>155</y>
 	<directory>data\savefiles\justvisuals\artlab8.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>artlab9</nombre>
@@ -62,6 +73,7 @@
 	<y>199</y>
 	<directory>data\savefiles\justvisuals\artlab9.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>artlab10</nombre>
@@ -69,6 +81,7 @@
 	<y>225</y>
 	<directory>data\savefiles\justvisuals\artlab10.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>artlab11</nombre>
@@ -76,6 +89,7 @@
 	<y>195</y>
 	<directory>data\savefiles\justvisuals\artlab11.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>circulosespaciales</nombre>
@@ -83,6 +97,7 @@
 	<y>226</y>
 	<directory>data\savefiles\justvisuals\circulosespaciales.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>cofres</nombre>
@@ -90,6 +105,7 @@
 	<y>257</y>
 	<directory>data\savefiles\justvisuals\cofres.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>cosoboca</nombre>
@@ -97,6 +113,7 @@
 	<y>290</y>
 	<directory>data\savefiles\justvisuals\cosoboca.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>cuboscga2</nombre>
@@ -104,6 +121,7 @@
 	<y>259</y>
 	<directory>data\savefiles\justvisuals\cuboscga2.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>espacio1</nombre>
@@ -111,6 +129,7 @@
 	<y>333</y>
 	<directory>data\savefiles\justvisuals\espacio1.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>fractluna</nombre>
@@ -118,6 +137,7 @@
 	<y>507</y>
 	<directory>data\savefiles\justvisuals\fractluna.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>justvisuals4</nombre>
@@ -125,6 +145,7 @@
 	<y>320</y>
 	<directory>data\savefiles\justvisuals\justvisuals4.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>luna1</nombre>
@@ -132,6 +153,7 @@
 	<y>542</y>
 	<directory>data\savefiles\justvisuals\luna1.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>luna2</nombre>
@@ -139,6 +161,7 @@
 	<y>81</y>
 	<directory>data\savefiles\justvisuals\luna2.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>luna3</nombre>
@@ -146,6 +169,7 @@
 	<y>319</y>
 	<directory>data\savefiles\justvisuals\luna3.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>luna4</nombre>
@@ -153,6 +177,7 @@
 	<y>369</y>
 	<directory>data\savefiles\justvisuals\luna4.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>lunafeedback2</nombre>
@@ -160,6 +185,7 @@
 	<y>410</y>
 	<directory>data\savefiles\justvisuals\lunafeedback2.xml</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>meteriotosfalopa</nombre>
@@ -167,6 +193,7 @@
 	<y>581</y>
 	<directory>data\savefiles\justvisuals\meteriotosfalopa.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>metrofeedback</nombre>
@@ -174,6 +201,7 @@
 	<y>610</y>
 	<directory>data\savefiles\justvisuals\metrofeedback.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>particulasespacio</nombre>
@@ -181,6 +209,7 @@
 	<y>125</y>
 	<directory>data\savefiles\justvisuals\particulasespacio.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>randomfbm</nombre>
@@ -188,6 +217,7 @@
 	<y>351</y>
 	<directory>data\savefiles\justvisuals\randomfbm.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>starnestvideosinte</nombre>
@@ -195,6 +225,7 @@
 	<y>160</y>
 	<directory>data\savefiles\justvisuals\starnestvideosinte.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>tema1</nombre>
@@ -202,6 +233,7 @@
 	<y>437</y>
 	<directory>data\savefiles\justvisuals\tema1.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>tema2</nombre>
@@ -209,6 +241,7 @@
 	<y>475</y>
 	<directory>data\savefiles\justvisuals\tema2.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>tema3</nombre>
@@ -216,6 +249,7 @@
 	<y>499</y>
 	<directory>data\savefiles\justvisuals\tema3.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>tema5</nombre>
@@ -223,6 +257,7 @@
 	<y>640</y>
 	<directory>data\savefiles\justvisuals\tema5.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>tema6</nombre>
@@ -230,6 +265,7 @@
 	<y>193</y>
 	<directory>data\savefiles\justvisuals\tema6.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>tema7</nombre>
@@ -237,6 +273,7 @@
 	<y>239</y>
 	<directory>data\savefiles\justvisuals\tema7.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>trim</nombre>
@@ -244,6 +281,7 @@
 	<y>300</y>
 	<directory>data\savefiles\justvisuals\trim.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>tunelcubos</nombre>
@@ -251,6 +289,7 @@
 	<y>537</y>
 	<directory>data\savefiles\justvisuals\tunelcubos.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>tunellisergia</nombre>
@@ -258,6 +297,7 @@
 	<y>583</y>
 	<directory>data\savefiles\justvisuals\tunellisergia.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>1</nombre>
@@ -265,6 +305,7 @@
 	<y>734</y>
 	<directory>data\savefiles\justvisuals\1.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>2</nombre>
@@ -272,6 +313,7 @@
 	<y>84</y>
 	<directory>data\savefiles\justvisuals\2.xml</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>palos</nombre>
@@ -279,6 +321,7 @@
 	<y>362</y>
 	<directory>data\shaders\generative\palos.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>fxrand</name>
@@ -336,6 +379,7 @@
 	<y>518</y>
 	<directory>data\shaders\generative\noisepartyfxhash.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>cnt</name>
@@ -417,6 +461,7 @@
 	<y>386</y>
 	<directory>data\shaders\generative\rxrpure.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -474,6 +519,14 @@
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
+		<param>
+			<name>speed</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.0628986</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
 	</parameters>
 </box>
 <box>
@@ -482,128 +535,7 @@
 	<y>544</y>
 	<directory>data\shaders\generative\redbullstarnestfxhash.frag</directory>
 	<onoff>0</onoff>
-	<parameters>
-		<param>
-			<name>speedx</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.39037</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>speedy</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.716296</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>animationspeed1</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.704444</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>iterations</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.95037</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>formuparam</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.686667</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>volsteps</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.48</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>stepsize</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.24</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>zoom</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.52</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>tile</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.8</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>darkmatter</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.62</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>distfading</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.31</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>saturation</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.42</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>displacey</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.1</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>fbmsc</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.965819</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>fbmseed</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.160588</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-	</parameters>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>jupiter3</nombre>
@@ -611,6 +543,7 @@
 	<y>88</y>
 	<directory>data\shaders\generative\jupiter3.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>scx1_lines</name>
@@ -660,6 +593,7 @@
 	<y>364</y>
 	<directory>data\shaders\generative\poster_fxhash.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -717,6 +651,7 @@
 	<y>424</y>
 	<directory>data\shaders\generative\xraymarching.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>helados</nombre>
@@ -724,6 +659,7 @@
 	<y>500</y>
 	<directory>data\shaders\generative\helados.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>msmult</name>
@@ -765,6 +701,7 @@
 	<y>82</y>
 	<directory>data\shaders\generative\anillos3D.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>rotx1</name>
@@ -814,6 +751,7 @@
 	<y>229</y>
 	<directory>data\shaders\generative\baby.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>startRandom</name>
@@ -831,6 +769,7 @@
 	<y>214</y>
 	<directory>data\shaders\generative\dungeoncritter.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>emerging</nombre>
@@ -838,6 +777,7 @@
 	<y>347</y>
 	<directory>data\shaders\generative\emerging.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>fractalland</nombre>
@@ -845,4 +785,6 @@
 	<y>488</y>
 	<directory>data\shaders\generative\fractalland.frag</directory>
 	<onoff>0</onoff>
+	<bypass>0</bypass>
 </box>
+<exposedParams />

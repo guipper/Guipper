@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>4</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>sinparticles_v3</nombre>
 	<x>85</x>
 	<y>81</y>
 	<directory>data\shaders\generative\sinparticles_v3.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>size</name>
@@ -119,6 +123,7 @@
 	<y>97</y>
 	<directory>data\shaders\imageprocessing\rotatecolor.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>rd1</name>
@@ -155,6 +160,7 @@
 	<y>121</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace4.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -239,6 +245,7 @@
 	<y>185</y>
 	<directory>data\shaders\generative\water.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -315,6 +322,7 @@
 	<y>99</y>
 	<directory>data\shaders\imageprocessing\mirrorquad.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>flipx</name>
@@ -353,3 +361,4 @@
 		<textura1>water</textura1>
 	</fboslinks>
 </box>
+<exposedParams />

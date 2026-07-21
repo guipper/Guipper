@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>9</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>FractLines2</nombre>
 	<x>100</x>
 	<y>246</y>
 	<directory>data\shaders\generative\FractLines2.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>min</name>
@@ -87,6 +91,7 @@
 	<y>80</y>
 	<directory>data\shaders\generative\videosinte.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>v1</name>
@@ -200,6 +205,7 @@
 	<y>331</y>
 	<directory>data\shaders\blending\mask.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<fboslinks>
 		<textura1>mixdisplace</textura1>
 		<textura2>lighting3D3</textura2>
@@ -211,6 +217,7 @@
 	<y>195</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -303,6 +310,7 @@
 	<y>77</y>
 	<directory>data\shaders\imageprocessing\rotatecolor.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>rd1</name>
@@ -339,6 +347,7 @@
 	<y>651</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -391,6 +400,7 @@
 	<y>631</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace4.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -475,6 +485,7 @@
 	<y>73</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -567,6 +578,7 @@
 	<y>204</y>
 	<directory>data\shaders\blending\mixdisplace.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>offsetx</name>
@@ -596,6 +608,7 @@
 	<y>527</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -648,6 +661,7 @@
 	<y>310</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -677,6 +691,7 @@
 	<y>517</y>
 	<directory>data\shaders\blending\mixdisplace.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>offsetx</name>
@@ -706,6 +721,7 @@
 	<y>453</y>
 	<directory>data\shaders\imageprocessing\kaleidoscope.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>cant</name>
@@ -750,6 +766,7 @@
 	<y>266</y>
 	<directory>data\shaders\imageprocessing\mirrorquad.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>flipx</name>
@@ -794,6 +811,7 @@
 	<y>721</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -880,3 +898,4 @@
 		<texture1>feedbacklimitdisplace4</texture1>
 	</fboslinks>
 </box>
+<exposedParams />

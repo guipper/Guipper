@@ -265,6 +265,7 @@ private:
 	JPbox *createBoxForDirectory(const string &directory, string &name) const;
 	string makeNameFromDirectory(const string &directory) const;
 	string makeUniqueBoxName(const string &baseName) const;
+	string makeUniqueBoxName(const string &baseName, const vector<JPbox *> &checkBoxes) const;
 	int findCueDraftCloneIndexForRealIndex(int index) const;
 	bool isCueSourceIndex(int index) const;
 	bool isCueDraftRealIndex(int index) const;

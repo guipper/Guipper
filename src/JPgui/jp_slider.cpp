@@ -102,7 +102,7 @@ void JPSlider::draw()
 	{
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		// isSpeedSlider = false;
-		ofSetColor(jp_constants::Cback[paleta]);
+		ofSetColor(COL_BG_SLIDER);
 		ofDrawRectangle(x, y, width, height);
 
 		if (activeFlag)
@@ -114,11 +114,11 @@ void JPSlider::draw()
 		{
 			if (mouseOver())
 			{
-				ofSetColor(jp_constants::CmouseOver[paleta]);
+				ofSetColor(COL_ACCENT_CYAN);
 			}
 			else
 			{
-				ofSetColor(jp_constants::Cfront[paleta]);
+				ofSetColor(COL_ACCENT_CYAN_DIM);
 			}
 		}
 		ofSetRectMode(OF_RECTMODE_CORNER);
@@ -143,7 +143,7 @@ void JPSlider::draw()
 		// isSpeedSlider = false;
 		// ofSetColor(255,255,0);
 		// ofDrawRectangle(x, y, width, height);
-		ofSetColor(255, 255);
+		ofSetColor(COL_TEXT_PRIMARY, 255);
 		jp_constants_img::timeline.draw(x, y, width, jp_constants_img::timeline.getHeight() * .5);
 		if (activeFlag)
 		{

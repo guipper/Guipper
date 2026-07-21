@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>7</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>Spyrographics</nombre>
 	<x>155</x>
 	<y>149</y>
 	<directory>spoutReceiver</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>scalex</name>
@@ -59,6 +63,7 @@
 	<y>322</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -84,6 +89,7 @@
 	<y>492</y>
 	<directory>data\shaders\contrib\effusinglava.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>nubes</nombre>
@@ -91,6 +97,7 @@
 	<y>129</y>
 	<directory>data\shaders\generative\nubes.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>cloudscale</name>
@@ -156,6 +163,7 @@
 	<y>145</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -208,6 +216,7 @@
 	<y>145</y>
 	<directory>data\shaders\imageprocessing\mirrorquad.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>flipx</name>
@@ -252,6 +261,7 @@
 	<y>112</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace4.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -336,6 +346,7 @@
 	<y>409</y>
 	<directory>data\shaders\imageprocessing\rotatecolor.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>rd1</name>
@@ -366,3 +377,4 @@
 		<tx>feedbacklimitdisplace4</tx>
 	</fboslinks>
 </box>
+<exposedParams />

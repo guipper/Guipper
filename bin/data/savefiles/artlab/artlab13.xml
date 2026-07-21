@@ -1,5 +1,8 @@
 <?xml version="1.0"?>
 <activerender>14</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>starnest</nombre>
 	<x>75</x>

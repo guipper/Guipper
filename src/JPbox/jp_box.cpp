@@ -35,9 +35,9 @@ namespace
 		float tooltipY = anchorY - tooltipHeight / 2 - 8;
 
 		ofSetRectMode(OF_RECTMODE_CENTER);
-		ofSetColor(20, 230);
+		ofSetColor(COL_BG_INPUT, 230);
 		ofRectRounded(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 3);
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		jp_constants::p_font.drawString(text,
 										tooltipX - tooltipWidth / 2 + padX,
 										tooltipY + jp_constants::p_font.stringHeight(text) / 2);
@@ -63,10 +63,10 @@ void JPbox::setup(ofTrueTypeFont &_font)
 						fbowidth + padding_leftright,
 						fboheight + padding_top + padding_bottom);
 
-	Cfront = ofColor(0, 120);
-	border = ofColor(0, 200, 200, 120);
-	border_mouseover = ofColor(0, 200, 200, 255);
-	border_grab = ofColor(0, 255, 0, 255);
+	Cfront = ofColor(COL_BG_INPUT, 120);
+	border = COL_BOX_BORDER;
+	border_mouseover = COL_BOX_BORDER_HOVER;
+	border_grab = COL_BOX_BORDER_GRAB;
 	clearBackgroundOverride();
 
 	// font_p = &_font;
@@ -106,10 +106,10 @@ void JPbox::setup(string _directory, string _name)
 						fbowidth + padding_leftright,
 						fboheight + padding_top + padding_bottom);
 
-	Cfront = ofColor(0, 120);
-	border = ofColor(0, 200, 200, 120);
-	border_mouseover = ofColor(0, 200, 200, 255);
-	border_grab = ofColor(0, 255, 0, 255);
+	Cfront = ofColor(COL_BG_INPUT, 120);
+	border = COL_BOX_BORDER;
+	border_mouseover = COL_BOX_BORDER_HOVER;
+	border_grab = COL_BOX_BORDER_GRAB;
 	clearBackgroundOverride();
 
 	outlet_x = x + width / 2;
@@ -182,32 +182,32 @@ void JPbox::draw()
 		outletActiveFlag = false;
 	}
 
-	// CAJA GRIS:
+	// CAJA OSCURA (unified dark theme):
 	ofSetRectMode(OF_RECTMODE_CENTER);
 	ofSetLineWidth(useBackgroundOverride ? 2 : 3);
-	ofSetColor(useBackgroundOverride ? backgroundBorderOverride : ofColor(0));
+	ofSetColor(useBackgroundOverride ? backgroundBorderOverride : COL_BOX_BORDER);
 	ofRectRounded(x, y, width, height, 10);
 	if (useBackgroundOverride)
 	{
 		ofColor cueBg = backgroundOverride;
 		if (mouseOver() || activeFlag)
 		{
-			cueBg = cueBg.getLerped(ofColor(255), 0.18);
+			cueBg = cueBg.getLerped(COL_TEXT_PRIMARY, 0.18);
 		}
 		ofSetColor(cueBg);
 		ofFill();
 	}
 	else if (mouseOver() || activeFlag){
-		ofSetColor(200);
+		ofSetColor(COL_BG_HOVER);
 		ofFill(); 
 	}
 	else {
-		ofSetColor(150);
+		ofSetColor(COL_BG_BOX);
 		ofFill();
 	}
 	ofRectRounded(x, y, width, height, 10);
 	ofSetColor(Cfront);
-	ofSetColor(0);
+	ofSetColor(COL_BORDER_MUTED);
 	float sepsize = 10; // SEPARACION ENTRE LA LINEA Y LA CAJA Y LA ALINEACION DEL TEXTO.
 	float linewidth = width / 2 - sepsize;
 	float lineheight = 2;
@@ -218,7 +218,7 @@ void JPbox::draw()
 
 	// LINEA DEBAJO DEL TEXTO :
 	ofSetLineWidth(lineheight);
-	ofSetColor(35);
+	ofSetColor(COL_BORDER_MUTED);
 	ofDrawLine(x - linewidth, dividerY, x + linewidth, dividerY);
 
 	// TEXTO :
@@ -240,16 +240,16 @@ void JPbox::draw()
 						  mouseY >= titleY - jp_constants::p_font.stringHeight(shortname) &&
 						  mouseY <= titleY + 3;
 	updateHoverStart(titleMouseOver, titleHoverStartMillis);
-	ofSetColor(20);
+	ofSetColor(COL_TEXT_PRIMARY);
 	jp_constants::p_font.drawString(shortname,
 									nameX,
 									titleY);
 	// BOTON SET ACTIVE RENDER :
 	// DIBUJAR CABLECITO.
-	ofSetColor(255);
+	ofSetColor(COL_TEXT_PRIMARY);
 	if (outletActiveFlag)
 	{
-		ofSetColor(ofColor(0, 255,0).getLerped(ofColor(255),sin(ofGetElapsedTimeMillis()*0.01)*.5+.5));
+		ofSetColor(COL_ACCENT_CYAN.getLerped(COL_TEXT_PRIMARY,sin(ofGetElapsedTimeMillis()*0.01)*.5+.5));
 		ofDrawLine(outlet_x, outlet_y, mouseX, mouseY);
 	}
 
@@ -262,10 +262,10 @@ void JPbox::draw()
 
 	bypass.draw();
 	ofSetRectMode(OF_RECTMODE_CENTER);
-	ofColor bypassColor = bypass.boolValue ? ofColor(255, 0, 0, 255) : ofColor(100, 0, 0, 255);
+	ofColor bypassColor = bypass.boolValue ? COL_ACCENT_RED : COL_ACCENT_RED_DIM;
 	if (bypassMouseOver)
 	{
-		bypassColor = bypassColor.getLerped(ofColor(255), 0.35);
+		bypassColor = bypassColor.getLerped(COL_TEXT_PRIMARY, 0.35);
 	}
 	ofSetColor(bypassColor);
 	ofDrawRectangle(bypass.x, bypass.y, bypass.width, bypass.height);
@@ -278,17 +278,17 @@ void JPbox::draw()
 	}
 	onoff.draw();
 	ofSetRectMode(OF_RECTMODE_CENTER);
-	ofColor onoffColor = onoff.boolValue ? ofColor(100, 100, 100, 255) : ofColor(255, 255, 255, 255);
+	ofColor onoffColor = onoff.boolValue ? COL_MAPPED_OFF : COL_TEXT_PRIMARY;
 	if (onoffMouseOver)
 	{
-		onoffColor = onoffColor.getLerped(ofColor(255), 0.25);
+		onoffColor = onoffColor.getLerped(COL_TEXT_PRIMARY, 0.25);
 	}
 	ofSetColor(onoffColor);
 	ofDrawRectangle(onoff.x, onoff.y, onoff.width, onoff.height);
 	if (onoffMouseOver)
 	{
 		ofNoFill();
-		ofSetColor(onoff.boolValue ? ofColor(255, 255, 255, 220) : ofColor(30, 30, 30, 220));
+		ofSetColor(onoff.boolValue ? ofColor(COL_TEXT_PRIMARY, 220) : ofColor(COL_BG_INPUT, 220));
 		ofSetLineWidth(1);
 		ofDrawRectangle(onoff.x, onoff.y, onoff.width, onoff.height);
 		ofFill();
@@ -305,14 +305,14 @@ void JPbox::draw()
 	{
 		drawTooltip("Pause", onoff.x, onoff.y - onoff.height / 2);
 	}
-	ofSetColor(255, 255, 255, 255);
+	ofSetColor(COL_TEXT_PRIMARY);
 }
 void JPbox::updateFBO()
 {
 	ofSetRectMode(OF_RECTMODE_CORNER);
 	fbo.begin();
 
-	ofSetColor(255, 255);
+	ofSetColor(COL_TEXT_PRIMARY);
 	// ofDrawRectangle(0, 0, fbo.getWidth(), fbo.getHeight());
 	fbo.draw(0, 0, fbo.getWidth(), fbo.getHeight());
 	// ofSetColor(255, 0, 0);
@@ -360,12 +360,10 @@ void JPbox::draw_outlet()
 	ofTranslate(outlet_x + outlet_size / 2, outlet_y);
 	ofRotate(ofRadToDeg(triangleangle) + 90);
 	if (mouseOverOutlet()){
-		//ofSetColor(255, 217, 15, 255);
-		ofSetColor(ofColor(255, 217, 15, 250).getLerped(ofColor(255), 0.75));
+		ofSetColor(COL_ACCENT_CYAN_DIM.getLerped(COL_TEXT_PRIMARY, 0.75));
 	}
 	else{
-		ofSetColor(255, 217, 15, 255);
-		//ofSetColor(ofColor(255, 217, 15, 250).getLerped(ofColor(0),0.5));
+		ofSetColor(COL_ACCENT_CYAN_DIM);
 	}
 
 	//DIBUJO TRIANGULO SIN IMAGEN. ESTE CODIGO SIRVE PARA DEBUGEAR : 
@@ -383,7 +381,7 @@ void JPbox::draw_outlet()
 	ofPopMatrix();
 
 	ofFill();
-	ofSetColor(255, 255, 255, 255);
+	ofSetColor(COL_TEXT_PRIMARY);
 }
 void JPbox::clear()
 {
@@ -448,7 +446,7 @@ bool JPbox::tryPassThroughFBO()
 		if (fbohandlergroup.getisPointerSet(i))
 		{
 			ofSetRectMode(OF_RECTMODE_CORNER);
-			ofSetColor(255, 255);
+			ofSetColor(COL_TEXT_PRIMARY);
 			fbo.begin();
 			fbohandlergroup.getFboPointer(i).draw(0, 0, fbo.getWidth(), fbo.getHeight());
 			fbo.end();

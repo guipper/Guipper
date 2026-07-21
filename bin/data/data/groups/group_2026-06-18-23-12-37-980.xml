@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<activerender>8</activerender>
+<viewportZoom>0.909091</viewportZoom>
+<viewportPanX>1894.52</viewportPanX>
+<viewportPanY>704.679</viewportPanY>
+<box>
+	<nombre>justvisuals4</nombre>
+	<x>-1492</x>
+	<y>-527</y>
+	<directory>data\savefiles\justvisuals\justvisuals4.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>
+<box>
+	<nombre>fractluna</nombre>
+	<x>-1484</x>
+	<y>-388</y>
+	<directory>data\savefiles\justvisuals\fractluna.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>
+<box>
+	<nombre>compo3</nombre>
+	<x>-1484</x>
+	<y>-243</y>
+	<directory>data\savefiles\justvisuals\compo3.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>
+<box>
+	<nombre>1</nombre>
+	<x>-1621</x>
+	<y>-534</y>
+	<directory>data\savefiles\justvisuals\1.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>
+<box>
+	<nombre>tema7</nombre>
+	<x>-1616</x>
+	<y>-239</y>
+	<directory>data\savefiles\foster\tema7.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>
+<box>
+	<nombre>dubai9</nombre>
+	<x>-1617</x>
+	<y>-393</y>
+	<directory>data\savefiles\dubai\dubai9.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>
+<box>
+	<nombre>group_2026-07-07-03-31-21-829</nombre>
+	<x>0</x>
+	<y>0</y>
+	<directory>data/groups/group_2026-07-07-03-31-21-829.xml</directory>
+	<onoff>0</onoff>
+	<bypass>0</bypass>
+</box>
+<box>
+	<nombre>group_2026-07-07-03-31-27-926</nombre>
+	<x>0</x>
+	<y>0</y>
+	<directory>data/groups/group_2026-07-07-03-31-27-926.xml</directory>
+	<onoff>0</onoff>
+	<bypass>0</bypass>
+</box>
+<box>
+	<nombre>group_2026-07-09-14-50-55-125</nombre>
+	<x>-1373</x>
+	<y>-530</y>
+	<directory>data/groups/group_2026-07-09-14-50-55-125.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>
+<exposedParams />

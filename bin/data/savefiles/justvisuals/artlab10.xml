@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>5</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>voronoiinvoronoi</nombre>
 	<x>194</x>
 	<y>119</y>
 	<directory>data\shaders\generative\voronoiinvoronoi.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>speed</name>
@@ -39,6 +43,7 @@
 	<y>117</y>
 	<directory>data\shaders\imageprocessing\recolor.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>red1</name>
@@ -99,6 +104,7 @@
 	<y>121</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -151,6 +157,7 @@
 	<y>178</y>
 	<directory>data\shaders\imageprocessing\bloom.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>force</name>
@@ -187,6 +194,7 @@
 	<y>383</y>
 	<directory>data\shaders\imageprocessing\autodisplace.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>offsetx</name>
@@ -231,6 +239,7 @@
 	<y>375</y>
 	<directory>data\shaders\blending\mixdisplace.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>offsetx</name>
@@ -260,6 +269,7 @@
 	<y>578</y>
 	<directory>data\shaders\generative\baby.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>startRandom</name>
@@ -271,3 +281,4 @@
 		</param>
 	</parameters>
 </box>
+<exposedParams />

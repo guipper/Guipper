@@ -1,5 +1,8 @@
 <?xml version="1.0"?>
 <activerender>5</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>225</viewportPanX>
+<viewportPanY>13</viewportPanY>
 <box>
 	<nombre>metro</nombre>
 	<x>90</x>
@@ -24,7 +27,7 @@
 			<name>dif</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.606667</value>
+			<value>0.283704</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -87,7 +90,7 @@
 			<name>offsetx</name>
 			<min>0.245122</min>
 			<max>0.65</max>
-			<value>0.347122</value>
+			<value>0.481999</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -95,7 +98,7 @@
 			<name>offsety</name>
 			<min>0.27439</min>
 			<max>0.669512</max>
-			<value>0.56839</value>
+			<value>0.657512</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -103,7 +106,7 @@
 			<name>rotacion</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.474</value>
+			<value>0.321997</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -111,7 +114,7 @@
 			<name>sc</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.497999</value>
+			<value>0.294997</value>
 			<movtype>1</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -450,8 +453,8 @@
 	</fboslinks>
 </box>
 <exposedParams>
-	<box>6<param>1</param>
+	<box>0<param>2</param>
 	</box>
-	<box>6<param>2</param>
+	<box>6<param>1</param>
 	</box>
 </exposedParams>

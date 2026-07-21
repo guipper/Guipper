@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>1</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>p5d</nombre>
 	<x>159</x>
 	<y>66</y>
 	<directory>data\shaders\generative\p5d.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>speed</name>
@@ -23,6 +27,7 @@
 	<y>80</y>
 	<directory>data\shaders\generative\p5d_2.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>speed</name>
@@ -44,6 +49,7 @@
 	<y>76</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -96,6 +102,7 @@
 	<y>580</y>
 	<directory>data\shaders\generative\videosinte.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>v1</name>
@@ -209,6 +216,7 @@
 	<y>200</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -261,6 +269,7 @@
 	<y>210</y>
 	<directory>data\shaders\imageprocessing\huerotate.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>hue</name>
@@ -281,6 +290,7 @@
 	<y>329</y>
 	<directory>data\shaders\generative\videosinte.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>v1</name>
@@ -388,3 +398,4 @@
 		</param>
 	</parameters>
 </box>
+<exposedParams />

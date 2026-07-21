@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>2</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>p5d</nombre>
 	<x>181</x>
 	<y>224</y>
 	<directory>data\shaders\generative\p5d.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>speed</name>
@@ -23,6 +27,7 @@
 	<y>140</y>
 	<directory>data\shaders\imageprocessing\radialblur_advance.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -67,6 +72,7 @@
 	<y>157</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -113,3 +119,4 @@
 		<input_texture>radialblur_advance</input_texture>
 	</fboslinks>
 </box>
+<exposedParams />

@@ -82,7 +82,7 @@ void JPToogle::drawSelectedTexture()
 		if (parameters->movtype == textureindex)
 		{
 
-			ofSetColor(120, 40, 244);
+			ofSetColor(COL_ACCENT_CYAN);
 		}
 		else
 		{
@@ -91,11 +91,11 @@ void JPToogle::drawSelectedTexture()
 				/*ofSetColor(20, 50);
 				ofDrawRectangle(x, y,
 					width, height);*/
-				ofSetColor(80, 20, 180);
+				ofSetColor(COL_ACCENT_CYAN_DIM);
 			}
 			else
 			{
-				ofSetColor(0, 0, 0);
+				ofSetColor(COL_BG_DARK);
 			}
 		}
 		if (textureindex == RAN)

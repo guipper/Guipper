@@ -1,17 +1,41 @@
 <?xml version="1.0"?>
 <activerender>1</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>metro</nombre>
 	<x>232</x>
 	<y>211</y>
 	<directory>data\shaders\generative\metro.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
+		<param>
+			<name>invertbpm</name>
+			<value>0</value>
+		</param>
 		<param>
 			<name>ss</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.144444</value>
+			<value>0.406934</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>dif</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.541032</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
+		<param>
+			<name>shape</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.0227973</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -23,6 +47,7 @@
 	<y>153</y>
 	<directory>data\shaders\imageprocessing\feedback_advance.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>eforce</name>
@@ -73,3 +98,4 @@
 		<texture1>metro</texture1>
 	</fboslinks>
 </box>
+<exposedParams />
