@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>5</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>edges</nombre>
 	<x>475</x>
 	<y>142</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -58,6 +62,7 @@
 	<y>261</y>
 	<directory>data\shaders\imageprocessing\bloom.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>force</name>
@@ -94,6 +99,7 @@
 	<y>366</y>
 	<directory>data\shaders\imageprocessing\radialblur_advance.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -138,6 +144,7 @@
 	<y>342</y>
 	<directory>data\shaders\generative\thestartofsomethingbeautiful.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>posicionx</name>
@@ -171,6 +178,7 @@
 	<y>401</y>
 	<directory>data\shaders\generative\moco.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>cnt</name>
@@ -276,6 +284,7 @@
 	<y>527</y>
 	<directory>data\shaders\imageprocessing\rotatecolor.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>rd1</name>
@@ -312,6 +321,7 @@
 	<y>480</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace4.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -396,6 +406,7 @@
 	<y>193</y>
 	<directory>data\shaders\generative\sinparticles_v3.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>size</name>
@@ -503,3 +514,4 @@
 		</param>
 	</parameters>
 </box>
+<exposedParams />

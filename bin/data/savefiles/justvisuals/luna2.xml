@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>8</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>eclipsefalopa</nombre>
 	<x>184</x>
 	<y>83</y>
 	<directory>data\shaders\generative\eclipsefalopa.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>luna</name>
@@ -94,6 +98,7 @@
 	<y>73</y>
 	<directory>data\shaders\contrib\starnest.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>iterations</name>
@@ -215,6 +220,7 @@
 	<y>86</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace5.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -308,6 +314,7 @@
 	<y>101</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -400,6 +407,7 @@
 	<y>70</y>
 	<directory>data\shaders\imageprocessing\mirrorquad.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>flipx</name>
@@ -444,6 +452,7 @@
 	<y>242</y>
 	<directory>data\shaders\blending\chromadist.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>chromared</name>
@@ -497,6 +506,7 @@
 	<y>243</y>
 	<directory>data\shaders\generative\sol.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>deformator1</name>
@@ -538,6 +548,7 @@
 	<y>262</y>
 	<directory>data\shaders\imageprocessing\smoothstep.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>min</name>
@@ -566,6 +577,7 @@
 	<y>381</y>
 	<directory>data\shaders\blending\chromadist.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>chromared</name>
@@ -613,3 +625,4 @@
 		<textura2>sol</textura2>
 	</fboslinks>
 </box>
+<exposedParams />

@@ -40,19 +40,19 @@ void JPExposeButton::draw()
 
 	if (boolValue)
 	{
-		// Exposed: green background
+		// Exposed: cyan background
 		if (hover)
-			ofSetColor(100, 230, 150, 230);
+			ofSetColor(COL_ACCENT_CYAN, 220);
 		else
-			ofSetColor(70, 190, 110, 220);
+			ofSetColor(COL_ACCENT_CYAN_DIM, 200);
 	}
 	else
 	{
 		// Not exposed: dark background
 		if (hover)
-			ofSetColor(70, 70, 70, 200);
+			ofSetColor(COL_MAPPED_OFF, 200);
 		else
-			ofSetColor(45, 45, 45, 180);
+			ofSetColor(COL_BG_INPUT, 180);
 	}
 	ofDrawRectangle(x, y, width, height);
 
@@ -60,9 +60,9 @@ void JPExposeButton::draw()
 	ofNoFill();
 	ofSetLineWidth(1);
 	if (hover)
-		ofSetColor(200, 200, 200, 200);
+		ofSetColor(COL_TEXT_SECONDARY, 200);
 	else
-		ofSetColor(100, 100, 100, 180);
+		ofSetColor(COL_TEXT_DIM, 180);
 	ofDrawRectangle(x, y, width, height);
 	ofFill();
 	ofSetLineWidth(1);
@@ -75,7 +75,7 @@ void JPExposeButton::draw()
 	else
 	{
 		// Small dim dot when not exposed
-		ofSetColor(120, 120, 120, 180);
+		ofSetColor(COL_TEXT_DIM, 180);
 		ofDrawRectangle(x, y, width * 0.3f, width * 0.3f);
 	}
 

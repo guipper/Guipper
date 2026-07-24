@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>5</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>circuloresolution_chela</nombre>
 	<x>75</x>
 	<y>99</y>
 	<directory>data\shaders\generative\circulos_chela.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>size</name>
@@ -155,6 +159,7 @@
 	<y>89</y>
 	<directory>data\shaders\blending\mask.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<fboslinks>
 		<textura1>allpaterns</textura1>
 		<textura2>starnest</textura2>
@@ -167,6 +172,7 @@
 	<y>67</y>
 	<directory>data\shaders\generative\allpaterns.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>scalex</name>
@@ -216,6 +222,7 @@
 	<y>254</y>
 	<directory>data\shaders\contrib\starnest.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>iterations</name>
@@ -337,6 +344,7 @@
 	<y>429</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -389,6 +397,7 @@
 	<y>252</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -412,3 +421,4 @@
 		<textura2>edges2</textura2>
 	</fboslinks>
 </box>
+<exposedParams />

@@ -3,6 +3,73 @@
 #include "defines.h"
 #include "ofMain.h"
 
+// ============================================================
+// PALETA UNIFICADA: aesthetic dark + cyan (referencia MIDI panel)
+// Todas las llamadas de color deben usar estas constantes
+// ============================================================
+
+// --- Backgrounds ---
+#define COL_BG_DARK       ofColor(12, 16, 20)       // Fondo mas oscuro (root, main canvas)
+#define COL_BG_PANEL      ofColor(15, 20, 25)       // Paneles, dropdowns, ventanas
+#define COL_BG_TAB        ofColor(18, 18, 22)       // Tab bar background
+#define COL_BG_BUTTON     ofColor(25, 30, 35)       // Botones, componentes
+#define COL_BG_INPUT      ofColor(20, 25, 30)       // Input fields
+#define COL_BG_SLIDER     ofColor(80, 85, 90)       // Slider troughs - gris medio visible, contrasta con fondo oscuro
+#define COL_BG_HOVER      ofColor(40, 48, 56)       // Hover backgrounds
+#define COL_BG_ACTIVE     ofColor(0, 160, 160, 220) // Active/selected backgrounds
+#define COL_BG_SCROLLBAR  ofColor(90, 100, 110)     // Scrollbar track
+
+// --- Accent colors ---
+#define COL_ACCENT_CYAN      ofColor(0, 175, 190)       // Primary accent (borders, highlights, active) - muted for dark bg
+#define COL_ACCENT_CYAN_DIM  ofColor(0, 135, 150)       // Secondary accent (selected states) - toned down
+#define COL_ACCENT_CYAN_DARK ofColor(0, 65, 75)         // Subtle cyan
+// Unified to cyan palette (were green/gold - kept names for API compat)
+#define COL_ACCENT_GREEN     COL_ACCENT_CYAN            // was (40,180,80)
+#define COL_ACCENT_GREEN_BR  COL_ACCENT_CYAN_DIM        // was (60,220,100)
+#define COL_ACCENT_GOLD      COL_ACCENT_CYAN            // was (255,180,0)
+#define COL_ACCENT_GOLD_DIM  COL_ACCENT_CYAN_DIM        // was (255,215,120)
+#define COL_ACCENT_RED       ofColor(255, 80, 80)       // Bypass active, errors
+#define COL_ACCENT_RED_DIM   ofColor(255, 120, 120)     // Bypass hover text
+
+// --- Text ---
+#define COL_TEXT_PRIMARY   ofColor(255)                 // Texto blanco
+#define COL_TEXT_SECONDARY ofColor(200)                 // Texto gris claro
+#define COL_TEXT_DIM       ofColor(150)                 // Texto gris medio
+#define COL_TEXT_MUTED     ofColor(100, 110, 120)       // Texto gris oscuro
+#define COL_TEXT_DARK      ofColor(20, 20, 28)          // Texto oscuro sobre fondo claro
+
+// --- Borders ---
+#define COL_BORDER_DEFAULT  ofColor(70, 80, 90)         // Borde normal
+#define COL_BORDER_HOVER    ofColor(100, 110, 120)      // Borde hover
+#define COL_BORDER_MUTED    ofColor(55, 55, 65)         // Borde inactivo
+#define COL_BORDER_ACTIVE   COL_ACCENT_CYAN             // Borde activo
+
+// --- Card / Box fills ---
+#define COL_BG_BOX        ofColor(22, 28, 34)         // Box card fill - dark, blends with theme
+
+// --- Component states ---
+#define COL_BOX_BORDER        ofColor(0, 175, 190, 180) // Box border default - cyan sutil visible
+#define COL_BOX_BORDER_HOVER  ofColor(0, 200, 200, 255) // Box border hover
+#define COL_BOX_BORDER_GRAB   COL_ACCENT_CYAN           // Box border while dragging (was green)
+
+// --- Mapped indicators ---
+#define COL_MAPPED_ON   COL_ACCENT_CYAN_DIM         // Mapped active (was greenish)
+#define COL_MAPPED_OFF  ofColor(60, 70, 80)          // Mapped inactive
+
+// --- Slider / Toggle ---
+#define COL_SLIDER_FILL  ofColor(50, 60, 70)
+#define COL_SLIDER_TROUGH COL_BG_SLIDER               // Slider background trough
+#define COL_TOGGLE_OFF   ofColor(40, 40, 45)
+
+// --- Tab inactive ---
+#define COL_TAB_INACTIVE_BG    ofColor(35, 35, 42)
+#define COL_TAB_INACTIVE_BRD   ofColor(55, 55, 65)
+
+// --- Unresolved error ---
+#define COL_ERROR_BG    ofColor(120, 30, 30)
+#define COL_ERROR_TEXT  ofColor(230, 70, 70)
+#define COL_ERROR_BR    ofColor(230, 70, 70, 220)
+
 class jp_constants
 {
 

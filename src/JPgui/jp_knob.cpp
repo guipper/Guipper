@@ -47,7 +47,7 @@ void JPKnob::draw()
 	ofSetRectMode(OF_RECTMODE_CENTER);
 	if (mouseOver())
 	{
-		ofSetColor(20, 50);
+		ofSetColor(COL_BG_INPUT, 50);
 		ofDrawRectangle(x, y,
 						width, height);
 	}
@@ -63,8 +63,8 @@ void JPKnob::draw()
 
 	// ofSetColor(255,0,0, 255);
 	// ofDrawRectangle(x, y, width, 20);
-	ofSetColor(255, 255);
-	//	ofSetColor(0, 255);
+	ofSetColor(COL_TEXT_PRIMARY, 255);
+	//\tofSetColor(0, 255);
 	jp_constants_img::speed.draw(x, y, width, width);
 	// ofSetColor(86, 4,  255);
 	ofSetColor(0);
@@ -76,7 +76,7 @@ void JPKnob::draw()
 	float angle = ofMap(value, min, max, TWO_PI, 0);
 	float offsetx = sin(angle) * width / 2;
 	float offsety = cos(angle) * width / 2;
-	ofSetColor(0, 255);
+	ofSetColor(COL_ACCENT_CYAN, 255);
 	ofDrawEllipse(x + offsetx, y + offsety, 10, 10);
 
 	// ESTO DE ACA EN REALIDAD IRIA COMO EN UN UPDATE NO EN UN DRAW. PERO BUENO  POR AHORA QUEDA ACA TOTAL SON 2 IFS NOMA

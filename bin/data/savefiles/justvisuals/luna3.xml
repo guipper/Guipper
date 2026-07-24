@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>2</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>fractalpyramid</nombre>
 	<x>187</x>
 	<y>135</y>
 	<directory>data\shaders\contrib\fractalpyramid.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>feedbacklimitdisplace5</nombre>
@@ -13,6 +17,7 @@
 	<y>146</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace5.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -106,6 +111,7 @@
 	<y>165</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -152,3 +158,4 @@
 		<input_texture>feedbacklimitdisplace5</input_texture>
 	</fboslinks>
 </box>
+<exposedParams />

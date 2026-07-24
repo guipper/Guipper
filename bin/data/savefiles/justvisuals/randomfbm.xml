@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>6</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>random</nombre>
 	<x>66</x>
 	<y>120</y>
 	<directory>data\shaders\generative\random.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>cnt</name>
@@ -111,6 +115,7 @@
 	<y>118</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -163,6 +168,7 @@
 	<y>119</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -192,6 +198,7 @@
 	<y>278</y>
 	<directory>data\shaders\imageprocessing\rays.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>rays_samples</name>
@@ -308,6 +315,7 @@
 	<y>283</y>
 	<directory>data\shaders\generative\fbm.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>speedx</name>
@@ -373,6 +381,7 @@
 	<y>281</y>
 	<directory>data\shaders\blending\allblendingmodesinoneshader.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>opacity</name>
@@ -402,6 +411,7 @@
 	<y>131</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -448,3 +458,4 @@
 		<input_texture>allblendingmodesinoneshader2</input_texture>
 	</fboslinks>
 </box>
+<exposedParams />

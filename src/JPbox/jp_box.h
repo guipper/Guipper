@@ -87,7 +87,8 @@ public:
 		SPOUTBOX,
 		PRESETBOX,
 		FRAMEDIFFERENCEBOX,
-		NDIBOX
+		NDIBOX,
+		SEQUENCERBOX
 	};
 
 	int getTipo();

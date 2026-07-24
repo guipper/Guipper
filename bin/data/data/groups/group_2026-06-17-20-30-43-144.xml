@@ -1,17 +1,20 @@
 <?xml version="1.0"?>
-<activerender>0</activerender>
+<activerender>3</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>278.2</viewportPanX>
+<viewportPanY>125.574</viewportPanY>
 <box>
 	<nombre>artlab15</nombre>
-	<x>99</x>
-	<y>192</y>
+	<x>-155</x>
+	<y>65</y>
 	<directory>data\savefiles\artlab\artlab15.xml</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>aesteticpolys2</nombre>
-	<x>108</x>
-	<y>332</y>
+	<x>-141</x>
+	<y>182</y>
 	<directory>data\shaders\generative\aesteticpolys.frag</directory>
 	<onoff>1</onoff>
 	<bypass>0</bypass>
@@ -90,11 +93,44 @@
 		</param>
 	</parameters>
 </box>
-<exposedParams>
-	<box>0<param>0</param>
-		<origBox>6</origBox>
-		<origParam>1</origParam>
-	</box>
-	<box>1<param>1</param>
-	</box>
-</exposedParams>
+<box>
+	<nombre>12</nombre>
+	<x>-23</x>
+	<y>60</y>
+	<directory>data\savefiles\algorave\1.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>
+<box>
+	<nombre>32</nombre>
+	<x>-23</x>
+	<y>190</y>
+	<directory>data\savefiles\algorave\3.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>
+<box>
+	<nombre>artlab13</nombre>
+	<x>-17</x>
+	<y>350</y>
+	<directory>data\savefiles\artlab\artlab13.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>
+<box>
+	<nombre>5_mod</nombre>
+	<x>89</x>
+	<y>46</y>
+	<directory>data\savefiles\av2\5_mod.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>
+<box>
+	<nombre>dubai9</nombre>
+	<x>-149</x>
+	<y>334</y>
+	<directory>data\savefiles\dubai\dubai9.xml</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+</box>
+<exposedParams />

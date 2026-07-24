@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>1</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>water</nombre>
 	<x>227</x>
 	<y>188</y>
 	<directory>data\shaders\generative\water.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -82,6 +86,7 @@
 	<y>167</y>
 	<directory>data\shaders\imageprocessing\mirrorquad.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>flipx</name>
@@ -126,6 +131,7 @@
 	<y>132</y>
 	<directory>data\shaders\generative\solidcolor.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>r</name>
@@ -151,5 +157,14 @@
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
+		<param>
+			<name>mivariable</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.937437</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+		</param>
 	</parameters>
 </box>
+<exposedParams />

@@ -80,7 +80,7 @@ void ofApp::setup() {
 	pantallaActiva = NODOS;
 
 	// INIT SPOUT SENDER :
-	ofBackground(10, 100, 140);
+	ofBackground(COL_BG_DARK);
 	ofEnableNormalizedTexCoords(); // explicitly normalize tex coords for ofBox
 
 	strcpy(sendername, "Guipper"); // Set the sender name
@@ -220,7 +220,7 @@ void ofApp::update() {
 			previewShader.setUniform1i("textura2", 1);
 			previewShader.setUniform1i("tex1", 1);
 		}
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
 		previewShader.end();
 		if (previewImg1.isAllocated()) previewImg1.getTexture().unbind(0);
@@ -233,7 +233,7 @@ void ofApp::draw() {
 		boxes.drawNodeEditorBackground(ofGetWidth(), ofGetHeight());
 		drawScreenTabs();
 		boxes.draw();
-		ofSetColor(255, 255, 255, 255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		// outletimg.draw(ofGetWidth() / 2, ofGetHeight() / 2, 200, 200);
 		if (isDebug) {
 			draw_debugInfo();
@@ -405,17 +405,17 @@ void ofApp::draw_instrucciones() {
 	if (panelH < 300) panelH = 300;
 
 	// Glassmorphism panel background
-	ofSetColor(12, 16, 20, 235);
+	ofSetColor(ofColor(COL_BG_DARK, 235));
 	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
 	ofNoFill();
-	ofSetColor(0, 230, 230, 80);
+	ofSetColor(ofColor(COL_ACCENT_CYAN, 80));
 	ofSetLineWidth(1.5f);
 	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
 	ofFill();
 	ofSetLineWidth(1.0f);
 
 	// Title
-	ofSetColor(0, 230, 230);
+	ofSetColor(COL_ACCENT_CYAN);
 	font_p.drawString(lines[0], panelX + 15, panelY + 30);
 
 	// Language toggle button (top-right of panel)
@@ -424,15 +424,15 @@ void ofApp::draw_instrucciones() {
 	float langBtnX = panelX + panelW - langBtnW - 15;
 	float langBtnY = panelY + 13;
 	string langLabel = (language == 0) ? "EN" : "ES";
-	ofSetColor(language == 0 ? ofColor(0, 180, 80) : ofColor(0, 120, 180));
+	ofSetColor(language == 0 ? COL_ACCENT_GREEN : ofColor(0, 120, 180));
 	ofDrawRectRounded(langBtnX, langBtnY, langBtnW, langBtnH, 4.0f);
 	ofNoFill();
-	ofSetColor(0, 230, 230);
+	ofSetColor(COL_ACCENT_CYAN);
 	ofSetLineWidth(1.5f);
 	ofDrawRectRounded(langBtnX, langBtnY, langBtnW, langBtnH, 4.0f);
 	ofFill();
 	ofSetLineWidth(1.0f);
-	ofSetColor(255);
+	ofSetColor(COL_TEXT_PRIMARY);
 	float lw = font_p.stringWidth(langLabel);
 	font_p.drawString(langLabel, langBtnX + langBtnW / 2 - lw / 2, langBtnY + 16);
 
@@ -450,7 +450,7 @@ void ofApp::draw_instrucciones() {
 		if (line.find("TECLAS:") != string::npos || line.find("KEYS:") != string::npos ||
 			line.find("COMANDOS OSC") != string::npos || line.find("OSC COMMANDS") != string::npos ||
 			line.find("UNIFORMES GLOBALES") != string::npos || line.find("AVAILABLE GLOBAL") != string::npos) {
-			ofSetColor(0, 230, 230);
+			ofSetColor(COL_ACCENT_CYAN);
 			font_p.drawString(line, panelX + 15, drawY);
 		}
 		// Uniform declarations — dim cyan
@@ -460,7 +460,7 @@ void ofApp::draw_instrucciones() {
 		}
 		// First instruction line
 		else if (line.find("Cargar") != string::npos || line.find("Drag any") != string::npos) {
-			ofSetColor(180, 190, 200);
+			ofSetColor(COL_TEXT_DIM);
 			font_p.drawString(line, panelX + 15, drawY);
 		}
 		// Language toggle hint text (the actual button is at top-right)
@@ -470,7 +470,7 @@ void ofApp::draw_instrucciones() {
 		}
 		// Everything else
 		else {
-			ofSetColor(180, 190, 200);
+			ofSetColor(COL_TEXT_DIM);
 			font_p.drawString(line, panelX + 20, drawY);
 		}
 
@@ -489,17 +489,17 @@ void ofApp::draw_opciones() {
 	float toggleBtnW = 70;
 
 	// Glassmorphism panel background
-	ofSetColor(12, 16, 20, 235);
+	ofSetColor(ofColor(COL_BG_DARK, 235));
 	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
 	ofNoFill();
-	ofSetColor(0, 230, 230, 80);
+	ofSetColor(ofColor(COL_ACCENT_CYAN, 80));
 	ofSetLineWidth(1.5f);
 	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
 	ofFill();
 	ofSetLineWidth(1.0f);
 
 	// Title
-	ofSetColor(0, 230, 230);
+	ofSetColor(COL_ACCENT_CYAN);
 	font_p.drawString("SETTINGS.XML Configuration", panelX + 15, panelY + 30);
 
 	// Field labels & inputs
@@ -515,20 +515,20 @@ void ofApp::draw_opciones() {
 		float rowY = panelY + 55 + i * sepy;
 
 		// Label
-		ofSetColor(220);
+		ofSetColor(COL_TEXT_SECONDARY);
 		font_p.drawString(labels[i], panelX + 15, rowY + rowH - 7);
 
 		// Field background
-		ofSetColor(focusedOptionsField == i ? ofColor(30, 40, 50) : ofColor(20, 25, 30));
+		ofSetColor(focusedOptionsField == i ? COL_BG_HOVER : COL_BG_INPUT);
 		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
 
 		// Field border
 		ofNoFill();
 		if (focusedOptionsField == i) {
-			ofSetColor(0, 230, 230);
+			ofSetColor(COL_ACCENT_CYAN);
 			ofSetLineWidth(2.0f);
 		} else {
-			ofSetColor(60, 70, 80);
+			ofSetColor(COL_MAPPED_OFF);
 			ofSetLineWidth(1.0f);
 		}
 		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
@@ -536,7 +536,7 @@ void ofApp::draw_opciones() {
 		ofSetLineWidth(1.0f);
 
 		// Field text with cursor if focused
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		string displayText = optionsFieldText[i];
 		if (focusedOptionsField == i) {
 			displayText += "|";
@@ -549,7 +549,7 @@ void ofApp::draw_opciones() {
 			float tapW = 100;
 			ofSetColor(140, 100, 40);
 			ofDrawRectRounded(tapX, rowY, tapW, rowH, 4.0f);
-			ofSetColor(255);
+			ofSetColor(COL_TEXT_PRIMARY);
 			font_p.drawString("AUTOTAP", tapX + 14, rowY + rowH - 7);
 		}
 	}
@@ -559,14 +559,14 @@ void ofApp::draw_opciones() {
 #ifdef SPOUT
 	{
 		float rowY = panelY + 55 + toggleRow * sepy;
-		ofSetColor(220);
+		ofSetColor(COL_TEXT_SECONDARY);
 		font_p.drawString("Spout Output", panelX + 15, rowY + rowH - 7);
 
 		float btnX = fieldX;
 		bool isOn = spoutActive;
-		ofSetColor(isOn ? ofColor(0, 180, 80) : ofColor(80, 30, 30));
+		ofSetColor(isOn ? COL_ACCENT_GREEN : ofColor(80, 30, 30));
 		ofDrawRectRounded(btnX, rowY, toggleBtnW, rowH, 4.0f);
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		font_p.drawString(isOn ? "ON" : "OFF", btnX + toggleBtnW / 2 - 12, rowY + rowH - 7);
 	}
 	toggleRow++;
@@ -576,14 +576,14 @@ void ofApp::draw_opciones() {
 #ifdef NDI
 	{
 		float rowY = panelY + 55 + toggleRow * sepy;
-		ofSetColor(220);
+		ofSetColor(COL_TEXT_SECONDARY);
 		font_p.drawString("NDI Output", panelX + 15, rowY + rowH - 7);
 
 		float btnX = fieldX;
 		bool isOn = ndiActive;
-		ofSetColor(isOn ? ofColor(0, 180, 80) : ofColor(80, 30, 30));
+		ofSetColor(isOn ? COL_ACCENT_GREEN : ofColor(80, 30, 30));
 		ofDrawRectRounded(btnX, rowY, toggleBtnW, rowH, 4.0f);
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		font_p.drawString(isOn ? "ON" : "OFF", btnX + toggleBtnW / 2 - 12, rowY + rowH - 7);
 	}
 	toggleRow++;
@@ -592,27 +592,27 @@ void ofApp::draw_opciones() {
 	// --- OSC IP Out (editable text field) ---
 	{
 		float rowY = panelY + 55 + toggleRow * sepy;
-		ofSetColor(220);
+		ofSetColor(COL_TEXT_SECONDARY);
 		font_p.drawString("OSC IP Out:", panelX + 15, rowY + rowH - 7);
 
 		int fieldIdx = FIELD_OSC_IP_OUT;
 		// Field background
-		ofSetColor(focusedOptionsField == fieldIdx ? ofColor(30, 40, 50) : ofColor(20, 25, 30));
+		ofSetColor(focusedOptionsField == fieldIdx ? COL_BG_HOVER : COL_BG_INPUT);
 		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
 		// Field border
 		ofNoFill();
 		if (focusedOptionsField == fieldIdx) {
-			ofSetColor(0, 230, 230);
+			ofSetColor(COL_ACCENT_CYAN);
 			ofSetLineWidth(2.0f);
 		} else {
-			ofSetColor(60, 70, 80);
+			ofSetColor(COL_MAPPED_OFF);
 			ofSetLineWidth(1.0f);
 		}
 		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
 		ofFill();
 		ofSetLineWidth(1.0f);
 		// Field text with cursor if focused
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		string displayText = optionsFieldText[fieldIdx];
 		if (focusedOptionsField == fieldIdx) {
 			displayText += "|";
@@ -624,27 +624,27 @@ void ofApp::draw_opciones() {
 	// --- Default Compo (editable text field + browse button) ---
 	{
 		float rowY = panelY + 55 + toggleRow * sepy;
-		ofSetColor(220);
+		ofSetColor(COL_TEXT_SECONDARY);
 		font_p.drawString("Default Compo:", panelX + 15, rowY + rowH - 7);
 
 		int fieldIdx = FIELD_DEFAULT_COMPO;
 		// Field background
-		ofSetColor(focusedOptionsField == fieldIdx ? ofColor(30, 40, 50) : ofColor(20, 25, 30));
+		ofSetColor(focusedOptionsField == fieldIdx ? COL_BG_HOVER : COL_BG_INPUT);
 		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
 		// Field border
 		ofNoFill();
 		if (focusedOptionsField == fieldIdx) {
-			ofSetColor(0, 230, 230);
+			ofSetColor(COL_ACCENT_CYAN);
 			ofSetLineWidth(2.0f);
 		} else {
-			ofSetColor(60, 70, 80);
+			ofSetColor(COL_MAPPED_OFF);
 			ofSetLineWidth(1.0f);
 		}
 		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
 		ofFill();
 		ofSetLineWidth(1.0f);
 		// Field text with cursor if focused
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		string displayText = optionsFieldText[fieldIdx];
 		if (focusedOptionsField == fieldIdx) {
 			displayText += "|";
@@ -656,7 +656,7 @@ void ofApp::draw_opciones() {
 		float browseW = 70;
 		ofSetColor(60, 80, 140);
 		ofDrawRectRounded(browseX, rowY, browseW, rowH, 4.0f);
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		font_p.drawString("BROWSE", browseX + 10, rowY + rowH - 7);
 	}
 	toggleRow++;
@@ -664,13 +664,13 @@ void ofApp::draw_opciones() {
 	// --- Active Compo (read-only display) ---
 	{
 		float rowY = panelY + 55 + toggleRow * sepy;
-		ofSetColor(0, 230, 230);
+		ofSetColor(COL_ACCENT_CYAN);
 		font_p.drawString("Active Compo:", panelX + 15, rowY + rowH - 7);
 
 		// Show just the filename portion, or full path if short
 		string activeName = ofFilePath::getFileName(savedirectory);
 		if (activeName.empty()) activeName = "none";
-		ofSetColor(180, 200, 220);
+		ofSetColor(COL_TEXT_DIM);
 		font_p.drawString(activeName, fieldX, rowY + rowH - 7);
 	}
 	toggleRow++;
@@ -680,14 +680,14 @@ void ofApp::draw_opciones() {
 		float rowY = panelY + 55 + toggleRow * sepy;
 		float saveW = 160;
 		float saveX = panelX + panelW / 2 - saveW / 2;
-		ofSetColor(0, 160, 160);
+		ofSetColor(COL_ACCENT_CYAN_DIM);
 		ofDrawRectRounded(saveX, rowY, saveW, rowH + 4, 6.0f);
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		font_p.drawString("SAVE SETTINGS", saveX + saveW / 2 - 48, rowY + rowH + 4 - 6);
 
 		// Save feedback text
 		if (saveFeedbackTime > 0 && ofGetElapsedTimef() - saveFeedbackTime < 3.0f) {
-			ofSetColor(0, 230, 100);
+			ofSetColor(COL_MAPPED_ON);
 			float fw = font_p.stringWidth(saveFeedbackText);
 			font_p.drawString(saveFeedbackText, saveX + saveW / 2 - fw / 2, rowY + rowH + 4 + 20);
 		} else {
@@ -697,7 +697,7 @@ void ofApp::draw_opciones() {
 
 	// Hint text when focused
 	if (focusedOptionsField >= 0) {
-		ofSetColor(100, 120, 130);
+		ofSetColor(COL_TEXT_MUTED);
 		font_p.drawString("Enter to apply | Click outside to cancel", panelX + 15, panelY + panelH - 10);
 	}
 }
@@ -864,10 +864,10 @@ void ofApp::draw_shaderindex() {
 	ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight());
 
 	// Glassmorphism panel background
-	ofSetColor(12, 16, 20, 235);
+	ofSetColor(ofColor(COL_BG_DARK, 235));
 	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
 	ofNoFill();
-	ofSetColor(0, 230, 230, 80);
+	ofSetColor(ofColor(COL_ACCENT_CYAN, 80));
 	ofSetLineWidth(1.5f);
 	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
 	ofFill();
@@ -875,7 +875,7 @@ void ofApp::draw_shaderindex() {
 
 	// Title
 	float y = panelY + 30;
-	ofSetColor(0, 230, 230);
+	ofSetColor(COL_ACCENT_CYAN);
 	int totalShaders = 0;
 	for (auto &f : shaderFolders) totalShaders += (int)f.shaders.size();
 	string title = language == 0 ?
@@ -884,11 +884,11 @@ void ofApp::draw_shaderindex() {
 	font_p.drawString(title, panelX + 20, y);
 
 	// Separator
-	ofSetColor(0, 230, 230, 60);
+	ofSetColor(ofColor(COL_ACCENT_CYAN, 60));
 	ofDrawLine(panelX + 20, y + 6, panelX + panelW - 20, y + 6);
 
 	// Hint
-	ofSetColor(80, 90, 100);
+	ofSetColor(COL_TEXT_MUTED);
 	string hint = language == 0 ?
 		"Click folder to expand  |  Click shader to preview  |  [LOAD] to add to canvas  |  Scroll  |  [4]/[Esc] to close" :
 		"Click carpeta para expandir  |  Click shader para previsualizar  |  [CARGAR] para anadir  |  Scroll  |  [4]/[Esc] cerrar";
@@ -907,7 +907,7 @@ void ofApp::draw_shaderindex() {
 	float previewH = panelH - 80;
 
 	// Vertical divider
-	ofSetColor(0, 230, 230, 40);
+	ofSetColor(ofColor(COL_ACCENT_CYAN, 40));
 	ofDrawLine(dividerX, panelY + 60, dividerX, panelY + panelH - 20);
 
 	// ---- SEARCH BAR ----
@@ -915,16 +915,16 @@ void ofApp::draw_shaderindex() {
 	float searchY = y + 8;
 	float searchW = listW;
 
-	ofSetColor(25, 30, 35);
+	ofSetColor(COL_BG_BUTTON);
 	ofDrawRectRounded(listX, searchY, searchW, searchH, 4);
 	ofNoFill();
-	ofSetColor(0, 230, 230, shaderSearchFocused ? 120 : 50);
+	ofSetColor(ofColor(COL_ACCENT_CYAN, shaderSearchFocused ? 120 : 50));
 	ofSetLineWidth(1.0f);
 	ofDrawRectRounded(listX, searchY, searchW, searchH, 4);
 	ofFill();
 	ofSetLineWidth(1.0f);
 
-	ofSetColor(80, 90, 100);
+	ofSetColor(COL_TEXT_MUTED);
 	float searchLabelX = listX + 5;
 	string searchLabel = language == 0 ? "Search:" : "Buscar:";
 	font_p.drawString(searchLabel, searchLabelX, searchY + searchH - 5);
@@ -941,16 +941,16 @@ void ofApp::draw_shaderindex() {
 	}
 
 	if (shaderSearchText.empty()) {
-		ofSetColor(60, 65, 70);
+		ofSetColor(COL_TEXT_MUTED);
 		string ph = language == 0 ? "type shader name..." : "escribe nombre...";
 		font_p.drawString(ph, textX, searchY + searchH - 5);
 	} else {
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		font_p.drawString(displayText, textX, searchY + searchH - 5);
 		// Cursor blink
 		if (shaderSearchFocused && ((int)(ofGetElapsedTimef() * 2) % 2 == 0)) {
 			float cursorX = textX + font_p.stringWidth(displayText);
-			ofSetColor(0, 230, 230);
+			ofSetColor(COL_ACCENT_CYAN);
 			ofDrawLine(cursorX, searchY + 3, cursorX, searchY + searchH - 3);
 		}
 	}
@@ -1006,11 +1006,11 @@ void ofApp::draw_shaderindex() {
 
 	// Scroll indicators
 	if (shaderScroll > 0) {
-		ofSetColor(0, 230, 230, 120);
+		ofSetColor(ofColor(COL_ACCENT_CYAN, 120));
 		font_p.drawString("^", panelX + listW - 10, drawTop + 4);
 	}
 	if (shaderScroll < maxScroll) {
-		ofSetColor(0, 230, 230, 120);
+		ofSetColor(ofColor(COL_ACCENT_CYAN, 120));
 		font_p.drawString("v", panelX + listW - 10, drawBottom - 4);
 	}
 
@@ -1050,7 +1050,7 @@ void ofApp::draw_shaderindex() {
 
 				// Hover highlight background
 				if (isHovered && !isSelected) {
-					ofSetColor(0, 230, 230, 30);
+					ofSetColor(ofColor(COL_ACCENT_CYAN, 30));
 					ofDrawRectangle(listX, drawY - folderEntryH, listW, folderEntryH);
 				}
 
@@ -1072,7 +1072,7 @@ void ofApp::draw_shaderindex() {
 				if (arrowHovered) {
 					ofSetColor(0, 255, 255);
 				} else if (isSelected) {
-					ofSetColor(0, 230, 230);
+					ofSetColor(COL_ACCENT_CYAN);
 				} else {
 					ofSetColor(120, 200, 255);
 				}
@@ -1093,14 +1093,14 @@ void ofApp::draw_shaderindex() {
 				if (arrowHovered) {
 					ofSetColor(0, 255, 255);
 				} else if (isSelected) {
-					ofSetColor(0, 230, 230);
+					ofSetColor(COL_ACCENT_CYAN);
 				} else {
 					ofSetColor(120, 200, 255);
 				}
 				font_p.drawString(shaderFolders[f].name, fnX, drawY);
 
 				// Draw shader count
-				ofSetColor(80, 90, 100);
+				ofSetColor(COL_TEXT_MUTED);
 				string countStr = "(" + ofToString((int)shaderFolders[f].shaders.size()) + ")";
 				float cw = font_p.stringWidth(countStr);
 				font_p.drawString(countStr, listX + listW - cw - 20, drawY);
@@ -1128,7 +1128,7 @@ void ofApp::draw_shaderindex() {
 
 					// Hover highlight background
 					if (isHovered && !isSelected) {
-						ofSetColor(0, 230, 230, 30);
+						ofSetColor(ofColor(COL_ACCENT_CYAN, 30));
 						ofDrawRectangle(listX + indentStep * 2, drawY - shaderEntryH, listW - indentStep * 2, shaderEntryH);
 					}
 
@@ -1143,11 +1143,11 @@ void ofApp::draw_shaderindex() {
 					}
 
 					if (isSelected) {
-						ofSetColor(0, 230, 230);
+						ofSetColor(COL_TEXT_PRIMARY);
 					} else if (isHovered) {
-						ofSetColor(255, 255, 255);
+						ofSetColor(COL_TEXT_PRIMARY);
 					} else {
-						ofSetColor(180, 180, 190);
+						ofSetColor(COL_TEXT_DIM);
 					}
 					font_p.drawString(shaderFolders[f].shaders[s].name, listX + indentStep * 2, drawY);
 					drawY += shaderEntryH;
@@ -1157,10 +1157,10 @@ void ofApp::draw_shaderindex() {
 	}
 
 	// ---- PREVIEW PANE ----
-	ofSetColor(20, 25, 30);
+	ofSetColor(COL_BG_INPUT);
 	ofDrawRectRounded(previewX, previewY, previewW, previewH, 6);
 	ofNoFill();
-	ofSetColor(60, 70, 80);
+	ofSetColor(COL_MAPPED_OFF);
 	ofSetLineWidth(1.0f);
 	ofDrawRectRounded(previewX, previewY, previewW, previewH, 6);
 	ofFill();
@@ -1172,7 +1172,7 @@ void ofApp::draw_shaderindex() {
 
 		// Draw preview FBO
 		if (previewShaderLoaded) {
-			ofSetColor(255);
+			ofSetColor(COL_TEXT_PRIMARY);
 			float fboPreviewW = previewW - 20;
 			float fboPreviewH = fboPreviewW * 0.75f;
 			if (fboPreviewH > previewH - 80) {
@@ -1184,9 +1184,9 @@ void ofApp::draw_shaderindex() {
 			previewFbo.draw(fboX, fboY, fboPreviewW, fboPreviewH);
 
 			// Shader name below preview
-			ofSetColor(0, 230, 230);
+			ofSetColor(COL_ACCENT_CYAN);
 			font_p.drawString(selName, previewX + previewW / 2 - font_p.stringWidth(selName) / 2, fboY + fboPreviewH + 18);
-			ofSetColor(100, 110, 120);
+			ofSetColor(COL_TEXT_MUTED);
 			font_p.drawString(selPath, previewX + previewW / 2 - font_p.stringWidth(selPath) / 2, fboY + fboPreviewH + 34);
 		}
 
@@ -1202,15 +1202,15 @@ void ofApp::draw_shaderindex() {
 		float editX = btnStartX + (btnW + btnGap) * 2;
 
 		// LOAD button
-		ofSetColor(0, 160, 160);
+		ofSetColor(COL_ACCENT_CYAN_DIM);
 		ofDrawRectRounded(loadX, btnY, btnW, btnH, 4.0f);
 		ofNoFill();
-		ofSetColor(0, 230, 230);
+		ofSetColor(COL_ACCENT_CYAN);
 		ofSetLineWidth(1.5f);
 		ofDrawRectRounded(loadX, btnY, btnW, btnH, 4.0f);
 		ofFill();
 		ofSetLineWidth(1.0f);
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		string loadLabel = language == 0 ? "LOAD" : "CARGAR";
 		float lw = font_p.stringWidth(loadLabel);
 		font_p.drawString(loadLabel, loadX + btnW / 2 - lw / 2, btnY + 20);
@@ -1224,7 +1224,7 @@ void ofApp::draw_shaderindex() {
 		ofDrawRectRounded(rdmX, btnY, btnW, btnH, 4.0f);
 		ofFill();
 		ofSetLineWidth(1.0f);
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		string rdmLabel = "RDM";
 		float rw = font_p.stringWidth(rdmLabel);
 		font_p.drawString(rdmLabel, rdmX + btnW / 2 - rw / 2, btnY + 20);
@@ -1238,13 +1238,13 @@ void ofApp::draw_shaderindex() {
 		ofDrawRectRounded(editX, btnY, btnW, btnH, 4.0f);
 		ofFill();
 		ofSetLineWidth(1.0f);
-		ofSetColor(255);
+		ofSetColor(COL_TEXT_PRIMARY);
 		string editLabel = "EDIT";
 		float ew2 = font_p.stringWidth(editLabel);
 		font_p.drawString(editLabel, editX + btnW / 2 - ew2 / 2, btnY + 20);
 
 	} else {
-		ofSetColor(80, 90, 100);
+		ofSetColor(COL_TEXT_MUTED);
 		string noSel = language == 0 ?
 			"Select a shader from the list to preview" :
 			"Selecciona un shader de la lista para previsualizar";
@@ -1559,8 +1559,13 @@ void ofApp::keyPressed(int key) {
 				cout << " groupView=TRUE groupInspectorIndex=" << boxes.groupInspectorIndex << endl;
 				boxes.toggleCueBoxByIndex(boxes.groupInspectorIndex);
 			} else {
-				cout << " groupView=FALSE openguinumber=" << boxes.openguinumber << " boxes.size=" << boxes.getBoxesSize() << endl;
-				boxes.toggleCueBoxByIndex(boxes.openguinumber);
+				int cueIndex = boxes.openguinumber;
+				if (cueIndex < 0 || cueIndex >= boxes.getBoxesSize()) {
+					cueIndex = boxes.getActiverenderNum();
+					cout << "  -> fallback to activerender=" << cueIndex << endl;
+				}
+				cout << " groupView=FALSE cueIndex=" << cueIndex << " boxes.size=" << boxes.getBoxesSize() << endl;
+				boxes.toggleCueBoxByIndex(cueIndex);
 			}
 		}
 		if (key == 'x') {
@@ -2000,7 +2005,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 							previewShader.setUniform1i("textura2", 1);
 							previewShader.setUniform1i("tex1", 1);
 						}
-						ofSetColor(255);
+						ofSetColor(COL_TEXT_PRIMARY);
 						ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
 						previewShader.end();
 						if (previewImg1.isAllocated()) previewImg1.getTexture().unbind(0);
@@ -2188,7 +2193,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 										previewShader.setUniform1i("textura2", 1);
 										previewShader.setUniform1i("tex1", 1);
 									}
-									ofSetColor(255);
+									ofSetColor(COL_TEXT_PRIMARY);
 									ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
 									previewShader.end();
 									if (previewImg1.isAllocated()) previewImg1.getTexture().unbind(0);
@@ -2465,8 +2470,9 @@ void ofApp::loadSettings() {
 		windowheight.getIntValue());
 	boxes.setDurationGalleryMs(durationgallery.getFloatValue());
 	if (cuePanelX && cuePanelY && cuePanelW && cuePanelH) {
-		boxes.setCuePanelLayout(cuePanelX.getFloatValue(),
-			cuePanelY.getFloatValue(),
+		boxes.setCuePanelLayout(
+			24.0f, // siempre izquierda
+			ofGetHeight() - cuePanelH.getFloatValue() - 24.0f, // siempre abajo
 			cuePanelW.getFloatValue(),
 			cuePanelH.getFloatValue());
 	}
@@ -2666,7 +2672,7 @@ void ofApp::window_keyPressed(ofKeyEventArgs & e) {
 void ofApp::drawSpout() {
 
 	char str[256];
-	ofSetColor(255);
+	ofSetColor(COL_TEXT_PRIMARY);
 	// ====== SPOUT =====
 	// A render window must be available for Spout initialization and might not be
 	// available in "update" so do it now when there is definitely a render window.
@@ -2733,12 +2739,12 @@ void ofApp::drawSaveModal() {
 	ofDrawRectRounded(boxX + 5, boxY + 5, boxW, boxH, corner);
 
 	// Panel background — same glassmorphism as draw_opciones
-	ofSetColor(12, 16, 20, 238);
+	ofSetColor(ofColor(COL_BG_DARK, 238));
 	ofDrawRectRounded(boxX, boxY, boxW, boxH, corner);
 
 	// Panel border — cyan with matching alpha
 	ofNoFill();
-	ofSetColor(0, 230, 230, 80);
+	ofSetColor(ofColor(COL_ACCENT_CYAN, 80));
 	ofSetLineWidth(1.5f);
 	ofDrawRectRounded(boxX, boxY, boxW, boxH, corner);
 	ofFill();
@@ -2747,11 +2753,11 @@ void ofApp::drawSaveModal() {
 	float pad = 20;
 
 	// Title — cyan, same style as "SETTINGS.XML Configuration"
-	ofSetColor(0, 230, 230);
+	ofSetColor(COL_ACCENT_CYAN);
 	modalFont.drawString("SAVE COMPOSITION", boxX + pad, boxY + 34);
 
 	// Thin separator
-	ofSetColor(50, 60, 75);
+	ofSetColor(COL_SLIDER_FILL);
 	ofDrawLine(boxX + pad, boxY + 45, boxX + boxW - pad, boxY + 45);
 
 	// Input field
@@ -2761,19 +2767,19 @@ void ofApp::drawSaveModal() {
 	float fieldH = 32;
 
 	// Field background
-	ofSetColor(18, 22, 28);
+	ofSetColor(COL_BG_TAB);
 	ofDrawRectRounded(fieldX, fieldY, fieldW, fieldH, 4);
 
 	// Field border — cyan (always focused while modal is active)
 	ofNoFill();
-	ofSetColor(0, 230, 230);
+	ofSetColor(COL_ACCENT_CYAN);
 	ofSetLineWidth(2.0f);
 	ofDrawRectRounded(fieldX, fieldY, fieldW, fieldH, 4);
 	ofFill();
 	ofSetLineWidth(1.0f);
 
 	// Filename text inside the field — white with blinking cursor
-	ofSetColor(255);
+	ofSetColor(COL_TEXT_PRIMARY);
 	string displayText = saveModalName;
 	// Cursor blinks every 25 frames
 	if ((ofGetFrameNum() / 25) % 2 == 0) {
@@ -2803,9 +2809,9 @@ void ofApp::drawSaveModal() {
 	float cancelBtnX = updateBtnX + btnW + btnGap;
 
 	// --- SAVE button (cyan) ---
-	ofSetColor(0, 200, 200, 230);
+	ofSetColor(ofColor(COL_BOX_BORDER, 230));
 	ofDrawRectRounded(saveBtnX, btnY, btnW, btnH, 4);
-	ofSetColor(12, 16, 20);
+	ofSetColor(COL_BG_DARK);
 	string saveLabel = "SAVE";
 	float saveLabelW = modalFont.stringWidth(saveLabel);
 	modalFont.drawString(saveLabel, saveBtnX + btnW / 2 - saveLabelW / 2, btnY + btnH / 2 + 5);
@@ -2813,15 +2819,15 @@ void ofApp::drawSaveModal() {
 	// --- UPDATE button (amber / gold) ---
 	ofSetColor(220, 190, 50, 230);
 	ofDrawRectRounded(updateBtnX, btnY, btnW, btnH, 4);
-	ofSetColor(12, 16, 20);
+	ofSetColor(COL_BG_DARK);
 	string updateLabel = "UPDATE";
 	float updateLabelW = modalFont.stringWidth(updateLabel);
 	modalFont.drawString(updateLabel, updateBtnX + btnW / 2 - updateLabelW / 2, btnY + btnH / 2 + 5);
 
 	// --- CANCEL button (gray) ---
-	ofSetColor(80, 90, 100, 230);
+	ofSetColor(ofColor(COL_TEXT_MUTED, 230));
 	ofDrawRectRounded(cancelBtnX, btnY, btnW, btnH, 4);
-	ofSetColor(200, 210, 220);
+	ofSetColor(COL_TEXT_SECONDARY);
 	string cancelLabel = "CANCEL";
 	float cancelLabelW = modalFont.stringWidth(cancelLabel);
 	modalFont.drawString(cancelLabel, cancelBtnX + btnW / 2 - cancelLabelW / 2, btnY + btnH / 2 + 5);
@@ -2891,9 +2897,9 @@ void ofApp::drawScreenTabs() {
 		ofPushStyle();
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		if (active) {
-			ofSetColor(40, 180, 80, 235);
+			ofSetColor(ofColor(COL_ACCENT_GREEN, 235));
 		} else {
-			ofSetColor(35, 35, 42, 225);
+			ofSetColor(ofColor(COL_TAB_INACTIVE_BG, 225));
 		}
 		ofDrawRectRounded(x, y, tabW, tabH, 3);
 
@@ -2901,15 +2907,15 @@ void ofApp::drawScreenTabs() {
 		ofNoFill();
 		ofSetLineWidth(1);
 		if (active) {
-			ofSetColor(60, 220, 100, 255);
+			ofSetColor(COL_ACCENT_GREEN_BR);
 		} else {
-			ofSetColor(55, 55, 65, 200);
+			ofSetColor(ofColor(COL_BORDER_MUTED, 200));
 		}
 		ofDrawRectRounded(x, y, tabW, tabH, 3);
 		ofFill();
 
 		// Text
-		ofSetColor(active ? 255 : 200);
+		ofSetColor(active ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
 		jp_constants::p_font.drawString(label, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
 
 		ofPopStyle();

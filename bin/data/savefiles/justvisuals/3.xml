@@ -1,25 +1,21 @@
 <?xml version="1.0"?>
 <activerender>4</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>shadertober</nombre>
 	<x>97</x>
 	<y>62</y>
 	<directory>data\shaders\contrib\shadertober.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>speed</name>
 			<min>0</min>
 			<max>1</max>
 			<value>0.242222</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>def1</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.270119</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
 		</param>
@@ -31,6 +27,7 @@
 	<y>54</y>
 	<directory>data\shaders\imageprocessing\mirrorquad.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>flipx</name>
@@ -75,6 +72,7 @@
 	<y>64</y>
 	<directory>data\shaders\blending\chromadist.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>chromared</name>
@@ -128,6 +126,7 @@
 	<y>201</y>
 	<directory>data\shaders\generative\videosinte.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>v1</name>
@@ -241,6 +240,7 @@
 	<y>47</y>
 	<directory>data\shaders\imageprocessing\rotatecolor.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>rd1</name>
@@ -271,3 +271,4 @@
 		<tx>chromadist</tx>
 	</fboslinks>
 </box>
+<exposedParams />

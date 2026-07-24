@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>0</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>rotatecolor</nombre>
 	<x>570</x>
 	<y>106</y>
 	<directory>data\shaders\imageprocessing\rotatecolor.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>rd1</name>
@@ -42,6 +46,7 @@
 	<y>116</y>
 	<directory>data\shaders\imageprocessing\noisepartysimage.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>cnt</name>
@@ -126,6 +131,7 @@
 	<y>98</y>
 	<directory>data\shaders\generative\jupiter2.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>moco</nombre>
@@ -133,6 +139,7 @@
 	<y>333</y>
 	<directory>data\shaders\generative\moco.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>cnt</name>
@@ -238,6 +245,7 @@
 	<y>235</y>
 	<directory>data\shaders\generative\baby.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>startRandom</name>
@@ -249,3 +257,4 @@
 		</param>
 	</parameters>
 </box>
+<exposedParams />

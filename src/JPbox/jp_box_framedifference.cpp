@@ -45,7 +45,7 @@ void JPbox_framedifference::updateFBO()
 	if (onoff.boolValue)
 	{
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		ofSetColor(255, 255);
+		ofSetColor(COL_TEXT_PRIMARY, 255);
 		fbo.begin();
 		// ofClear(0, 255);
 		if (fbohandlergroup.getisPointerSet(0))
@@ -64,7 +64,7 @@ void JPbox_framedifference::updateFBO()
 		fbo.end();
 
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		ofSetColor(255, 255);
+		ofSetColor(COL_TEXT_PRIMARY, 255);
 		if (fbohandlergroup.getisPointerSet(0))
 		{
 			frameAnterior.begin();
@@ -153,7 +153,7 @@ void JPbox_framedifference::draw()
 		ofSetColor(0, 0, 200, 150);
 	}
 	// ofDrawRectangle(outlet_x, outlet_y, outlet_size, outlet_size);
-	ofSetColor(255, 255);
+	ofSetColor(COL_TEXT_PRIMARY, 255);
 
 	// DIBUJAR NODOS:
 	for (int i = 0; i < fbohandlergroup.getSize(); i++)

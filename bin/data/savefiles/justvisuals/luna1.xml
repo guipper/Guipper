@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>2</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>eclipsefalopa</nombre>
 	<x>402</x>
 	<y>233</y>
 	<directory>data\shaders\generative\eclipsefalopa.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>luna</name>
@@ -94,6 +98,7 @@
 	<y>234</y>
 	<directory>data\shaders\contrib\starnest.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>iterations</name>
@@ -215,6 +220,7 @@
 	<y>247</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace5.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -302,3 +308,4 @@
 		<texture2>eclipsefalopa</texture2>
 	</fboslinks>
 </box>
+<exposedParams />

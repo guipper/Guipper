@@ -1,4 +1,3 @@
 @echo off
-call "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat" -arch=x86
-msbuild "D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.sln" /p:Platform=Win32 /p:Configuration=Release /t:Build
-exit /b %ERRORLEVEL%
+cd /d D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4
+"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" guipper.vcxproj /p:Configuration=Release /p:Platform=x64 /t:Build

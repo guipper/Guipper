@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>3</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>noise3dflythough</nombre>
 	<x>235</x>
 	<y>366</y>
 	<directory>data\shaders\contrib\noise3dflythough.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>CameraSpeed</name>
@@ -55,6 +59,7 @@
 	<y>286</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -107,6 +112,7 @@
 	<y>199</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -199,6 +205,7 @@
 	<y>426</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -245,3 +252,4 @@
 		<input_texture>lighting3D</input_texture>
 	</fboslinks>
 </box>
+<exposedParams />

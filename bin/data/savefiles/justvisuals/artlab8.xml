@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>3</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>edges</nombre>
 	<x>341</x>
 	<y>184</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -58,6 +62,7 @@
 	<y>122</y>
 	<directory>data\shaders\contrib\cablevortex2.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>speed</name>
@@ -91,6 +96,7 @@
 	<y>229</y>
 	<directory>data\shaders\imageprocessing\rotatecolor.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>rd1</name>
@@ -127,6 +133,7 @@
 	<y>358</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -173,3 +180,4 @@
 		<input_texture>rotatecolor</input_texture>
 	</fboslinks>
 </box>
+<exposedParams />

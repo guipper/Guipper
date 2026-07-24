@@ -1,11 +1,15 @@
 <?xml version="1.0"?>
 <activerender>5</activerender>
+<viewportZoom>1</viewportZoom>
+<viewportPanX>0</viewportPanX>
+<viewportPanY>0</viewportPanY>
 <box>
 	<nombre>sousocean</nombre>
 	<x>135</x>
 	<y>231</y>
 	<directory>data\shaders\contrib\sousocean.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 </box>
 <box>
 	<nombre>edges</nombre>
@@ -13,6 +17,7 @@
 	<y>260</y>
 	<directory>data\shaders\imageprocessing\edges.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>effect_mix</name>
@@ -65,6 +70,7 @@
 	<y>263</y>
 	<directory>data\shaders\imageprocessing\bloom.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>force</name>
@@ -101,6 +107,7 @@
 	<y>142</y>
 	<directory>data\shaders\imageprocessing\mirrorquad.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>flipx</name>
@@ -145,6 +152,7 @@
 	<y>191</y>
 	<directory>data\shaders\imageprocessing\feedbacklimitdisplace4.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>sc</name>
@@ -229,6 +237,7 @@
 	<y>341</y>
 	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
 			<name>height</name>
@@ -315,3 +324,4 @@
 		<texture1>feedbacklimitdisplace4</texture1>
 	</fboslinks>
 </box>
+<exposedParams />
