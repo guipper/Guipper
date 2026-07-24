@@ -907,9 +907,19 @@ void JPboxgroup::draw_conections()
 	{
 		for (int k = boxes.size() - 1; k >= 0; k--)
 		{
+			// During a cue, connections are staged on the draft clone. Draw the
+			// draft's links so connections made while cueing are visible; the
+			// node positions still come from the real boxes shown in the grid.
+			JPbox *linkSrcK = boxes[k];
+			if (isCueDraftMode() && !isGroupViewActive())
+			{
+				JPbox *dk = getCueDraftBoxForRealIndex(k);
+				if (dk != nullptr) linkSrcK = dk;
+			}
 			for (int l = boxes[k]->fbohandlergroup.getSize() - 1; l >= 0; l--)
 			{
-				if (boxes[k]->fbohandlergroup.getFboName(l) ==
+				if (l < linkSrcK->fbohandlergroup.getSize() &&
+					linkSrcK->fbohandlergroup.getFboName(l) ==
 					boxes[i]->name)
 				{
 
