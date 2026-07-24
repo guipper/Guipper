@@ -527,9 +527,15 @@ void JPMidiKeymap::applyBinding(const Binding &binding, float midiValue)
 	}
 	else if (binding.action == SET_CUE_SHADER)
 	{
-		if (boxes->openguinumber >= 0 && boxes->openguinumber < boxes->boxes.size())
+		// Mirror the 'z' key: toggle the cue on the current selection, and use
+		// the group inspector index when a boxgroup is open (see ofApp keyPressed).
+		if (boxes->isGroupViewActive())
 		{
-			boxes->setCueBoxByIndex(boxes->openguinumber);
+			boxes->toggleCueBoxByIndex(boxes->groupInspectorIndex);
+		}
+		else
+		{
+			boxes->toggleCueBoxByIndex(boxes->openguinumber);
 		}
 	}
 	else if (binding.action == SET_ACTIVE_SHADER || binding.action == SET_ACTIVE_RENDER)
@@ -767,11 +773,11 @@ void JPMidiKeymap::setSelectedBoxActive()
 	int index = getCurrentBoxIndex();
 	if (index >= 0)
 	{
-		if (!boxes->promoteCueToActive())
-		{
-			boxes->selectOpenBoxByIndex(index);
-			boxes->requestSetActiveRender(index);
-		}
+		boxes->selectOpenBoxByIndex(index);
+		// Set the selected box as the active render. When a cue is open this is
+		// STAGED into the cue state (and shows in the CUE OUTPUT preview) instead
+		// of switching the live output; with no cue it switches the live render.
+		boxes->requestSetActiveRender(index);
 	}
 }
 
@@ -1079,7 +1085,9 @@ vector<JPMidiKeymap::Action> JPMidiKeymap::getGlobalActions() const
 	actions.push_back(NEXT_SHADER);
 	actions.push_back(PREV_SHADER);
 	actions.push_back(SET_CUE_SHADER);
-	actions.push_back(SET_ACTIVE_SHADER);
+	// SET_ACTIVE_SHADER is folded into SET_ACTIVE_RENDER (they did the same thing);
+	// only offer one action. Legacy set_active_shader bindings still load and behave
+	// identically (handled in applyBinding / setSelectedBoxActive).
 	actions.push_back(SET_ACTIVE_RENDER);
 	actions.push_back(NEXT_SHADER_GALLERY);
 	actions.push_back(PREV_SHADER_GALLERY);

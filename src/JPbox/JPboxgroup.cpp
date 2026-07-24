@@ -458,7 +458,7 @@ void JPboxgroup::drawCuePreview()
 	{
 		displayName = boxes[openguinumber]->name;
 	}
-	else if (isCueDraftMode() &&
+	else if (isCueDraftMode() && cueState.targetPreset == nullptr &&
 			 cueState.draftOutputRealIndex >= 0 &&
 			 cueState.draftOutputRealIndex < boxes.size())
 	{
@@ -3853,12 +3853,14 @@ bool JPboxgroup::setCueStagedActiveRenderIndex(int index)
 		return false;
 	}
 	cueState.stagedActiveRenderIndex = index;
-	if (cueState.draftOutputBox == nullptr && index >= 0 && index < getCueTargetBoxSize())
-	{
-		cueState.draftOutputBox = getCueTargetBoxAt(index);
-	}
+	// The CUE OUTPUT preview renders cueState.draftOutputBox. Point it at the
+	// DRAFT clone of the staged active render (not the live box), and refresh it
+	// every time the staged index changes, so the preview reflects staged edits.
+	JPbox *draftOut = getCueDraftBoxForRealIndex(index);
+	cueState.draftOutputBox = draftOut != nullptr ? draftOut : getCueTargetBoxAt(index);
+	cueState.draftOutputRealIndex = index;
 	markCueDraftDirty(cueState.sourceIndex, CUE_DIRTY_STAGED_ACTIVE);
-	return false;
+	return true;
 }
 
 void JPboxgroup::markCueDraftDirty(int index, unsigned int flags)
