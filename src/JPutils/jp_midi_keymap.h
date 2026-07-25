@@ -87,6 +87,14 @@ public:
 	void load(string path);
 	void newMidiMessage(ofxMidiMessage &msg) override;
 
+	// Inline MIDI-learn for an ADD_SHADER_BOX binding, driven from the Import
+	// page (no MIDI panel required): arm learn for `shaderQuery`; the next MIDI
+	// message received binds it. `isLearning()` lets the caller show a
+	// "waiting for MIDI" state; `cancelInlineLearn()` aborts.
+	void beginAddShaderLearn(const string &shaderQuery);
+	bool isLearning() const { return learning; }
+	void cancelInlineLearn() { cancelLearning(); }
+
 private:
 	JPboxgroup *boxes = nullptr;
 	vector<ofxMidiIn *> midiInputs;

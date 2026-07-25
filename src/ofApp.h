@@ -137,12 +137,14 @@ public:
 	struct ShaderEntry {
 		string name;
 		string path;
+		bool favorite = false;
 	};
 
 	struct ShaderFolder {
 		string name;
 		string path;
 		bool expanded = false;
+		bool isFavorites = false; // synthetic "favorites" folder pinned on top
 		vector<ShaderEntry> shaders;
 	};
 
@@ -196,6 +198,30 @@ public:
 
 	// LOAD distribution counter
 	int loadBoxCount = 0;
+
+	// Favorites (persisted to bin/data/shader_favorites.xml). Paths of starred
+	// shaders; a synthetic "favorites" folder is pinned to the top of the list.
+	vector<string> favoritePaths;
+	void loadFavorites();
+	void saveFavorites();
+	bool isFavorite(const string &path) const;
+	void toggleFavorite(const string &path);
+	void rebuildFavoritesFolder();
+
+	// Import-page inline MIDI bind: true while waiting for a MIDI message to
+	// bind the selected shader's add-shader command.
+	bool importBindWaiting = false;
+
+	// Shared preview-selection + keyboard navigation for the shader index.
+	void selectShaderForPreview(int f, int s);
+	void moveShaderSelection(int dir); // -1 = up, +1 = down
+	void ensureShaderSelectionVisible();
+	void loadSelectedShaderBox(); // add the selected shader to the canvas
+
+	// Double-click detection for the shader list (load on double-click).
+	float lastShaderClickTime = -1.0f;
+	int lastShaderClickFolder = -1;
+	int lastShaderClickIndex = -1;
 
 	void scanShaders();
 	void draw_shaderindex();

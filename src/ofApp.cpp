@@ -135,6 +135,12 @@ void ofApp::update() {
 
 	midiKeymap.update();
 
+	// Clear the Import-page bind-waiting state once the MIDI message is captured
+	// (or learning was cancelled elsewhere).
+	if (importBindWaiting && !midiKeymap.isLearning()) {
+		importBindWaiting = false;
+	}
+
 #ifdef SPOUT
 	if (spoutActive && boxes.getBoxesSize() > 0) {
 		ofClear(0);
@@ -244,6 +250,10 @@ void ofApp::draw() {
 		}
 	}
 	else if (pantallaActiva == SHADER_INDEX) {
+		// Draw the live node canvas behind so the right (uncovered) half shows
+		// it; a LOADed box appears there for immediate visual feedback.
+		boxes.drawNodeEditorBackground(ofGetWidth(), ofGetHeight());
+		boxes.draw();
 		drawScreenTabs();
 		draw_shaderindex();
 	}
@@ -854,22 +864,310 @@ void ofApp::scanShaders() {
 	selectedShaderFolder = -1;
 	selectedShaderIndex = -1;
 	previewShaderLoaded = false;
+	loadFavorites();
+	rebuildFavoritesFolder(); // pins a "favorites" folder on top when any exist
 	cout << "Shader index: found " << shaderFolders.size() << " folders" << endl;
 	int totalShaders = 0;
 	for (auto &f : shaderFolders) totalShaders += (int)f.shaders.size();
 	cout << "  total shaders: " << totalShaders << endl;
 }
+bool ofApp::isFavorite(const string &path) const {
+	return std::find(favoritePaths.begin(), favoritePaths.end(), path) != favoritePaths.end();
+}
+void ofApp::loadFavorites() {
+	favoritePaths.clear();
+	string p = ofToDataPath("shader_favorites.xml");
+	if (!ofFile(p).exists()) return;
+	ofXml xml;
+	if (!xml.load(p)) return;
+	auto favs = xml.find("/favorite");
+	for (auto &n : favs) {
+		string s = n.getValue();
+		if (!s.empty()) favoritePaths.push_back(s);
+	}
+}
+void ofApp::saveFavorites() {
+	ofXml xml;
+	for (auto &p : favoritePaths) {
+		xml.appendChild("favorite").set(p);
+	}
+	xml.save(ofToDataPath("shader_favorites.xml"));
+}
+void ofApp::toggleFavorite(const string &path) {
+	auto it = std::find(favoritePaths.begin(), favoritePaths.end(), path);
+	if (it == favoritePaths.end()) {
+		favoritePaths.push_back(path);
+	} else {
+		favoritePaths.erase(it);
+	}
+	saveFavorites();
+	rebuildFavoritesFolder();
+}
+void ofApp::rebuildFavoritesFolder() {
+	// Preserve the current selection by path across the rebuild (folder indices
+	// shift when the favorites folder appears/disappears).
+	string selPath;
+	if (selectedShaderFolder >= 0 && selectedShaderFolder < (int)shaderFolders.size() &&
+		selectedShaderIndex >= 0 && selectedShaderIndex < (int)shaderFolders[selectedShaderFolder].shaders.size()) {
+		selPath = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
+	}
+
+	// Drop any existing favorites pseudo-folder so we rebuild it cleanly.
+	if (!shaderFolders.empty() && shaderFolders.front().isFavorites) {
+		shaderFolders.erase(shaderFolders.begin());
+	}
+
+	// Re-mark real entries and collect the favorited ones (in file order).
+	ShaderFolder fav;
+	fav.name = "favorites";
+	fav.isFavorites = true;
+	fav.expanded = true;
+	for (auto &folder : shaderFolders) {
+		for (auto &e : folder.shaders) {
+			e.favorite = isFavorite(e.path);
+		}
+	}
+	for (const string &favPath : favoritePaths) {
+		for (auto &folder : shaderFolders) {
+			bool found = false;
+			for (auto &e : folder.shaders) {
+				if (e.path == favPath) {
+					ShaderEntry c = e;
+					c.favorite = true;
+					fav.shaders.push_back(c);
+					found = true;
+					break;
+				}
+			}
+			if (found) break;
+		}
+	}
+	if (!fav.shaders.empty()) {
+		shaderFolders.insert(shaderFolders.begin(), fav);
+	}
+
+	// Restore selection by path.
+	selectedShaderFolder = -1;
+	selectedShaderIndex = -1;
+	if (!selPath.empty()) {
+		for (size_t f = 0; f < shaderFolders.size() && selectedShaderIndex < 0; f++) {
+			for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
+				if (shaderFolders[f].shaders[s].path == selPath) {
+					selectedShaderFolder = (int)f;
+					selectedShaderIndex = (int)s;
+					break;
+				}
+			}
+		}
+	}
+}
+void ofApp::selectShaderForPreview(int f, int s) {
+	if (f < 0 || f >= (int)shaderFolders.size()) return;
+	if (s < 0 || s >= (int)shaderFolders[f].shaders.size()) return;
+	selectedShaderFolder = f;
+	selectedShaderIndex = s;
+
+	// Load into preview shader (kept for RDM/EDIT + optional preview render).
+	string shaderPath = shaderFolders[f].shaders[s].path;
+	previewShader.unload();
+	previewShaderLoaded = false;
+	if (previewShader.load("shaders/default.vert", shaderPath)) {
+		previewShaderLoaded = true;
+		// Parse user-defined uniform float declarations for RDM
+		previewUniformNames.clear();
+		previewUniformMins.clear();
+		previewUniformMaxs.clear();
+		previewRdmValues.clear();
+		ofBuffer shaderBuf2 = ofBufferFromFile(shaderPath);
+		for (auto line : shaderBuf2.getLines()) {
+			if (line.rfind("uniform", 0) == 0 && line.find("float") != string::npos) {
+				string sl = line;
+				vector<string> tokens;
+				string tok;
+				for (char c : sl) {
+					if (c == ' ' || c == '\t') { if (!tok.empty()) { tokens.push_back(tok); tok.clear(); } }
+					else { tok += c; }
+				}
+				if (!tok.empty()) tokens.push_back(tok);
+				if (!tokens.empty()) {
+					string &last = tokens.back();
+					if (!last.empty() && last.back() == ';') last.pop_back();
+				}
+				for (int ti = 2; ti < (int)tokens.size(); ti++) {
+					if (tokens[ti] != "=" && tokens[ti] != "float" && tokens[ti] != "uniform") {
+						string uname = tokens[ti];
+						if (uname == "time" || uname == "resolution" || uname == "bpm" ||
+							uname == "mouse" || uname == "window_mouse" ||
+							uname == "globalframeNum" || uname == "boxframeNum" ||
+							uname == "texture1" || uname == "texture2" ||
+							uname == "textura" || uname == "textura1" || uname == "textura2" ||
+							uname == "tex0" || uname == "tex1" || uname == "input_texture" ||
+							uname == "texture") continue;
+						previewUniformNames.push_back(uname);
+						previewUniformMins.push_back(0.0f);
+						previewUniformMaxs.push_back(1.0f);
+						previewRdmValues.push_back(0.0f);
+						break;
+					}
+				}
+			}
+		}
+		previewRdmActive = false;
+		if (!previewFbo.isAllocated()) {
+			previewFbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
+		}
+		// Render first frame immediately with sampler textures
+		previewFbo.begin();
+		ofClear(0, 0, 0, 255);
+		previewShader.begin();
+		previewShader.setUniform1f("time", ofGetElapsedTimef());
+		previewShader.setUniform2f("resolution", previewFbo.getWidth(), previewFbo.getHeight());
+		previewShader.setUniform1f("bpm", jp_constants::bpm);
+		previewShader.setUniform4f("mouse", 0.5, 0.5, 0.5, 0.5);
+		previewShader.setUniform2f("window_mouse", 0.5, 0.5);
+		previewShader.setUniform1i("globalframeNum", 0);
+		previewShader.setUniform1i("boxframeNum", 0);
+		if (previewImg1.isAllocated()) {
+			previewImg1.getTexture().bind(0);
+			previewShader.setUniform1i("texture1", 0);
+			previewShader.setUniform1i("textura1", 0);
+			previewShader.setUniform1i("input_texture", 0);
+			previewShader.setUniform1i("tex0", 0);
+			previewShader.setUniform1i("textura", 0);
+			previewShader.setUniform1i("texture", 0);
+		}
+		if (previewImg2.isAllocated()) {
+			previewImg2.getTexture().bind(1);
+			previewShader.setUniform1i("texture2", 1);
+			previewShader.setUniform1i("textura2", 1);
+			previewShader.setUniform1i("tex1", 1);
+		}
+		ofSetColor(COL_TEXT_PRIMARY);
+		ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
+		previewShader.end();
+		if (previewImg1.isAllocated()) previewImg1.getTexture().unbind(0);
+		if (previewImg2.isAllocated()) previewImg2.getTexture().unbind(1);
+		previewFbo.end();
+	}
+}
+void ofApp::loadSelectedShaderBox() {
+	if (selectedShaderFolder < 0 || selectedShaderIndex < 0) return;
+	if (selectedShaderFolder >= (int)shaderFolders.size()) return;
+	if (selectedShaderIndex >= (int)shaderFolders[selectedShaderFolder].shaders.size()) return;
+	string selPath = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
+	cout << "SHADER INDEX: Loading " << selPath << endl;
+	// Add near the centre of the right (visible) half so the box appears in the
+	// uncovered area; grid subsequent adds so they don't stack.
+	float sepx = 112, sepy = 128;
+	int cols = 3;
+	int row = loadBoxCount / cols;
+	int col = loadBoxCount % cols;
+	float rightHalfX = ofGetWidth() * 0.75f;
+	ofVec2f anchor = boxes.screenToCanvas(ofVec2f(rightHalfX, ofGetHeight() * 0.45f));
+	float startX = anchor.x - cols * sepx * 0.5f;
+	boxes.addBox(selPath, startX + col * sepx, anchor.y + row * sepy);
+	loadBoxCount++;
+}
+void ofApp::moveShaderSelection(int dir) {
+	// Flat list of currently-visible shader entries (respecting search filter +
+	// folder expansion), mirroring what draw_shaderindex renders.
+	vector<std::pair<int, int>> vis;
+	bool searchActive = !shaderSearchText.empty();
+	string searchLower = ofToLower(shaderSearchText);
+	for (size_t f = 0; f < shaderFolders.size(); f++) {
+		bool folderMatch = false;
+		if (searchActive) {
+			folderMatch = ofToLower(shaderFolders[f].name).find(searchLower) != string::npos;
+			bool hasMatch = folderMatch;
+			if (!hasMatch)
+				for (auto &e : shaderFolders[f].shaders)
+					if (ofToLower(e.name).find(searchLower) != string::npos) { hasMatch = true; break; }
+			if (!hasMatch) continue;
+		}
+		bool expanded = searchActive ? true : shaderFolders[f].expanded;
+		if (!expanded) continue;
+		for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
+			if (searchActive && !folderMatch &&
+				ofToLower(shaderFolders[f].shaders[s].name).find(searchLower) == string::npos) continue;
+			vis.push_back({(int)f, (int)s});
+		}
+	}
+	if (vis.empty()) return;
+	int cur = -1;
+	for (size_t i = 0; i < vis.size(); i++)
+		if (vis[i].first == selectedShaderFolder && vis[i].second == selectedShaderIndex) { cur = (int)i; break; }
+	int next = (cur < 0) ? (dir > 0 ? 0 : (int)vis.size() - 1)
+						 : (cur + dir + (int)vis.size()) % (int)vis.size();
+	selectShaderForPreview(vis[next].first, vis[next].second);
+	ensureShaderSelectionVisible();
+}
+void ofApp::ensureShaderSelectionVisible() {
+	if (selectedShaderFolder < 0 || selectedShaderIndex < 0) return;
+	bool searchActive = !shaderSearchText.empty();
+	string searchLower = ofToLower(shaderSearchText);
+	int line = 0, target = -1;
+	for (size_t f = 0; f < shaderFolders.size(); f++) {
+		bool folderMatch = false;
+		if (searchActive) {
+			folderMatch = ofToLower(shaderFolders[f].name).find(searchLower) != string::npos;
+			bool hasMatch = folderMatch;
+			if (!hasMatch)
+				for (auto &e : shaderFolders[f].shaders)
+					if (ofToLower(e.name).find(searchLower) != string::npos) { hasMatch = true; break; }
+			if (!hasMatch) continue;
+		}
+		line++; // folder header line
+		bool expanded = searchActive ? true : shaderFolders[f].expanded;
+		if (!expanded) continue;
+		for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
+			if (searchActive && !folderMatch &&
+				ofToLower(shaderFolders[f].shaders[s].name).find(searchLower) == string::npos) continue;
+			line++;
+			if ((int)f == selectedShaderFolder && (int)s == selectedShaderIndex) target = line;
+		}
+	}
+	if (target < 0) return;
+	float panelY = 44;
+	float panelH = ofGetHeight() - panelY - 30;
+	float fbY = panelY + panelH - 40;
+	float drawTop = panelY + 106;
+	float drawBottom = fbY - 188; // above the 170px preview pane
+	int visibleCount = std::max(1, (int)((drawBottom - drawTop) / 16.0f));
+	if (target <= shaderScroll) shaderScroll = target - 1;
+	else if (target > shaderScroll + visibleCount) shaderScroll = target - visibleCount;
+	if (shaderScroll < 0) shaderScroll = 0;
+}
+// Draw a small 5-pointed star (filled or outline) at (cx,cy) with radius r.
+static void drawStarGlyph(float cx, float cy, float r, bool filled) {
+	ofBeginShape();
+	for (int i = 0; i < 10; i++) {
+		float rad = (i % 2 == 0) ? r : r * 0.45f;
+		float a = -PI / 2 + i * PI / 5.0f;
+		ofVertex(cx + cosf(a) * rad, cy + sinf(a) * rad);
+	}
+	if (filled) {
+		ofEndShape(true);
+	} else {
+		ofNoFill();
+		ofSetLineWidth(1.0f);
+		ofEndShape(true);
+		ofFill();
+	}
+}
 void ofApp::draw_shaderindex() {
+	// boxes.draw() (called just before this on the Import tab) leaves the rect
+	// mode as CENTER; force CORNER so panel/search/button rects size correctly.
+	ofSetRectMode(OF_RECTMODE_CORNER);
+
+	// Navigator occupies the LEFT half; the right half is left clear so the live
+	// node canvas (drawn behind) shows through and a LOADed box appears there.
 	float panelX = 30, panelY = 44; // below the top screen-tab bar
-	float panelW = ofGetWidth() - 60;
+	float panelW = ofGetWidth() * 0.5f - panelX - 4;
 	float panelH = ofGetHeight() - panelY - 30;
 
-	// Background overlay
-	ofSetColor(0, 80);
-	ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight());
-
-	// Glassmorphism panel background
-	ofSetColor(ofColor(COL_BG_DARK, 235));
+	// Opaque panel background (left half only). Must be opaque so the live node
+	// canvas drawn behind does not bleed through the navigator's empty space.
+	ofSetColor(COL_BG_DARK);
 	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
 	ofNoFill();
 	ofSetColor(ofColor(COL_ACCENT_CYAN, 80));
@@ -879,41 +1177,37 @@ void ofApp::draw_shaderindex() {
 	ofSetLineWidth(1.0f);
 
 	// Title
-	float y = panelY + 30;
+	float y = panelY + 26;
 	ofSetColor(COL_ACCENT_CYAN);
 	int totalShaders = 0;
-	for (auto &f : shaderFolders) totalShaders += (int)f.shaders.size();
+	for (auto &f : shaderFolders) if (!f.isFavorites) totalShaders += (int)f.shaders.size();
 	string title = language == 0 ?
-		"SHADER INDEX  |  " + ofToString(totalShaders) + " shaders found" :
-		"INDEXADOR DE SHADERS  |  " + ofToString(totalShaders) + " shaders encontrados";
-	font_p.drawString(title, panelX + 20, y);
+		"IMPORT  |  " + ofToString(totalShaders) + " shaders" :
+		"IMPORTAR  |  " + ofToString(totalShaders) + " shaders";
+	font_p.drawString(title, panelX + 16, y);
 
 	// Separator
 	ofSetColor(ofColor(COL_ACCENT_CYAN, 60));
-	ofDrawLine(panelX + 20, y + 6, panelX + panelW - 20, y + 6);
+	ofDrawLine(panelX + 16, y + 6, panelX + panelW - 16, y + 6);
 
-	// Hint
+	// Hint (ASCII only; the TTF has no unicode arrows/star glyphs)
 	ofSetColor(COL_TEXT_MUTED);
 	string hint = language == 0 ?
-		"Click folder to expand  |  Click shader to preview  |  [LOAD] to add to canvas  |  Scroll  |  [4]/[Esc] to close" :
-		"Click carpeta para expandir  |  Click shader para previsualizar  |  [CARGAR] para anadir  |  Scroll  |  [4]/[Esc] cerrar";
-	float hw = font_p.stringWidth(hint);
-	font_p.drawString(hint, panelX + panelW / 2 - hw / 2, y + 20);
+		"Up/Down navigate  |  star = favorite  |  LOAD adds to canvas >" :
+		"Arriba/Abajo navegar  |  estrella = favorito  |  LOAD anade >";
+	font_p.drawString(hint, panelX + 16, y + 20);
 
 	y += 30;
 
-	// Layout: left side = folder tree, right side = preview
-	float dividerX = panelX + panelW * 0.55f;
 	float listX = panelX + 15;
-	float listW = dividerX - listX - 10;
-	float previewX = dividerX + 15;
-	float previewW = panelX + panelW - 20 - previewX;
-	float previewY = y + 10;
-	float previewH = panelH - 80;
+	float listW = panelW - 30;
 
-	// Vertical divider
-	ofSetColor(ofColor(COL_ACCENT_CYAN, 40));
-	ofDrawLine(dividerX, panelY + 60, dividerX, panelY + panelH - 20);
+	// Footer button bar + preview pane both reserve space at the bottom of the
+	// panel. Layout (top->bottom): search, list, preview pane, footer buttons.
+	float fbH = 30;
+	float fbY = panelY + panelH - fbH - 10;
+	float pvAreaH = 170;
+	float pvAreaY = fbY - pvAreaH - 10;
 
 	// ---- SEARCH BAR ----
 	float searchH = 22;
@@ -968,7 +1262,7 @@ void ofApp::draw_shaderindex() {
 
 	// ---- FOLDER LIST ----
 	float drawTop = searchY + searchH + 20;
-	float drawBottom = panelY + panelH - 20;
+	float drawBottom = pvAreaY - 8; // stop above the preview pane
 	float folderEntryH = 16;
 	float shaderEntryH = 14;
 	float indentStep = 12;
@@ -1099,10 +1393,19 @@ void ofApp::draw_shaderindex() {
 							arrowX - arrowSize * 0.6f, arrowYcenter + arrowSize,
 							arrowX + arrowSize * 0.6f, arrowYcenter);
 				}
-				// Folder name after arrow
+				// Folder name after arrow. The synthetic favorites folder gets a
+				// gold star prefix + gold text to stand out on top of the list.
 				float fnX = listX + arrowSize * 2 + 6;
+				bool isFavFolder = shaderFolders[f].isFavorites;
+				if (isFavFolder) {
+					ofSetColor(COL_ACCENT_GOLD);
+					drawStarGlyph(fnX + 4, drawY - folderEntryH / 2.0f, 5.0f, true);
+					fnX += 14;
+				}
 				if (arrowHovered) {
 					ofSetColor(0, 255, 255);
+				} else if (isFavFolder) {
+					ofSetColor(COL_ACCENT_GOLD);
 				} else if (isSelected) {
 					ofSetColor(COL_ACCENT_CYAN);
 				} else {
@@ -1110,11 +1413,10 @@ void ofApp::draw_shaderindex() {
 				}
 				font_p.drawString(shaderFolders[f].name, fnX, drawY);
 
-				// Draw shader count
+				// Draw shader count just after the folder name
 				ofSetColor(COL_TEXT_MUTED);
 				string countStr = "(" + ofToString((int)shaderFolders[f].shaders.size()) + ")";
-				float cw = font_p.stringWidth(countStr);
-				font_p.drawString(countStr, listX + listW - cw - 20, drawY);
+				font_p.drawString(countStr, fnX + font_p.stringWidth(shaderFolders[f].name) + 8, drawY);
 
 				drawY += folderEntryH;
 			}
@@ -1160,107 +1462,111 @@ void ofApp::draw_shaderindex() {
 					} else {
 						ofSetColor(COL_TEXT_DIM);
 					}
-					font_p.drawString(shaderFolders[f].shaders[s].name, listX + indentStep * 2, drawY);
+					float nameX = listX + indentStep * 2;
+					font_p.drawString(shaderFolders[f].shaders[s].name, nameX, drawY);
+
+					// Favorite star just after the name so they read as one row
+					// (filled gold = favorite, dim outline = not). Click toggles it.
+					float starCx = nameX + font_p.stringWidth(shaderFolders[f].shaders[s].name) + 12;
+					float starMax = listX + listW - 10;
+					if (starCx > starMax) starCx = starMax;
+					float starCy = drawY - shaderEntryH / 2.0f;
+					bool isFav = shaderFolders[f].shaders[s].favorite;
+					if (isFav) {
+						ofSetColor(COL_ACCENT_GOLD);
+						drawStarGlyph(starCx, starCy, 5.0f, true);
+					} else {
+						ofSetColor(isHovered ? ofColor(COL_TEXT_MUTED) : ofColor(COL_TEXT_MUTED, 90));
+						drawStarGlyph(starCx, starCy, 5.0f, false);
+					}
 					drawY += shaderEntryH;
 				}
 			}
 		}
 	}
 
-	// ---- PREVIEW PANE ----
-	ofSetColor(COL_BG_INPUT);
-	ofDrawRectRounded(previewX, previewY, previewW, previewH, 6);
-	ofNoFill();
-	ofSetColor(COL_MAPPED_OFF);
-	ofSetLineWidth(1.0f);
-	ofDrawRectRounded(previewX, previewY, previewW, previewH, 6);
-	ofFill();
-	ofSetLineWidth(1.0f);
+	// ---- FOOTER: selected shader label + LOAD / BIND / EDIT buttons ----
+	bool hasSel = (selectedShaderFolder >= 0 && selectedShaderIndex >= 0 &&
+				   selectedShaderFolder < (int)shaderFolders.size() &&
+				   selectedShaderIndex < (int)shaderFolders[selectedShaderFolder].shaders.size());
+	// (The selected shader name is shown in the preview-pane title below the
+	// list, so no separate label is drawn above the buttons here.)
 
-	if (selectedShaderFolder >= 0 && selectedShaderIndex >= 0) {
-		string selPath = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
-		string selName = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].name;
+	float fbGap = 8;
+	float fbW = (listW - fbGap * 2) / 3.0f;
+	float loadX = listX;
+	float bindX = listX + fbW + fbGap;
+	float editX = listX + (fbW + fbGap) * 2;
 
-		// Draw preview FBO
-		if (previewShaderLoaded) {
-			ofSetColor(COL_TEXT_PRIMARY);
-			float fboPreviewW = previewW - 20;
-			float fboPreviewH = fboPreviewW * 0.75f;
-			if (fboPreviewH > previewH - 80) {
-				fboPreviewH = previewH - 80;
-				fboPreviewW = fboPreviewH * 1.333f;
-			}
-			float fboX = previewX + previewW / 2 - fboPreviewW / 2;
-			float fboY = previewY + 15;
-			previewFbo.draw(fboX, fboY, fboPreviewW, fboPreviewH);
-
-			// Shader name below preview
-			ofSetColor(COL_ACCENT_CYAN);
-			font_p.drawString(selName, previewX + previewW / 2 - font_p.stringWidth(selName) / 2, fboY + fboPreviewH + 18);
-			ofSetColor(COL_TEXT_MUTED);
-			font_p.drawString(selPath, previewX + previewW / 2 - font_p.stringWidth(selPath) / 2, fboY + fboPreviewH + 34);
-		}
-
-		// LOAD + RDM + EDIT buttons
-		float btnW = 72;
-		float btnH = 28;
-		float btnGap = 6;
-		float btnTotalW = btnW * 3 + btnGap * 2;
-		float btnStartX = previewX + previewW / 2 - btnTotalW / 2;
-		float btnY = previewY + previewH - 40;
-		float loadX = btnStartX;
-		float rdmX = btnStartX + btnW + btnGap;
-		float editX = btnStartX + (btnW + btnGap) * 2;
-
-		// LOAD button
-		ofSetColor(COL_ACCENT_CYAN_DIM);
-		ofDrawRectRounded(loadX, btnY, btnW, btnH, 4.0f);
+	// Helper to draw a labelled button
+	auto drawFooterBtn = [&](float bx, ofColor fill, ofColor border, const string &label, bool enabled) {
+		ofSetColor(enabled ? fill : ofColor(fill, 60));
+		ofDrawRectRounded(bx, fbY, fbW, fbH, 4.0f);
 		ofNoFill();
-		ofSetColor(COL_ACCENT_CYAN);
+		ofSetColor(enabled ? border : ofColor(border, 80));
 		ofSetLineWidth(1.5f);
-		ofDrawRectRounded(loadX, btnY, btnW, btnH, 4.0f);
+		ofDrawRectRounded(bx, fbY, fbW, fbH, 4.0f);
 		ofFill();
 		ofSetLineWidth(1.0f);
-		ofSetColor(COL_TEXT_PRIMARY);
-		string loadLabel = language == 0 ? "LOAD" : "CARGAR";
-		float lw = font_p.stringWidth(loadLabel);
-		font_p.drawString(loadLabel, loadX + btnW / 2 - lw / 2, btnY + 20);
+		ofSetColor(enabled ? ofColor(COL_TEXT_PRIMARY) : ofColor(COL_TEXT_MUTED));
+		float tw = font_p.stringWidth(label);
+		font_p.drawString(label, bx + fbW / 2 - tw / 2, fbY + fbH / 2 + 4);
+	};
 
-		// RDM button (neutral secondary)
-		ofSetColor(COL_BG_BUTTON);
-		ofDrawRectRounded(rdmX, btnY, btnW, btnH, 4.0f);
-		ofNoFill();
-		ofSetColor(COL_BORDER_HOVER);
-		ofSetLineWidth(1.5f);
-		ofDrawRectRounded(rdmX, btnY, btnW, btnH, 4.0f);
-		ofFill();
-		ofSetLineWidth(1.0f);
-		ofSetColor(COL_TEXT_PRIMARY);
-		string rdmLabel = "RDM";
-		float rw = font_p.stringWidth(rdmLabel);
-		font_p.drawString(rdmLabel, rdmX + btnW / 2 - rw / 2, btnY + 20);
+	drawFooterBtn(loadX, COL_ACCENT_CYAN_DIM, COL_ACCENT_CYAN,
+				  language == 0 ? "LOAD" : "CARGAR", hasSel);
 
-		// EDIT button (amber outline)
-		ofSetColor(COL_BG_BUTTON);
-		ofDrawRectRounded(editX, btnY, btnW, btnH, 4.0f);
-		ofNoFill();
-		ofSetColor(COL_ACCENT_GOLD_DIM);
-		ofSetLineWidth(1.5f);
-		ofDrawRectRounded(editX, btnY, btnW, btnH, 4.0f);
-		ofFill();
-		ofSetLineWidth(1.0f);
-		ofSetColor(COL_TEXT_PRIMARY);
-		string editLabel = "EDIT";
-		float ew2 = font_p.stringWidth(editLabel);
-		font_p.drawString(editLabel, editX + btnW / 2 - ew2 / 2, btnY + 20);
-
+	// BIND button — inline MIDI-learn for the add-shader command. Shows a
+	// waiting state while armed for the next MIDI message.
+	if (importBindWaiting) {
+		drawFooterBtn(bindX, COL_ACCENT_GOLD_DIM, COL_ACCENT_GOLD,
+					  language == 0 ? "MOVE MIDI" : "MUEVE MIDI", true);
 	} else {
-		ofSetColor(COL_TEXT_MUTED);
-		string noSel = language == 0 ?
-			"Select a shader from the list to preview" :
-			"Selecciona un shader de la lista para previsualizar";
-		float nw = font_p.stringWidth(noSel);
-		font_p.drawString(noSel, previewX + previewW / 2 - nw / 2, previewY + previewH / 2);
+		drawFooterBtn(bindX, COL_BG_BUTTON, COL_ACCENT_GOLD_DIM, "BIND", hasSel);
+	}
+
+	drawFooterBtn(editX, COL_BG_BUTTON, COL_ACCENT_GOLD_DIM, "EDIT", hasSel);
+
+	// ---- PREVIEW PANE (inside the panel, between list and footer) ----
+	// Live render of the currently-selected shader so you can preview before
+	// loading, framed inside the navigator's background.
+	{
+		float titleH = 18.0f;
+		float pad = 6.0f;
+		// Window frame spanning the panel width in the reserved preview area.
+		ofSetColor(COL_BG_INPUT);
+		ofDrawRectRounded(listX, pvAreaY, listW, pvAreaH, 6);
+		ofNoFill();
+		ofSetColor(ofColor(COL_ACCENT_CYAN, 90));
+		ofSetLineWidth(1.0f);
+		ofDrawRectRounded(listX, pvAreaY, listW, pvAreaH, 6);
+		ofFill();
+
+		if (hasSel && previewShaderLoaded && previewFbo.isAllocated()) {
+			// Title
+			ofSetColor(COL_ACCENT_CYAN);
+			string pvTitle = (language == 0 ? "PREVIEW: " : "PREVISTA: ") +
+							 shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].name;
+			while (font_p.stringWidth(pvTitle) > listW - 12 && pvTitle.size() > 3)
+				pvTitle = pvTitle.substr(0, pvTitle.size() - 1);
+			font_p.drawString(pvTitle, listX + pad, pvAreaY + titleH - 3);
+
+			// Aspect-fit the render into the remaining area.
+			float availW = listW - pad * 2;
+			float availH = pvAreaH - titleH - pad * 2;
+			float aspect = previewFbo.getHeight() / (float)previewFbo.getWidth();
+			float drawW = availW;
+			float drawH = drawW * aspect;
+			if (drawH > availH) { drawH = availH; drawW = drawH / aspect; }
+			float drawXp = listX + (listW - drawW) / 2.0f;
+			float drawYp = pvAreaY + titleH + pad + (availH - drawH) / 2.0f;
+			ofSetColor(COL_TEXT_PRIMARY);
+			previewFbo.draw(drawXp, drawYp, drawW, drawH);
+		} else {
+			ofSetColor(COL_TEXT_MUTED);
+			string none = language == 0 ? "select a shader to preview" : "selecciona un shader";
+			font_p.drawString(none, listX + 8, pvAreaY + pvAreaH / 2);
+		}
 	}
 }
 // Esta es la que se dibuja en la otra ventana
@@ -1324,6 +1630,20 @@ void ofApp::keyPressed(int key) {
 		bool numericOnly = !(focusedOptionsField == FIELD_OSC_IP_OUT || focusedOptionsField == FIELD_DEFAULT_COMPO);
 		jp_textfield::handleKey(optionsFieldText[focusedOptionsField], optionsFieldCursor, key, numericOnly);
 		return; // consume other keys while focused
+	}
+
+	// Shader index: Up/Down navigate the shader list (works whether or not the
+	// search field is focused; Left/Right stay with the text cursor).
+	if (pantallaActiva == SHADER_INDEX && (key == OF_KEY_UP || key == OF_KEY_DOWN)) {
+		moveShaderSelection(key == OF_KEY_DOWN ? 1 : -1);
+		return;
+	}
+
+	// Shader index: Enter loads the selected shader onto the canvas (works
+	// whether or not the search field is focused).
+	if (pantallaActiva == SHADER_INDEX && (key == OF_KEY_RETURN || key == '\r')) {
+		loadSelectedShaderBox();
+		return;
 	}
 
 	// Shader index search input
@@ -1865,180 +2185,74 @@ void ofApp::mousePressed(int x, int y, int button) {
 	}
 	if (pantallaActiva == SHADER_INDEX && button == 0) {
 		float panelX = 30, panelY = 44;
-		float panelW = ofGetWidth() - 60;
+		float panelW = ofGetWidth() * 0.5f - panelX - 4;
 		float panelH = ofGetHeight() - panelY - 30;
-		float dividerX = panelX + panelW * 0.55f;
 		float listX = panelX + 15;
-		float listW = dividerX - listX - 10;
-		float previewX = dividerX + 15;
-		float previewW = panelX + panelW - 20 - previewX;
-		float previewY = panelY + 70;
-		float previewH = panelH - 80;
+		float listW = panelW - 30;
+		float fbH = 30;
+		float fbY = panelY + panelH - fbH - 10;
+
+		// Only the left navigator panel is interactive; clicks in the right
+		// (uncovered) half just unfocus the search field and fall through.
+		if (x < panelX || x > panelX + panelW || y < panelY || y > panelY + panelH) {
+			shaderSearchFocused = false;
+			return;
+		}
 
 		// ---- SEARCH BAR CLICK CHECK ----
 		float searchH = 22;
-		float searchY = panelY + 68;
-		string searchLabel = language == 0 ? "Search:" : "Buscar:";
-		float searchLabelX = listX + 5;
-		float textX = searchLabelX + font_p.stringWidth(searchLabel) + 3;
+		float searchY = panelY + 64;
 		if (x >= listX && x <= listX + listW && y >= searchY && y <= searchY + searchH) {
 			shaderSearchFocused = true;
 			shaderSearchCursor = shaderSearchText.size();
 			return;
 		}
-		// Click outside search bar unfocuses it
-		if (x < panelX || x > panelX + panelW || y < panelY || y > panelY + panelH) {
-			return;
-		}
 		shaderSearchFocused = false;
 
-		// Check if click is within panel
-		if (x < panelX || x > panelX + panelW || y < panelY || y > panelY + panelH) {
-			return;
-		}
+		// ---- FOOTER BUTTONS: LOAD / BIND / EDIT ----
+		if (selectedShaderFolder >= 0 && selectedShaderIndex >= 0 &&
+			selectedShaderFolder < (int)shaderFolders.size() &&
+			selectedShaderIndex < (int)shaderFolders[selectedShaderFolder].shaders.size()) {
+			float fbGap = 8;
+			float fbW = (listW - fbGap * 2) / 3.0f;
+			float loadX = listX;
+			float bindX = listX + fbW + fbGap;
+			float editX = listX + (fbW + fbGap) * 2;
+			string selPath = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
+			string selName = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].name;
 
-		// ---- LOAD + RDM + EDIT BUTTONS ----
-		if (selectedShaderFolder >= 0 && selectedShaderIndex >= 0) {
-			float btnW = 72;
-			float btnH = 28;
-			float btnGap = 6;
-			float btnTotalW = btnW * 3 + btnGap * 2;
-			float btnStartX = previewX + previewW / 2 - btnTotalW / 2;
-			float btnY = previewY + previewH - 40;
-			float loadX = btnStartX;
-			float rdmX = btnStartX + btnW + btnGap;
-			float editX = btnStartX + (btnW + btnGap) * 2;
-
-			// RDM button - parse shader uniforms and randomize them
-			if (x >= rdmX && x <= rdmX + btnW && y >= btnY && y <= btnY + btnH) {
-				previewRdmActive = true;
-				// Parse uniform float declarations from the shader
-				string shaderPath = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
-				ofBuffer shaderBuf = ofBufferFromFile(shaderPath);
-				previewUniformNames.clear();
-				previewUniformMins.clear();
-				previewUniformMaxs.clear();
-				for (auto line : shaderBuf.getLines()) {
-					if (line.rfind("uniform", 0) == 0 && line.find("float") != string::npos) {
-						// Extract the uniform name
-						string s = line;
-						vector<string> tokens;
-						string tok;
-						for (char c : s) {
-							if (c == ' ' || c == '\t') {
-								if (!tok.empty()) { tokens.push_back(tok); tok.clear(); }
-							} else {
-								tok += c;
-							}
-						}
-						if (!tok.empty()) tokens.push_back(tok);
-						if (!tokens.empty()) {
-							string &last = tokens.back();
-							if (!last.empty() && last.back() == ';') last.pop_back();
-						}
-						for (int ti = 2; ti < (int)tokens.size(); ti++) {
-							if (tokens[ti] != "=" && tokens[ti] != "float" && tokens[ti] != "uniform") {
-								string uname = tokens[ti];
-								if (uname == "time" || uname == "resolution" || uname == "bpm" ||
-									uname == "mouse" || uname == "window_mouse" ||
-									uname == "globalframeNum" || uname == "boxframeNum" ||
-									uname == "texture1" || uname == "texture2" ||
-									uname == "textura" || uname == "textura1" || uname == "textura2" ||
-									uname == "tex0" || uname == "tex1" || uname == "input_texture" ||
-									uname == "texture") continue;
-								previewUniformNames.push_back(uname);
-								previewUniformMins.push_back(0.0f);
-								previewUniformMaxs.push_back(1.0f);
-								break;
-							}
-						}
+			if (y >= fbY && y <= fbY + fbH) {
+				// LOAD - add the box near the centre of the right (visible) half so
+				// it appears in the uncovered area for immediate visual feedback.
+				if (x >= loadX && x <= loadX + fbW) {
+					loadSelectedShaderBox();
+					return;
+				}
+				// BIND - inline MIDI-learn for the add-shader command (toggle).
+				if (x >= bindX && x <= bindX + fbW) {
+					if (importBindWaiting || midiKeymap.isLearning()) {
+						midiKeymap.cancelInlineLearn();
+						importBindWaiting = false;
+					} else {
+						midiKeymap.beginAddShaderLearn(selName);
+						importBindWaiting = true;
 					}
+					return;
 				}
-				int numUniforms = (int)previewUniformNames.size();
-				previewRdmValues.resize(numUniforms);
-				for (int i = 0; i < numUniforms; i++) {
-					previewRdmValues[i] = ofRandom(previewUniformMins[i], previewUniformMaxs[i]);
+				// EDIT - open the shader in the code editor.
+				if (x >= editX && x <= editX + fbW) {
+					shaderEditor.openShader(selPath, selName);
+					return;
 				}
-				// Rerender preview FBO with random values
-				if (previewFbo.isAllocated()) {
-					string shaderPath = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
-					previewShader.unload();
-					previewShaderLoaded = false;
-					if (previewShader.load("shaders/default.vert", shaderPath)) {
-						previewShaderLoaded = true;
-						previewFbo.begin();
-						ofClear(0, 0, 0, 255);
-						previewShader.begin();
-						previewShader.setUniform1f("time", ofGetElapsedTimef());
-						previewShader.setUniform2f("resolution", previewFbo.getWidth(), previewFbo.getHeight());
-						previewShader.setUniform1f("bpm", jp_constants::bpm);
-						previewShader.setUniform4f("mouse", 0.5, 0.5, 0.5, 0.5);
-						previewShader.setUniform2f("window_mouse", 0.5, 0.5);
-						previewShader.setUniform1i("globalframeNum", 0);
-						previewShader.setUniform1i("boxframeNum", 0);
-						// Set random values using actual uniform names from shader
-						for (int i = 0; i < (int)previewUniformNames.size(); i++) {
-							previewShader.setUniform1f(previewUniformNames[i], previewRdmValues[i]);
-						}
-						if (previewImg1.isAllocated()) {
-							previewImg1.getTexture().bind(0);
-							previewShader.setUniform1i("texture1", 0);
-							previewShader.setUniform1i("textura1", 0);
-							previewShader.setUniform1i("input_texture", 0);
-							previewShader.setUniform1i("tex0", 0);
-							previewShader.setUniform1i("textura", 0);
-							previewShader.setUniform1i("texture", 0);
-						}
-						if (previewImg2.isAllocated()) {
-							previewImg2.getTexture().bind(1);
-							previewShader.setUniform1i("texture2", 1);
-							previewShader.setUniform1i("textura2", 1);
-							previewShader.setUniform1i("tex1", 1);
-						}
-						ofSetColor(COL_TEXT_PRIMARY);
-						ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
-						previewShader.end();
-						if (previewImg1.isAllocated()) previewImg1.getTexture().unbind(0);
-						if (previewImg2.isAllocated()) previewImg2.getTexture().unbind(1);
-						previewFbo.end();
-					}
-				}
-				return;
-			}
-
-			// LOAD button
-			if (x >= loadX && x <= loadX + btnW && y >= btnY && y <= btnY + btnH) {
-				// Load this shader onto the canvas
-				string path = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
-				cout << "SHADER INDEX: Loading " << path << endl;
-				// Distribute boxes in a grid pattern so they don't stack
-				float sepx = 112; // 80 * 1.4
-				float sepy = 128; // 80 * 1.6
-				int cols = 5;
-				int row = loadBoxCount / cols;
-				int col = loadBoxCount % cols;
-				ofVec2f canvasCenter = boxes.screenToCanvas(ofVec2f(ofGetWidth() / 2, ofGetHeight() / 2));
-				float startX = canvasCenter.x - cols * sepx * 0.5f;
-				float startY = canvasCenter.y;
-				boxes.addBox(path, startX + col * sepx, startY + row * sepy);
-				loadBoxCount++;
-				return;
-			}
-
-			// EDIT button — open shader in the code editor
-			if (x >= editX && x <= editX + btnW && y >= btnY && y <= btnY + btnH) {
-				string path = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
-				string name = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].name;
-				shaderEditor.openShader(path, name);
-				return;
 			}
 		}
 
 		// ---- FOLDER/SHADER LIST (left side) ----
-		// Search bar is 22px, list starts after gap, drawTop = searchY + searchH + 20 = panelY + 110
-		double clickStartY = panelY + 110;
-		if (x >= listX && x <= listX + listW && y >= clickStartY && y <= panelY + panelH - 20) {
-			float drawTop = panelY + 110;
+		// drawTop = searchY(64) + searchH(22) + 20 = panelY + 106; list stops
+		// above the preview pane (fbY - 188).
+		double clickStartY = panelY + 106;
+		if (x >= listX && x <= listX + listW && y >= clickStartY && y <= fbY - 188) {
+			float drawTop = panelY + 106;
 			float folderEntryH = 16;
 			float shaderEntryH = 14;
 			float indentStep = 12;
@@ -2103,92 +2317,28 @@ void ofApp::mousePressed(int x, int y, int button) {
 						if (currentLine > shaderScroll) {
 							float shaderTop = drawY - shaderEntryH;
 							if (y >= shaderTop && y < drawY) {
-								// Clicked on shader entry - select for preview
-								selectedShaderFolder = (int)f;
-								selectedShaderIndex = (int)s;
-
-								// Load into preview shader
-								string shaderPath = shaderFolders[f].shaders[s].path;
-								previewShader.unload();
-								previewShaderLoaded = false;
-								if (previewShader.load("shaders/default.vert", shaderPath)) {
-									previewShaderLoaded = true;
-									// Parse user-defined uniform float declarations for RDM
-									previewUniformNames.clear();
-									previewUniformMins.clear();
-									previewUniformMaxs.clear();
-									previewRdmValues.clear();
-									ofBuffer shaderBuf2 = ofBufferFromFile(shaderPath);
-									for (auto line : shaderBuf2.getLines()) {
-										if (line.rfind("uniform", 0) == 0 && line.find("float") != string::npos) {
-											string s = line;
-											vector<string> tokens;
-											string tok;
-											for (char c : s) {
-												if (c == ' ' || c == '\t') { if (!tok.empty()) { tokens.push_back(tok); tok.clear(); } }
-												else { tok += c; }
-											}
-											if (!tok.empty()) tokens.push_back(tok);
-											if (!tokens.empty()) {
-												string &last = tokens.back();
-												if (!last.empty() && last.back() == ';') last.pop_back();
-											}
-											for (int ti = 2; ti < (int)tokens.size(); ti++) {
-												if (tokens[ti] != "=" && tokens[ti] != "float" && tokens[ti] != "uniform") {
-													string uname = tokens[ti];
-													if (uname == "time" || uname == "resolution" || uname == "bpm" ||
-														uname == "mouse" || uname == "window_mouse" ||
-														uname == "globalframeNum" || uname == "boxframeNum" ||
-														uname == "texture1" || uname == "texture2" ||
-														uname == "textura" || uname == "textura1" || uname == "textura2" ||
-														uname == "tex0" || uname == "tex1" || uname == "input_texture" ||
-														uname == "texture") continue;
-													previewUniformNames.push_back(uname);
-													previewUniformMins.push_back(0.0f);
-													previewUniformMaxs.push_back(1.0f);
-													previewRdmValues.push_back(0.0f);
-													break;
-												}
-											}
-										}
-									}
-									previewRdmActive = false;
-									if (!previewFbo.isAllocated()) {
-										previewFbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
-									}
-									// Render first frame immediately with sampler textures
-									previewFbo.begin();
-									ofClear(0, 0, 0, 255);
-									previewShader.begin();
-									previewShader.setUniform1f("time", ofGetElapsedTimef());
-									previewShader.setUniform2f("resolution", previewFbo.getWidth(), previewFbo.getHeight());
-									previewShader.setUniform1f("bpm", jp_constants::bpm);
-									previewShader.setUniform4f("mouse", 0.5, 0.5, 0.5, 0.5);
-									previewShader.setUniform2f("window_mouse", 0.5, 0.5);
-									previewShader.setUniform1i("globalframeNum", 0);
-									previewShader.setUniform1i("boxframeNum", 0);
-									// Bind preview textures for imageprocessing/blending shaders
-									if (previewImg1.isAllocated()) {
-										previewImg1.getTexture().bind(0);
-										previewShader.setUniform1i("texture1", 0);
-										previewShader.setUniform1i("textura1", 0);
-										previewShader.setUniform1i("input_texture", 0);
-										previewShader.setUniform1i("tex0", 0);
-										previewShader.setUniform1i("textura", 0);
-										previewShader.setUniform1i("texture", 0);
-									}
-									if (previewImg2.isAllocated()) {
-										previewImg2.getTexture().bind(1);
-										previewShader.setUniform1i("texture2", 1);
-										previewShader.setUniform1i("textura2", 1);
-										previewShader.setUniform1i("tex1", 1);
-									}
-									ofSetColor(COL_TEXT_PRIMARY);
-									ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
-									previewShader.end();
-									if (previewImg1.isAllocated()) previewImg1.getTexture().unbind(0);
-									if (previewImg2.isAllocated()) previewImg2.getTexture().unbind(1);
-									previewFbo.end();
+								// Star toggle hit box (just after the name, matching draw)
+								float nameX = listX + indentStep * 2;
+								float sCx = nameX + font_p.stringWidth(shaderFolders[f].shaders[s].name) + 12;
+								float sMax = listX + listW - 10;
+								if (sCx > sMax) sCx = sMax;
+								if (x >= sCx - 10 && x <= sCx + 10) {
+									toggleFavorite(shaderFolders[f].shaders[s].path);
+									return;
+								}
+								// Clicked on shader entry - select; double-click loads.
+								float now = ofGetElapsedTimef();
+								bool dbl = (lastShaderClickFolder == (int)f &&
+											lastShaderClickIndex == (int)s &&
+											(now - lastShaderClickTime) < 0.35f);
+								selectShaderForPreview((int)f, (int)s);
+								if (dbl) {
+									loadSelectedShaderBox();
+									lastShaderClickTime = -1.0f; // reset so a 3rd click isn't a dbl
+								} else {
+									lastShaderClickTime = now;
+									lastShaderClickFolder = (int)f;
+									lastShaderClickIndex = (int)s;
 								}
 								return;
 							}
@@ -2211,22 +2361,22 @@ void ofApp::keyReleased(int key) { }
 void ofApp::mouseMoved(int x, int y) {
 	if (pantallaActiva == SHADER_INDEX) {
 		float panelX = 30, panelY = 44;
-		float panelW = ofGetWidth() - 60;
+		float panelW = ofGetWidth() * 0.5f - panelX - 4;
 		float panelH = ofGetHeight() - panelY - 30;
-		float dividerX = panelX + panelW * 0.55f;
 		float listX = panelX + 15;
-		float listW = dividerX - listX - 10;
+		float listW = panelW - 30;
+		float fbY = panelY + panelH - 40;
 
 		// Reset hover state
 		hoveredShaderFolder = -1;
 		hoveredShaderIndex = -1;
 
-		// Search bar offset: drawTop = searchY + searchH + 20 = panelY + 110
-		double clickStartY = panelY + 110;
-		if (x >= listX && x <= listX + listW && y >= clickStartY && y <= panelY + panelH - 20) {
+		// Search bar offset: drawTop = searchY(64) + searchH(22) + 20 = panelY + 106
+		double clickStartY = panelY + 106;
+		if (x >= listX && x <= listX + listW && y >= clickStartY && y <= fbY - 188) {
 			float folderEntryH = 16;
 			float shaderEntryH = 14;
-			float drawBottom = panelY + panelH - 20;
+			float drawBottom = fbY - 188;
 			float drawY = clickStartY;
 			int currentLine = 0; // mirror draw_shaderindex scroll handling
 
@@ -2304,8 +2454,9 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 	}
 	if (pantallaActiva == SHADER_INDEX) {
 		float panelX = 30, panelY = 44;
+		float panelW = ofGetWidth() * 0.5f - panelX - 4;
 		float panelH = ofGetHeight() - panelY - 30;
-		if (x >= panelX && x <= panelX + (ofGetWidth() - 60) && y >= panelY && y <= panelY + panelH) {
+		if (x >= panelX && x <= panelX + panelW && y >= panelY && y <= panelY + panelH) {
 			shaderScroll -= (int)scrollY * 3;
 			if (shaderScroll < 0) shaderScroll = 0;
 		}

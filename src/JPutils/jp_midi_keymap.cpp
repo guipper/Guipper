@@ -404,6 +404,21 @@ void JPMidiKeymap::learnKey(const MidiKey &key)
 	saveGlobal();
 }
 
+void JPMidiKeymap::beginAddShaderLearn(const string &shaderQuery)
+{
+	// Arm an ADD_SHADER_BOX learn without opening the MIDI panel, so the Import
+	// page can capture the next MIDI message inline. Rebinds if this shader is
+	// already mapped. learnKey() resolves the path from the query on capture.
+	if (shaderQuery.empty())
+	{
+		return;
+	}
+	selectedAction = ADD_SHADER_BOX;
+	selectedBoxName = "";
+	addShaderQuery = shaderQuery;
+	rebindIndex = findAddShaderBinding(shaderQuery);
+	learning = true;
+}
 void JPMidiKeymap::armLearn(const Binding &binding, int existingIndex)
 {
 	selectedBoxName = binding.boxName;
