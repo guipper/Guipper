@@ -26,8 +26,13 @@ Special thanks to Kali Shade for contributing a wide range of shaders to the off
   <li>Communication with other programs through NDI and SPOUT.</li>
   <li>Parameter automation for creating smooth animations.</li>
   <li>OSC control for connections with external interfaces.</li>
+  <li>MIDI mapping with learn mode and per-device profiles (all devices usable at once).</li>
   <li>Support for images, videos, and webcam as visual sources.</li>
   <li>Parameter randomization for surprising visual results.</li>
+  <li>Built-in shader browser with live search, favorites, and preview.</li>
+  <li>Integrated GLSL code editor with live compile/reload.</li>
+  <li>Box groups (sub-compositions) and a cue/crossfade staging workflow.</li>
+  <li>Cross-platform: Windows, Linux and macOS (openFrameworks 0.12.1).</li>
 </ul>
 
 ## Installation

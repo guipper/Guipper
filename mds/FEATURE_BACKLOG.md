@@ -1,17 +1,24 @@
 ﻿# Feature Backlog for Guipper
 
+## ✅ Completed (2026)
+- **Cross-platform build** — Linux/macOS in addition to Windows (openFrameworks 0.12.1). Windows-only paths, fonts and Spout guarded; Windows-saved sessions load on Linux/macOS.
+- **Internal shader browser (Import page)** — left-half navigator with folder tree, live search, per-shader favorites (starred, pinned to a "favorites" folder on top, persisted to `shader_favorites.xml`), in-panel live preview, keyboard navigation (Up/Down + Enter), and double-click / LOAD to add to the canvas. Images/videos/savefiles still use drag-and-drop.
+- **Internal shader editor** — EDITOR tab with live compile/reload.
+- **Box grouping** — presets act as collapsible sub-compositions (group view with its own graph + active render).
+- **Cue / crossfade staging** — stage param/link/bypass/add/delete changes into a draft (including inside box-groups) and Apply with a crossfade.
+- **MIDI mapping with learn mode** — per-device profiles (all devices usable at once, loose ALSA name matching); bindable actions incl. `ADD_SHADER_BOX`, bindable inline from the Import page.
+
 ## High Priority
-- Add an internal file browser/picker for shaders, images, videos, and savefiles (not only drag-and-drop).
+- Extend the internal file browser/picker to images, videos, and savefiles (shaders done; these are still drag-and-drop only).
 - Improve session save/load robustness with schema versioning and migration support.
 - Refactor pointer-heavy ownership (`JPbox*`, `JPcontroller*`, `JPParameter*`) to safer memory management.
 - Add better error UI for shader compile failures (inline message + line hints).
 - Add autosave and crash-recovery session restore.
 
 ## Livecoding and Shader Workflow
-- Build an internal shader editor panel with live compile/reload.
 - Add syntax highlighting and basic GLSL linting in-editor.
 - Support shader variants/branches per box.
-- Add shader favorites/tags and quick search.
+- Add shader tags (favorites + search done); curated metadata.
 - Add uniform support beyond float/bool (`vec2`, `vec3`, `vec4`, color picker).
 
 ## Performance and Stability
@@ -22,14 +29,12 @@
 - Add automated tests for XML load/save round trips.
 
 ## Node Graph UX
-- Add box grouping and collapse/expand groups.
 - Add copy/paste/duplicate for boxes and selections.
 - Add multi-select move and align/distribute tools.
 - Add undo/redo stack for graph edits.
 - Add minimap and zoom/pan controls.
 
 ## Automation and Control
-- Add MIDI mapping system with learn mode.
 - Add envelopes/LFO modulators as native automation sources.
 - Add trigger grid scene launcher (Resolume-like banks).
 - Add OSC mapping presets and address aliasing.

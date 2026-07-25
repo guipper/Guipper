@@ -11,10 +11,13 @@ Desarrollada por **JPUPPER** (jpupper), última modificación: 7/5/2021 (con act
 ## 2. ARQUITECTURA GENERAL
 
 ### 2.1 Plataforma
-- **openFrameworks v0.11.2** (VS2017)
+- **openFrameworks v0.12.1**
 - **OpenGL 3.2** core profile
-- **Windows** (con soporte condicional para Spout/DirectX)
-- Build: Visual Studio 2017 (`.vcxproj`)
+- **Multiplataforma**: Windows, Linux y macOS
+  - Windows: Visual Studio 2022 (`.vcxproj`), soporte Spout/DirectX condicional (`#ifdef SPOUT`)
+  - Linux/macOS: build por Makefile (`make` / `make RunRelease`); Spout deshabilitado
+  - Rutas Windows (backslashes, `C:/Windows/Fonts`) normalizadas al cargar sesiones guardadas en Windows
+- Desarrollo colaborativo: nicogaldo (Linux/Mac) + Jpupper (Windows/VS2022), rama `main` compartida
 
 ### 2.2 Addons Utilizados
 | Addon | Propósito |
@@ -115,8 +118,23 @@ La app tiene 5 pantallas principales accesibles desde la barra superior:
 | 1 | **NODOS** (NODES) | Editor de nodos visual - pantalla principal |
 | 2 | **SETTINGS** (OPCIONES) | Configuración de la aplicación |
 | 3 | **HELP** (TUTORIAL) | Instrucciones (bilingüe ES/EN) |
-| 4 | **IMPORT** (SHADER_INDEX) | Navegador de shaders |
+| 4 | **IMPORT** (SHADER_INDEX) | Navegador de shaders (ver 4.1) |
 | 5 | **EDITOR** (EDITOR) | Editor de código GLSL integrado |
+
+### 4.1 Página IMPORT (navegador de shaders)
+
+Ocupa la **mitad izquierda** de la pantalla; la mitad derecha deja ver el
+canvas de nodos en vivo, de modo que un shader cargado aparece donde se ve.
+
+- **Árbol de carpetas + búsqueda** en vivo sobre `bin/data/shaders/`.
+- **Favoritos**: estrella por shader; los favoritos se agrupan en una carpeta
+  "favorites" fijada arriba. Se persisten en `bin/data/shader_favorites.xml`.
+- **Preview en panel**: render en vivo del shader seleccionado (debajo de la
+  lista, sobre los botones).
+- **Navegación por teclado**: Arriba/Abajo mueven la selección (con auto-scroll),
+  Enter carga; doble-click sobre el nombre también carga.
+- **Botones**: `LOAD` (agrega el box), `BIND` (MIDI-learn inline del comando
+  `ADD_SHADER_BOX` para el shader seleccionado), `EDIT` (abre el editor).
 
 ---
 
