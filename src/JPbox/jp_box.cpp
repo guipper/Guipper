@@ -272,13 +272,14 @@ void JPbox::draw()
 	if (bypass.boolValue || bypassMouseOver)
 	{
 		ofNoFill();
-		ofSetColor(bypass.boolValue ? ofColor(255, 180, 180, 255) : ofColor(255, 120, 120, 220));
+		ofSetColor(bypass.boolValue ? ofColor(COL_TEXT_PRIMARY, 255) : ofColor(COL_TEXT_PRIMARY, 200));
 		ofDrawRectangle(bypass.x, bypass.y, bypass.width, bypass.height);
 		ofFill();
 	}
 	onoff.draw();
 	ofSetRectMode(OF_RECTMODE_CENTER);
-	ofColor onoffColor = onoff.boolValue ? COL_MAPPED_OFF : COL_TEXT_PRIMARY;
+	// Semantic: playing (onoff true) = green (live), paused = amber.
+	ofColor onoffColor = onoff.boolValue ? COL_ACCENT_GREEN : COL_ACCENT_GOLD_DIM;
 	if (onoffMouseOver)
 	{
 		onoffColor = onoffColor.getLerped(COL_TEXT_PRIMARY, 0.25);

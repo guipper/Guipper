@@ -1,4 +1,5 @@
 #include "jp_complexslider.h"
+#include <algorithm>
 JPHandler::JPHandler() {}
 JPHandler::~JPHandler() {}
 
@@ -58,65 +59,20 @@ void JPHandler::draw()
 		activeFlag = true;
 	}
 
-	if (mouseGrab())
-	{
-		ofSetColor(COL_TEXT_MUTED, 50);
-	}
-	else if (mouseOver())
-	{
-		ofSetColor(COL_BG_INPUT, 50);
-	}
-	else
-	{
-		ofSetColor(COL_TEXT_DIM, 50);
-	}
-	// ofSetColor(255, 0, 0);
-	ofDrawRectangle(x, y,
-					width, height);
-	ofSetColor(COL_TEXT_PRIMARY, 255);
-	if (useTexture)
-	{
-		// ofSetColor(255, 255);
-		ofSetColor(COL_ACCENT_CYAN, 255);
+	// Grip color by state: bright when grabbed, cyan on hover, dim otherwise.
+	ofColor c = mouseGrab() ? ofColor(COL_TEXT_PRIMARY) : (mouseOver() ? ofColor(COL_ACCENT_CYAN) : ofColor(COL_ACCENT_CYAN_DIM));
 
-		float tsize = 20;
-		float twidth = 0.75;
-		if (isLeft)
-		{
-			float offsexX = 0;
-			float offsetY = -5;
+	// Thin rounded vertical grip centered on x.
+	ofSetRectMode(OF_RECTMODE_CENTER);
+	ofSetColor(c);
+	ofDrawRectRounded(x, y, 4, height, 2);
 
-			float xx1 = x + offsexX - tsize * twidth;
-			float yy1 = y + offsetY;
-
-			float xx2 = x + offsexX;
-			float yy2 = y + offsetY;
-
-			float xx3 = x + offsexX;
-			float yy3 = y + offsetY + tsize;
-
-			ofDrawTriangle(xx1, yy1, xx2, yy2, xx3, yy3);
-		}
-		else
-		{
-			float offsexX = 0;
-			float offsetY = -5;
-			float xx1 = x + offsexX + tsize * twidth;
-			float yy1 = y + offsetY;
-
-			float xx2 = x + offsexX;
-			float yy2 = y + offsetY;
-
-			float xx3 = x + offsexX;
-			float yy3 = y + offsetY + tsize;
-			ofDrawTriangle(xx1, yy1, xx2, yy2, xx3, yy3);
-		}
-	}
-	else
-	{
-		ofDrawRectangle(x, y,
-						width, height);
-	}
+	// Marker pin (small downward triangle) sitting on top of the grip.
+	float th = std::min(9.0f, height * 0.5f);
+	float tw = 5.0f;
+	float topY = y - height * 0.5f;
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofDrawTriangle(x - tw, topY - th, x + tw, topY - th, x, topY);
 }
 
 JPComplexSlider::JPComplexSlider() {}
@@ -187,15 +143,15 @@ void JPComplexSlider::draw()
 	if (parameters->movtype != 0)
 	{
 
-		// ESTO TAL VEZ HABRIA QUE METERLO EN EL SLIDER VALUE !?=!?!?!?!?!?!?!?!
+		// Soft range band between the two limit handles.
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		ofSetColor(COL_ACCENT_CYAN);
-		float xcuadraditoceleste = handler1.x;
-		float cuadritoceleste_height = 20;
-		ofDrawRectangle(xcuadraditoceleste,
+		ofSetColor(COL_ACCENT_CYAN, 70);
+		float xcuadraditoceleste = std::min(handler1.x, handler2.x);
+		float cuadritoceleste_height = 16;
+		ofDrawRectRounded(xcuadraditoceleste,
 						slider_value.y - cuadritoceleste_height,
 						abs(handler1.x - handler2.x),
-						cuadritoceleste_height);
+						cuadritoceleste_height, 3);
 
 		string Strvalue = ofToString(parameters->floatValue, 2);
 		if (name == "blendmode")
@@ -287,8 +243,9 @@ void JPComplexSlider::update()
 				else if (handler2.activeFlag)
 				{
 					handler2.setPos(ofGetMouseX(), handler2.y);
+					// Max handle can't cross below the min handle.
 					handler2.x = ofClamp(handler2.x,
-										 slider_value.x - slider_value.width / 2 + handler1.width / 2,
+										 handler1.x + handler2.width / 2,
 										 slider_value.x + slider_value.width / 2 - handler2.width / 2);
 					parameters->max = ofMap(handler2.x,
 											slider_value.x - slider_value.width / 2 + handler2.width / 2,

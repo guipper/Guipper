@@ -25,7 +25,7 @@ void JPBang::draw()
 
 	if (activeFlag)
 	{
-		ofSetColor(jp_constants::Cactive[paleta]);
+		ofSetColor(COL_ACCENT_GREEN); // green flash when triggered
 	}
 
 	else

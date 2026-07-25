@@ -23,11 +23,12 @@
 #define COL_ACCENT_CYAN      ofColor(0, 175, 190)       // Primary accent (borders, highlights, active) - muted for dark bg
 #define COL_ACCENT_CYAN_DIM  ofColor(0, 135, 150)       // Secondary accent (selected states) - toned down
 #define COL_ACCENT_CYAN_DARK ofColor(0, 65, 75)         // Subtle cyan
-// Unified to cyan palette (were green/gold - kept names for API compat)
-#define COL_ACCENT_GREEN     COL_ACCENT_CYAN            // was (40,180,80)
-#define COL_ACCENT_GREEN_BR  COL_ACCENT_CYAN_DIM        // was (60,220,100)
-#define COL_ACCENT_GOLD      COL_ACCENT_CYAN            // was (255,180,0)
-#define COL_ACCENT_GOLD_DIM  COL_ACCENT_CYAN_DIM        // was (255,215,120)
+// Semantic hues on the dark base: GREEN = live/active/on, AMBER(gold) = cued/staged,
+// CYAN = selected/focused/accent, RED = bypass/off. Soft, muted for the dark bg.
+#define COL_ACCENT_GREEN     ofColor(46, 190, 120)       // live / active-render / toggle ON
+#define COL_ACCENT_GREEN_BR  ofColor(74, 214, 140)       // brighter green (active halo / borders)
+#define COL_ACCENT_GOLD      ofColor(226, 174, 64)       // cued / staged (amber)
+#define COL_ACCENT_GOLD_DIM  ofColor(198, 150, 74)       // amber dim (hover/secondary)
 #define COL_ACCENT_RED       ofColor(255, 80, 80)       // Bypass active, errors
 #define COL_ACCENT_RED_DIM   ofColor(255, 120, 120)     // Bypass hover text
 

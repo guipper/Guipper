@@ -50,7 +50,8 @@ void JPTooglelist::draw()
 		ofSetColor(jp_constants::Cactive);
 	}*/
 
-	ofSetColor(jp_constants::Cback[paleta]);
+	// green = parameter is animated (movtype != 0), grey = static
+	ofSetColor(movtype != 0 ? COL_ACCENT_GREEN : COL_TOGGLE_OFF);
 	ofSetRectMode(OF_RECTMODE_CENTER);
 	ofRect(x, y, width, height);
 

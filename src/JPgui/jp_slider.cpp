@@ -1,4 +1,5 @@
 #include "jp_slider.h"
+#include <algorithm>
 
 JPSlider::JPSlider() {}
 JPSlider::~JPSlider() {}
@@ -100,42 +101,40 @@ void JPSlider::draw()
 	}
 	if (parameters->movtype == 0)
 	{
-		ofSetRectMode(OF_RECTMODE_CENTER);
-		// isSpeedSlider = false;
-		ofSetColor(COL_BG_SLIDER);
-		ofDrawRectangle(x, y, width, height);
+		float left = x - width / 2;
+		float top = y - height / 2;
+		float fillW = ofMap(parameters->floatValue, min, max, 0, width, true);
+		float trackR = std::min(4.0f, height * 0.5f);
 
-		if (activeFlag)
-		{
-
-			ofSetColor(jp_constants::Cactive[paleta]);
-		}
-		else
-		{
-			if (mouseOver())
-			{
-				ofSetColor(COL_ACCENT_CYAN);
-			}
-			else
-			{
-				ofSetColor(COL_ACCENT_CYAN_DIM);
-			}
-		}
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		ofDrawRectangle(x - width / 2, y - height / 2, ofMap(parameters->floatValue, min, max, 0, width), height);
-		ofSetColor(jp_constants::textcolor);
+		// Soft dark track
+		ofSetColor(COL_BG_INPUT);
+		ofDrawRectRounded(left, top, width, height, trackR);
+
+		// Value fill (cyan; brighter on hover/active)
+		ofSetColor(activeFlag ? COL_ACCENT_CYAN : (mouseOver() ? COL_ACCENT_CYAN : COL_ACCENT_CYAN_DIM));
+		if (fillW > 1.0f)
+		{
+			float fr = std::min(trackR, fillW * 0.5f);
+			ofDrawRectRounded(left, top, fillW, height, fr);
+		}
 
 		if (showtext)
 		{
-			string Strvalue = name + " " + ofToString(parameters->floatValue, 2);
+			string valueStr = ofToString(parameters->floatValue, 2);
 			if (name == "blendmode")
 			{
-				Strvalue = name + " " + blendModeNameFromValue(parameters->floatValue);
+				valueStr = blendModeNameFromValue(parameters->floatValue);
 			}
-			jp_constants::p_font.drawString(Strvalue,
-											x - jp_constants::p_font.stringWidth(Strvalue) / 2,
-											y + jp_constants::p_font.stringHeight(Strvalue) / 2);
+			float textY = y + jp_constants::p_font.stringHeight(name) / 2;
+			// Name left-aligned, value right-aligned for a clean, readable row.
+			ofSetColor(COL_TEXT_PRIMARY);
+			jp_constants::p_font.drawString(name, left + 8, textY);
+			ofSetColor(COL_TEXT_PRIMARY, 220);
+			float vw = jp_constants::p_font.stringWidth(valueStr);
+			jp_constants::p_font.drawString(valueStr, left + width - vw - 8, textY);
 		}
+		ofSetColor(jp_constants::textcolor);
 	}
 	else
 	{

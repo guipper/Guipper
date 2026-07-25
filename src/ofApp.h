@@ -186,6 +186,7 @@ public:
 	// Shader index search
 	string shaderSearchText;
 	bool shaderSearchFocused = false;
+	int shaderSearchCursor = 0;
 	// Preview random values for RDM button
 	vector<string> previewUniformNames;
 	vector<float> previewUniformMins;
@@ -212,6 +213,7 @@ public:
 	enum { FIELD_OSC_PORT_IN = 0, FIELD_OSC_PORT_OUT, FIELD_RENDER_WIDTH, FIELD_RENDER_HEIGHT, FIELD_BPM, FIELD_OSC_IP_OUT, FIELD_DEFAULT_COMPO, OPTIONS_FIELD_COUNT };
 	string optionsFieldText[OPTIONS_FIELD_COUNT];
 	int focusedOptionsField = -1;
+	int optionsFieldCursor = 0;
 	void applyOptionsField();
 	void initOptionsFields();
 
@@ -232,6 +234,7 @@ public:
 	// Save-as modal state
 	bool saveModalActive = false;
 	string saveModalName = "";
+	int saveModalCursor = 0;
 	void drawSaveModal();
 	void confirmSaveModal();
 	void updateSaveModal();

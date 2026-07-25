@@ -156,13 +156,14 @@ void JPToogle::draw()
 	}
 	else
 	{
+		// Semantic two-state color: ON = green (live), OFF = dim red.
 		if (boolValue)
 		{
-			ofSetColor(jp_constants::Cactive[paleta]);
+			ofSetColor(COL_ACCENT_GREEN);
 		}
 		else
 		{
-			ofSetColor(jp_constants::Cback[paleta]);
+			ofSetColor(COL_ACCENT_RED_DIM);
 		}
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		ofRect(x, y, width, height);

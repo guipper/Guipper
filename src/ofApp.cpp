@@ -1,9 +1,13 @@
 #include "ofApp.h"
+#include "JPutils/jp_textfield.h"
 #include <iostream>
 #include <algorithm>
 
 //--------------------------------------------------------------
 void ofApp::setup() {
+
+	// ESC is used to cancel modals / leave screens, not to quit the whole app.
+	ofSetEscapeQuitsApp(false);
 
 	font_p.loadFont("font/Montserrat-Regular.ttf", 11); // Inicio fuente.
 
@@ -281,7 +285,7 @@ void ofApp::draw_debugInfo() {
 	//font_p.drawString("DIALOG BOX : " + ofToString(jp_constants::systemDialog_open), 30, posy -= sepy);
 }
 void ofApp::draw_instrucciones() {
-	float panelX = 30, panelY = 30;
+	float panelX = 30, panelY = 44; // below the top screen-tab bar, left-aligned
 	float panelW = ofGetWidth() - 60;
 	float lineH = 17;
 	float sepy = 17;
@@ -424,7 +428,7 @@ void ofApp::draw_instrucciones() {
 	float langBtnX = panelX + panelW - langBtnW - 15;
 	float langBtnY = panelY + 13;
 	string langLabel = (language == 0) ? "EN" : "ES";
-	ofSetColor(language == 0 ? COL_ACCENT_GREEN : ofColor(0, 120, 180));
+	ofSetColor(language == 0 ? COL_ACCENT_CYAN : COL_ACCENT_GOLD);
 	ofDrawRectRounded(langBtnX, langBtnY, langBtnW, langBtnH, 4.0f);
 	ofNoFill();
 	ofSetColor(COL_ACCENT_CYAN);
@@ -478,9 +482,10 @@ void ofApp::draw_instrucciones() {
 	}
 }
 void ofApp::draw_opciones() {
-	float panelX = 30, panelY = 30;
 	float panelW = 500;
-	float fieldX = 175;
+	float panelX = 30;           // left-aligned, consistent across pages
+	float panelY = 44;           // below the top screen-tab bar
+	float fieldX = panelX + 145; // panel-relative
 	float fieldW = 200;
 	float rowH = 28;
 	float sepy = 40;
@@ -535,19 +540,19 @@ void ofApp::draw_opciones() {
 		ofFill();
 		ofSetLineWidth(1.0f);
 
-		// Field text with cursor if focused
+		// Field text with insertion caret if focused
 		ofSetColor(COL_TEXT_PRIMARY);
-		string displayText = optionsFieldText[i];
+		font_p.drawString(optionsFieldText[i], fieldX + 6, rowY + rowH - 7);
 		if (focusedOptionsField == i) {
-			displayText += "|";
+			jp_textfield::drawCaret(font_p, optionsFieldText[i], optionsFieldCursor,
+									fieldX + 6, rowY + rowH / 2, rowH - 8);
 		}
-		font_p.drawString(displayText, fieldX + 6, rowY + rowH - 7);
 
 		// AUTOTAP button next to BPM field
 		if (i == FIELD_BPM) {
 			float tapX = fieldX + fieldW + 10;
 			float tapW = 100;
-			ofSetColor(140, 100, 40);
+			ofSetColor(COL_ACCENT_GOLD_DIM);
 			ofDrawRectRounded(tapX, rowY, tapW, rowH, 4.0f);
 			ofSetColor(COL_TEXT_PRIMARY);
 			font_p.drawString("AUTOTAP", tapX + 14, rowY + rowH - 7);
@@ -564,7 +569,7 @@ void ofApp::draw_opciones() {
 
 		float btnX = fieldX;
 		bool isOn = spoutActive;
-		ofSetColor(isOn ? COL_ACCENT_GREEN : ofColor(80, 30, 30));
+		ofSetColor(isOn ? COL_ACCENT_GREEN : COL_ACCENT_RED_DIM);
 		ofDrawRectRounded(btnX, rowY, toggleBtnW, rowH, 4.0f);
 		ofSetColor(COL_TEXT_PRIMARY);
 		font_p.drawString(isOn ? "ON" : "OFF", btnX + toggleBtnW / 2 - 12, rowY + rowH - 7);
@@ -581,7 +586,7 @@ void ofApp::draw_opciones() {
 
 		float btnX = fieldX;
 		bool isOn = ndiActive;
-		ofSetColor(isOn ? COL_ACCENT_GREEN : ofColor(80, 30, 30));
+		ofSetColor(isOn ? COL_ACCENT_GREEN : COL_ACCENT_RED_DIM);
 		ofDrawRectRounded(btnX, rowY, toggleBtnW, rowH, 4.0f);
 		ofSetColor(COL_TEXT_PRIMARY);
 		font_p.drawString(isOn ? "ON" : "OFF", btnX + toggleBtnW / 2 - 12, rowY + rowH - 7);
@@ -611,13 +616,13 @@ void ofApp::draw_opciones() {
 		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
 		ofFill();
 		ofSetLineWidth(1.0f);
-		// Field text with cursor if focused
+		// Field text with insertion caret if focused
 		ofSetColor(COL_TEXT_PRIMARY);
-		string displayText = optionsFieldText[fieldIdx];
+		font_p.drawString(optionsFieldText[fieldIdx], fieldX + 6, rowY + rowH - 7);
 		if (focusedOptionsField == fieldIdx) {
-			displayText += "|";
+			jp_textfield::drawCaret(font_p, optionsFieldText[fieldIdx], optionsFieldCursor,
+									fieldX + 6, rowY + rowH / 2, rowH - 8);
 		}
-		font_p.drawString(displayText, fieldX + 6, rowY + rowH - 7);
 	}
 	toggleRow++;
 
@@ -643,13 +648,13 @@ void ofApp::draw_opciones() {
 		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
 		ofFill();
 		ofSetLineWidth(1.0f);
-		// Field text with cursor if focused
+		// Field text with insertion caret if focused
 		ofSetColor(COL_TEXT_PRIMARY);
-		string displayText = optionsFieldText[fieldIdx];
+		font_p.drawString(optionsFieldText[fieldIdx], fieldX + 6, rowY + rowH - 7);
 		if (focusedOptionsField == fieldIdx) {
-			displayText += "|";
+			jp_textfield::drawCaret(font_p, optionsFieldText[fieldIdx], optionsFieldCursor,
+									fieldX + 6, rowY + rowH / 2, rowH - 8);
 		}
-		font_p.drawString(displayText, fieldX + 6, rowY + rowH - 7);
 
 		// BROWSE button next to the field
 		float browseX = fieldX + fieldW + 10;
@@ -855,9 +860,9 @@ void ofApp::scanShaders() {
 	cout << "  total shaders: " << totalShaders << endl;
 }
 void ofApp::draw_shaderindex() {
-	float panelX = 30, panelY = 30;
+	float panelX = 30, panelY = 44; // below the top screen-tab bar
 	float panelW = ofGetWidth() - 60;
-	float panelH = ofGetHeight() - 60;
+	float panelH = ofGetHeight() - panelY - 30;
 
 	// Background overlay
 	ofSetColor(0, 80);
@@ -947,11 +952,17 @@ void ofApp::draw_shaderindex() {
 	} else {
 		ofSetColor(COL_TEXT_PRIMARY);
 		font_p.drawString(displayText, textX, searchY + searchH - 5);
-		// Cursor blink
-		if (shaderSearchFocused && ((int)(ofGetElapsedTimef() * 2) % 2 == 0)) {
-			float cursorX = textX + font_p.stringWidth(displayText);
-			ofSetColor(COL_ACCENT_CYAN);
-			ofDrawLine(cursorX, searchY + 3, cursorX, searchY + searchH - 3);
+		// Insertion caret: follows the cursor when the text fits; falls back to
+		// the end when the field is truncated with a ".." prefix.
+		if (shaderSearchFocused) {
+			if (displayText == shaderSearchText) {
+				jp_textfield::drawCaret(font_p, shaderSearchText, shaderSearchCursor,
+										textX, searchY + searchH / 2, searchH - 6);
+			} else if ((int)(ofGetElapsedTimef() * 2) % 2 == 0) {
+				float cursorX = textX + font_p.stringWidth(displayText);
+				ofSetColor(COL_ACCENT_CYAN);
+				ofDrawLine(cursorX, searchY + 3, cursorX, searchY + searchH - 3);
+			}
 		}
 	}
 
@@ -1007,11 +1018,11 @@ void ofApp::draw_shaderindex() {
 	// Scroll indicators
 	if (shaderScroll > 0) {
 		ofSetColor(ofColor(COL_ACCENT_CYAN, 120));
-		font_p.drawString("^", panelX + listW - 10, drawTop + 4);
+		font_p.drawString("^", listX + listW - 10, drawTop + 4);
 	}
 	if (shaderScroll < maxScroll) {
 		ofSetColor(ofColor(COL_ACCENT_CYAN, 120));
-		font_p.drawString("v", panelX + listW - 10, drawBottom - 4);
+		font_p.drawString("v", listX + listW - 10, drawBottom - 4);
 	}
 
 	for (size_t f = 0; f < shaderFolders.size(); f++) {
@@ -1215,11 +1226,11 @@ void ofApp::draw_shaderindex() {
 		float lw = font_p.stringWidth(loadLabel);
 		font_p.drawString(loadLabel, loadX + btnW / 2 - lw / 2, btnY + 20);
 
-		// RDM button
-		ofSetColor(160, 80, 200);
+		// RDM button (neutral secondary)
+		ofSetColor(COL_BG_BUTTON);
 		ofDrawRectRounded(rdmX, btnY, btnW, btnH, 4.0f);
 		ofNoFill();
-		ofSetColor(200, 100, 255);
+		ofSetColor(COL_BORDER_HOVER);
 		ofSetLineWidth(1.5f);
 		ofDrawRectRounded(rdmX, btnY, btnW, btnH, 4.0f);
 		ofFill();
@@ -1229,11 +1240,11 @@ void ofApp::draw_shaderindex() {
 		float rw = font_p.stringWidth(rdmLabel);
 		font_p.drawString(rdmLabel, rdmX + btnW / 2 - rw / 2, btnY + 20);
 
-		// EDIT button
-		ofSetColor(180, 130, 50);
+		// EDIT button (amber outline)
+		ofSetColor(COL_BG_BUTTON);
 		ofDrawRectRounded(editX, btnY, btnW, btnH, 4.0f);
 		ofNoFill();
-		ofSetColor(240, 180, 80);
+		ofSetColor(COL_ACCENT_GOLD_DIM);
 		ofSetLineWidth(1.5f);
 		ofDrawRectRounded(editX, btnY, btnW, btnH, 4.0f);
 		ofFill();
@@ -1284,18 +1295,18 @@ void ofApp::keyPressed(int key) {
 			cancelSaveModal();
 			return;
 		}
-		if (key == OF_KEY_BACKSPACE) {
-			if (!saveModalName.empty()) {
-				saveModalName.erase(saveModalName.size() - 1);
-			}
+		// Cursor navigation + backspace/del/insert at cursor.
+		if (key == OF_KEY_LEFT || key == OF_KEY_RIGHT || key == OF_KEY_HOME ||
+			key == OF_KEY_END || key == OF_KEY_BACKSPACE || key == OF_KEY_DEL) {
+			jp_textfield::handleKey(saveModalName, saveModalCursor, key);
 			return;
 		}
-		// Allow alphanumeric, dash, underscore, dot, space
+		// Allow alphanumeric, dash, underscore, dot, space (insert at cursor).
 		if ((key >= 'a' && key <= 'z') ||
 			(key >= 'A' && key <= 'Z') ||
 			(key >= '0' && key <= '9') ||
 			key == '-' || key == '_' || key == '.' || key == ' ') {
-			saveModalName += (char)key;
+			jp_textfield::handleKey(saveModalName, saveModalCursor, key);
 		}
 		return;
 	}
@@ -1309,38 +1320,14 @@ void ofApp::keyPressed(int key) {
 			applyOptionsField();
 			return;
 		}
-		if (key == OF_KEY_BACKSPACE) {
-			string &text = optionsFieldText[focusedOptionsField];
-			if (!text.empty()) {
-				text.erase(text.size() - 1);
-			}
-			return;
-		}
-		// For IP and path fields, allow dots, slashes, letters, etc.
-		if (focusedOptionsField == FIELD_OSC_IP_OUT || focusedOptionsField == FIELD_DEFAULT_COMPO) {
-			// Accept any printable ASCII (32-126) except control chars
-			if (key >= 32 && key <= 126) {
-				optionsFieldText[focusedOptionsField] += (char)key;
-				return;
-			}
-		} else {
-			// Numeric fields: allow digits 0-9 only
-			if (key >= '0' && key <= '9') {
-				optionsFieldText[focusedOptionsField] += (char)key;
-				return;
-			}
-		}
+		// IP/path fields accept any printable char; numeric fields digits only.
+		bool numericOnly = !(focusedOptionsField == FIELD_OSC_IP_OUT || focusedOptionsField == FIELD_DEFAULT_COMPO);
+		jp_textfield::handleKey(optionsFieldText[focusedOptionsField], optionsFieldCursor, key, numericOnly);
 		return; // consume other keys while focused
 	}
 
 	// Shader index search input
 	if (pantallaActiva == SHADER_INDEX && shaderSearchFocused) {
-		if (key == OF_KEY_BACKSPACE) {
-			if (!shaderSearchText.empty()) {
-				shaderSearchText.erase(shaderSearchText.size() - 1);
-			}
-			return;
-		}
 		if (key == OF_KEY_ESC) {
 			shaderSearchFocused = false;
 			return;
@@ -1348,11 +1335,8 @@ void ofApp::keyPressed(int key) {
 		if (key == OF_KEY_RETURN || key == '\r') {
 			return;
 		}
-		// Accept any printable character
-		if (key >= 32 && key <= 126) {
-			shaderSearchText += (char)key;
+		if (jp_textfield::handleKey(shaderSearchText, shaderSearchCursor, key)) {
 			shaderScroll = 0;
-			return;
 		}
 		return;
 	}
@@ -1617,6 +1601,7 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 					saveModalName = sessionFile;
 				}
 			}
+			saveModalCursor = saveModalName.size();
 			cout << "Save modal opened, name='" << saveModalName << "'" << endl;
 		}
 		return;
@@ -1750,7 +1735,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 	}
 	if (pantallaActiva == TUTORIAL) {
 		// Language toggle — only click on the top-right button area
-		float panelX = 30, panelY = 30;
+		float panelX = 30, panelY = 44;
 		float panelW = ofGetWidth() - 60;
 		float langBtnW = 52;
 		float langBtnH = 22;
@@ -1762,9 +1747,10 @@ void ofApp::mousePressed(int x, int y, int button) {
 	}
 	if (pantallaActiva == OPCIONES) {
 		// Layout constants matching draw_opciones()
-		float panelX = 30, panelY = 30;
 		float panelW = 500;
-		float fieldX = 175;
+		float panelX = 30;
+		float panelY = 44;
+		float fieldX = panelX + 145;
 		float fieldW = 200;
 		float rowH = 28;
 		float sepy = 40;
@@ -1777,6 +1763,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 			if (x >= fieldX && x <= fieldX + fieldW &&
 				y >= rowY && y <= rowY + rowH) {
 				focusedOptionsField = i;
+				optionsFieldCursor = optionsFieldText[i].size();
 				return;
 			}
 			// AUTOTAP button next to BPM field
@@ -1825,6 +1812,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 			if (x >= fieldX && x <= fieldX + fieldW &&
 				y >= rowY && y <= rowY + rowH) {
 				focusedOptionsField = FIELD_OSC_IP_OUT;
+				optionsFieldCursor = optionsFieldText[FIELD_OSC_IP_OUT].size();
 				return;
 			}
 		}
@@ -1837,6 +1825,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 			if (x >= fieldX && x <= fieldX + fieldW &&
 				y >= rowY && y <= rowY + rowH) {
 				focusedOptionsField = FIELD_DEFAULT_COMPO;
+				optionsFieldCursor = optionsFieldText[FIELD_DEFAULT_COMPO].size();
 				return;
 			}
 			// Click on BROWSE button
@@ -1875,9 +1864,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 		}
 	}
 	if (pantallaActiva == SHADER_INDEX && button == 0) {
-		float panelX = 30, panelY = 30;
+		float panelX = 30, panelY = 44;
 		float panelW = ofGetWidth() - 60;
-		float panelH = ofGetHeight() - 60;
+		float panelH = ofGetHeight() - panelY - 30;
 		float dividerX = panelX + panelW * 0.55f;
 		float listX = panelX + 15;
 		float listW = dividerX - listX - 10;
@@ -1894,6 +1883,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 		float textX = searchLabelX + font_p.stringWidth(searchLabel) + 3;
 		if (x >= listX && x <= listX + listW && y >= searchY && y <= searchY + searchH) {
 			shaderSearchFocused = true;
+			shaderSearchCursor = shaderSearchText.size();
 			return;
 		}
 		// Click outside search bar unfocuses it
@@ -2220,9 +2210,9 @@ void ofApp::windowResized(int w, int h) {
 void ofApp::keyReleased(int key) { }
 void ofApp::mouseMoved(int x, int y) {
 	if (pantallaActiva == SHADER_INDEX) {
-		float panelX = 30, panelY = 30;
+		float panelX = 30, panelY = 44;
 		float panelW = ofGetWidth() - 60;
-		float panelH = ofGetHeight() - 60;
+		float panelH = ofGetHeight() - panelY - 30;
 		float dividerX = panelX + panelW * 0.55f;
 		float listX = panelX + 15;
 		float listW = dividerX - listX - 10;
@@ -2236,59 +2226,55 @@ void ofApp::mouseMoved(int x, int y) {
 		if (x >= listX && x <= listX + listW && y >= clickStartY && y <= panelY + panelH - 20) {
 			float folderEntryH = 16;
 			float shaderEntryH = 14;
+			float drawBottom = panelY + panelH - 20;
 			float drawY = clickStartY;
+			int currentLine = 0; // mirror draw_shaderindex scroll handling
 
 			for (size_t f = 0; f < shaderFolders.size(); f++) {
-				// Search filtering: skip folders with no matching content
-				{
-					bool searchActive = !shaderSearchText.empty();
-					if (searchActive) {
-						string searchLower = ofToLower(shaderSearchText);
-						string folderNameLower = ofToLower(shaderFolders[f].name);
-						bool folderMatch = folderNameLower.find(searchLower) != string::npos;
-						bool hasMatch = folderMatch;
-						if (!hasMatch) {
-							for (size_t ss = 0; ss < shaderFolders[f].shaders.size(); ss++) {
-								if (ofToLower(shaderFolders[f].shaders[ss].name).find(searchLower) != string::npos) {
-									hasMatch = true;
-									break;
-								}
-							}
+				if (drawY > drawBottom) break;
+				bool searchActive = !shaderSearchText.empty();
+				string searchLower = ofToLower(shaderSearchText);
+				bool folderNameMatch = false;
+				bool hasMatchingShader = false;
+				if (searchActive) {
+					folderNameMatch = ofToLower(shaderFolders[f].name).find(searchLower) != string::npos;
+					if (!folderNameMatch) {
+						for (size_t ss = 0; ss < shaderFolders[f].shaders.size(); ss++) {
+							if (ofToLower(shaderFolders[f].shaders[ss].name).find(searchLower) != string::npos) { hasMatchingShader = true; break; }
 						}
-						if (!hasMatch) continue;
 					}
+					if (!folderNameMatch && !hasMatchingShader) continue;
 				}
-				if (y >= drawY - folderEntryH && y < drawY) {
-					hoveredShaderFolder = (int)f;
-					hoveredShaderIndex = -1;
-					break;
-				}
-				drawY += folderEntryH;
 
-				if (shaderFolders[f].expanded) {
-					bool searchActive = !shaderSearchText.empty();
-					string searchLower;
-					string folderNameLower;
-					bool folderMatch = false;
-					if (searchActive) {
-						searchLower = ofToLower(shaderSearchText);
-						folderNameLower = ofToLower(shaderFolders[f].name);
-						folderMatch = folderNameLower.find(searchLower) != string::npos;
-					}
-					for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
-						// Skip non-matching shaders when searching
-						if (searchActive) {
-							string sn = ofToLower(shaderFolders[f].shaders[s].name);
-							if (!folderMatch && sn.find(searchLower) == string::npos) {
-								continue;
-							}
-						}
-						if (y >= drawY - shaderEntryH && y < drawY) {
+				// Folder header — count every line, gate visibility by scroll (matches draw)
+				currentLine++;
+				if (currentLine > shaderScroll) {
+					if (drawY + folderEntryH <= drawBottom) {
+						if (y >= drawY - folderEntryH && y < drawY) {
 							hoveredShaderFolder = (int)f;
-							hoveredShaderIndex = (int)s;
+							hoveredShaderIndex = -1;
 							break;
 						}
-						drawY += shaderEntryH;
+						drawY += folderEntryH;
+					}
+				}
+
+				if (shaderFolders[f].expanded) {
+					for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
+						if (searchActive && !folderNameMatch &&
+							ofToLower(shaderFolders[f].shaders[s].name).find(searchLower) == string::npos) {
+							continue;
+						}
+						currentLine++;
+						if (currentLine > shaderScroll) {
+							if (drawY + shaderEntryH > drawBottom) break;
+							if (y >= drawY - shaderEntryH && y < drawY) {
+								hoveredShaderFolder = (int)f;
+								hoveredShaderIndex = (int)s;
+								break;
+							}
+							drawY += shaderEntryH;
+						}
 					}
 					if (hoveredShaderFolder >= 0) break;
 				}
@@ -2317,8 +2303,8 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 		return;
 	}
 	if (pantallaActiva == SHADER_INDEX) {
-		float panelX = 30, panelY = 30;
-		float panelH = ofGetHeight() - 60;
+		float panelX = 30, panelY = 44;
+		float panelH = ofGetHeight() - panelY - 30;
 		if (x >= panelX && x <= panelX + (ofGetWidth() - 60) && y >= panelY && y <= panelY + panelH) {
 			shaderScroll -= (int)scrollY * 3;
 			if (shaderScroll < 0) shaderScroll = 0;
@@ -2780,14 +2766,10 @@ void ofApp::drawSaveModal() {
 
 	// Filename text inside the field — white with blinking cursor
 	ofSetColor(COL_TEXT_PRIMARY);
-	string displayText = saveModalName;
-	// Cursor blinks every 25 frames
-	if ((ofGetFrameNum() / 25) % 2 == 0) {
-		displayText += "|";
-	}
-	// Vertically center text at baseline ~ fieldY + fieldH/2 + font_size/3
 	float textY = fieldY + fieldH * 0.5f + 5.0f;
-	modalFont.drawString(displayText, fieldX + 8, textY);
+	modalFont.drawString(saveModalName, fieldX + 8, textY);
+	jp_textfield::drawCaret(modalFont, saveModalName, saveModalCursor,
+							fieldX + 8, fieldY + fieldH * 0.5f, fieldH - 10);
 
 	// Preview path below the field
 	ofSetColor(100, 130, 160);
