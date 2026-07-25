@@ -118,6 +118,13 @@ public:
 	int getCueTargetBoxSize() const;
 	JPbox *getCueTargetBoxAt(int index) const;
 	int &getCueTargetActiveRender();
+	// True when the active cue belongs to the graph currently on screen
+	// (main graph in main view, or the active preset in group view).
+	bool cueTargetsCurrentView() const;
+	// Real index (within the current graph) of the selected/inspected box.
+	int cueSelectedIndex() const;
+	// Name lookup scoped to the cue's target graph (preset-aware findBoxIndexByName).
+	int findCueTargetBoxIndexByName(const string &boxName) const;
 	int getMaxParameterCount() const;
 	bool setOpenBoxParameterAtIndex(int parameterIndex, float value);
 	bool setLastBoxOnOff(bool value);
@@ -144,7 +151,7 @@ public:
 	// activeGroupPath: empty = MAIN, [i] = preset at boxes[i], [i,j] = nested preset
 	int activeTab = 0;
 	vector<int> activeGroupPath;
-	float tabBarOffsetY = 32; // Offset for screen-level tabs above the boxgroup tabs
+	float tabBarOffsetY = 40; // Offset for screen-level tabs above the boxgroup tabs (clearance below the top screen-tab bar)
 	void drawTabs();
 	int getTabAtScreenPos(int screenX, int screenY) const;
 	bool handleTabClick();
@@ -153,6 +160,7 @@ public:
 	bool tabRenaming = false;
 	int tabRenameTabIndex = -1; // Which tab (0-based across all tabs) is being renamed
 	string tabRenameBuffer;
+	int tabRenameCursor = 0;
 
 	// Get indices of direct child presets in the current context (MAIN or active preset)
 	vector<int> getDirectChildPresetIndices() const;
