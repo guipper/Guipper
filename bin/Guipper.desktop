@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Guipper
+Comment=Guipper visual performance tool
+Exec=/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/Guipper
+Path=/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin
+Icon=/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/data/guipper.png
+Terminal=false
+Categories=AudioVideo;Graphics;

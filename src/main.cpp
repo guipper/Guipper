@@ -28,6 +28,16 @@ int main()
 	settings.resizable = true;
 	// settings.shareContextWith = RenderWindow;
 	shared_ptr<ofAppBaseWindow> mainWindow = ofCreateWindow(settings);
+#ifdef TARGET_LINUX
+	auto glfwWindow = dynamic_pointer_cast<ofAppGLFWWindow>(mainWindow);
+	if (glfwWindow) {
+		ofImage appIcon;
+		if (appIcon.load("guipper.png")) {
+			appIcon.setImageType(OF_IMAGE_COLOR_ALPHA);
+			glfwWindow->setWindowIcon(appIcon.getPixels());
+		}
+	}
+#endif
 	shared_ptr<ofApp> mainApp(new ofApp);
 
 	// render->main_window = mainApp;// Con esto puenteamos las apps.
