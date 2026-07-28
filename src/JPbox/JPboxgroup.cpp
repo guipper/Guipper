@@ -468,15 +468,15 @@ void JPboxgroup::drawCuePreview()
 	ofSetColor(COL_ACCENT_GOLD);
 	string displayName = previewBox->name;
 	if (cueMonitorMode == CUE_MONITOR_SELECTED_BOX &&
-		openguinumber >= 0 && openguinumber < boxes.size())
+		cueSelectedIndex() >= 0 && cueSelectedIndex() < getCueTargetBoxSize())
 	{
-		displayName = boxes[openguinumber]->name;
+		displayName = getCueTargetBoxAt(cueSelectedIndex())->name;
 	}
-	else if (isCueDraftMode() && cueState.targetPreset == nullptr &&
+	else if (isCueDraftMode() &&
 			 cueState.draftOutputRealIndex >= 0 &&
-			 cueState.draftOutputRealIndex < boxes.size())
+			 cueState.draftOutputRealIndex < getCueTargetBoxSize())
 	{
-		displayName = boxes[cueState.draftOutputRealIndex]->name;
+		displayName = getCueTargetBoxAt(cueState.draftOutputRealIndex)->name;
 	}
 	if (cueFullscreenPreview && boxes.size() > 0 && *activerender >= 0 && *activerender < boxes.size())
 	{
@@ -1132,7 +1132,7 @@ void JPboxgroup::update(){
 			if (inspectorBox->parameters.parameters[k]->needsUpdate)
 			{
 				inspectorBox->parameters.parameters[k]->update();
-				markCueDraftDirty(openguinumber);
+				markCueDraftDirty(cueSelectedIndex());
 				setControllers();
 
 				inspectorBox->parameters.parameters[k]->needsUpdate = false;
@@ -1407,7 +1407,7 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 
 					inspectorBox->parameters.setFloatValue(controllers[i]->value, i);
 					inspectorBox->parameters.setFloatLerpValue(controllers[i]->value, i);
-					markCueDraftDirty(openguinumber);
+					markCueDraftDirty(cueSelectedIndex());
 				}
 				// Exposed controllers (i >= inspectorBox->parameters.getSize()): update via their own parameter pointer
 				else if (i >= inspectorBox->parameters.getSize())
@@ -1533,6 +1533,17 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				// Double-click: set active render (green box) and switch main output
 				if (isDoubleClick)
 				{
+					// If a cue targets this group, stage the active-render change
+					// into the draft instead of committing it live (parity with
+					// requestSetActiveRender's hasCue() staging on the main graph).
+					if (isCueDraftMode() && cueTargetsCurrentView())
+					{
+						if (setCueStagedActiveRenderIndex(clickedIndex))
+						{
+							markCueDraftDirty(clickedIndex, CUE_DIRTY_STAGED_ACTIVE);
+						}
+						return;
+					}
 					preset->activeRender = clickedIndex;
 
 					// Propagate active render up the preset chain
@@ -1613,12 +1624,14 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 
 	bool arafue = false; // POR SI NO TOCO NINGUN ELEMENTO;
 
-	if (mouseButton == OF_MOUSE_BUTTON_RIGHT && isCueDraftMode() && !mouseOverGui())
+	if (mouseButton == OF_MOUSE_BUTTON_RIGHT && isCueDraftMode() && cueTargetsCurrentView() && !mouseOverGui())
 	{
 		JPdragobject::setMouseOverride(canvasMouse);
-		for (int i = boxes.size() - 1; i >= 0; i--)
+		// Hit-test the graph currently on screen (== the cue's target graph).
+		vector<JPbox *> &tboxes = getCueTargetBoxes();
+		for (int i = (int)tboxes.size() - 1; i >= 0; i--)
 		{
-			if (boxes[i]->mouseOver() && (isCueDraftDirty(i) || isCueAddedRealIndex(i)))
+			if (tboxes[i]->mouseOver() && (isCueDraftDirty(i) || isCueAddedRealIndex(i)))
 			{
 				JPdragobject::clearMouseOverride();
 				revertCueDraftBox(i);
@@ -1705,7 +1718,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 					else if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.BOOL)
 					{
 						inspectorBox->parameters.setBoolValue(controllers[i]->boolValue, i);
-						markCueDraftDirty(openguinumber);
+						markCueDraftDirty(cueSelectedIndex());
 					}
 				}
 			}
@@ -1731,7 +1744,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 											  controllers[i]->x + (controllers[i]->width * 3 / 4) / 2, 0.0, 1.0, true);
 				inspectorBox->parameters.setFloatValue(controllers[i]->value, i);
 				inspectorBox->parameters.setFloatLerpValue(controllers[i]->value, i);
-				markCueDraftDirty(openguinumber);
+				markCueDraftDirty(cueSelectedIndex());
 			}
 		}
 		if (mouseButton == 2 && isDoubleClick)
@@ -1744,7 +1757,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 					float rdm = ofRandom(1);
 					inspectorBox->parameters.setFloatLerpValue(rdm, i);
 					inspectorBox->parameters.setFloatValue(rdm, i);
-					markCueDraftDirty(openguinumber);
+					markCueDraftDirty(cueSelectedIndex());
 
 				}
 			}
@@ -2557,7 +2570,10 @@ void JPboxgroup::setControllers(){
 		if (!isGroupViewActive() && openguinumber >= 0 && openguinumber < (int)boxes.size() &&
 			boxes[openguinumber]->getTipo() == JPbox::PRESETBOX)
 		{
-			JPbox_preset *rootPreset = dynamic_cast<JPbox_preset *>(boxes[openguinumber]);
+			// Bind exposed sliders to the DRAFT preset when a cue targets this view
+			// (inspectorBox is the draft clone then), so exposed-param edits stage in
+			// the cue instead of writing straight to the live preset's sub-boxes.
+			JPbox_preset *rootPreset = dynamic_cast<JPbox_preset *>(inspectorBox);
 			if (rootPreset != nullptr)
 			{
 				for (int bi = 0; bi < (int)rootPreset->boxes.size() && bi < (int)rootPreset->exposedParams.size(); bi++)
@@ -2655,7 +2671,9 @@ void JPboxgroup::setControllers(){
 					 << " PRESETBOX=" << JPbox::PRESETBOX << endl;
 				if (selectedBox != nullptr && selectedBox->getTipo() == JPbox::PRESETBOX)
 				{
-					JPbox_preset *childPreset = dynamic_cast<JPbox_preset *>(selectedBox);
+					// Use the DRAFT clone (inspectorBox) when a cue targets this view
+					// so nested exposed-param edits stage instead of hitting live.
+					JPbox_preset *childPreset = dynamic_cast<JPbox_preset *>(inspectorBox);
 					cout << "GROUPVIEW: childPreset=" << (childPreset ? childPreset->name : "NULL")
 						 << " children=" << (childPreset ? (int)childPreset->boxes.size() : -1)
 						 << " exposedSize=" << (childPreset ? (int)childPreset->exposedParams.size() : -1) << endl;
@@ -2924,7 +2942,7 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 			inspectorBox->parameters.getMovType(Intindex) == 0){
 			inspectorBox->parameters.setFloatValue(_val, Intindex);
 			inspectorBox->parameters.setFloatLerpValue(_val, Intindex);
-			markCueDraftDirty(openguinumber);
+			markCueDraftDirty(cueSelectedIndex());
 			controllers[Intindex]->value = _val;
 		}
 	}
@@ -3048,10 +3066,10 @@ bool JPboxgroup::setCueByIndex(int index)
 		return false;
 	}
 
-	bool wasInspectorTarget = isCueDraftMode() && openguinumber == cueState.sourceIndex;
+	bool wasInspectorTarget = isCueDraftMode() && cueSelectedIndex() == cueState.sourceIndex;
 	clearCue();
 	cueState.targetPreset = intendedTarget;
-	if (wasInspectorTarget && openguinumber >= 0 && openguinumber < getCueTargetBoxSize())
+	if (wasInspectorTarget && cueSelectedIndex() >= 0 && cueSelectedIndex() < getCueTargetBoxSize())
 	{
 		setControllers();
 	}
@@ -3099,7 +3117,7 @@ bool JPboxgroup::toggleCueByIndex(int index)
 
 void JPboxgroup::clearCue()
 {
-	bool wasInspectorTarget = isCueDraftMode() && openguinumber == cueState.sourceIndex;
+	bool wasInspectorTarget = isCueDraftMode() && cueSelectedIndex() == cueState.sourceIndex;
 	removeCueAddedBoxesFromRealGraph();
 	clearCueDraft();
 	cueState.mode = CUE_NONE;
@@ -3112,7 +3130,7 @@ void JPboxgroup::clearCue()
 	cuePanelApplyArmed = false;
 	pendingCueApply = false;
 	pendingCueRebuild = false;
-	if (wasInspectorTarget && openguinumber >= 0 && openguinumber < boxes.size())
+	if (wasInspectorTarget && cueSelectedIndex() >= 0)
 	{
 		setControllers();
 	}
@@ -3144,31 +3162,45 @@ bool JPboxgroup::hasCue() const
 
 bool JPboxgroup::setCueBoxByIndex(int index)
 {
-	// Cue the current graph: the active preset in group view, else the main graph.
-	cueState.targetPreset = isGroupViewActive() ? getActivePreset() : nullptr;
+	// Global cue: always target the main-graph tree.
+	cueState.targetPreset = nullptr;
 	return setCueByIndex(index);
 }
 
 bool JPboxgroup::setCueBoxByName(string boxName)
 {
-	cueState.targetPreset = isGroupViewActive() ? getActivePreset() : nullptr;
+	cueState.targetPreset = nullptr;
 	return setCueByIndex(findCueTargetBoxIndexByName(boxName));
 }
 
 bool JPboxgroup::toggleCueBoxByIndex(int index)
 {
 	cout << "toggleCueBoxByIndex(" << index << ") called" << endl;
-	// When in group view, set the target preset for CUE operations
+	// The cue is a GLOBAL staging session over the whole main-graph tree, so it
+	// always targets the main graph (nullptr). Edits inside groups stage into the
+	// corresponding draft-tree sub-box (see getDraftBoxForCurrentInspector).
+	cueState.targetPreset = nullptr;
+	return toggleCueByIndex(index);
+}
+
+int JPboxgroup::getCueEntryIndexForCurrentView() const
+{
+	// The cue is global (main-graph tree). Return a MAIN-graph source index: inside
+	// a group that is the main box containing the group; in the main graph the
+	// selected box, else the active render.
 	if (isGroupViewActive())
 	{
-		cueState.targetPreset = getActivePreset();
-		cout << "  -> targetPreset set for group view" << endl;
+		if (!activeGroupPath.empty())
+		{
+			return activeGroupPath[0];
+		}
+		return activerender != nullptr ? *activerender : -1;
 	}
-	else
+	if (openguinumber >= 0 && openguinumber < (int)boxes.size())
 	{
-		cueState.targetPreset = nullptr;
+		return openguinumber;
 	}
-	return toggleCueByIndex(index);
+	return activerender != nullptr ? *activerender : -1;
 }
 
 bool JPboxgroup::hasCueBox() const
@@ -3214,7 +3246,59 @@ bool JPboxgroup::cueTargetsCurrentView() const
 
 int JPboxgroup::cueSelectedIndex() const
 {
-	return isGroupViewActive() ? groupInspectorIndex : openguinumber;
+	// The cue is a GLOBAL staging session over the whole main-graph tree. This
+	// returns the TOP-LEVEL main-graph box index for the current context: inside a
+	// group that is the main box that contains the group (activeGroupPath[0]), so
+	// dirty-marking and draft lookups stay at the main-graph level. The exact box
+	// being edited (a sub-box deep in the tree) is resolved by
+	// getDraftBoxForCurrentInspector().
+	if (isGroupViewActive())
+	{
+		return activeGroupPath.empty() ? -1 : activeGroupPath[0];
+	}
+	return openguinumber;
+}
+JPbox *JPboxgroup::getDraftBoxForCurrentInspector()
+{
+	// Resolve the draft-tree box that the inspector is editing. The draft graph
+	// clones the MAIN boxes (and, for presets, their internal sub-boxes via
+	// copyPresetInternalState), so we navigate that draft tree by activeGroupPath
+	// and finally the selected sub-box.
+	if (!isCueDraftMode())
+	{
+		return nullptr;
+	}
+	if (!isGroupViewActive())
+	{
+		return getCueDraftBoxForRealIndex(openguinumber);
+	}
+	if (activeGroupPath.empty())
+	{
+		return nullptr;
+	}
+	JPbox_preset *dp = dynamic_cast<JPbox_preset *>(getCueDraftBoxForRealIndex(activeGroupPath[0]));
+	if (dp == nullptr)
+	{
+		return nullptr;
+	}
+	for (size_t depth = 1; depth < activeGroupPath.size(); depth++)
+	{
+		int idx = activeGroupPath[depth];
+		if (idx < 0 || idx >= (int)dp->boxes.size() || dp->boxes[idx] == nullptr)
+		{
+			return nullptr;
+		}
+		dp = dynamic_cast<JPbox_preset *>(dp->boxes[idx]);
+		if (dp == nullptr)
+		{
+			return nullptr;
+		}
+	}
+	if (groupInspectorIndex < 0 || groupInspectorIndex >= (int)dp->boxes.size())
+	{
+		return nullptr;
+	}
+	return dp->boxes[groupInspectorIndex];
 }
 
 int JPboxgroup::findCueTargetBoxIndexByName(const string &boxName) const
@@ -3329,15 +3413,15 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 	for (int i = 0; i < cueState.draftRealIndices.size(); i++)
 	{
 		int realIndex = cueState.draftRealIndices[i];
-		if (realIndex < 0 || realIndex >= boxes.size() ||
+		if (realIndex < 0 || realIndex >= getCueTargetBoxSize() ||
 			i < 0 || i >= cueState.draftBoxes.size() ||
-			boxes[realIndex] == nullptr || cueState.draftBoxes[i] == nullptr)
+			getCueTargetBoxAt(realIndex) == nullptr || cueState.draftBoxes[i] == nullptr)
 		{
 			continue;
 		}
 		DraftSnapshot snapshot;
 		snapshot.realIndex = realIndex;
-		snapshot.name = boxes[realIndex]->name;
+		snapshot.name = getCueTargetBoxAt(realIndex)->name;
 		snapshot.parameters = cueState.draftBoxes[i]->parameters;
 		snapshot.onoff = cueState.draftBoxes[i]->getonoff();
 		snapshot.bypass = cueState.draftBoxes[i]->getBypass();
@@ -3355,13 +3439,12 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 	}
 
 	int sourceIndex = cueState.sourceIndex;
-	int openIndex = openguinumber;
 	int keepStagedActiveRenderIndex = cueState.stagedActiveRenderIndex;
 	bool keepFullscreenPreview = cueFullscreenPreview;
 	CueMonitorMode keepMonitorMode = cueMonitorMode;
 
-	if (sourceIndex < 0 || sourceIndex >= boxes.size() ||
-		boxes[sourceIndex] == nullptr)
+	if (sourceIndex < 0 || sourceIndex >= getCueTargetBoxSize() ||
+		getCueTargetBoxAt(sourceIndex) == nullptr)
 	{
 		clearCue();
 		return false;
@@ -3374,7 +3457,7 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 
 	cueFullscreenPreview = keepFullscreenPreview;
 	cueMonitorMode = keepMonitorMode;
-	if (keepStagedActiveRenderIndex >= 0 && keepStagedActiveRenderIndex < boxes.size())
+	if (keepStagedActiveRenderIndex >= 0 && keepStagedActiveRenderIndex < getCueTargetBoxSize())
 	{
 		setCueStagedActiveRenderIndex(keepStagedActiveRenderIndex);
 	}
@@ -3387,11 +3470,11 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 	for (int i = 0; i < snapshots.size(); i++)
 	{
 		int realIndex = snapshots[i].realIndex;
-		if (realIndex < 0 || realIndex >= boxes.size() ||
-			boxes[realIndex] == nullptr ||
-			boxes[realIndex]->name != snapshots[i].name)
+		if (realIndex < 0 || realIndex >= getCueTargetBoxSize() ||
+			getCueTargetBoxAt(realIndex) == nullptr ||
+			getCueTargetBoxAt(realIndex)->name != snapshots[i].name)
 		{
-			realIndex = findBoxIndexByName(snapshots[i].name);
+			realIndex = findCueTargetBoxIndexByName(snapshots[i].name);
 		}
 
 		JPbox *draftBox = getCueDraftBoxForRealIndex(realIndex);
@@ -3411,15 +3494,16 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 				draftBox->fbohandlergroup.deleteFboPointer(linkIndex);
 				continue;
 			}
-			int linkedRealIndex = findBoxIndexByName(snapshots[i].linkNames[linkIndex]);
+			int linkedRealIndex = findCueTargetBoxIndexByName(snapshots[i].linkNames[linkIndex]);
 			JPbox *linkedDraft = getCueDraftBoxForRealIndex(linkedRealIndex);
 			if (linkedDraft != nullptr)
 			{
 				draftBox->fbohandlergroup.setFboPointer(&linkedDraft->fbo, &linkedDraft->name, linkIndex);
 			}
-			else if (linkedRealIndex >= 0 && linkedRealIndex < boxes.size() && boxes[linkedRealIndex] != nullptr)
+			else if (linkedRealIndex >= 0 && linkedRealIndex < getCueTargetBoxSize() && getCueTargetBoxAt(linkedRealIndex) != nullptr)
 			{
-				draftBox->fbohandlergroup.setFboPointer(&boxes[linkedRealIndex]->fbo, &boxes[linkedRealIndex]->name, linkIndex);
+				JPbox *linkedReal = getCueTargetBoxAt(linkedRealIndex);
+				draftBox->fbohandlergroup.setFboPointer(&linkedReal->fbo, &linkedReal->name, linkIndex);
 			}
 		}
 		markCueDraftDirty(realIndex, snapshots[i].dirtyFlags);
@@ -3429,8 +3513,9 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 		markCueDraftDirty(cueState.cueAddedRealIndices[i], CUE_DIRTY_ADDED);
 	}
 
-	openguinumber = openIndex;
-	if (openguinumber >= 0 && openguinumber < boxes.size())
+	// Rebuild the inspector controllers if the current selection maps to a draft
+	// (selection index is preserved across the rebuild for both main and group).
+	if (getCueDraftBoxForRealIndex(cueSelectedIndex()) != nullptr)
 	{
 		setControllers();
 	}
@@ -3476,7 +3561,7 @@ bool JPboxgroup::applyCueDraftToSource()
 		return false;
 	}
 	int sourceIndex = cueState.sourceIndex;
-	bool draftWasInspectorTarget = getCueDraftBoxForRealIndex(openguinumber) != nullptr;
+	bool draftWasInspectorTarget = getCueDraftBoxForRealIndex(cueSelectedIndex()) != nullptr;
 	int stagedActiveIndex = cueState.stagedActiveRenderIndex;
 	int targetSize = getCueTargetBoxSize();
 	int targetActiveRender = getCueTargetActiveRender();
@@ -3526,6 +3611,15 @@ bool JPboxgroup::applyCueDraftToSource()
 		if ((flags & (CUE_DIRTY_PARAMS | CUE_DIRTY_ADDED)) != 0)
 		{
 			copyParametersByNameOrIndex(targetBoxes[realIndex]->parameters, cueState.draftBoxes[draftIndex]->parameters);
+			// For a preset/group, the editable state (incl. exposed params) lives
+			// in its internal sub-boxes; commit those staged edits back to the live
+			// preset too.
+			if (targetBoxes[realIndex]->getTipo() == JPbox::PRESETBOX &&
+				cueState.draftBoxes[draftIndex]->getTipo() == JPbox::PRESETBOX)
+			{
+				copyPresetInternalState(dynamic_cast<JPbox_preset *>(targetBoxes[realIndex]),
+										dynamic_cast<JPbox_preset *>(cueState.draftBoxes[draftIndex]));
+			}
 		}
 		if ((flags & (CUE_DIRTY_BYPASS_PAUSE | CUE_DIRTY_ADDED)) != 0)
 		{
@@ -3580,13 +3674,22 @@ bool JPboxgroup::applyCueDraftToSource()
 	}
 	cueApplyingCommit = false;
 	cueState.cueAddedRealIndices.clear();
+	// Group-internal boxes added during the cue are already in their presets;
+	// keep them (just drop the staging tracking) since we are committing.
+	cueAddedGroupBoxes.clear();
 	updateRealBoxesForCueApply();
 	if (stagedActiveIndex >= 0 && stagedActiveIndex < targetSize)
 	{
 		getCueTargetActiveRender() = stagedActiveIndex;
-		transition.setFboPointer1(&cueApplySnapshotFbo);
-		transition.setFboPointer2(&targetBoxes[stagedActiveIndex]->fbo);
-		transition.setLerpValue(0);
+		// The shared crossfader drives the MAIN output only. For a group cue the
+		// preset recomposites instantly (its updateFBO blits boxes[activeRender]);
+		// hijacking the main transition with a sub-box FBO would be wrong.
+		if (cueState.targetPreset == nullptr)
+		{
+			transition.setFboPointer1(&cueApplySnapshotFbo);
+			transition.setFboPointer2(&targetBoxes[stagedActiveIndex]->fbo);
+			transition.setLerpValue(0);
+		}
 	}
 
 	bool keepFullscreenPreview = cueFullscreenPreview;
@@ -3611,7 +3714,7 @@ bool JPboxgroup::applyCueDraftToSource()
 		clearCue();
 		return true;
 	}
-	if (draftWasInspectorTarget && openguinumber >= 0 && openguinumber < boxes.size())
+	if (draftWasInspectorTarget && getCueDraftBoxForRealIndex(cueSelectedIndex()) != nullptr)
 	{
 		setControllers();
 	}
@@ -3620,11 +3723,12 @@ bool JPboxgroup::applyCueDraftToSource()
 
 JPbox *JPboxgroup::getInspectorBox()
 {
-	// While a cue targets the current graph, edit its DRAFT clone so changes stage
-	// in the cue instead of the live graph — works for both main and group view.
-	if (cueTargetsCurrentView())
+	// While a (global) cue is active, edit the corresponding DRAFT-tree box so all
+	// changes stage in the cue instead of the live graph — anywhere in the tree,
+	// main graph or inside any group.
+	if (isCueDraftMode())
 	{
-		JPbox *draftBox = getCueDraftBoxForRealIndex(cueSelectedIndex());
+		JPbox *draftBox = getDraftBoxForCurrentInspector();
 		if (draftBox != nullptr)
 		{
 			cueState.draftInspectorRealIndex = cueSelectedIndex();
@@ -3652,17 +3756,19 @@ JPbox *JPboxgroup::getInspectorBox()
 JPbox *JPboxgroup::getCuePreviewBox()
 {
 	if (cueMonitorMode == CUE_MONITOR_SELECTED_BOX &&
-		openguinumber >= 0 && openguinumber < getCueTargetBoxSize())
+		cueSelectedIndex() >= 0 && cueSelectedIndex() < getCueTargetBoxSize())
 	{
-		JPbox *draftBox = getCueDraftBoxForRealIndex(openguinumber);
+		JPbox *draftBox = getCueDraftBoxForRealIndex(cueSelectedIndex());
 		if (draftBox != nullptr)
 		{
 			return draftBox;
 		}
-		return getCueTargetBoxAt(openguinumber);
+		return getCueTargetBoxAt(cueSelectedIndex());
 	}
 	if (isCueDraftMode())
 	{
+		// Show the STAGED draft output so all pending changes are visible in the
+		// CUE window before Apply, while the live output stays untouched.
 		if (cueState.draftOutputBox != nullptr)
 		{
 			return cueState.draftOutputBox;
@@ -3736,7 +3842,7 @@ bool JPboxgroup::buildCueDraftGraph(int sourceIndex)
 		return false;
 	}
 
-	bool draftWasInspectorTarget = isCueDraftMode() && openguinumber == cueState.sourceIndex;
+	bool draftWasInspectorTarget = isCueDraftMode() && cueSelectedIndex() == cueState.sourceIndex;
 	clearCueDraft();
 
 	vector<JPbox*> &targetBoxes = getCueTargetBoxes();
@@ -3753,7 +3859,7 @@ bool JPboxgroup::buildCueDraftGraph(int sourceIndex)
 			cueState.mode = CUE_NONE;
 			cueState.sourceIndex = -1;
 			cueState.previewIndex = -1;
-			if (draftWasInspectorTarget && openguinumber >= 0 && openguinumber < boxes.size())
+			if (draftWasInspectorTarget)
 			{
 				setControllers();
 			}
@@ -3860,6 +3966,15 @@ JPbox *JPboxgroup::cloneBoxForCueDraft(int index)
 		draft->setup(source->dir, source->name + "_cue_draft");
 	}
 	copyEditableBoxState(draft, source);
+	// A preset draft is reloaded from disk by createBoxForDirectory/setup, so seed
+	// its internal sub-box state from the LIVE preset. Without this the draft (and
+	// its exposed-param sliders) would show stale on-disk values, and the CUE
+	// preview would not match the live composite.
+	if (type == source->PRESETBOX)
+	{
+		copyPresetInternalState(dynamic_cast<JPbox_preset *>(draft),
+								dynamic_cast<JPbox_preset *>(source));
+	}
 	draft->name = source->name;
 	return draft;
 }
@@ -3874,6 +3989,30 @@ void JPboxgroup::copyEditableBoxState(JPbox *destination, JPbox *source)
 	destination->setonoff(source->getonoff());
 	destination->setBypass(source->getBypass());
 	destination->setPos(source->x, source->y);
+}
+void JPboxgroup::copyPresetInternalState(JPbox_preset *destination, JPbox_preset *source)
+{
+	if (destination == nullptr || source == nullptr)
+	{
+		return;
+	}
+	int n = std::min((int)destination->boxes.size(), (int)source->boxes.size());
+	for (int i = 0; i < n; i++)
+	{
+		if (destination->boxes[i] == nullptr || source->boxes[i] == nullptr)
+		{
+			continue;
+		}
+		destination->boxes[i]->parameters = source->boxes[i]->parameters; // deep copy
+		destination->boxes[i]->setonoff(source->boxes[i]->getonoff());
+		destination->boxes[i]->setBypass(source->boxes[i]->getBypass());
+		if (destination->boxes[i]->getTipo() == JPbox::PRESETBOX &&
+			source->boxes[i]->getTipo() == JPbox::PRESETBOX)
+		{
+			copyPresetInternalState(dynamic_cast<JPbox_preset *>(destination->boxes[i]),
+									dynamic_cast<JPbox_preset *>(source->boxes[i]));
+		}
+	}
 }
 
 int JPboxgroup::findCueDraftCloneIndexForRealIndex(int index) const
@@ -4085,31 +4224,36 @@ string JPboxgroup::getCueDirtySummary() const
 
 bool JPboxgroup::revertCueDraftBox(int index)
 {
-	if (!isCueDraftMode() || index < 0 || index >= boxes.size())
+	// Operate on the cue's target graph (main or the active preset in group view).
+	vector<JPbox *> &tboxes = getCueTargetBoxes();
+	int &tActiveRender = getCueTargetActiveRender();
+	int *selPtr = isGroupViewActive() ? &groupInspectorIndex : &openguinumber;
+
+	if (!isCueDraftMode() || index < 0 || index >= (int)tboxes.size())
 	{
 		return false;
 	}
 	if (isCueAddedRealIndex(index))
 	{
-		string deletedName = boxes[index]->name;
-		for (int k = boxes.size() - 1; k >= 0; k--)
+		string deletedName = tboxes[index]->name;
+		for (int k = (int)tboxes.size() - 1; k >= 0; k--)
 		{
-			if (k == index || boxes[k] == nullptr)
+			if (k == index || tboxes[k] == nullptr)
 			{
 				continue;
 			}
-			for (int l = 0; l < boxes[k]->fbohandlergroup.getSize(); l++)
+			for (int l = 0; l < tboxes[k]->fbohandlergroup.getSize(); l++)
 			{
-				if (boxes[k]->fbohandlergroup.getFboName(l) == deletedName)
+				if (tboxes[k]->fbohandlergroup.getFboName(l) == deletedName)
 				{
-					boxes[k]->fbohandlergroup.deleteFboPointer(l);
+					tboxes[k]->fbohandlergroup.deleteFboPointer(l);
 				}
 			}
 		}
-		boxes[index]->clear();
-		delete boxes[index];
-		boxes[index] = nullptr;
-		boxes.erase(boxes.begin() + index);
+		tboxes[index]->clear();
+		delete tboxes[index];
+		tboxes[index] = nullptr;
+		tboxes.erase(tboxes.begin() + index);
 		cueState.cueAddedRealIndices.erase(
 			std::remove(cueState.cueAddedRealIndices.begin(),
 						cueState.cueAddedRealIndices.end(),
@@ -4130,9 +4274,9 @@ bool JPboxgroup::revertCueDraftBox(int index)
 				dirtyIndex--;
 			}
 		}
-		if (openguinumber == index)
+		if (*selPtr == index)
 		{
-			openguinumber = -1;
+			*selPtr = -1;
 			for (int c = 0; c < controllers.size(); c++)
 			{
 				delete controllers[c];
@@ -4140,22 +4284,22 @@ bool JPboxgroup::revertCueDraftBox(int index)
 			}
 			controllers.clear();
 		}
-		else if (openguinumber > index)
+		else if (*selPtr > index)
 		{
-			openguinumber--;
+			(*selPtr)--;
 		}
-		if (*activerender > index)
+		if (tActiveRender > index)
 		{
-			(*activerender)--;
+			tActiveRender--;
 		}
-		*activerender = boxes.empty() ? 0 : ofClamp(*activerender, 0, int(boxes.size()) - 1);
+		tActiveRender = tboxes.empty() ? 0 : ofClamp(tActiveRender, 0, int(tboxes.size()) - 1);
 		requestCueRebuild();
 		return true;
 	}
 	int draftIndex = findCueDraftCloneIndexForRealIndex(index);
 	if (draftIndex < 0 || draftIndex >= cueState.draftBoxes.size() ||
 		draftIndex >= cueState.draftBaselineParameters.size() ||
-		boxes[index] == nullptr || cueState.draftBoxes[draftIndex] == nullptr)
+		tboxes[index] == nullptr || cueState.draftBoxes[draftIndex] == nullptr)
 	{
 		return false;
 	}
@@ -4163,7 +4307,7 @@ bool JPboxgroup::revertCueDraftBox(int index)
 	cueState.draftBoxes[draftIndex]->setonoff(cueState.draftBaselineOnOff[draftIndex]);
 	cueState.draftBoxes[draftIndex]->setBypass(cueState.draftBaselineBypass[draftIndex]);
 	removeCueDraftDirty(index);
-	if (openguinumber == index)
+	if (cueSelectedIndex() == index)
 	{
 		setControllers();
 	}
@@ -4178,6 +4322,12 @@ void JPboxgroup::removeCueAddedBoxesFromRealGraph()
 	{
 		return;
 	}
+	// Operate on the cue's target graph (main boxes, or the target preset's
+	// boxes in group view) and keep the matching selection index consistent.
+	vector<JPbox *> &tboxes = getCueTargetBoxes();
+	int &tActiveRender = getCueTargetActiveRender();
+	int *selPtr = isGroupViewActive() ? &groupInspectorIndex : &openguinumber;
+
 	vector<int> added = cueState.cueAddedRealIndices;
 	std::sort(added.begin(), added.end(), std::greater<int>());
 	added.erase(std::unique(added.begin(), added.end()), added.end());
@@ -4185,32 +4335,32 @@ void JPboxgroup::removeCueAddedBoxesFromRealGraph()
 	for (int i = 0; i < added.size(); i++)
 	{
 		int index = added[i];
-		if (index < 0 || index >= boxes.size() || boxes[index] == nullptr)
+		if (index < 0 || index >= (int)tboxes.size() || tboxes[index] == nullptr)
 		{
 			continue;
 		}
-		string deletedName = boxes[index]->name;
-		for (int k = boxes.size() - 1; k >= 0; k--)
+		string deletedName = tboxes[index]->name;
+		for (int k = (int)tboxes.size() - 1; k >= 0; k--)
 		{
-			if (k == index || boxes[k] == nullptr)
+			if (k == index || tboxes[k] == nullptr)
 			{
 				continue;
 			}
-			for (int l = 0; l < boxes[k]->fbohandlergroup.getSize(); l++)
+			for (int l = 0; l < tboxes[k]->fbohandlergroup.getSize(); l++)
 			{
-				if (boxes[k]->fbohandlergroup.getFboName(l) == deletedName)
+				if (tboxes[k]->fbohandlergroup.getFboName(l) == deletedName)
 				{
-					boxes[k]->fbohandlergroup.deleteFboPointer(l);
+					tboxes[k]->fbohandlergroup.deleteFboPointer(l);
 				}
 			}
 		}
-		boxes[index]->clear();
-		delete boxes[index];
-		boxes[index] = nullptr;
-		boxes.erase(boxes.begin() + index);
-		if (openguinumber == index)
+		tboxes[index]->clear();
+		delete tboxes[index];
+		tboxes[index] = nullptr;
+		tboxes.erase(tboxes.begin() + index);
+		if (*selPtr == index)
 		{
-			openguinumber = -1;
+			*selPtr = -1;
 			for (int c = 0; c < controllers.size(); c++)
 			{
 				delete controllers[c];
@@ -4218,23 +4368,89 @@ void JPboxgroup::removeCueAddedBoxesFromRealGraph()
 			}
 			controllers.clear();
 		}
-		else if (openguinumber > index)
+		else if (*selPtr > index)
 		{
-			openguinumber--;
+			(*selPtr)--;
 		}
-		if (*activerender > index)
+		if (tActiveRender > index)
 		{
-			(*activerender)--;
+			tActiveRender--;
 		}
 	}
-	if (!boxes.empty())
+	if (!tboxes.empty())
 	{
-		*activerender = ofClamp(*activerender, 0, int(boxes.size()) - 1);
+		tActiveRender = ofClamp(tActiveRender, 0, int(tboxes.size()) - 1);
 	}
 	else
 	{
-		*activerender = 0;
+		tActiveRender = 0;
 	}
+}
+void JPboxgroup::removeCueAddedGroupBoxes()
+{
+	if (cueAddedGroupBoxes.empty())
+	{
+		return;
+	}
+	for (auto &entry : cueAddedGroupBoxes)
+	{
+		JPbox_preset *preset = entry.first;
+		JPbox *box = entry.second;
+		if (preset == nullptr || box == nullptr)
+		{
+			continue;
+		}
+		int idx = -1;
+		for (int i = 0; i < (int)preset->boxes.size(); i++)
+		{
+			if (preset->boxes[i] == box)
+			{
+				idx = i;
+				break;
+			}
+		}
+		if (idx < 0)
+		{
+			continue; // already removed
+		}
+		// Drop any sibling links referencing this box.
+		string deletedName = box->name;
+		for (int k = 0; k < (int)preset->boxes.size(); k++)
+		{
+			if (k == idx || preset->boxes[k] == nullptr)
+			{
+				continue;
+			}
+			for (int l = 0; l < preset->boxes[k]->fbohandlergroup.getSize(); l++)
+			{
+				if (preset->boxes[k]->fbohandlergroup.getFboName(l) == deletedName)
+				{
+					preset->boxes[k]->fbohandlergroup.deleteFboPointer(l);
+				}
+			}
+		}
+		box->clear();
+		delete box;
+		preset->boxes.erase(preset->boxes.begin() + idx);
+		if (preset->activeRender > idx)
+		{
+			preset->activeRender--;
+		}
+		preset->activeRender = preset->boxes.empty() ? 0 : ofClamp(preset->activeRender, 0, (int)preset->boxes.size() - 1);
+		// Fix the group-view selection if it pointed at/after the removed box.
+		if (isGroupViewActive() && getActivePreset() == preset)
+		{
+			if (groupInspectorIndex == idx)
+			{
+				groupInspectorIndex = -1;
+			}
+			else if (groupInspectorIndex > idx)
+			{
+				groupInspectorIndex--;
+			}
+		}
+	}
+	cueAddedGroupBoxes.clear();
 }
 
 bool JPboxgroup::commitCueDraftLink(int targetRealIndex, int linkIndex, int sourceRealIndex)
@@ -4356,10 +4572,34 @@ void JPboxgroup::updateCueDraftGraph()
 		if (realIndex >= 0 && realIndex < (int)target.size() && target[realIndex] != nullptr)
 		{
 			int type = target[realIndex]->getTipo();
-			if (type != target[realIndex]->SHADERBOX &&
-				type != target[realIndex]->FRAMEDIFFERENCEBOX &&
-				type != target[realIndex]->PRESETBOX)
+			if (type == target[realIndex]->PRESETBOX)
 			{
+				if (isCueDraftDirty(realIndex))
+				{
+					// Staged edits: re-render the draft preset, re-rendering its
+					// shader sub-boxes but mirroring the live output for source
+					// boxes (so cameras/etc. are not re-opened and it does not
+					// break to an empty "one group").
+					renderPresetDraftMirroringLive(dynamic_cast<JPbox_preset *>(cueState.draftBoxes[i]),
+												   dynamic_cast<JPbox_preset *>(target[realIndex]));
+				}
+				else
+				{
+					// Clean passthrough: mirror the live composite.
+					cueState.draftBoxes[i]->fbo.begin();
+					ofClear(0, 0, 0, 0);
+					ofSetColor(255, 255);
+					target[realIndex]->fbo.draw(0, 0,
+											   cueState.draftBoxes[i]->fbo.getWidth(),
+											   cueState.draftBoxes[i]->fbo.getHeight());
+					cueState.draftBoxes[i]->fbo.end();
+				}
+				continue;
+			}
+			if (type != target[realIndex]->SHADERBOX &&
+				type != target[realIndex]->FRAMEDIFFERENCEBOX)
+			{
+				// Media/source box: mirror the live output.
 				cueState.draftBoxes[i]->update();
 				cueState.draftBoxes[i]->fbo.begin();
 				ofClear(0, 0, 0, 0);
@@ -4371,10 +4611,61 @@ void JPboxgroup::updateCueDraftGraph()
 				continue;
 			}
 		}
+		// Shader / frame-difference: re-render from the draft graph so staged edits preview.
 		if (cueState.draftBoxes[i] != nullptr)
 		{
 			cueState.draftBoxes[i]->update();
 		}
+	}
+}
+void JPboxgroup::renderPresetDraftMirroringLive(JPbox_preset *draftPreset, JPbox_preset *livePreset)
+{
+	if (draftPreset == nullptr || livePreset == nullptr)
+	{
+		return;
+	}
+	int n = std::min((int)draftPreset->boxes.size(), (int)livePreset->boxes.size());
+	// Render internal boxes back-to-front (dependency order, matching JPbox_preset::updateFBO).
+	for (int i = n - 1; i >= 0; i--)
+	{
+		JPbox *d = draftPreset->boxes[i];
+		JPbox *l = livePreset->boxes[i];
+		if (d == nullptr || l == nullptr)
+		{
+			continue;
+		}
+		int t = l->getTipo();
+		if (t == JPbox::SHADERBOX || t == JPbox::FRAMEDIFFERENCEBOX)
+		{
+			// Re-render with staged params, reading its (draft internal) inputs.
+			d->update();
+		}
+		else if (t == JPbox::PRESETBOX)
+		{
+			renderPresetDraftMirroringLive(dynamic_cast<JPbox_preset *>(d),
+										   dynamic_cast<JPbox_preset *>(l));
+		}
+		else if (d->fbo.isAllocated() && l->fbo.isAllocated())
+		{
+			// Source/media box (camera/video/spout/ndi/image): mirror the live
+			// output instead of re-opening the device.
+			d->fbo.begin();
+			ofClear(0, 0, 0, 0);
+			ofSetColor(255, 255);
+			l->fbo.draw(0, 0, d->fbo.getWidth(), d->fbo.getHeight());
+			d->fbo.end();
+		}
+	}
+	// Composite the preset's active render into its own fbo (mirrors updateFBO's blit).
+	int ar = draftPreset->activeRender;
+	if (ar >= 0 && ar < (int)draftPreset->boxes.size() && draftPreset->boxes[ar] != nullptr &&
+		draftPreset->fbo.isAllocated())
+	{
+		draftPreset->fbo.begin();
+		ofClear(0, 0, 0, 0);
+		ofSetColor(255, 255);
+		draftPreset->boxes[ar]->fbo.draw(0, 0, draftPreset->fbo.getWidth(), draftPreset->fbo.getHeight());
+		draftPreset->fbo.end();
 	}
 }
 
@@ -4468,7 +4759,7 @@ bool JPboxgroup::setOpenBoxParameterAtIndex(int parameterIndex, float value)
 	{
 		inspectorBox->parameters.setFloatValue(value, parameterIndex);
 		inspectorBox->parameters.setFloatLerpValue(value, parameterIndex);
-		markCueDraftDirty(openguinumber);
+		markCueDraftDirty(cueSelectedIndex());
 		if (parameterIndex < controllers.size())
 		{
 			controllers[parameterIndex]->value = value;
@@ -4479,7 +4770,7 @@ bool JPboxgroup::setOpenBoxParameterAtIndex(int parameterIndex, float value)
 	{
 		bool boolValue = value > 0.5f;
 		inspectorBox->parameters.setBoolValue(boolValue, parameterIndex);
-		markCueDraftDirty(openguinumber);
+		markCueDraftDirty(cueSelectedIndex());
 		if (parameterIndex < controllers.size())
 		{
 			controllers[parameterIndex]->boolValue = boolValue;
@@ -4534,6 +4825,8 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 			// Auto-select the new box so controllers and expose buttons appear immediately
 			groupInspectorIndex = (int)preset->boxes.size() - 1;
 			groupPreviewBoxIndex = -1;
+			// Adding a box is a direct, permanent operation and is kept whether the
+			// cue is applied or cancelled (adds are not part of cue staging).
 			setControllers();
 			cout << "addBox: added sub-box \"" << nombre << "\" to active preset (group view)" << endl;
 			return;
@@ -4551,11 +4844,13 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 	bx->setonoff(true);
 	bx->setPos(_x, _y);
 	boxes.push_back(bx);
+	// Adding a box is a direct, permanent operation (not part of cue staging): it
+	// is kept whether the cue is applied or closed. Rebuild the draft so the new
+	// box is included and editable, but do NOT register it as cue-added (which
+	// would remove it on cancel).
 	if (isCueDraftMode())
 	{
-		int newIndex = int(boxes.size()) - 1;
-		addCueAddedRealIndex(newIndex);
-		openguinumber = newIndex;
+		openguinumber = int(boxes.size()) - 1;
 	}
 	requestCueRebuild();
 }

@@ -1858,19 +1858,12 @@ void ofApp::keyPressed(int key) {
 		}
 
 		if (key == 'z') {
-			cout << "Z PRESSED: pantallaActiva=" << pantallaActiva << " saveModalActive=" << saveModalActive << " focusedOptionsField=" << focusedOptionsField;
-			if (boxes.isGroupViewActive()) {
-				cout << " groupView=TRUE groupInspectorIndex=" << boxes.groupInspectorIndex << endl;
-				boxes.toggleCueBoxByIndex(boxes.groupInspectorIndex);
-			} else {
-				int cueIndex = boxes.openguinumber;
-				if (cueIndex < 0 || cueIndex >= boxes.getBoxesSize()) {
-					cueIndex = boxes.getActiverenderNum();
-					cout << "  -> fallback to activerender=" << cueIndex << endl;
-				}
-				cout << " groupView=FALSE cueIndex=" << cueIndex << " boxes.size=" << boxes.getBoxesSize() << endl;
-				boxes.toggleCueBoxByIndex(cueIndex);
-			}
+			// Cue the selected box for the graph on screen; falls back to that
+			// graph's active render (works in main and inside any box-group).
+			int cueIndex = boxes.getCueEntryIndexForCurrentView();
+			cout << "Z PRESSED: groupView=" << boxes.isGroupViewActive()
+				 << " cueIndex=" << cueIndex << endl;
+			boxes.toggleCueBoxByIndex(cueIndex);
 		}
 		if (key == 'x') {
 			cout << "Trigger CODE " << endl;

@@ -105,6 +105,10 @@ public:
 	bool setCueBoxByIndex(int index);
 	bool setCueBoxByName(string boxName);
 	bool toggleCueBoxByIndex(int index);
+	// The box index to cue for the graph currently on screen: the selected box
+	// (groupInspectorIndex in group view, openguinumber in main), falling back
+	// to that graph's active render when nothing is selected.
+	int getCueEntryIndexForCurrentView() const;
 	bool hasCueBox() const;
 	bool promoteCueToActive();
 	bool requestCueApply();
@@ -179,6 +183,11 @@ public:
 	static const int MAX_PRESET_DEPTH = 128;
 	int groupPreviewBoxIndex = -1; // sub-box index for double-click preview in group view
 	int groupInspectorIndex = -1; // sub-box index for inspector in group view (separate from openguinumber)
+
+	// Boxes added INTO a group while a cue was active. They live in the preset's
+	// boxes immediately, but are staged: removed on cancel, kept on apply. (Boxes
+	// added to the MAIN graph use cueState.cueAddedRealIndices instead.)
+	vector<std::pair<JPbox_preset *, JPbox *>> cueAddedGroupBoxes;
 
 	// Per-tab zoom/pan state (index 0 = main, 1+ = preset tabs)
 	vector<float> tabZooms;
@@ -290,11 +299,25 @@ private:
 	void addCueAddedRealIndex(int index);
 	bool revertCueDraftBox(int index);
 	void removeCueAddedBoxesFromRealGraph();
+	// Remove group-internal boxes added during a cue (cancel path). Deletes each
+	// from its preset and fixes activeRender/selection.
+	void removeCueAddedGroupBoxes();
 	bool commitCueDraftLink(int targetRealIndex, int linkIndex, int sourceRealIndex);
 	void copyCueDraftLinksToReal(int realIndex);
 	vector<int> getCueDirtyIndices(unsigned int mask = 0) const;
 	string getCueDirtySummary() const;
 	void copyEditableBoxState(JPbox *destination, JPbox *source);
+	// Recursively copy a preset's internal sub-box param/onoff/bypass state
+	// (used to seed a preset draft clone from the live box, and to write staged
+	// preset edits back on apply). Only mirrors editable state, not structure.
+	void copyPresetInternalState(class JPbox_preset *destination, class JPbox_preset *source);
+	// The draft-tree box the inspector currently edits (navigates the global cue
+	// draft by activeGroupPath + the selected sub-box). Null when not cueing.
+	JPbox *getDraftBoxForCurrentInspector();
+	// Render a dirty preset draft: re-render its shader sub-boxes (so staged edits
+	// preview) but mirror the LIVE output for source boxes (camera/video/spout/ndi/
+	// image) instead of re-opening their devices, recursing into nested presets.
+	void renderPresetDraftMirroringLive(class JPbox_preset *draftPreset, class JPbox_preset *livePreset);
 	void processPendingCueApply();
 	void requestCueRebuild();
 	void processPendingCueRebuild();

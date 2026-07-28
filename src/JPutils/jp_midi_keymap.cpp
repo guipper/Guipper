@@ -542,16 +542,9 @@ void JPMidiKeymap::applyBinding(const Binding &binding, float midiValue)
 	}
 	else if (binding.action == SET_CUE_SHADER)
 	{
-		// Mirror the 'z' key: toggle the cue on the current selection, and use
-		// the group inspector index when a boxgroup is open (see ofApp keyPressed).
-		if (boxes->isGroupViewActive())
-		{
-			boxes->toggleCueBoxByIndex(boxes->groupInspectorIndex);
-		}
-		else
-		{
-			boxes->toggleCueBoxByIndex(boxes->openguinumber);
-		}
+		// Mirror the 'z' key: toggle the cue on the current selection for the
+		// graph on screen, falling back to its active render (main or group).
+		boxes->toggleCueBoxByIndex(boxes->getCueEntryIndexForCurrentView());
 	}
 	else if (binding.action == SET_ACTIVE_SHADER || binding.action == SET_ACTIVE_RENDER)
 	{
