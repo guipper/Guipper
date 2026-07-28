@@ -138,31 +138,32 @@ void JPSlider::draw()
 	}
 	else
 	{
-		ofSetRectMode(OF_RECTMODE_CENTER);
-		// isSpeedSlider = false;
-		// ofSetColor(255,255,0);
-		// ofDrawRectangle(x, y, width, height);
-		ofSetColor(COL_TEXT_PRIMARY, 255);
-		jp_constants_img::timeline.draw(x, y, width, jp_constants_img::timeline.getHeight() * .5);
-		if (activeFlag)
+		const float left = x - width / 2.0f;
+		const float right = x + width / 2.0f;
+		const float trackHeight = 6.0f;
+		const float trackTop = y - trackHeight / 2.0f;
+		const float rangeLeft = ofMap(
+			ofClamp(parameters->min, min, max),
+			min, max, left, right, true);
+		const float rangeRight = ofMap(
+			ofClamp(parameters->max, min, max),
+			min, max, left, right, true);
+		const float currentX = ofMap(
+			parameters->floatValue, min, max, left, right, true);
+
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		ofSetColor(mouseOver() ? ofColor(COL_BG_HOVER, 245) :
+			ofColor(COL_BG_INPUT, 235));
+		ofDrawRectRounded(left, trackTop, width, trackHeight, 3.0f);
+
+		if (rangeRight > rangeLeft)
 		{
-			/*float prevalue;
-			parameters->floatValue = value;
-			parameters->floatLerpValue = value;*/
+			ofSetColor(ofColor(COL_ACCENT_CYAN, 105));
+			ofDrawRectRounded(rangeLeft, trackTop,
+				rangeRight - rangeLeft, trackHeight, 3.0f);
 		}
-		else
-		{
-			if (mouseOver())
-			{
-				ofSetColor(jp_constants::CmouseOver[paleta]);
-			}
-			else
-			{
-				ofSetColor(jp_constants::Cfront[paleta]);
-			}
-		}
-		jp_constants_img::actual.draw(x - width / 2 + ofMap(parameters->floatValue, min, max, 0, width),
-									  y - jp_constants_img::actual.getHeight());
+		ofSetColor(activeFlag ? COL_TEXT_PRIMARY : COL_ACCENT_CYAN);
+		ofDrawCircle(currentX, y, activeFlag ? 3.5f : 3.0f);
 		ofSetColor(jp_constants::textcolor);
 	}
 	// ESTO DE ACA EN REALIDAD IRIA COMO EN UN UPDATE NO EN UN DRAW. PERO BUENO ; POR AHORA QUEDA ACA TOTAL SON 2 IFS NOMA

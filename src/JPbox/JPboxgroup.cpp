@@ -6,6 +6,62 @@
 #include <algorithm>
 #include <functional>
 
+namespace
+{
+	constexpr bool kShowInspectorClickBounds = false;
+
+	string fitInspectorLabel(string text, float maxWidth)
+	{
+		if (maxWidth <= 0.0f)
+		{
+			return "";
+		}
+		if (jp_constants::p_font.stringWidth(text) <= maxWidth)
+		{
+			return text;
+		}
+		while (text.size() > 1 &&
+			jp_constants::p_font.stringWidth(text + "..") > maxWidth)
+		{
+			text.pop_back();
+		}
+		return text.empty() ? "" : text + "..";
+	}
+
+	void drawInspectorClickBounds(const ofRectangle &bounds, bool enabled = true)
+	{
+		if (!kShowInspectorClickBounds || bounds.width <= 0.0f ||
+			bounds.height <= 0.0f)
+		{
+			return;
+		}
+
+		const bool hovered = enabled &&
+			bounds.inside(ofGetMouseX(), ofGetMouseY());
+		ofPushStyle();
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		ofNoFill();
+		ofSetLineWidth(hovered ? 1.5f : 1.0f);
+		ofSetColor(hovered ? COL_ACCENT_GOLD :
+			(enabled ? ofColor(COL_ACCENT_CYAN, 145) :
+				ofColor(COL_BORDER_MUTED, 90)));
+		ofDrawRectRounded(bounds, 2.0f);
+		ofPopStyle();
+	}
+
+	void drawInspectorClickBounds(const JPdragobject &control,
+		bool enabled = true)
+	{
+		drawInspectorClickBounds(
+			ofRectangle(
+				control.x - control.width / 2.0f,
+				control.y - control.height / 2.0f,
+				control.width,
+				control.height),
+			enabled);
+	}
+}
+
 
 JPboxgroup::JPboxgroup() {}
 JPboxgroup::~JPboxgroup()
@@ -782,6 +838,268 @@ void JPboxgroup::drawLiveOutput(float x, float y, float w, float h)
 		transition.draw(x, y, w, h);
 	}
 }
+
+float JPboxgroup::layoutInspectorInputRows(JPbox *box, float startY)
+{
+	inspectorInputRows.clear();
+	inspectorInputsHeaderBounds.set(0, 0, 0, 0);
+	if (box == nullptr || box->fbohandlergroup.getSize() < 2)
+	{
+		return startY;
+	}
+
+	const float panelLeft = inspectorwindow_x - inspectorwindow_width / 2.0f;
+	const float panelInset = 10.0f;
+	const float headerHeight = 24.0f;
+	const float rowHeight = 25.0f;
+	const float arrowSize = 18.0f;
+	const float sectionGap = 7.0f;
+	const float nextControlHalfHeight =
+		box->parameters.getSize() > 0 ? inspectorwindow_sepy * 0.5f : 0.0f;
+	inspectorInputsHeaderBounds.set(
+		panelLeft + panelInset,
+		startY,
+		inspectorwindow_width - panelInset * 2.0f,
+		headerHeight);
+	if (!inspectorInputsExpanded)
+	{
+		return inspectorInputsHeaderBounds.getBottom() +
+			sectionGap + nextControlHalfHeight;
+	}
+
+	float rowY = inspectorInputsHeaderBounds.getBottom() + 2.0f;
+
+	for (int linkIndex = 0; linkIndex < box->fbohandlergroup.getSize(); linkIndex++)
+	{
+		InspectorInputRow row;
+		row.linkIndex = linkIndex;
+		row.bounds.set(panelLeft + panelInset + 2.0f, rowY,
+			inspectorwindow_width - (panelInset + 2.0f) * 2.0f, rowHeight);
+		row.upButton.set(row.bounds.x + 3.0f,
+			row.bounds.y + (rowHeight - arrowSize) / 2.0f,
+			arrowSize, arrowSize);
+		inspectorInputRows.push_back(row);
+		rowY += rowHeight;
+	}
+
+	return rowY + sectionGap + nextControlHalfHeight;
+}
+
+void JPboxgroup::drawInspectorInputRows(JPbox *box)
+{
+	if (box == nullptr || inspectorInputsHeaderBounds.width <= 0.0f)
+	{
+		return;
+	}
+
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	const bool headerHovered = inspectorInputsHeaderBounds.inside(
+		ofGetMouseX(), ofGetMouseY());
+	if (headerHovered)
+	{
+		ofSetColor(ofColor(COL_BG_HOVER, 155));
+		ofDrawRectRounded(inspectorInputsHeaderBounds, 3.0f);
+	}
+
+	const float headerCenterY = inspectorInputsHeaderBounds.getCenter().y;
+	const float chevronX = inspectorInputsHeaderBounds.x + 11.0f;
+	ofSetColor(headerHovered || inspectorInputsExpanded ?
+		COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
+	ofSetLineWidth(1.5f);
+	if (inspectorInputsExpanded)
+	{
+		ofDrawLine(chevronX - 4.0f, headerCenterY - 2.0f,
+			chevronX, headerCenterY + 2.0f);
+		ofDrawLine(chevronX, headerCenterY + 2.0f,
+			chevronX + 4.0f, headerCenterY - 2.0f);
+	}
+	else
+	{
+		ofDrawLine(chevronX - 2.0f, headerCenterY - 4.0f,
+			chevronX + 2.0f, headerCenterY);
+		ofDrawLine(chevronX + 2.0f, headerCenterY,
+			chevronX - 2.0f, headerCenterY + 4.0f);
+	}
+	ofSetLineWidth(1.0f);
+
+	const float headerTextY = headerCenterY + 4.0f;
+	ofSetColor(headerHovered ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
+	jp_constants::p_font.drawString("INPUTS",
+		inspectorInputsHeaderBounds.x + 25.0f, headerTextY);
+
+	int linkedCount = 0;
+	for (int linkIndex = 0;
+		 linkIndex < box->fbohandlergroup.getSize();
+		 linkIndex++)
+	{
+		if (box->fbohandlergroup.getisPointerSet(linkIndex))
+		{
+			linkedCount++;
+		}
+	}
+	const string countLabel = ofToString(linkedCount) + "/" +
+		ofToString(box->fbohandlergroup.getSize()) + " linked";
+	ofSetColor(linkedCount > 0 ? COL_ACCENT_CYAN : COL_TEXT_MUTED);
+	jp_constants::p_font.drawString(
+		countLabel,
+		inspectorInputsHeaderBounds.getRight() -
+			jp_constants::p_font.stringWidth(countLabel) - 8.0f,
+		headerTextY);
+	ofSetColor(ofColor(COL_BORDER_MUTED, 115));
+	ofDrawLine(
+		inspectorInputsHeaderBounds.x + 2.0f,
+		inspectorInputsHeaderBounds.getBottom(),
+		inspectorInputsHeaderBounds.getRight() - 2.0f,
+		inspectorInputsHeaderBounds.getBottom());
+	drawInspectorClickBounds(inspectorInputsHeaderBounds);
+
+	for (const InspectorInputRow &row : inspectorInputRows)
+	{
+		const bool rowHovered = row.bounds.inside(ofGetMouseX(), ofGetMouseY());
+		const bool canMoveUp = row.linkIndex > 0;
+		const bool arrowHovered = canMoveUp &&
+			row.upButton.inside(ofGetMouseX(), ofGetMouseY());
+		if (rowHovered)
+		{
+			ofSetColor(ofColor(COL_BG_HOVER, arrowHovered ? 205 : 115));
+			ofDrawRectRounded(row.bounds, 3.0f);
+		}
+
+		if (arrowHovered)
+		{
+			ofSetColor(ofColor(COL_ACCENT_CYAN_DARK, 205));
+			ofDrawRectRounded(row.upButton, 3.0f);
+		}
+
+		const float arrowCx = row.upButton.getCenter().x;
+		const float arrowCy = row.upButton.getCenter().y;
+		ofSetColor(canMoveUp ?
+			(arrowHovered ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY) :
+			ofColor(COL_TEXT_MUTED, 65));
+		ofSetLineWidth(1.5f);
+		ofDrawLine(arrowCx, arrowCy + 5.0f, arrowCx, arrowCy - 4.0f);
+		ofDrawLine(arrowCx, arrowCy - 4.0f, arrowCx - 4.0f, arrowCy);
+		ofDrawLine(arrowCx, arrowCy - 4.0f, arrowCx + 4.0f, arrowCy);
+		ofSetLineWidth(1.0f);
+
+		const float sourceAreaWidth = std::min(165.0f, row.bounds.width * 0.42f);
+		const float sourceRight = row.bounds.getRight() - 8.0f;
+		string sourceName = box->fbohandlergroup.getisPointerSet(row.linkIndex) ?
+			box->fbohandlergroup.getFboName(row.linkIndex) : "Not connected";
+		sourceName = fitInspectorLabel(sourceName, sourceAreaWidth);
+		const float sourceX = sourceRight - jp_constants::p_font.stringWidth(sourceName);
+
+		const float samplerX = row.upButton.getRight() + 7.0f;
+		const float samplerMaxWidth = std::max(10.0f, sourceX - samplerX - 12.0f);
+		const string samplerName = fitInspectorLabel(
+			box->fbohandlergroup.getName(row.linkIndex), samplerMaxWidth);
+		const float textY = row.bounds.y + row.bounds.height / 2.0f + 4.0f;
+		ofSetColor(COL_TEXT_PRIMARY);
+		jp_constants::p_font.drawString(samplerName, samplerX, textY);
+		ofSetColor(box->fbohandlergroup.getisPointerSet(row.linkIndex) ?
+			COL_ACCENT_CYAN : COL_TEXT_MUTED);
+		jp_constants::p_font.drawString(sourceName, sourceX, textY);
+
+		ofSetColor(ofColor(COL_BORDER_MUTED, 75));
+		ofDrawLine(row.bounds.x + 4.0f, row.bounds.getBottom(),
+			row.bounds.getRight() - 4.0f, row.bounds.getBottom());
+
+		if (canMoveUp)
+		{
+			jp_tooltip::draw(
+				"Swap with " + box->fbohandlergroup.getName(row.linkIndex - 1),
+				row.upButton.x, row.upButton.y,
+				row.upButton.width, row.upButton.height);
+		}
+		drawInspectorClickBounds(row.upButton, canMoveUp);
+	}
+	jp_tooltip::draw(
+		inspectorInputsExpanded ? "Collapse inputs" : "Expand inputs",
+		inspectorInputsHeaderBounds.x,
+		inspectorInputsHeaderBounds.y,
+		inspectorInputsHeaderBounds.width,
+		inspectorInputsHeaderBounds.height);
+	ofPopStyle();
+}
+
+bool JPboxgroup::moveInspectorInputUp(JPbox *box, int linkIndex)
+{
+	if (box == nullptr || linkIndex <= 0 ||
+		linkIndex >= box->fbohandlergroup.getSize() ||
+		!box->fbohandlergroup.swapConnections(linkIndex, linkIndex - 1))
+	{
+		return false;
+	}
+
+	if (isCueDraftMode())
+	{
+		markCueDraftDirty(cueSelectedIndex(), CUE_DIRTY_LINKS);
+		updateCueDraftGraph();
+	}
+	else
+	{
+		requestCueRebuild();
+	}
+	return true;
+}
+
+bool JPboxgroup::handleInspectorInputClick(JPbox *box)
+{
+	if (box != nullptr &&
+		inspectorInputsHeaderBounds.inside(ofGetMouseX(), ofGetMouseY()))
+	{
+		inspectorInputsExpanded = !inspectorInputsExpanded;
+		setControllers();
+		return true;
+	}
+	for (const InspectorInputRow &row : inspectorInputRows)
+	{
+		if (row.linkIndex > 0 &&
+			row.upButton.inside(ofGetMouseX(), ofGetMouseY()))
+		{
+			moveInspectorInputUp(box, row.linkIndex);
+			return true;
+		}
+	}
+	return false;
+}
+
+bool JPboxgroup::handleInspectorAutomationClick()
+{
+	const ofVec2f mouse(ofGetMouseX(), ofGetMouseY());
+	for (JPcontroller *controller : controllers)
+	{
+		JPComplexSlider *slider =
+			dynamic_cast<JPComplexSlider *>(controller);
+		if (slider == nullptr || slider->parameters == nullptr)
+		{
+			continue;
+		}
+
+		const ofRectangle bounds(
+			slider->boton_collapse.x -
+				slider->boton_collapse.width / 2.0f,
+			slider->boton_collapse.y -
+				slider->boton_collapse.height / 2.0f,
+			slider->boton_collapse.width,
+			slider->boton_collapse.height);
+		if (!bounds.inside(mouse))
+		{
+			continue;
+		}
+
+		JPParameter *parameter = slider->parameters;
+		parameter->movtype = parameter->movtype == 0 ? 1 : 0;
+		parameter->needsUpdate = false;
+		parameter->update();
+		markCueDraftDirty(cueSelectedIndex());
+		setControllers();
+		return true;
+	}
+	return false;
+}
+
 void JPboxgroup::draw_paramswindow()
 {
 
@@ -803,15 +1121,49 @@ void JPboxgroup::draw_paramswindow()
 		ofSetColor(COL_BG_PANEL);
 		// constants_img::background.draw(inspectorwindow_x, inspectorwindow_y, inspectorwindow_width, inspectorwindow_height);
 		ofDrawRectangle(inspectorwindow_x, inspectorwindow_y, inspectorwindow_width, inspectorwindow_height);
+		ofNoFill();
+		ofSetColor(ofColor(COL_BORDER_MUTED, 185));
+		ofSetLineWidth(1.0f);
+		ofDrawRectangle(inspectorwindow_x, inspectorwindow_y, inspectorwindow_width - 1.0f, inspectorwindow_height - 1.0f);
+		ofFill();
 		ofSetRectMode(OF_RECTMODE_CORNER);
 
 		string name = (cueTargetsCurrentView() && getCueDraftBoxForRealIndex(cueSelectedIndex()) != nullptr) ? inspectorBox->name + " DRAFT" : inspectorBox->name;
+		const float panelLeft =
+			inspectorwindow_x - inspectorwindow_width / 2.0f;
+		const float panelRight =
+			inspectorwindow_x + inspectorwindow_width / 2.0f;
+		const float headerDividerY = inspectorwindow_sepy + 14.0f;
+		const bool hasRandomAction =
+			inspectorBox->parameters.getSize() > 0;
+		const bool hasEditAction =
+			inspectorBox->getTipo() == inspectorBox->SHADERBOX &&
+			shaderEditor != nullptr && !inspectorBox->dir.empty();
+		const float randomActionWidth = 44.0f;
+		const float editActionWidth = 48.0f;
+		const float headerActionHeight = 24.0f;
+		const float headerActionWidth =
+			(hasRandomAction ? randomActionWidth : 0.0f) +
+			(hasEditAction ? editActionWidth : 0.0f);
+		const float headerActionRight = panelRight - 9.0f;
+		const float headerActionLeft =
+			headerActionRight - headerActionWidth;
+		const float titleVisualCenterY =
+			inspectorwindow_sepy -
+			jp_constants::h_font.stringHeight("Ag") / 2.0f;
+		const float headerActionTop =
+			titleVisualCenterY - headerActionHeight / 2.0f;
 
-		// Title: left-aligned and truncated so it never collides with the
-		// right-anchored RDM/EDIT buttons (which reserve ~140px on the right).
-		float titleX = inspectorwindow_x - inspectorwindow_width / 2 + 14;
+		inspectorrandom.width = 0.0f;
+		inspectorrandom.height = 0.0f;
+		editbutton.width = 0.0f;
+		editbutton.height = 0.0f;
+
+		float titleX = panelLeft + 14.0f;
 		string title = name;
-		float maxTitleW = inspectorwindow_width - 140;
+		const float titleRight = headerActionWidth > 0.0f ?
+			headerActionLeft - 10.0f : panelRight - 12.0f;
+		float maxTitleW = std::max(20.0f, titleRight - titleX);
 		if (jp_constants::h_font.stringWidth(title) > maxTitleW)
 		{
 			while (title.size() > 1 && jp_constants::h_font.stringWidth(title + "..") > maxTitleW)
@@ -822,84 +1174,94 @@ void JPboxgroup::draw_paramswindow()
 		}
 		ofSetColor(COL_TEXT_PRIMARY);
 		jp_constants::h_font.drawString(title, titleX, inspectorwindow_sepy);
+		ofSetColor(ofColor(COL_BORDER_MUTED, 120));
+		ofDrawLine(titleX, headerDividerY, panelRight - 12.0f,
+			headerDividerY);
 
-		// RDM button to the right of the shader name (only if box has uniforms/sliders)
-		if (inspectorBox->parameters.getSize() > 0)
+		if (headerActionWidth > 0.0f)
 		{
-			float btnW = 48;
-			float btnH = 22;
-			float btnY = inspectorwindow_sepy - btnH / 2 + 1;
-			// Right-anchored: RDM sits just left of the EDIT slot (reserved when the
-			// box is an editable shader), independent of the name length.
-			bool willHaveEdit = inspectorBox->getTipo() == inspectorBox->SHADERBOX && shaderEditor != nullptr && !inspectorBox->dir.empty();
-			float editSlot = willHaveEdit ? (52 + 6) : 0;
-			float nameRight = inspectorwindow_x + inspectorwindow_width / 2 - 12 - editSlot - btnW;
-			inspectorrandom.x = nameRight + btnW / 2;
-			inspectorrandom.y = btnY + btnH / 2;
-			inspectorrandom.width = btnW;
-			inspectorrandom.height = btnH;
-
-			// Draw RDM button background (monochromatic, matching inspector style)
-			if (inspectorrandom.mouseOver()) {
-				ofSetColor(COL_MAPPED_OFF);
-			} else {
-				ofSetColor(COL_BG_HOVER);
-			}
-			ofDrawRectRounded(nameRight, btnY, btnW, btnH, 3.0f);
-			ofSetColor(COL_BORDER_HOVER);
+			ofSetColor(ofColor(COL_BG_INPUT, 245));
+			ofDrawRectRounded(headerActionLeft, headerActionTop,
+				headerActionWidth, headerActionHeight, 3.0f);
 			ofNoFill();
+			ofSetColor(ofColor(COL_BORDER_MUTED, 185));
 			ofSetLineWidth(1.0f);
-			ofDrawRectRounded(nameRight, btnY, btnW, btnH, 3.0f);
+			ofDrawRectRounded(headerActionLeft, headerActionTop,
+				headerActionWidth, headerActionHeight, 3.0f);
 			ofFill();
-			ofSetLineWidth(1.0f);
-			ofSetColor(COL_TEXT_SECONDARY);
-			jp_constants::p_font.drawString("RDM",
-				nameRight + btnW / 2 - jp_constants::p_font.stringWidth("RDM") / 2,
-				btnY + btnH / 2 + jp_constants::p_font.stringHeight("RDM") / 2 - 2);
 		}
 
-		// EDIT button — open shader in code editor (only for SHADERBOX nodes)
-		if (inspectorBox->getTipo() == inspectorBox->SHADERBOX && shaderEditor != nullptr)
+		float nextActionX = headerActionLeft;
+		if (hasRandomAction)
 		{
-			string shaderDir = inspectorBox->dir;
-			if (!shaderDir.empty())
+			inspectorrandom.x = nextActionX + randomActionWidth / 2.0f;
+			inspectorrandom.y =
+				headerActionTop + headerActionHeight / 2.0f;
+			inspectorrandom.width = randomActionWidth;
+			inspectorrandom.height = headerActionHeight;
+			if (inspectorrandom.mouseOver())
 			{
-				float btnW = 52;
-				float btnH = 22;
-				float btnY = inspectorwindow_sepy - btnH / 2 + 1;
-				// Right-anchored to the panel edge, independent of the name length.
-				float editX = inspectorwindow_x + inspectorwindow_width / 2 - 12 - btnW;
-
-				editbutton.x = editX + btnW / 2;
-				editbutton.y = btnY + btnH / 2;
-				editbutton.width = btnW;
-				editbutton.height = btnH;
-
-				// Draw EDIT button
-				if (editbutton.mouseOver()) {
-					ofSetColor(55, 65, 75);
-				} else {
-					ofSetColor(42, 50, 58);
-				}
-				ofDrawRectRounded(editX, btnY, btnW, btnH, 3.0f);
-				ofSetColor(COL_ACCENT_GOLD_DIM);
-				ofNoFill();
-				ofSetLineWidth(1.0f);
-				ofDrawRectRounded(editX, btnY, btnW, btnH, 3.0f);
-				ofFill();
-				ofSetLineWidth(1.0f);
-				ofSetColor(COL_ACCENT_GOLD);
-				jp_constants::p_font.drawString("EDIT",
-					editX + btnW / 2 - jp_constants::p_font.stringWidth("EDIT") / 2,
-					btnY + btnH / 2 + jp_constants::p_font.stringHeight("EDIT") / 2 - 2);
+				ofSetColor(ofColor(COL_BG_HOVER, 230));
+				ofDrawRectRounded(nextActionX + 1.0f,
+					headerActionTop + 1.0f,
+					randomActionWidth - 2.0f,
+					headerActionHeight - 2.0f, 2.0f);
 			}
+			ofSetColor(inspectorrandom.mouseOver() ?
+				COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
+			jp_constants::p_font.drawString(
+				"RDM",
+				inspectorrandom.x -
+					jp_constants::p_font.stringWidth("RDM") / 2.0f,
+				inspectorrandom.y +
+					jp_constants::p_font.stringHeight("RDM") / 2.0f - 2.0f);
+			drawInspectorClickBounds(inspectorrandom);
+			nextActionX += randomActionWidth;
 		}
 
-		int index = 0; // INDICE PARA LOS BOTONES :
+		if (hasEditAction)
+		{
+			if (hasRandomAction)
+			{
+				ofSetColor(ofColor(COL_BORDER_MUTED, 165));
+				ofDrawLine(nextActionX, headerActionTop + 4.0f,
+					nextActionX,
+					headerActionTop + headerActionHeight - 4.0f);
+			}
+			editbutton.x = nextActionX + editActionWidth / 2.0f;
+			editbutton.y =
+				headerActionTop + headerActionHeight / 2.0f;
+			editbutton.width = editActionWidth;
+			editbutton.height = headerActionHeight;
+			if (editbutton.mouseOver())
+			{
+				ofSetColor(ofColor(COL_BG_HOVER, 230));
+				ofDrawRectRounded(nextActionX + 1.0f,
+					headerActionTop + 1.0f,
+					editActionWidth - 2.0f,
+					headerActionHeight - 2.0f, 2.0f);
+			}
+			ofSetColor(editbutton.mouseOver() ?
+				COL_ACCENT_GOLD : COL_ACCENT_GOLD_DIM);
+			jp_constants::p_font.drawString(
+				"EDIT",
+				editbutton.x -
+					jp_constants::p_font.stringWidth("EDIT") / 2.0f,
+				editbutton.y +
+					jp_constants::p_font.stringHeight("EDIT") / 2.0f - 2.0f);
+			drawInspectorClickBounds(editbutton);
+		}
+
+		drawInspectorInputRows(inspectorBox);
 
 		for (int i = 0; i < controllers.size(); i++)
 		{
 			controllers[i]->draw();
+			if (dynamic_cast<JPComplexSlider *>(controllers[i]) == nullptr)
+			{
+				drawInspectorClickBounds(*controllers[i],
+					controllers[i]->activable2);
+			}
 			// Draw expose button AFTER the controller (right side) when in group view
 			if (i < (int)exposeButtons.size())
 			{
@@ -1221,7 +1583,7 @@ void JPboxgroup::update_paramswindow()
 	}
 	for (int i = 0; i < controllers.size(); i++)
 	{
-		if (controllerselected == i)
+		if (controllerselected < 0 || controllerselected == i)
 		{
 			controllers[i]->activable2 = true;
 		}
@@ -1263,15 +1625,7 @@ void JPboxgroup::update_resized(int w, int h)
 	setinspectorsetactiveparams();
 	setupGalleryDurationSlider();
 	clampCuePanelLayout();
-
-	// int i = controllers.size()-1; i >= 0; i--
-	for (int i = 0; i < controllers.size(); i++)
-	{
-		controllers[i]->setPos(inspectorwindow_x, inspectorwindow_height);
-		inspectorwindow_height += inspectorwindow_sepy;
-	}
-
-	// setControllers();
+	setControllers();
 	// boxesdrawing.allocate(ofGetWidth(), ofGetHeight());
 }
 void JPboxgroup::setinspectorsetactiveparams()
@@ -1478,6 +1832,20 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		return;
 	}
 
+	JPbox *inputInspectorBox = getInspectorBox();
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
+		inputInspectorBox != nullptr && mouseOverGui() &&
+		handleInspectorInputClick(inputInspectorBox))
+	{
+		return;
+	}
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
+		inputInspectorBox != nullptr && mouseOverGui() &&
+		handleInspectorAutomationClick())
+	{
+		return;
+	}
+
 	// In group view mode: handle click on sub-box, deselect on empty space, and handle outlet dragging
 	if (isGroupViewActive() && mouseButton == OF_MOUSE_BUTTON_LEFT)
 	{
@@ -1598,6 +1966,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		}
 		if (inspectorrandom.mouseGrab())
 		{
+			bool randomized = false;
 			for (int i = 0; i < inspectorBox->parameters.getSize(); i++)
 			{
 				if (inspectorBox->parameters.getType(i) == JPParameter::FLOAT)
@@ -1607,6 +1976,15 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 					inspectorBox->parameters.setFloatValue(ofRandom(mn, mx), i);
 					// Also zero out lerp target so it snaps immediately
 					inspectorBox->parameters.setFloatLerpValue(inspectorBox->parameters.getFloatValue(i), i);
+					randomized = true;
+				}
+			}
+			if (randomized)
+			{
+				markCueDraftDirty(cueSelectedIndex());
+				if (isCueDraftMode())
+				{
+					updateCueDraftGraph();
 				}
 			}
 		}
@@ -2372,14 +2750,22 @@ void JPboxgroup::load(string _dirinput)
 	// Una vez que cargo todas las cajitas les cargamos los links :
 	// Mira lo que esta este algoritmo para levantar los links entre cajitas papa !!!
 	int index1 = 0;
-	int index2 = 0;
 	cout << "COMIENZA LINKS DE LOS FBO " << endl;
 	for (auto &box : boxloader)
 	{
+		if (index1 >= (int)boxes.size())
+		{
+			break;
+		}
 		auto fboslinks = box.getChild("fboslinks").getChildren();
-		index2 = 0;
 		for (auto &fbolink : fboslinks)
 		{
+			int linkIndex = boxes[index1]->fbohandlergroup.findIndexByName(
+				fbolink.getName());
+			if (linkIndex < 0)
+			{
+				continue;
+			}
 			for (int i = 0; i < boxes.size(); i++)
 			{	
 
@@ -2407,11 +2793,11 @@ void JPboxgroup::load(string _dirinput)
 					//porque si tipo modificas el shader y le sacas un buffer e intentas levantar un archivo de guardado que tiene un buffer crashea
 					//entonces le pongo lo de > 0 pero en realidad tendría que ser que 
 					if (existe && boxes[index1]->fbohandlergroup.getSize() > 0) {
-						boxes[index1]->fbohandlergroup.setFboPointer(fbopointer, fbopointername, index2);
+						boxes[index1]->fbohandlergroup.setFboPointer(
+							fbopointer, fbopointername, linkIndex);
 					}
 				}
 			}
-			index2++;
 		}
 		index1++;
 	}
@@ -2448,6 +2834,8 @@ void JPboxgroup::setControllers(){
 		exposeButtons[i] = nullptr;
 	}
 	exposeButtons.clear();
+	inspectorInputRows.clear();
+	inspectorInputsHeaderBounds.set(0, 0, 0, 0);
 
 	JPbox *inspectorBox = getInspectorBox();
 	if (inspectorBox == nullptr)
@@ -2458,6 +2846,12 @@ void JPboxgroup::setControllers(){
 	inspectorwindow_height = 0;
 	float slider_width = inspectorwindow_width * 3 / 4;
 	float slider_height = inspectorwindow_sepy * 7 / 10;
+	const float controllerWidth = inspectorwindow_width - 8.0f;
+	const float standardControllerHeight = inspectorwindow_sepy;
+	const float automatedControllerHeight =
+		inspectorwindow_sepy * 5.0f / 3.0f;
+	const float automationTransitionOffset =
+		(automatedControllerHeight - standardControllerHeight) / 2.0f;
 
 	inspectorwindow_height = font_p->stringHeight(inspectorBox->name);
 	inspectorwindow_height += inspectorwindow_sepy * 1.;
@@ -2468,6 +2862,8 @@ void JPboxgroup::setControllers(){
 	}*/
 	// Espacio para dibujar el set active render
 	inspectorwindow_height += inspectorwindow_sepy * 0.5;
+	inspectorwindow_height = layoutInspectorInputRows(
+		inspectorBox, inspectorwindow_height);
 	/*inspectorwindow_height += inspectorwindow_setactivesize;
 	inspectorwindow_height += inspectorwindow_sepy * 0.5;
 	*/
@@ -2475,7 +2871,7 @@ void JPboxgroup::setControllers(){
 	// FIJATE QUE ESTO SI LA PRIMERA CONDICION NO SE CUMPLE NI EVALUA LA SEGUNDA. PARA PODER EVALUAR LA SEGUNDA LA PRIMERA TIENE QUE SER TRU
 	if (inspectorBox->parameters.getSize() > 0 && inspectorBox->parameters.getMovType(0) != 0)
 	{
-		inspectorwindow_height += inspectorwindow_sepy * 0.5;
+		inspectorwindow_height += automationTransitionOffset;
 	}
 
 	for (int k = 0; k < inspectorBox->parameters.getSize(); k++)
@@ -2483,22 +2879,22 @@ void JPboxgroup::setControllers(){
 		if (inspectorBox->parameters.getType(k) == inspectorBox->parameters.FLOAT)
 		{
 
-			float complexsliderheight = inspectorwindow_sepy * 1.0;
+			float complexsliderheight = standardControllerHeight;
 			if (inspectorBox->parameters.getMovType(k) != 0)
 			{
-				complexsliderheight = inspectorwindow_sepy * 2.0;
+				complexsliderheight = automatedControllerHeight;
 			}
 			if (k > 0)
 			{
 				if (inspectorBox->parameters.getMovType(k) != 0 &&
 					inspectorBox->parameters.getMovType(k - 1) == 0)
 				{
-					inspectorwindow_height += inspectorwindow_sepy * 0.5;
+					inspectorwindow_height += automationTransitionOffset;
 				}
 				if (inspectorBox->parameters.getMovType(k) == 0 &&
 					inspectorBox->parameters.getMovType(k - 1) != 0)
 				{
-					inspectorwindow_height -= inspectorwindow_sepy * 0.5;
+					inspectorwindow_height -= automationTransitionOffset;
 				}
 			}
 			// boxes[openguinumber]->parameters.setFloatValue(0.0, k);
@@ -2510,7 +2906,7 @@ void JPboxgroup::setControllers(){
 			// JPParameter* as = boxes[openguinumber]->parameters.parameters[k];
 			JPComplexSlider *sl = new JPComplexSlider();
 			sl->setup(inspectorwindow_x,
-					  inspectorwindow_height, inspectorwindow_width, complexsliderheight,
+					  inspectorwindow_height, controllerWidth, complexsliderheight,
 					  inspectorBox->parameters.parameters[k]);
 
 			controllers.push_back(sl);
@@ -2527,7 +2923,7 @@ void JPboxgroup::setControllers(){
 		}
 		else if (inspectorBox->parameters.getType(k) == inspectorBox->parameters.BOOL)
 		{
-			float complexsliderheight = inspectorwindow_sepy * 1.0;
+			float complexsliderheight = standardControllerHeight;
 			JPToogle *toogle = new JPToogle();
 			toogle->setParametersPointer(inspectorBox->parameters.getJParameter(k));
 			toogle->setup(inspectorwindow_x,
@@ -2581,15 +2977,15 @@ void JPboxgroup::setControllers(){
 						if (ei < preset->boxes[bi]->parameters.getSize() &&
 							preset->boxes[bi]->parameters.getType(ei) == preset->boxes[bi]->parameters.FLOAT)
 						{
-							float complexsliderheight = inspectorwindow_sepy * 1.0;
+							float complexsliderheight = standardControllerHeight;
 							if (preset->boxes[bi]->parameters.getMovType(ei) != 0)
 							{
-								complexsliderheight = inspectorwindow_sepy * 2.0;
+								complexsliderheight = automatedControllerHeight;
 							}
 
 							JPComplexSlider *sl = new JPComplexSlider();
 							sl->setup(inspectorwindow_x,
-									  inspectorwindow_height, inspectorwindow_width, complexsliderheight,
+									  inspectorwindow_height, controllerWidth, complexsliderheight,
 									  preset->boxes[bi]->parameters.parameters[ei]);
 
 							// Prepend full path to the slider name
@@ -2637,15 +3033,15 @@ void JPboxgroup::setControllers(){
 							if (ei < rootPreset->boxes[bi]->parameters.getSize() &&
 								rootPreset->boxes[bi]->parameters.getType(ei) == rootPreset->boxes[bi]->parameters.FLOAT)
 							{
-								float complexsliderheight = inspectorwindow_sepy * 1.0;
+								float complexsliderheight = standardControllerHeight;
 								if (rootPreset->boxes[bi]->parameters.getMovType(ei) != 0)
 								{
-									complexsliderheight = inspectorwindow_sepy * 2.0;
+									complexsliderheight = automatedControllerHeight;
 								}
 
 								JPComplexSlider *sl = new JPComplexSlider();
 								sl->setup(inspectorwindow_x,
-										  inspectorwindow_height, inspectorwindow_width, complexsliderheight,
+										  inspectorwindow_height, controllerWidth, complexsliderheight,
 										  rootPreset->boxes[bi]->parameters.parameters[ei]);
 
 								// Prepend child name to the slider label
@@ -2671,15 +3067,15 @@ void JPboxgroup::setControllers(){
 									pi >= 0 && pi < childPreset->boxes[ci]->parameters.getSize() &&
 									childPreset->boxes[ci]->parameters.getType(pi) == childPreset->boxes[ci]->parameters.FLOAT)
 								{
-									float complexsliderheight = inspectorwindow_sepy * 1.0;
+									float complexsliderheight = standardControllerHeight;
 									if (childPreset->boxes[ci]->parameters.getMovType(pi) != 0)
 									{
-										complexsliderheight = inspectorwindow_sepy * 2.0;
+										complexsliderheight = automatedControllerHeight;
 									}
 
 									JPComplexSlider *sl = new JPComplexSlider();
 									sl->setup(inspectorwindow_x,
-											  inspectorwindow_height, inspectorwindow_width, complexsliderheight,
+											  inspectorwindow_height, controllerWidth, complexsliderheight,
 											  childPreset->boxes[ci]->parameters.parameters[pi]);
 
 									string fullName = rootPreset->boxes[bi]->name + "."
@@ -2791,6 +3187,10 @@ void JPboxgroup::setControllers(){
 		}
 	}
 
+	if (!controllers.empty())
+	{
+		inspectorwindow_height += 6.0f;
+	}
 	inspectorwindow_y = inspectorwindow_height / 2;
 
 	cout << "setControllers done: controllers=" << (int)controllers.size()
@@ -3449,6 +3849,7 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 		vector<string> linkNames;
 		vector<bool> linkSet;
 		vector<int> presetActiveRenders;
+		vector<PresetLinkAssignment> presetLinks;
 		unsigned int dirtyFlags = CUE_DIRTY_NONE;
 	};
 
@@ -3470,8 +3871,12 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 		snapshot.bypass = cueState.draftBoxes[i]->getBypass();
 		if (cueState.draftBoxes[i]->getTipo() == JPbox::PRESETBOX)
 		{
-			snapshotPresetActiveRenders(dynamic_cast<JPbox_preset *>(cueState.draftBoxes[i]),
-									 snapshot.presetActiveRenders);
+			JPbox_preset *draftPreset =
+				dynamic_cast<JPbox_preset *>(cueState.draftBoxes[i]);
+			snapshotPresetActiveRenders(
+				draftPreset, snapshot.presetActiveRenders);
+			snapshotPresetLinks(
+				draftPreset, snapshot.presetLinks);
 		}
 		for (int linkIndex = 0; linkIndex < cueState.draftBoxes[i]->fbohandlergroup.getSize(); linkIndex++)
 		{
@@ -3540,6 +3945,13 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 			int valueIndex = 0;
 			restorePresetActiveRenders(dynamic_cast<JPbox_preset *>(draftBox),
 								 snapshots[i].presetActiveRenders, valueIndex);
+		}
+		if (!snapshots[i].presetLinks.empty() &&
+			draftBox->getTipo() == JPbox::PRESETBOX)
+		{
+			restorePresetLinks(
+				dynamic_cast<JPbox_preset *>(draftBox),
+				snapshots[i].presetLinks);
 		}
 		for (int linkIndex = 0; linkIndex < snapshots[i].linkSet.size() &&
 								   linkIndex < draftBox->fbohandlergroup.getSize(); linkIndex++)
@@ -3663,7 +4075,8 @@ bool JPboxgroup::applyCueDraftToSource()
 		{
 			continue;
 		}
-		if ((flags & (CUE_DIRTY_PARAMS | CUE_DIRTY_ADDED | CUE_DIRTY_PRESET_ACTIVE)) != 0)
+		if ((flags & (CUE_DIRTY_PARAMS | CUE_DIRTY_LINKS |
+					  CUE_DIRTY_ADDED | CUE_DIRTY_PRESET_ACTIVE)) != 0)
 		{
 			copyParametersByNameOrIndex(targetBoxes[realIndex]->parameters, cueState.draftBoxes[draftIndex]->parameters);
 			// For a preset/group, the editable state (incl. exposed params) lives
@@ -4045,6 +4458,179 @@ void JPboxgroup::copyEditableBoxState(JPbox *destination, JPbox *source)
 	destination->setPos(source->x, source->y);
 }
 
+void JPboxgroup::copyBoxLinksByName(
+	JPbox *destination,
+	JPbox *source,
+	const vector<JPbox *> &destinationSiblings)
+{
+	if (destination == nullptr || source == nullptr)
+	{
+		return;
+	}
+	for (int destinationIndex = 0;
+		 destinationIndex < destination->fbohandlergroup.getSize();
+		 destinationIndex++)
+	{
+		const string samplerName =
+			destination->fbohandlergroup.getName(destinationIndex);
+		const int sourceIndex =
+			source->fbohandlergroup.findIndexByName(samplerName);
+		if (sourceIndex < 0 ||
+			!source->fbohandlergroup.getisPointerSet(sourceIndex))
+		{
+			destination->fbohandlergroup.deleteFboPointer(destinationIndex);
+			continue;
+		}
+
+		const string linkedName =
+			source->fbohandlergroup.getFboName(sourceIndex);
+		JPbox *linkedDestination = nullptr;
+		for (JPbox *candidate : destinationSiblings)
+		{
+			if (candidate != nullptr && candidate->name == linkedName)
+			{
+				linkedDestination = candidate;
+				break;
+			}
+		}
+		if (linkedDestination != nullptr)
+		{
+			destination->fbohandlergroup.setFboPointer(
+				&linkedDestination->fbo,
+				&linkedDestination->name,
+				destinationIndex);
+		}
+		else
+		{
+			destination->fbohandlergroup.deleteFboPointer(destinationIndex);
+		}
+	}
+}
+
+void JPboxgroup::snapshotPresetLinks(
+	JPbox_preset *preset,
+	vector<PresetLinkAssignment> &assignments,
+	const vector<string> &presetPath) const
+{
+	if (preset == nullptr)
+	{
+		return;
+	}
+	for (JPbox *box : preset->boxes)
+	{
+		if (box == nullptr)
+		{
+			continue;
+		}
+		for (int linkIndex = 0;
+			 linkIndex < box->fbohandlergroup.getSize();
+			 linkIndex++)
+		{
+			PresetLinkAssignment assignment;
+			assignment.presetPath = presetPath;
+			assignment.boxName = box->name;
+			assignment.samplerName =
+				box->fbohandlergroup.getName(linkIndex);
+			assignment.connected =
+				box->fbohandlergroup.getisPointerSet(linkIndex);
+			if (assignment.connected)
+			{
+				assignment.sourceName =
+					box->fbohandlergroup.getFboName(linkIndex);
+			}
+			assignments.push_back(assignment);
+		}
+
+		if (box->getTipo() == JPbox::PRESETBOX)
+		{
+			vector<string> childPath = presetPath;
+			childPath.push_back(box->name);
+			snapshotPresetLinks(
+				dynamic_cast<JPbox_preset *>(box),
+				assignments,
+				childPath);
+		}
+	}
+}
+
+void JPboxgroup::restorePresetLinks(
+	JPbox_preset *preset,
+	const vector<PresetLinkAssignment> &assignments)
+{
+	if (preset == nullptr)
+	{
+		return;
+	}
+
+	for (const PresetLinkAssignment &assignment : assignments)
+	{
+		JPbox_preset *parentPreset = preset;
+		for (const string &presetName : assignment.presetPath)
+		{
+			JPbox_preset *nextPreset = nullptr;
+			for (JPbox *candidate : parentPreset->boxes)
+			{
+				if (candidate != nullptr &&
+					candidate->name == presetName &&
+					candidate->getTipo() == JPbox::PRESETBOX)
+				{
+					nextPreset = dynamic_cast<JPbox_preset *>(candidate);
+					break;
+				}
+			}
+			parentPreset = nextPreset;
+			if (parentPreset == nullptr)
+			{
+				break;
+			}
+		}
+		if (parentPreset == nullptr)
+		{
+			continue;
+		}
+
+		JPbox *targetBox = nullptr;
+		JPbox *sourceBox = nullptr;
+		for (JPbox *candidate : parentPreset->boxes)
+		{
+			if (candidate == nullptr)
+			{
+				continue;
+			}
+			if (candidate->name == assignment.boxName)
+			{
+				targetBox = candidate;
+			}
+			if (assignment.connected &&
+				candidate->name == assignment.sourceName)
+			{
+				sourceBox = candidate;
+			}
+		}
+		if (targetBox == nullptr)
+		{
+			continue;
+		}
+
+		const int linkIndex =
+			targetBox->fbohandlergroup.findIndexByName(
+				assignment.samplerName);
+		if (linkIndex < 0)
+		{
+			continue;
+		}
+		if (assignment.connected && sourceBox != nullptr)
+		{
+			targetBox->fbohandlergroup.setFboPointer(
+				&sourceBox->fbo, &sourceBox->name, linkIndex);
+		}
+		else
+		{
+			targetBox->fbohandlergroup.deleteFboPointer(linkIndex);
+		}
+	}
+}
+
 JPbox_preset *JPboxgroup::getDraftPresetForCurrentView() const
 {
 	if (!isCueDraftMode() || activeGroupPath.empty())
@@ -4094,6 +4680,10 @@ void JPboxgroup::copyPresetInternalState(JPbox_preset *destination, JPbox_preset
 		destination->boxes[i]->parameters = source->boxes[i]->parameters; // deep copy
 		destination->boxes[i]->setonoff(source->boxes[i]->getonoff());
 		destination->boxes[i]->setBypass(source->boxes[i]->getBypass());
+		copyBoxLinksByName(
+			destination->boxes[i],
+			source->boxes[i],
+			destination->boxes);
 		if (destination->boxes[i]->getTipo() == JPbox::PRESETBOX &&
 			source->boxes[i]->getTipo() == JPbox::PRESETBOX)
 		{
@@ -4431,6 +5021,13 @@ bool JPboxgroup::revertCueDraftBox(int index)
 	cueState.draftBoxes[draftIndex]->parameters = cueState.draftBaselineParameters[draftIndex];
 	cueState.draftBoxes[draftIndex]->setonoff(cueState.draftBaselineOnOff[draftIndex]);
 	cueState.draftBoxes[draftIndex]->setBypass(cueState.draftBaselineBypass[draftIndex]);
+	if (cueState.draftBoxes[draftIndex]->getTipo() == JPbox::PRESETBOX &&
+		tboxes[index]->getTipo() == JPbox::PRESETBOX)
+	{
+		copyPresetInternalState(
+			dynamic_cast<JPbox_preset *>(cueState.draftBoxes[draftIndex]),
+			dynamic_cast<JPbox_preset *>(tboxes[index]));
+	}
 	removeCueDraftDirty(index);
 	if (cueSelectedIndex() == index)
 	{
@@ -4874,6 +5471,28 @@ bool JPboxgroup::setOpenBoxParameterAtIndex(int parameterIndex, float value)
 	int type = inspectorBox->parameters.getType(parameterIndex);
 	if (type == inspectorBox->parameters.FLOAT)
 	{
+		JPParameter *parameter =
+			inspectorBox->parameters.getJParameter(parameterIndex);
+		if (parameter != nullptr &&
+			parameter->movtype != JPParameter::STANDART)
+		{
+			const float speed = ofClamp(value, 0.0f, 1.0f);
+			inspectorBox->parameters.setSpeed(speed, parameterIndex);
+			markCueDraftDirty(cueSelectedIndex());
+			if (parameterIndex < controllers.size())
+			{
+				JPComplexSlider *slider =
+					dynamic_cast<JPComplexSlider *>(
+						controllers[parameterIndex]);
+				if (slider != nullptr && slider->parameters == parameter)
+				{
+					slider->speed = speed;
+					slider->slider_speed.value = speed;
+				}
+			}
+			return true;
+		}
+
 		inspectorBox->parameters.setFloatValue(value, parameterIndex);
 		inspectorBox->parameters.setFloatLerpValue(value, parameterIndex);
 		markCueDraftDirty(cueSelectedIndex());
@@ -5758,13 +6377,13 @@ void JPboxgroup::pasteBoxes()
 			continue;
 		}
 		auto fboslinks = fbosChild.getChildren();
-		int linkIndex = 0;
 		for (auto &fbolink : fboslinks)
 		{
 			string linkedName = fbolink.getValue();
-			if (newBox->fbohandlergroup.getSize() <= linkIndex)
+			int linkIndex = newBox->fbohandlergroup.findIndexByName(
+				fbolink.getName());
+			if (linkIndex < 0)
 			{
-				linkIndex++;
 				continue;
 			}
 
@@ -5820,7 +6439,6 @@ void JPboxgroup::pasteBoxes()
 					}
 				}
 			}
-			linkIndex++;
 		}
 		pasteIndex++;
 	}

@@ -1708,6 +1708,15 @@ void ofApp::draw_shaderindex() {
 void ofApp::drawRender() {
 	boxes.draw_activerender();
 }
+
+void ofApp::closeShaderEditorToMain()
+{
+	shaderEditor.setVisible(false);
+	pantallaActiva = NODOS;
+	focusedOptionsField = -1;
+	boxes.navigateToBreadcrumbLevel(0);
+}
+
 void ofApp::keyPressed(int key) {
 
 	if (midiKeymap.keyPressed(key)) {
@@ -1717,6 +1726,9 @@ void ofApp::keyPressed(int key) {
 	// Shader Editor key capture (when visible, consumes all keys)
 	if (shaderEditor.wantsKeyCapture()) {
 		shaderEditor.keyPressed(key);
+		if (!shaderEditor.isVisible()) {
+			closeShaderEditorToMain();
+		}
 		return;
 	}
 
@@ -1837,9 +1849,7 @@ void ofApp::keyPressed(int key) {
 
 	// ESC from editor goes back to NODOS
 	if (key == OF_KEY_ESC && pantallaActiva == EDITOR) {
-		pantallaActiva = NODOS;
-		focusedOptionsField = -1;
-		shaderEditor.setVisible(false);
+		closeShaderEditorToMain();
 		return;
 	}
 
@@ -2165,6 +2175,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 	// Shader Editor clicks
 	if (pantallaActiva == EDITOR && shaderEditor.isVisible()) {
 		shaderEditor.mousePressed(x, y, button);
+		if (!shaderEditor.isVisible()) {
+			closeShaderEditorToMain();
+		}
 		return;
 	}
 

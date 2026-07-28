@@ -5,6 +5,8 @@ JPHandler::JPHandler() {}
 JPHandler::~JPHandler() {}
 
 namespace {
+constexpr bool kShowInspectorClickBounds = false;
+
 std::string blendModeNameFromValue(float normalizedValue)
 {
 	const int mode = static_cast<int>(ofMap(normalizedValue, 0.0f, 1.0f, 0.0f, 25.0f, true));
@@ -38,6 +40,44 @@ std::string blendModeNameFromValue(float normalizedValue)
 	default: return "NONE";
 	}
 }
+
+std::string fitAutomationLabel(std::string text, float maxWidth)
+{
+	if (jp_constants::p_font.stringWidth(text) <= maxWidth)
+	{
+		return text;
+	}
+	while (text.size() > 1 &&
+		jp_constants::p_font.stringWidth(text + "..") > maxWidth)
+	{
+		text.pop_back();
+	}
+	return text + "..";
+}
+
+void drawClickBounds(JPdragobject &control, bool enabled = true)
+{
+	if (!kShowInspectorClickBounds)
+	{
+		return;
+	}
+
+	const bool hovered = enabled && control.mouseOver();
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofNoFill();
+	ofSetLineWidth(hovered ? 1.5f : 1.0f);
+	ofSetColor(hovered ? COL_ACCENT_GOLD :
+		(enabled ? ofColor(COL_ACCENT_CYAN, 145) :
+			ofColor(COL_BORDER_MUTED, 90)));
+	ofDrawRectRounded(
+		control.x - control.width / 2.0f,
+		control.y - control.height / 2.0f,
+		control.width,
+		control.height,
+		2.0f);
+	ofPopStyle();
+}
 }
 
 void JPHandler::setup(float _x, float _y, float _w, float _h)
@@ -50,7 +90,6 @@ void JPHandler::setup(float _x, float _y, float _w, float _h)
 }
 void JPHandler::draw()
 {
-
 	if (!ofGetMousePressed())
 	{
 		activeFlag = false;
@@ -60,20 +99,19 @@ void JPHandler::draw()
 		activeFlag = true;
 	}
 
-	// Grip color by state: bright when grabbed, cyan on hover, dim otherwise.
-	ofColor c = mouseGrab() ? ofColor(COL_TEXT_PRIMARY) : (mouseOver() ? ofColor(COL_ACCENT_CYAN) : ofColor(COL_ACCENT_CYAN_DIM));
+	const bool hovered = mouseOver();
+	const bool grabbed = mouseGrab();
+	const float halfMark = std::min(8.0f, height * 0.5f - 2.0f);
+	const float inward = isLeft ? 1.0f : -1.0f;
 
-	// Thin rounded vertical grip centered on x.
-	ofSetRectMode(OF_RECTMODE_CENTER);
-	ofSetColor(c);
-	ofDrawRectRounded(x, y, 4, height, 2);
-
-	// Marker pin (small downward triangle) sitting on top of the grip.
-	float th = std::min(9.0f, height * 0.5f);
-	float tw = 5.0f;
-	float topY = y - height * 0.5f;
-	ofSetRectMode(OF_RECTMODE_CORNER);
-	ofDrawTriangle(x - tw, topY - th, x + tw, topY - th, x, topY);
+	ofPushStyle();
+	ofSetColor(grabbed ? COL_TEXT_PRIMARY :
+		(hovered ? COL_ACCENT_CYAN : COL_ACCENT_CYAN_DIM));
+	ofSetLineWidth(grabbed || hovered ? 2.0f : 1.5f);
+	ofDrawLine(x, y - halfMark, x, y + halfMark);
+	ofDrawLine(x, y - halfMark, x + inward * 4.0f, y - halfMark);
+	ofDrawLine(x, y + halfMark, x + inward * 4.0f, y + halfMark);
+	ofPopStyle();
 }
 
 JPComplexSlider::JPComplexSlider() {}
@@ -138,43 +176,38 @@ void JPComplexSlider::draw()
 
 	ofSetColor(COL_TEXT_PRIMARY, 100);
 	ofSetRectMode(OF_RECTMODE_CENTER);
-	jp_constants_img::fondo_parametro.draw(x, y, width, height);
+	const float panelInsetX = 1.0f;
+	const float panelInsetY = 1.5f;
+	jp_constants_img::fondo_parametro.draw(
+		x, y,
+		std::max(1.0f, width - panelInsetX * 2.0f),
+		std::max(1.0f, height - panelInsetY * 2.0f));
 
 	// Dibujar cuadrito celeste :
 	if (parameters->movtype != 0)
 	{
-
-		// Soft range band between the two limit handles.
-		ofSetRectMode(OF_RECTMODE_CORNER);
-		ofSetColor(COL_ACCENT_CYAN, 70);
-		float xcuadraditoceleste = std::min(handler1.x, handler2.x);
-		float cuadritoceleste_height = 16;
-		ofDrawRectRounded(xcuadraditoceleste,
-						slider_value.y - cuadritoceleste_height,
-						abs(handler1.x - handler2.x),
-						cuadritoceleste_height, 3);
-
 		string Strvalue = ofToString(parameters->floatValue, 2);
 		if (name == "blendmode")
 		{
 			Strvalue = blendModeNameFromValue(parameters->floatValue);
 		}
-		ofSetColor(COL_TEXT_PRIMARY, 255);
+		const float labelInset = 3.0f;
+		const float labelLeft =
+			slider_value.x - slider_value.width / 2.0f + labelInset;
+		const float labelRight =
+			slider_value.x + slider_value.width / 2.0f - labelInset;
+		const float valueWidth =
+			jp_constants::p_font.stringWidth(Strvalue);
+		const float labelBaseline = y - height * 0.18f;
+		const string displayName = fitAutomationLabel(
+			name, std::max(12.0f,
+				labelRight - valueWidth - 12.0f - labelLeft));
 
-		// DIBUJAR EL FONDO DEL VALOR:
-		/*jp_constants_img::drawCenterImage(jp_constants_img::fondo_valor,
-			x - jp_constants_img::fondo_valor.getWidth() * 0.25/2,
-			y - jp_constants::p_font.stringHeight(Strvalue) - jp_constants_img::fondo_valor.getHeight() * 0.25 / 2,
-		0.4);*/
-
-		ofSetColor(COL_ACCENT_CYAN, 255);
-		jp_constants::p_font.drawString(Strvalue,
-										x - jp_constants::p_font.stringWidth(Strvalue),
-										y - jp_constants::p_font.stringHeight(Strvalue));
-
-		jp_constants::p_font.drawString(name,
-										x - jp_constants::p_font.stringWidth(name) - 80,
-										y - jp_constants::p_font.stringHeight(name));
+		ofSetColor(COL_ACCENT_CYAN);
+		jp_constants::p_font.drawString(
+			displayName, labelLeft, labelBaseline);
+		jp_constants::p_font.drawString(
+			Strvalue, labelRight - valueWidth, labelBaseline);
 	}
 	slider_value.draw();
 	boton_collapse.draw();
@@ -198,6 +231,39 @@ void JPComplexSlider::draw()
 		boton_idayvuelta.draw();
 		boton_random.draw();
 		boton_direccion.draw();
+
+		jp_tooltip::draw("Automation speed",
+			slider_speed.x - slider_speed.width / 2.0f,
+			slider_speed.y - slider_speed.height / 2.0f,
+			slider_speed.width, slider_speed.height);
+		jp_tooltip::draw("Ping-pong automation mode",
+			boton_idayvuelta.x - boton_idayvuelta.width / 2.0f,
+			boton_idayvuelta.y - boton_idayvuelta.height / 2.0f,
+			boton_idayvuelta.width, boton_idayvuelta.height);
+		jp_tooltip::draw("Random automation mode",
+			boton_random.x - boton_random.width / 2.0f,
+			boton_random.y - boton_random.height / 2.0f,
+			boton_random.width, boton_random.height);
+		const string directionTooltip =
+			parameters->movtype == JPParameter::GOIZQ ?
+				"Automation direction: reverse" :
+				"Automation direction: forward";
+		jp_tooltip::draw(directionTooltip,
+			boton_direccion.x - boton_direccion.width / 2.0f,
+			boton_direccion.y - boton_direccion.height / 2.0f,
+			boton_direccion.width, boton_direccion.height);
+	}
+
+	drawClickBounds(boton_collapse, activable2);
+	drawClickBounds(slider_value, slider_value.activable2);
+	if (parameters->movtype != 0)
+	{
+		drawClickBounds(handler1);
+		drawClickBounds(handler2);
+		drawClickBounds(slider_speed, slider_speed.activable2);
+		drawClickBounds(boton_idayvuelta, boton_idayvuelta.activable2);
+		drawClickBounds(boton_random, boton_random.activable2);
+		drawClickBounds(boton_direccion, boton_direccion.activable2);
 	}
 }
 void JPComplexSlider::update()
@@ -238,11 +304,11 @@ void JPComplexSlider::update()
 				{
 					handler1.setPos(ofGetMouseX(), handler1.y);
 					handler1.x = ofClamp(handler1.x,
-										 slider_value.x - slider_value.width / 2 + handler1.width / 2,
-										 handler2.x - handler1.width / 2);
+										 slider_value.x - slider_value.width / 2,
+										 handler2.x);
 					parameters->min = ofMap(handler1.x,
-											slider_value.x - slider_value.width / 2 + handler1.width / 2,
-											slider_value.x + slider_value.width / 2 - handler1.width / 2,
+											slider_value.x - slider_value.width / 2,
+											slider_value.x + slider_value.width / 2,
 											0.0, 1.0);
 				}
 				else if (handler2.activeFlag)
@@ -250,11 +316,11 @@ void JPComplexSlider::update()
 					handler2.setPos(ofGetMouseX(), handler2.y);
 					// Max handle can't cross below the min handle.
 					handler2.x = ofClamp(handler2.x,
-										 handler1.x + handler2.width / 2,
-										 slider_value.x + slider_value.width / 2 - handler2.width / 2);
+										 handler1.x,
+										 slider_value.x + slider_value.width / 2);
 					parameters->max = ofMap(handler2.x,
-											slider_value.x - slider_value.width / 2 + handler2.width / 2,
-											slider_value.x + slider_value.width / 2 - handler2.width / 2,
+											slider_value.x - slider_value.width / 2,
+											slider_value.x + slider_value.width / 2,
 											0.0, 1.0);
 				}
 			}
@@ -277,11 +343,11 @@ void JPComplexSlider::update()
 				boton_direccion.activable2 = false;
 			}
 		}
-		// boton_collapse siempre debe ser clickeable (collapse/expand animation).
-		// No condicionarlo al activeFlag del slider_value, porque si se traba nunca responde.
-		// activable2 se maneja en el loop de update_paramswindow() segun controllerselected.
-		boton_collapse.activable2 = true;
 	}
+	// Automation is handled once in JPboxgroup::update_mousePressed(). Keeping
+	// draw-time polling disabled prevents a rebuilt button from toggling again
+	// while the same physical press is still down.
+	boton_collapse.activable2 = false;
 }
 void JPComplexSlider::setPosAndSize()
 {
@@ -289,7 +355,7 @@ void JPComplexSlider::setPosAndSize()
 	// Este es como el setup de todos los elementos :
 	float b_cx = x - width / 2 + 20;
 	boton_collapse.setup(b_cx,
-						 y, 20, 20);
+						 y, 24, 24);
 
 	if (parameters->movtype == 0)
 	{
@@ -314,17 +380,20 @@ void JPComplexSlider::setPosAndSize()
 
 		// slider_value.setPos(slidervaluex, y);
 		// Esto lo hace con un rect mode center. Pero hay como que cambiarlo digamos
+		const float rangeControlHeight = 20.0f;
 		slider_value.setup(slidervaluex,
-						   y + height / 4,
+						   y + height * 0.22f,
 						   slidervaluewidth,
-						   height * 8 / 10,
+						   rangeControlHeight,
 						   0.0,
 						   1.0,
 						   value,
 						   name);
 
-		float sliderspeedw = 50;
-		float sliderspeedh = 30;
+		const float sliderspeedw = 40.0f;
+		const float sliderspeedh = 40.0f;
+		const float modeButtonSize = 26.0f;
+		const float modeButtonGap = 6.0f;
 
 		float pos = slidervaluex + slider_value.width / 2 + sliderspeedw / 2;
 
@@ -336,34 +405,26 @@ void JPComplexSlider::setPosAndSize()
 						   1.0,
 						   speed);
 
-		float boton_siz = 15;
+		pos += sliderspeedw / 2.0f + modeButtonGap +
+			modeButtonSize / 2.0f;
+		boton_idayvuelta.setup(
+			pos, y, modeButtonSize, modeButtonSize);
 
-		float bt_siz_multiplyer1 = 1.0;
-		float bt_siz_multiplyer2 = 1.0;
-		float bt_siz_multiplyer3 = 1.0;
+		pos += modeButtonSize + modeButtonGap;
+		boton_random.setup(
+			pos, y, modeButtonSize, modeButtonSize);
 
-		boton_idayvuelta.setup(pos += sliderspeedw,
-							   y,
-							   jp_constants_img::idayvuelta.getWidth() * bt_siz_multiplyer1,
-							   jp_constants_img::idayvuelta.getHeight() * bt_siz_multiplyer1);
-
-		boton_random.setup(pos += botonsepx,
-						   y,
-						   jp_constants_img::ran.getWidth() * bt_siz_multiplyer2,
-						   jp_constants_img::ran.getHeight() * bt_siz_multiplyer2);
-
-		boton_direccion.setup(pos += botonsepx,
-							  y,
-							  jp_constants_img::una_direccion.getWidth() * bt_siz_multiplyer3,
-							  jp_constants_img::una_direccion.getHeight() * bt_siz_multiplyer3);
+		pos += modeButtonSize + modeButtonGap;
+		boton_direccion.setup(
+			pos, y, modeButtonSize, modeButtonSize);
 
 		slider_speed.paleta = 1;
 		controllertype = SLIDER;
 
 		// speed = slider_speed.value;
 
-		float handlerw = 20;
-		float handlerh = slider_value.height;
+		const float handlerw = 14.0f;
+		const float handlerh = rangeControlHeight;
 
 		// parameters->min = ofClamp(parameters->min, 0.0, 1.0);
 		//	parameters->max = ofClamp(parameters->max, 0.0, 1.0);
@@ -371,21 +432,21 @@ void JPComplexSlider::setPosAndSize()
 
 		float handler1_x = ofMap(parameters->min,
 								 0.0, 1.0,
-								 slider_value.x - slider_value.width / 2 + handlerw / 2,
-								 slider_value.x + slider_value.width / 2 - handlerw / 2);
+								 slider_value.x - slider_value.width / 2,
+								 slider_value.x + slider_value.width / 2);
 
 		float handler2_x = ofMap(parameters->max,
 								 0.0, 1.0,
-								 slider_value.x - slider_value.width / 2 + handlerw / 2,
-								 slider_value.x + slider_value.width / 2 - handlerw / 2);
+								 slider_value.x - slider_value.width / 2,
+								 slider_value.x + slider_value.width / 2);
 
 		handler1.setup(handler1_x,
-					   y,
+					   slider_value.y,
 					   handlerw,
 					   handlerh);
 
 		handler2.setup(handler2_x,
-					   y,
+					   slider_value.y,
 					   handlerw,
 					   handlerh);
 	}
@@ -395,4 +456,5 @@ void JPComplexSlider::setPosAndSize()
 	boton_direccion.setUseTexture(boton_idayvuelta.GODER);
 	boton_collapse.setUseTexture(boton_collapse.COLLAPSE);
 	boton_collapse.activable = true; // Force activable after setUseTexture (needsUpdate may be true during setControllers)
+	boton_collapse.activable2 = false;
 }

@@ -1511,7 +1511,11 @@ void JPMidiKeymap::drawInspectorMappingTargets()
 		return;
 	}
 
-	for (int i = 0; i < boxes->controllers.size(); i++)
+	const int parameterCount =
+		boxes->boxes[boxes->openguinumber]->parameters.getSize();
+	for (int i = 0;
+		 i < boxes->controllers.size() && i < parameterCount;
+		 i++)
 	{
 		int type = boxes->boxes[boxes->openguinumber]->parameters.getType(i);
 		if (type != boxes->boxes[boxes->openguinumber]->parameters.FLOAT &&
@@ -1523,13 +1527,19 @@ void JPMidiKeymap::drawInspectorMappingTargets()
 		JPcontroller *controller = boxes->controllers[i];
 		bool over = controller->mouseOver();
 		bool bound = hasBindingForAction(PARAMETER, "", i);
+		bool mapsAutomationSpeed =
+			type == boxes->boxes[boxes->openguinumber]->parameters.FLOAT &&
+			boxes->boxes[boxes->openguinumber]->parameters.getMovType(i) !=
+				JPParameter::STANDART;
 		ofNoFill();
 		ofSetLineWidth((over || bound) ? 3 : 2);
 		ofSetColor(bound ? ofColor(COL_MAPPED_ON, over ? 255 : 220) :
 					   (over ? ofColor(COL_ACCENT_CYAN, 255) : ofColor(COL_ACCENT_CYAN, 160)));
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		ofDrawRectRounded(controller->x, controller->y, controller->width + 8, controller->height + 8, 4.0f);
-		jp_tooltip::draw("Map parameter p" + ofToString(i),
+		jp_tooltip::draw(
+			(mapsAutomationSpeed ? "Map automation speed p" :
+				"Map parameter p") + ofToString(i),
 			controller->x - (controller->width + 8) / 2,
 			controller->y - (controller->height + 8) / 2,
 			controller->width + 8, controller->height + 8);
@@ -1538,7 +1548,9 @@ void JPMidiKeymap::drawInspectorMappingTargets()
 
 		ofSetColor(bound ? ofColor(COL_MAPPED_ON, over ? 255 : 220) :
 					   ofColor(COL_ACCENT_CYAN, over ? 255 : 190));
-		jp_constants::p_font.drawString("p" + ofToString(i),
+		jp_constants::p_font.drawString(
+										"p" + ofToString(i) +
+											(mapsAutomationSpeed ? " SPD" : ""),
 										controller->x + controller->width / 2 + 8,
 										controller->y + 4);
 	}
@@ -1612,6 +1624,10 @@ void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 		bool isBoolParameter = parameterBox != nullptr &&
 							   i < parameterBox->parameters.getSize() &&
 							   parameterBox->parameters.getType(i) == parameterBox->parameters.BOOL;
+		bool mapsAutomationSpeed = parameterBox != nullptr &&
+							   i < parameterBox->parameters.getSize() &&
+							   parameterBox->parameters.getType(i) == parameterBox->parameters.FLOAT &&
+							   parameterBox->parameters.getMovType(i) != JPParameter::STANDART;
 		bool boolValue = isBoolParameter &&
 						 parameterBox->parameters.getBoolValue(i);
 
@@ -1643,7 +1659,10 @@ void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 
 		ofColor textColor = boolValue ? COL_TEXT_DARK : COL_TEXT_PRIMARY;
 		ofSetColor(textColor);
-		jp_constants::p_font.drawString("p" + ofToString(i), x + 8, rowY + ROW_H - 7);
+		const string parameterLabel = "p" + ofToString(i) +
+			(mapsAutomationSpeed ? " speed" : "");
+		jp_constants::p_font.drawString(
+			parameterLabel, x + 8, rowY + ROW_H - 7);
 		if (isBoolParameter)
 		{
 			ofSetColor(boolValue ? COL_TEXT_DARK : COL_TEXT_SECONDARY);

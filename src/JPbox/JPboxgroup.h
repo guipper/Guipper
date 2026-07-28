@@ -276,6 +276,17 @@ private:
 
 	void setinspectorsetactiveparams();
 	void draw_paramswindow(); // Dibuja la ventanita del inspector.
+	struct InspectorInputRow
+	{
+		int linkIndex = -1;
+		ofRectangle bounds;
+		ofRectangle upButton;
+	};
+	float layoutInspectorInputRows(JPbox *box, float startY);
+	void drawInspectorInputRows(JPbox *box);
+	bool handleInspectorInputClick(JPbox *box);
+	bool handleInspectorAutomationClick();
+	bool moveInspectorInputUp(JPbox *box, int linkIndex);
 	void drawCuePreview();
 	void drawLiveOutput(float x, float y, float w, float h);
 	JPbox *getCueDraftSourceBox();
@@ -313,6 +324,21 @@ private:
 	vector<int> getCueDirtyIndices(unsigned int mask = 0) const;
 	string getCueDirtySummary() const;
 	void copyEditableBoxState(JPbox *destination, JPbox *source);
+	struct PresetLinkAssignment
+	{
+		vector<string> presetPath;
+		string boxName;
+		string samplerName;
+		string sourceName;
+		bool connected = false;
+	};
+	void copyBoxLinksByName(JPbox *destination, JPbox *source,
+		const vector<JPbox *> &destinationSiblings);
+	void snapshotPresetLinks(class JPbox_preset *preset,
+		vector<PresetLinkAssignment> &assignments,
+		const vector<string> &presetPath = {}) const;
+	void restorePresetLinks(class JPbox_preset *preset,
+		const vector<PresetLinkAssignment> &assignments);
 	// Recursively copy a preset's internal sub-box param/onoff/bypass/active state
 	// (used to seed a preset draft clone from the live box, and to write staged
 	// preset edits back on apply). Only mirrors editable state, not structure.
@@ -360,6 +386,9 @@ private:
 	float inspectorwindow_x;
 	float inspectorwindow_y;
 	float inspectorwindow_sepy; // Esta es para el espacio que hay entre distintos sliders.
+	ofRectangle inspectorInputsHeaderBounds;
+	bool inspectorInputsExpanded = true;
+	vector<InspectorInputRow> inspectorInputRows;
 
 	JPBang inspectorsetactive;			 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA
 	JPBang inspectorreload;				 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA

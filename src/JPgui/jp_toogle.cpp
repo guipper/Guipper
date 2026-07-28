@@ -1,5 +1,45 @@
 #include "jp_toogle.h"
 
+namespace
+{
+	void drawAutomationButton(float x, float y, float width, float height,
+		bool active, bool hovered)
+	{
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		ofSetColor(active ? ofColor(COL_ACCENT_CYAN_DARK, 210) :
+			(hovered ? ofColor(COL_BG_HOVER, 235) :
+				ofColor(COL_BG_INPUT, 210)));
+		ofDrawRectRounded(
+			x - width / 2.0f,
+			y - height / 2.0f,
+			width,
+			height,
+			3.0f);
+
+		ofNoFill();
+		ofSetLineWidth(1.0f);
+		ofSetColor(active ? ofColor(COL_ACCENT_CYAN, 220) :
+			(hovered ? ofColor(COL_TEXT_SECONDARY, 210) :
+				ofColor(COL_BORDER_MUTED, 155)));
+		ofDrawRectRounded(
+			x - width / 2.0f,
+			y - height / 2.0f,
+			width,
+			height,
+			3.0f);
+		ofFill();
+	}
+
+	void drawArrowHead(float tipX, float tipY, float direction)
+	{
+		const float size = 4.0f;
+		ofDrawLine(tipX, tipY,
+			tipX - direction * size, tipY - size);
+		ofDrawLine(tipX, tipY,
+			tipX - direction * size, tipY + size);
+	}
+}
+
 void JPToogle::setup(float _x, float _y, float _width, float _height, string _name, bool _boolValue)
 {
 	setup(_x, _y, _width, _height);
@@ -45,81 +85,74 @@ void JPToogle::setUseTexture(int _as)
 
 void JPToogle::drawSelectedTexture()
 {
-	/*ofSetColor(jp_constants::Cback[paleta]);
-	ofSetRectMode(OF_RECTMODE_CENTER);
-	ofRect(x, y, width, height);
-	ofSetColor(ofColor::white);
-	*/
+	const bool hovered = mouseOver();
 	if (textureindex == COLLAPSE)
 	{
-
-		/*ofSetColor(jp_constants::Cback[paleta]);
-		ofSetRectMode(OF_RECTMODE_CENTER);
-		ofRect(x, y, width, height);
-		ofSetColor(ofColor::white);
-
-		ofSetColor(jp_constants::Cback[paleta]);*/
-		ofSetRectMode(OF_RECTMODE_CENTER);
-		// ofRect(x, y, width, height);
-		ofSetColor(ofColor::white);
-		ofPushMatrix();
-		ofTranslate(x, y);
-		if (parameters->movtype == 0)
+		const bool automated = parameters->movtype != JPParameter::STANDART;
+		drawAutomationButton(x, y, width, height, automated, hovered);
+		ofSetColor(automated ? COL_ACCENT_CYAN :
+			(hovered ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY));
+		ofSetLineWidth(1.8f);
+		if (automated)
 		{
-			ofRotate(-90);
-		}
-		jp_constants_img::actual.draw(0, 0, width, height);
-		ofPopMatrix();
-	}
-	else
-	{
-		if (mouseOver())
-		{
-			/*ofSetColor(20, 50);
-			ofDrawRectangle(x, y,
-				width, height);*/
-		}
-		if (parameters->movtype == textureindex)
-		{
-
-			ofSetColor(COL_ACCENT_CYAN);
+			ofDrawLine(x - 4.0f, y - 2.0f, x, y + 2.0f);
+			ofDrawLine(x, y + 2.0f, x + 4.0f, y - 2.0f);
 		}
 		else
 		{
-			if (mouseOver())
-			{
-				/*ofSetColor(20, 50);
-				ofDrawRectangle(x, y,
-					width, height);*/
-				ofSetColor(COL_ACCENT_CYAN_DIM);
-			}
-			else
-			{
-				ofSetColor(COL_BG_DARK);
-			}
+			ofDrawLine(x - 2.0f, y - 4.0f, x + 2.0f, y);
+			ofDrawLine(x + 2.0f, y, x - 2.0f, y + 4.0f);
 		}
+		ofSetLineWidth(1.0f);
+	}
+	else
+	{
+		const bool active =
+			(textureindex == IDAYVUELTA &&
+				parameters->movtype == JPParameter::OSC) ||
+			(textureindex == RAN &&
+				parameters->movtype == JPParameter::RANDOM) ||
+			(textureindex == GODER &&
+				(parameters->movtype == JPParameter::GODER ||
+				 parameters->movtype == JPParameter::GOIZQ));
+		drawAutomationButton(x, y, width, height, active, hovered);
+		ofSetColor(active ? COL_ACCENT_CYAN :
+			(hovered ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY));
+		ofSetLineWidth(1.7f);
+
 		if (textureindex == RAN)
 		{
-			jp_constants_img::ran.draw(x, y, width, height);
+			const float left = x - 7.0f;
+			const float right = x + 7.0f;
+			ofDrawLine(left, y - 5.0f, x - 2.0f, y - 5.0f);
+			ofDrawLine(x - 2.0f, y - 5.0f, x + 2.0f, y + 5.0f);
+			ofDrawLine(x + 2.0f, y + 5.0f, right, y + 5.0f);
+			drawArrowHead(right, y + 5.0f, 1.0f);
+			ofDrawLine(left, y + 5.0f, x - 2.0f, y + 5.0f);
+			ofDrawLine(x - 2.0f, y + 5.0f, x, y + 2.0f);
+			ofDrawLine(x, y - 2.0f, x + 2.0f, y - 5.0f);
+			ofDrawLine(x + 2.0f, y - 5.0f, right, y - 5.0f);
+			drawArrowHead(right, y - 5.0f, 1.0f);
 		}
 		else if (textureindex == GODER)
 		{
-			ofPushMatrix();
-			ofTranslate(x, y);
-			if (parameters->movtype == 3)
-			{
-				ofRotate(-180);
-				/*ofSetColor(255, 150);
-				ofDrawRectangle(0, 0, 50, 50);*/
-			}
-
-			jp_constants_img::una_direccion.draw(0, 0, width, height);
-			ofPopMatrix();
+			const bool reverse =
+				parameters->movtype == JPParameter::GOIZQ;
+			const float direction = reverse ? -1.0f : 1.0f;
+			const float startX = x - direction * 7.0f;
+			const float endX = x + direction * 7.0f;
+			ofDrawLine(startX, y, endX, y);
+			drawArrowHead(endX, y, direction);
 		}
 		else if (textureindex == IDAYVUELTA)
 		{
-			jp_constants_img::idayvuelta.draw(x, y, width, height);
+			const float left = x - 8.0f;
+			const float right = x + 8.0f;
+			ofDrawLine(left, y, right, y);
+			drawArrowHead(left, y, -1.0f);
+			drawArrowHead(right, y, 1.0f);
 		}
+		ofSetLineWidth(1.0f);
 	}
 }
 void JPToogle::draw()

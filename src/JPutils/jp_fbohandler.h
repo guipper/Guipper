@@ -4,6 +4,7 @@
 #include "ofMain.h"
 #include "../JPutils/jp_dragobject.h"
 #include "../JPutils/jp_constants.h"
+#include <utility>
 
 // ESTA CLASE ES PARA MANEJAR LOS FBOS Y SETEAR LOS FBOS Y ESAS COSAS.
 // Vamos a hacerla para que funcione con nodos.
@@ -57,6 +58,13 @@ public:
 		isPointerSet = false;
 	}
 
+	void swapConnection(JPFbohandler &other)
+	{
+		std::swap(fbo, other.fbo);
+		std::swap(fboname, other.fboname);
+		std::swap(isPointerSet, other.isPointerSet);
+	}
+
 	ofFbo getFboPointer()
 	{
 		return *fbo;
@@ -71,11 +79,11 @@ public:
 		return fboname;
 	}
 
-	string getName()
+	string getName() const
 	{
 		return name;
 	}
-	string getFboPointerName()
+	string getFboPointerName() const
 	{
 		return *fboname;
 	}
@@ -84,9 +92,9 @@ public:
 
 private:
 	// ofTexture * texture; //Vamos a cambiar el puntero al fbo por un puntero a una textura.
-	ofFbo *fbo;
+	ofFbo *fbo = nullptr;
 	string name;
-	string *fboname;
+	string *fboname = nullptr;
 };
 
 class JPFbohandlerGroup
@@ -122,6 +130,17 @@ public:
 	{
 		fbohandlers[_index].setFboPointer(fbo, fboname);
 	}
+	bool swapConnections(int firstIndex, int secondIndex)
+	{
+		if (firstIndex < 0 || secondIndex < 0 ||
+			firstIndex >= getSize() || secondIndex >= getSize() ||
+			firstIndex == secondIndex)
+		{
+			return false;
+		}
+		fbohandlers[firstIndex].swapConnection(fbohandlers[secondIndex]);
+		return true;
+	}
 	ofFbo getFboPointer(int _index)
 	{
 		return fbohandlers[_index].getFboPointer();
@@ -150,9 +169,9 @@ public:
 		}
 		fbohandlers.clear();
 	}
-	string getName(int _index)
+	string getName(int _index) const
 	{
-		if (getSize() >= _index)
+		if (_index >= 0 && _index < (int)fbohandlers.size())
 		{
 			return fbohandlers[_index].getName();
 		}
@@ -160,6 +179,17 @@ public:
 		{
 			return "ERROR IN GETTING NAME VALUE";
 		}
+	}
+	int findIndexByName(const string &name) const
+	{
+		for (int i = 0; i < (int)fbohandlers.size(); i++)
+		{
+			if (fbohandlers[i].getName() == name)
+			{
+				return i;
+			}
+		}
+		return -1;
 	}
 	string getFboName(int _index)
 	{

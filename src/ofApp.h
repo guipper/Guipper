@@ -187,6 +187,7 @@ public:
 	int pantallaActiva;
 	void drawScreenTabs();
 	int getScreenTabAtPos(int x, int y);
+	void closeShaderEditorToMain();
 	bool loadAspreset; // ESTO ES PARA QUE TODO EL TIEMPO ME DIGA SI TENGO APRETADO EL BOTON DE LA IZQ O NO .
 
 	bool oscout_mode1;

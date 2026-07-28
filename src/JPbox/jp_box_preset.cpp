@@ -183,23 +183,31 @@ void JPbox_preset::setup(string _directory, string _name)
 	// Una vez que cargo todas las cajitas les cargamos los links :
 	// Mira lo que esta este algoritmo para levantar los links entre cajitas papa !!!
 	int index1 = 0;
-	int index2 = 0;
 	for (auto &box : boxloader)
 	{
+		if (index1 >= (int)boxes.size())
+		{
+			break;
+		}
 		auto fboslinks = box.getChild("fboslinks").getChildren();
-		index2 = 0;
 		for (auto &fbolink : fboslinks)
 		{
+			int linkIndex = boxes[index1]->fbohandlergroup.findIndexByName(
+				fbolink.getName());
+			if (linkIndex < 0)
+			{
+				continue;
+			}
 			for (int i = 0; i < boxes.size(); i++)
 			{
 				if (boxes[i]->name == fbolink.getValue() && i != index1)
 				{
 					ofFbo *fbopointer = &boxes[i]->fbo;
 					string *fbopointername = &boxes[i]->name;
-					boxes[index1]->fbohandlergroup.setFboPointer(fbopointer, fbopointername, index2);
+					boxes[index1]->fbohandlergroup.setFboPointer(
+						fbopointer, fbopointername, linkIndex);
 				}
 			}
-			index2++;
 		}
 		index1++;
 	}
