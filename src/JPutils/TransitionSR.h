@@ -10,6 +10,7 @@ public:
 	~TransitionSR();
 	void setup();
 	void setup(ofFbo * _fbo1, ofFbo * _fbo2);
+	void advance();
 	void update();
 	void setLerpValue(float _val);
 	void setLerpValue();
@@ -18,6 +19,7 @@ public:
 	void resize();
 	void setFboPointer1(ofFbo* _fbo1);
 	void setFboPointer2(ofFbo* _fbo2);
+	float getLerpValue() const;
 	void draw();
 
 	ofShader shader;

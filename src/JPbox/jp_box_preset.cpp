@@ -14,6 +14,9 @@ void JPbox_preset::setup(string _directory, string _name)
 	// JPbox::setup(jp_constants::p_font);
 	JPbox::setup(_directory, _name);
 	tipo = PRESETBOX;
+	activeRenderTransitionRunning = false;
+	lastCompositedActiveRender = -1;
+	activeRenderTransitionTarget = -1;
 
 	clear();
 	ofXml xml;
@@ -245,14 +248,66 @@ void JPbox_preset::updateFBO()
 			onoff.boolValue = false;
 			return;
 		}
-		ofSetColor(255, 255);
-		fbo.begin();
-		boxes[activeRender]->fbo.draw(0, 0, fbo.getWidth(), fbo.getHeight());
-		fbo.end();
+		renderActiveRender();
 	}
 	else
 	{
 		JPbox::updateFBO();
+	}
+}
+
+void JPbox_preset::renderActiveRender()
+{
+	if (boxes.empty() || activeRender < 0 || activeRender >= (int)boxes.size() ||
+		boxes[activeRender] == nullptr)
+	{
+		return;
+	}
+
+	int targetIndex = activeRender;
+	if (lastCompositedActiveRender < 0 ||
+		lastCompositedActiveRender >= (int)boxes.size() ||
+		boxes[lastCompositedActiveRender] == nullptr)
+	{
+		lastCompositedActiveRender = targetIndex;
+		activeRenderTransitionRunning = false;
+	}
+
+	if (targetIndex != lastCompositedActiveRender &&
+		(!activeRenderTransitionRunning || activeRenderTransitionTarget != targetIndex))
+	{
+		activeRenderTransitionInitialized = true;
+		activeRenderTransition.setLerpValue(0);
+		activeRenderTransitionTarget = targetIndex;
+		activeRenderTransitionRunning = true;
+	}
+
+	ofPushStyle();
+	ofEnableAlphaBlending();
+	fbo.begin();
+	ofClear(0, 0, 0, 0);
+	if (activeRenderTransitionRunning)
+	{
+		activeRenderTransition.advance();
+		float progress = activeRenderTransition.getLerpValue();
+		float easedProgress = progress * progress * (3.0f - 2.0f * progress);
+		ofSetColor(255, 255, 255, 255);
+		boxes[lastCompositedActiveRender]->fbo.draw(0, 0, fbo.getWidth(), fbo.getHeight());
+		ofSetColor(255, 255, 255, (unsigned char)(255.0f * easedProgress));
+		boxes[targetIndex]->fbo.draw(0, 0, fbo.getWidth(), fbo.getHeight());
+	}
+	else
+	{
+		ofSetColor(255, 255, 255, 255);
+		boxes[targetIndex]->fbo.draw(0, 0, fbo.getWidth(), fbo.getHeight());
+	}
+	fbo.end();
+	ofPopStyle();
+
+	if (activeRenderTransitionRunning && activeRenderTransition.getLerpValue() >= 1.0f)
+	{
+		lastCompositedActiveRender = activeRenderTransitionTarget;
+		activeRenderTransitionRunning = false;
 	}
 }
 
@@ -310,6 +365,9 @@ void JPbox_preset::resizeExposedParams(int numChildren)
 
 void JPbox_preset::clear()
 {
+	activeRenderTransitionRunning = false;
+	lastCompositedActiveRender = -1;
+	activeRenderTransitionTarget = -1;
 	for (int i = boxes.size() - 1; i >= 0; i--)
 	{
 		boxes[i]->clear();

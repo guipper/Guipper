@@ -215,7 +215,7 @@ void JPboxgroup::draw()
 		if (preset != nullptr)
 		{
 			activeBoxesPtr = &preset->boxes;
-			activeRenderDisplayIndex = preset->activeRender;
+			activeRenderDisplayIndex = getCurrentViewActiveRenderIndex();
 			activeInspectorIndex = groupInspectorIndex;
 		}
 	}
@@ -301,7 +301,7 @@ void JPboxgroup::draw()
 		{
 			int displayIndex = activeRenderDisplayIndex;
 			// Cue staged render applies whenever the cue targets the current graph.
-			if (cueTargetsCurrentView() &&
+			if (!isGroupViewActive() && cueTargetsCurrentView() &&
 				cueState.stagedActiveRenderIndex >= 0 &&
 				cueState.stagedActiveRenderIndex < (int)activeBoxes.size())
 			{
@@ -1530,82 +1530,10 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				groupInspectorIndex = clickedIndex;
 				groupPreviewBoxIndex = -1;
 				setControllers();
-				// Double-click: set active render (green box) and switch main output
+				// Double-click: activate the box in the graph currently on screen.
 				if (isDoubleClick)
 				{
-					// If a cue targets this group, stage the active-render change
-					// into the draft instead of committing it live (parity with
-					// requestSetActiveRender's hasCue() staging on the main graph).
-					if (isCueDraftMode() && cueTargetsCurrentView())
-					{
-						if (setCueStagedActiveRenderIndex(clickedIndex))
-						{
-							markCueDraftDirty(clickedIndex, CUE_DIRTY_STAGED_ACTIVE);
-						}
-						return;
-					}
-					preset->activeRender = clickedIndex;
-
-					// Propagate active render up the preset chain
-					// e.g. MAIN -> A[idx=2] -> B[idx=1] -> C (clicked)
-					// Need: A->activeRender = 1 (B), MAIN renders A (already done below)
-					if (!activeGroupPath.empty())
-					{
-						// Walk the path from bottom to top, setting each parent's activeRender
-						for (int level = (int)activeGroupPath.size() - 1; level >= 0; level--)
-						{
-							if (level == 0)
-							{
-								// Top-level: parent is the JPboxgroup itself, use requestSetActiveRender
-								break;
-							}
-							else
-							{
-								// Find the parent of this level
-								JPbox_preset *parentPreset = nullptr;
-								if (level == 1)
-								{
-									// Parent is a top-level box
-									int parentIdx = activeGroupPath[0];
-									if (parentIdx >= 0 && parentIdx < (int)boxes.size() &&
-										boxes[parentIdx]->getTipo() == JPbox::PRESETBOX)
-									{
-										parentPreset = dynamic_cast<JPbox_preset *>(boxes[parentIdx]);
-									}
-								}
-								else
-								{
-									// Parent is a nested preset - traverse the path
-									JPbox *parentBox = boxes[activeGroupPath[0]];
-									if (parentBox != nullptr && parentBox->getTipo() == JPbox::PRESETBOX)
-									{
-										parentPreset = dynamic_cast<JPbox_preset *>(parentBox);
-										for (int d = 1; d < level && parentPreset != nullptr; d++)
-										{
-											int idx = activeGroupPath[d];
-											if (idx >= 0 && idx < (int)parentPreset->boxes.size() &&
-												parentPreset->boxes[idx] != nullptr &&
-												parentPreset->boxes[idx]->getTipo() == JPbox::PRESETBOX)
-											{
-												parentPreset = dynamic_cast<JPbox_preset *>(parentPreset->boxes[idx]);
-											}
-											else
-											{
-												parentPreset = nullptr;
-											}
-										}
-									}
-								}
-								if (parentPreset != nullptr)
-								{
-									// Set this parent's activeRender to point to the next level
-									int childIndex = activeGroupPath[level];
-									parentPreset->activeRender = childIndex;
-								}
-							}
-						}
-						requestSetActiveRender(activeGroupPath[0]);
-					}
+					requestSetActiveRenderForCurrentView(clickedIndex);
 				}
 				return; // Don't process main boxes
 			}
@@ -1655,10 +1583,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		arafue = true;
 		if (inspectorsetactive.mouseGrab())
 		{
-			if (!promoteCueToActive())
-			{
-				requestSetActiveRender(openguinumber);
-			}
+			requestSetActiveRenderForCurrentView(getCurrentViewSelectedIndex());
 		}
 		if (inspectorreload.mouseGrab())
 		{
@@ -1811,7 +1736,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		if (isDoubleClick)
 		{
 			//*activerender = i;
-			requestSetActiveRender(i);
+			requestSetActiveRenderForCurrentView(i);
 		}
 	}
 		}
@@ -2032,6 +1957,58 @@ void JPboxgroup::updateTransition(int _idx) {
 	}
 }
 
+int JPboxgroup::getCurrentViewBoxCount() const
+{
+	if (isGroupViewActive())
+	{
+		JPbox_preset *preset = getActivePreset();
+		return preset != nullptr ? (int)preset->boxes.size() : 0;
+	}
+	return (int)boxes.size();
+}
+
+int JPboxgroup::getCurrentViewSelectedIndex() const
+{
+	return isGroupViewActive() ? groupInspectorIndex : openguinumber;
+}
+
+int JPboxgroup::getCurrentViewActiveRenderIndex() const
+{
+	if (isGroupViewActive())
+	{
+		JPbox_preset *draftPreset = getDraftPresetForCurrentView();
+		if (draftPreset != nullptr)
+		{
+			return draftPreset->activeRender;
+		}
+		JPbox_preset *preset = getActivePreset();
+		return preset != nullptr ? preset->activeRender : -1;
+	}
+	if (isCueDraftMode() && cueState.stagedActiveRenderIndex >= 0)
+	{
+		return cueState.stagedActiveRenderIndex;
+	}
+	return activerender != nullptr ? *activerender : -1;
+}
+
+bool JPboxgroup::selectOpenBoxForCurrentView(int index)
+{
+	if (index < 0 || index >= getCurrentViewBoxCount())
+	{
+		return false;
+	}
+	if (isGroupViewActive())
+	{
+		groupInspectorIndex = index;
+	}
+	else
+	{
+		openguinumber = index;
+	}
+	setControllers();
+	return true;
+}
+
 bool JPboxgroup::requestSetActiveRender(int index, bool activeOnly)
 {
 	if (boxes.empty() || index < 0 || index >= boxes.size() || boxes[index] == nullptr)
@@ -2054,6 +2031,65 @@ bool JPboxgroup::requestSetActiveRender(int index, bool activeOnly)
 	}
 	return true;
 }
+
+void JPboxgroup::setPresetActiveOnlyBox(JPbox_preset *preset, int index)
+{
+	if (preset == nullptr)
+	{
+		return;
+	}
+	for (int i = (int)preset->boxes.size() - 1; i >= 0; i--)
+	{
+		if (preset->boxes[i] != nullptr)
+		{
+			preset->boxes[i]->setonoff(i == index);
+		}
+	}
+}
+
+bool JPboxgroup::requestSetActiveRenderForCurrentView(int index, bool activeOnly)
+{
+	if (!isGroupViewActive())
+	{
+		return requestSetActiveRender(index, activeOnly);
+	}
+
+	JPbox_preset *preset = getActivePreset();
+	if (preset == nullptr || index < 0 || index >= (int)preset->boxes.size() ||
+		preset->boxes[index] == nullptr)
+	{
+		return false;
+	}
+
+	if (isCueDraftMode())
+	{
+		JPbox_preset *draftPreset = getDraftPresetForCurrentView();
+		if (draftPreset == nullptr || index >= (int)draftPreset->boxes.size() ||
+			draftPreset->boxes[index] == nullptr)
+		{
+			return false;
+		}
+		draftPreset->activeRender = index;
+		if (activeOnly)
+		{
+			setPresetActiveOnlyBox(draftPreset, index);
+		}
+		if (!activeGroupPath.empty())
+		{
+			markCueDraftDirty(activeGroupPath[0], CUE_DIRTY_PRESET_ACTIVE);
+		}
+		updateCueDraftGraph();
+		return true;
+	}
+
+	preset->activeRender = index;
+	if (activeOnly)
+	{
+		setPresetActiveOnlyBox(preset, index);
+	}
+	return true;
+}
+
 void JPboxgroup::draw_cursorrect() {}
 void JPboxgroup::save(string outputPath)
 {
@@ -2779,87 +2815,86 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 	string parametername = _dir.substr(_dir.find_last_of("/") + 1, _dir.size());
 	//cout << _dir << endl;
 	if (_dir == "/setactiverender") {
-		//cout << "SETEA EL RENDER ACTIVO " << _val << endl;
-		if(!boxes.empty() && _val < boxes.size() && _val >= 0){
-			//*activerender = floor(_val);
-			requestSetActiveRender(floor(_val));
-
+		// The numeric index belongs to the graph currently on screen.
+		if (_val >= 0 && _val < getCurrentViewBoxCount()) {
+			requestSetActiveRenderForCurrentView(floor(_val));
+		}
 	}
-}
 
 	if (_dir == "/nextshader") {
-		if (boxes.empty()) {
+		int count = getCurrentViewBoxCount();
+		if (count == 0) {
 			return;
 		}
 
-		int base = openguinumber;
-		if (base < 0 || base > boxes.size() - 1) {
-			base = *activerender;
+		int base = getCurrentViewSelectedIndex();
+		if (base < 0 || base >= count) {
+			base = getCurrentViewActiveRenderIndex();
 		}
 		int val = base + 1;
-		if(val > boxes.size()-1){
+		if (val > count - 1) {
 			val = 0;
 		}
-
-		openguinumber = val;
-		setControllers();
+		selectOpenBoxForCurrentView(val);
 	}
 
 	if (_dir == "/prevshader") {
-		if (boxes.empty()) {
+		int count = getCurrentViewBoxCount();
+		if (count == 0) {
 			return;
 		}
 
-		int base = openguinumber;
-		if (base < 0 || base > boxes.size() - 1) {
-			base = *activerender;
+		int base = getCurrentViewSelectedIndex();
+		if (base < 0 || base >= count) {
+			base = getCurrentViewActiveRenderIndex();
 		}
 		int val = base - 1;
 		if (val < 0) {
-			val = boxes.size()-1;
+			val = count - 1;
 		}
-		openguinumber = val;
-		setControllers();
+		selectOpenBoxForCurrentView(val);
 	}
 
-
 	if (_dir == "/nextshader_gallerymode") {
-		if (boxes.empty()) {
+		int count = getCurrentViewBoxCount();
+		if (count == 0) {
 			return;
 		}
 
-		int val = openguinumber + 1;
-		if (val > boxes.size() - 1) {
+		int val = getCurrentViewSelectedIndex();
+		if (val < 0 || val >= count) {
+			val = getCurrentViewActiveRenderIndex();
+		}
+		val++;
+		if (val > count - 1) {
 			val = 0;
 		}
-		openguinumber = val;
-		setControllers();
-		requestSetActiveRender(floor(openguinumber), true);
+		selectOpenBoxForCurrentView(val);
+		requestSetActiveRenderForCurrentView(val, true);
 	}
 
 	if (_dir == "/prevshader_gallerymode") {
-		if (boxes.empty()) {
+		int count = getCurrentViewBoxCount();
+		if (count == 0) {
 			return;
 		}
 
-		int val = openguinumber - 1;
-		if (val < 0) {
-			val = boxes.size() - 1;
+		int val = getCurrentViewSelectedIndex();
+		if (val < 0 || val >= count) {
+			val = getCurrentViewActiveRenderIndex();
 		}
-		openguinumber = val;
-		setControllers();
-		requestSetActiveRender(floor(openguinumber), true);
+		val--;
+		if (val < 0) {
+			val = count - 1;
+		}
+		selectOpenBoxForCurrentView(val);
+		requestSetActiveRenderForCurrentView(val, true);
 	}
 
-
-
 	if (_dir == "/setactiveshader") {
-		if (promoteCueToActive())
-		{
-			return;
-		}
-		if (!boxes.empty() && openguinumber >= 0 && openguinumber < boxes.size()) {
-			requestSetActiveRender(floor(openguinumber));
+		int index = getCurrentViewSelectedIndex();
+		if (index >= 0 && index < getCurrentViewBoxCount()) {
+			requestSetActiveRenderForCurrentView(index);
 		}
 	}
 
@@ -3406,6 +3441,7 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 		bool bypass = false;
 		vector<string> linkNames;
 		vector<bool> linkSet;
+		vector<int> presetActiveRenders;
 		unsigned int dirtyFlags = CUE_DIRTY_NONE;
 	};
 
@@ -3425,6 +3461,11 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 		snapshot.parameters = cueState.draftBoxes[i]->parameters;
 		snapshot.onoff = cueState.draftBoxes[i]->getonoff();
 		snapshot.bypass = cueState.draftBoxes[i]->getBypass();
+		if (cueState.draftBoxes[i]->getTipo() == JPbox::PRESETBOX)
+		{
+			snapshotPresetActiveRenders(dynamic_cast<JPbox_preset *>(cueState.draftBoxes[i]),
+									 snapshot.presetActiveRenders);
+		}
 		for (int linkIndex = 0; linkIndex < cueState.draftBoxes[i]->fbohandlergroup.getSize(); linkIndex++)
 		{
 			bool isSet = cueState.draftBoxes[i]->fbohandlergroup.getisPointerSet(linkIndex);
@@ -3486,6 +3527,13 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 		copyParametersByNameOrIndex(draftBox->parameters, snapshots[i].parameters);
 		draftBox->setonoff(snapshots[i].onoff);
 		draftBox->setBypass(snapshots[i].bypass);
+		if (!snapshots[i].presetActiveRenders.empty() &&
+			draftBox->getTipo() == JPbox::PRESETBOX)
+		{
+			int valueIndex = 0;
+			restorePresetActiveRenders(dynamic_cast<JPbox_preset *>(draftBox),
+								 snapshots[i].presetActiveRenders, valueIndex);
+		}
 		for (int linkIndex = 0; linkIndex < snapshots[i].linkSet.size() &&
 								   linkIndex < draftBox->fbohandlergroup.getSize(); linkIndex++)
 		{
@@ -3608,7 +3656,7 @@ bool JPboxgroup::applyCueDraftToSource()
 		{
 			continue;
 		}
-		if ((flags & (CUE_DIRTY_PARAMS | CUE_DIRTY_ADDED)) != 0)
+		if ((flags & (CUE_DIRTY_PARAMS | CUE_DIRTY_ADDED | CUE_DIRTY_PRESET_ACTIVE)) != 0)
 		{
 			copyParametersByNameOrIndex(targetBoxes[realIndex]->parameters, cueState.draftBoxes[draftIndex]->parameters);
 			// For a preset/group, the editable state (incl. exposed params) lives
@@ -3681,9 +3729,8 @@ bool JPboxgroup::applyCueDraftToSource()
 	if (stagedActiveIndex >= 0 && stagedActiveIndex < targetSize)
 	{
 		getCueTargetActiveRender() = stagedActiveIndex;
-		// The shared crossfader drives the MAIN output only. For a group cue the
-		// preset recomposites instantly (its updateFBO blits boxes[activeRender]);
-		// hijacking the main transition with a sub-box FBO would be wrong.
+		// The shared crossfader drives MAIN only. Group presets own their local
+		// child crossfade, so do not hijack MAIN with a sub-box FBO.
 		if (cueState.targetPreset == nullptr)
 		{
 			transition.setFboPointer1(&cueApplySnapshotFbo);
@@ -3990,12 +4037,46 @@ void JPboxgroup::copyEditableBoxState(JPbox *destination, JPbox *source)
 	destination->setBypass(source->getBypass());
 	destination->setPos(source->x, source->y);
 }
+
+JPbox_preset *JPboxgroup::getDraftPresetForCurrentView() const
+{
+	if (!isCueDraftMode() || activeGroupPath.empty())
+	{
+		return nullptr;
+	}
+
+	JPbox_preset *draftPreset = dynamic_cast<JPbox_preset *>(
+		getCueDraftBoxForRealIndex(activeGroupPath[0]));
+	if (draftPreset == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (size_t depth = 1; depth < activeGroupPath.size(); depth++)
+	{
+		int index = activeGroupPath[depth];
+		if (index < 0 || index >= (int)draftPreset->boxes.size() ||
+			draftPreset->boxes[index] == nullptr)
+		{
+			return nullptr;
+		}
+		draftPreset = dynamic_cast<JPbox_preset *>(draftPreset->boxes[index]);
+		if (draftPreset == nullptr)
+		{
+			return nullptr;
+		}
+	}
+	return draftPreset;
+}
+
 void JPboxgroup::copyPresetInternalState(JPbox_preset *destination, JPbox_preset *source)
 {
 	if (destination == nullptr || source == nullptr)
 	{
 		return;
 	}
+	destination->activeRender = source->boxes.empty() ? 0 :
+		ofClamp(source->activeRender, 0, (int)source->boxes.size() - 1);
 	int n = std::min((int)destination->boxes.size(), (int)source->boxes.size());
 	for (int i = 0; i < n; i++)
 	{
@@ -4011,6 +4092,40 @@ void JPboxgroup::copyPresetInternalState(JPbox_preset *destination, JPbox_preset
 		{
 			copyPresetInternalState(dynamic_cast<JPbox_preset *>(destination->boxes[i]),
 									dynamic_cast<JPbox_preset *>(source->boxes[i]));
+		}
+	}
+}
+
+void JPboxgroup::snapshotPresetActiveRenders(JPbox_preset *source, vector<int> &values) const
+{
+	if (source == nullptr)
+	{
+		return;
+	}
+	values.push_back(source->activeRender);
+	for (JPbox *box : source->boxes)
+	{
+		if (box != nullptr && box->getTipo() == JPbox::PRESETBOX)
+		{
+			snapshotPresetActiveRenders(dynamic_cast<JPbox_preset *>(box), values);
+		}
+	}
+}
+
+void JPboxgroup::restorePresetActiveRenders(JPbox_preset *destination, const vector<int> &values, int &valueIndex) const
+{
+	if (destination == nullptr || valueIndex >= (int)values.size())
+	{
+		return;
+	}
+	destination->activeRender = destination->boxes.empty() ? 0 :
+		ofClamp(values[valueIndex], 0, (int)destination->boxes.size() - 1);
+	valueIndex++;
+	for (JPbox *box : destination->boxes)
+	{
+		if (box != nullptr && box->getTipo() == JPbox::PRESETBOX)
+		{
+			restorePresetActiveRenders(dynamic_cast<JPbox_preset *>(box), values, valueIndex);
 		}
 	}
 }
@@ -4188,6 +4303,7 @@ string JPboxgroup::getCueDirtySummary() const
 	int added = 0;
 	int deleted = 0;
 	bool stagedActive = false;
+	bool presetActive = false;
 	for (int i = 0; i < cueState.draftDirtyFlags.size(); i++)
 	{
 		unsigned int flags = cueState.draftDirtyFlags[i];
@@ -4197,6 +4313,7 @@ string JPboxgroup::getCueDirtySummary() const
 		if (flags & CUE_DIRTY_ADDED) added++;
 		if (flags & CUE_DIRTY_DELETED) deleted++;
 		if (flags & CUE_DIRTY_STAGED_ACTIVE) stagedActive = true;
+		if (flags & CUE_DIRTY_PRESET_ACTIVE) presetActive = true;
 	}
 	vector<string> parts;
 	if (params > 0) parts.push_back("params " + ofToString(params));
@@ -4205,6 +4322,7 @@ string JPboxgroup::getCueDirtySummary() const
 	if (added > 0) parts.push_back("new " + ofToString(added));
 	if (deleted > 0) parts.push_back("delete " + ofToString(deleted));
 	if (stagedActive) parts.push_back("active");
+	if (presetActive) parts.push_back("group active");
 	if (parts.empty())
 	{
 		return "";
@@ -4656,17 +4774,9 @@ void JPboxgroup::renderPresetDraftMirroringLive(JPbox_preset *draftPreset, JPbox
 			d->fbo.end();
 		}
 	}
-	// Composite the preset's active render into its own fbo (mirrors updateFBO's blit).
-	int ar = draftPreset->activeRender;
-	if (ar >= 0 && ar < (int)draftPreset->boxes.size() && draftPreset->boxes[ar] != nullptr &&
-		draftPreset->fbo.isAllocated())
-	{
-		draftPreset->fbo.begin();
-		ofClear(0, 0, 0, 0);
-		ofSetColor(255, 255);
-		draftPreset->boxes[ar]->fbo.draw(0, 0, draftPreset->fbo.getWidth(), draftPreset->fbo.getHeight());
-		draftPreset->fbo.end();
-	}
+	// Composite through the same local crossfade used by live presets so a
+	// staged group activation animates in the CUE preview as well.
+	draftPreset->renderActiveRender();
 }
 
 void JPboxgroup::updateRealBoxesForCueApply()

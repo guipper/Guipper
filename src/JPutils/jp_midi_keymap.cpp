@@ -729,16 +729,17 @@ bool JPMidiKeymap::isGlobalAction(Action action) const
 
 int JPMidiKeymap::getCurrentBoxIndex() const
 {
-	if (boxes == nullptr || boxes->boxes.empty())
+	if (boxes == nullptr || boxes->getCurrentViewBoxCount() == 0)
 	{
 		return -1;
 	}
-	if (boxes->openguinumber >= 0 && boxes->openguinumber < boxes->boxes.size())
+	int selectedIndex = boxes->getCurrentViewSelectedIndex();
+	if (selectedIndex >= 0 && selectedIndex < boxes->getCurrentViewBoxCount())
 	{
-		return boxes->openguinumber;
+		return selectedIndex;
 	}
-	int activeIndex = boxes->getActiverenderNum();
-	if (activeIndex >= 0 && activeIndex < boxes->boxes.size())
+	int activeIndex = boxes->getCurrentViewActiveRenderIndex();
+	if (activeIndex >= 0 && activeIndex < boxes->getCurrentViewBoxCount())
 	{
 		return activeIndex;
 	}
@@ -747,7 +748,7 @@ int JPMidiKeymap::getCurrentBoxIndex() const
 
 void JPMidiKeymap::selectRelativeBox(int offset, bool galleryMode)
 {
-	if (boxes == nullptr || boxes->boxes.empty())
+	if (boxes == nullptr || boxes->getCurrentViewBoxCount() == 0)
 	{
 		return;
 	}
@@ -758,16 +759,16 @@ void JPMidiKeymap::selectRelativeBox(int offset, bool galleryMode)
 		return;
 	}
 
-	int count = boxes->boxes.size();
+	int count = boxes->getCurrentViewBoxCount();
 	index = (index + offset + count) % count;
-	if (!boxes->selectOpenBoxByIndex(index))
+	if (!boxes->selectOpenBoxForCurrentView(index))
 	{
 		return;
 	}
 
 	if (galleryMode)
 	{
-		boxes->requestSetActiveRender(index, true);
+		boxes->requestSetActiveRenderForCurrentView(index, true);
 	}
 }
 
@@ -781,11 +782,11 @@ void JPMidiKeymap::setSelectedBoxActive()
 	int index = getCurrentBoxIndex();
 	if (index >= 0)
 	{
-		boxes->selectOpenBoxByIndex(index);
+		boxes->selectOpenBoxForCurrentView(index);
 		// Set the selected box as the active render. When a cue is open this is
 		// STAGED into the cue state (and shows in the CUE OUTPUT preview) instead
 		// of switching the live output; with no cue it switches the live render.
-		boxes->requestSetActiveRender(index);
+		boxes->requestSetActiveRenderForCurrentView(index);
 	}
 }
 

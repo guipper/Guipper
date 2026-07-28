@@ -17,6 +17,7 @@
 //#include "ofxSpout2Receiver.h"
 #include "../JPutils/jp_parametergroup.h"
 #include "../JPutils/jp_fbohandler.h"
+#include "../JPutils/TransitionSR.h"
 
 #ifdef SPOUT
 #include "../SpoutSDK/Spout.h" // Spout SDK
@@ -47,6 +48,7 @@ public:
 	// void setup();
 	void update();
 	void updateFBO();
+	void renderActiveRender();
 	void draw();
 	void clear();
 	void addBox(JPbox &_box);
@@ -63,6 +65,13 @@ public:
 	// Per-preset viewport zoom/pan - saved/loaded from XML
 	float viewportZoom = 1.0f;
 	ofVec2f viewportPan = ofVec2f(0, 0);
+
+	// Local crossfade for switching between this preset's child renders.
+	TransitionSR activeRenderTransition;
+	bool activeRenderTransitionInitialized = false;
+	bool activeRenderTransitionRunning = false;
+	int lastCompositedActiveRender = -1;
+	int activeRenderTransitionTarget = -1;
 
 	void setExposedParam(int childIndex, int paramIndex, bool exposed);
 	bool isParamExposed(int childIndex, int paramIndex) const;

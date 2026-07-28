@@ -37,9 +37,13 @@ void TransitionSR::setup(ofFbo * _fbo1, ofFbo * _fbo2){
 	este.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
 	este.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
 }
-void TransitionSR::update() {
+void TransitionSR::advance() {
 	lerpValue += 0.02;
 	lerpValue = ofClamp(lerpValue, 0.0, 1.0);
+}
+
+void TransitionSR::update() {
+	advance();
 	ofSetColor(255, 255);
 	este.begin();
 	shader.begin();
@@ -53,7 +57,9 @@ void TransitionSR::update() {
 		shader.setUniformTexture("textura2", *fbo2, 2);
 	}
 	
-	shader.setUniform1f("mixst", lerpValue);
+	// Smoothstep keeps the crossfade gentle at both ends of the transition.
+	float easedLerpValue = lerpValue * lerpValue * (3.0f - 2.0f * lerpValue);
+	shader.setUniform1f("mixst", easedLerpValue);
 	shader.setUniform2f("resolution", este.getWidth(), este.getHeight());
 	ofRect(0, 0, este.getWidth(), este.getHeight());
 	shader.end();
@@ -69,7 +75,7 @@ void TransitionSR::update() {
 	este.end();*/
 }
 void TransitionSR::setLerpValue(float _val) {
-	lerpValue = 0.;
+	lerpValue = ofClamp(_val, 0.0f, 1.0f);
 }
 void TransitionSR::reload() {
 	shader.load("", "shaders/blending/mix.frag");
@@ -96,4 +102,8 @@ void TransitionSR::setFboPointer1(ofFbo * _fbo1) {
 
 void TransitionSR::setFboPointer2(ofFbo* _fbo2) {
 	fbo2 = _fbo2;
+}
+
+float TransitionSR::getLerpValue() const {
+	return lerpValue;
 }

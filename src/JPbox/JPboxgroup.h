@@ -58,6 +58,11 @@ public:
 
 	void updateTransition(int _i);
 	bool requestSetActiveRender(int index, bool activeOnly = false);
+	int getCurrentViewBoxCount() const;
+	int getCurrentViewSelectedIndex() const;
+	int getCurrentViewActiveRenderIndex() const;
+	bool selectOpenBoxForCurrentView(int index);
+	bool requestSetActiveRenderForCurrentView(int index, bool activeOnly = false);
 
 	void save(string _diroutput);
 	void load2(string _dirinput);
@@ -230,7 +235,8 @@ private:
 		CUE_DIRTY_LINKS = 1 << 2,
 		CUE_DIRTY_ADDED = 1 << 3,
 		CUE_DIRTY_DELETED = 1 << 4,
-		CUE_DIRTY_STAGED_ACTIVE = 1 << 5
+		CUE_DIRTY_STAGED_ACTIVE = 1 << 5,
+		CUE_DIRTY_PRESET_ACTIVE = 1 << 6
 	};
 
 	struct CueState
@@ -307,10 +313,14 @@ private:
 	vector<int> getCueDirtyIndices(unsigned int mask = 0) const;
 	string getCueDirtySummary() const;
 	void copyEditableBoxState(JPbox *destination, JPbox *source);
-	// Recursively copy a preset's internal sub-box param/onoff/bypass state
+	// Recursively copy a preset's internal sub-box param/onoff/bypass/active state
 	// (used to seed a preset draft clone from the live box, and to write staged
 	// preset edits back on apply). Only mirrors editable state, not structure.
 	void copyPresetInternalState(class JPbox_preset *destination, class JPbox_preset *source);
+	void snapshotPresetActiveRenders(class JPbox_preset *source, vector<int> &values) const;
+	void restorePresetActiveRenders(class JPbox_preset *destination, const vector<int> &values, int &valueIndex) const;
+	class JPbox_preset *getDraftPresetForCurrentView() const;
+	void setPresetActiveOnlyBox(class JPbox_preset *preset, int index);
 	// The draft-tree box the inspector currently edits (navigates the global cue
 	// draft by activeGroupPath + the selected sub-box). Null when not cueing.
 	JPbox *getDraftBoxForCurrentInspector();
