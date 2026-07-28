@@ -1,6 +1,7 @@
 #include "JPboxgroup.h"
 #include "../JPgui/jp_shader_editor.h"
 #include "../JPutils/jp_textfield.h"
+#include "../JPutils/jp_tooltip.h"
 #include <filesystem>
 #include <algorithm>
 #include <functional>
@@ -561,6 +562,10 @@ void JPboxgroup::drawCuePreview()
 	ofDrawLine(closeX + 4, iconY + 4, closeX + iconSize - 4, iconY + iconSize - 4);
 	ofDrawLine(closeX + iconSize - 4, iconY + 4, closeX + 4, iconY + iconSize - 4);
 	ofFill();
+	jp_tooltip::draw("Monitor selected box or final output", monitorX, iconY, iconSize, iconSize);
+	jp_tooltip::draw("Apply cue changes", applyX, iconY, iconSize, iconSize);
+	jp_tooltip::draw("Toggle fullscreen preview", fullX, iconY, iconSize, iconSize);
+	jp_tooltip::draw("Close cue preview", closeX, iconY, iconSize, iconSize);
 
 	ofSetColor(255);
 	if (cueFullscreenPreview)
@@ -581,6 +586,8 @@ void JPboxgroup::drawCuePreview()
 			   cuePanelX + cuePanelW - 4, cuePanelY + cuePanelH - handleSize);
 	ofDrawLine(cuePanelX + cuePanelW - handleSize * 0.65f, cuePanelY + cuePanelH - 4,
 			   cuePanelX + cuePanelW - 4, cuePanelY + cuePanelH - handleSize * 0.65f);
+	jp_tooltip::draw("Resize cue preview", cuePanelX + cuePanelW - handleSize,
+				cuePanelY + cuePanelH - handleSize, handleSize, handleSize);
 	ofPopStyle();
 }
 void JPboxgroup::setupDefaultCuePanelLayout()
@@ -6040,6 +6047,7 @@ void JPboxgroup::drawTabs()
 				jp_constants::p_font.drawString(name, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
 			}
 			ofPopStyle();
+			jp_tooltip::draw(level < pathLen ? "Return to this parent group" : "Current group", x, y, tabW, tabH);
 
 			x += tabW + gap;
 			tabCounter++;

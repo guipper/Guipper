@@ -1,4 +1,5 @@
 #include "jp_midi_keymap.h"
+#include "jp_tooltip.h"
 #include <algorithm>
 #include <cctype>
 
@@ -49,8 +50,15 @@ namespace
 			ofDrawRectRounded(x, y, w, h, 4.0f);
 			ofFill();
 			ofSetLineWidth(1.0f);
-			ofSetColor(COL_TEXT_PRIMARY);
+		ofSetColor(COL_TEXT_PRIMARY);
 		jp_constants::p_font.drawString(label, x + 8, y + h - 7);
+		string tooltip;
+		if (label == "Map On" || label == "Map Off") tooltip = "Toggle MIDI mapping mode";
+		else if (label == "Rescan") tooltip = "Rescan connected MIDI devices";
+		else if (label == "Learn" || label == "Learning") tooltip = "Listen for the next MIDI control";
+		else if (label == "Find") tooltip = "Search for this shader";
+		else if (label == "X") tooltip = "Remove this MIDI binding";
+		jp_tooltip::draw(tooltip, x, y, w, h);
 	}
 
 	void drawSelectField(float x, float y, float w, float h, const string &label, bool open)
@@ -90,6 +98,7 @@ namespace
 		ofFill();
 		ofSetColor(COL_TEXT_DARK);
 		jp_constants::p_font.drawString("MIDI MAP ON", x + 10, y + h - 7);
+		jp_tooltip::draw("MIDI mapping mode is active", x, y, w, h);
 	}
 
 	string fitLabel(string label, float maxWidth)
@@ -108,6 +117,19 @@ namespace
 			return std::isspace(c);
 		}), value.end());
 		return value;
+	}
+
+	string portableShaderStem(string path)
+	{
+		std::replace(path.begin(), path.end(), '\\', '/');
+		size_t slash = path.find_last_of('/');
+		string filename = slash == string::npos ? path : path.substr(slash + 1);
+		size_t dot = filename.find_last_of('.');
+		if (dot != string::npos)
+		{
+			filename = filename.substr(0, dot);
+		}
+		return normalizeText(filename);
 	}
 
 	bool isAbsolutePath(string path)
@@ -1124,6 +1146,55 @@ string JPMidiKeymap::getKeyLabel(const MidiKey &key) const
 	return key.deviceName + " ch" + ofToString(key.channel) + " " + key.messageType + " " + ofToString(key.number);
 }
 
+string JPMidiKeymap::getCompactKeyLabel(const MidiKey &key) const
+{
+	const string type = ofToLower(key.messageType) == "cc" ? "CC" : "Note";
+	return "Ch" + ofToString(key.channel) + " " + type + " " + ofToString(key.number);
+}
+
+string JPMidiKeymap::getAddShaderBindingLabel(
+	const string &shaderQuery,
+	const string &shaderPath) const
+{
+	const string normalizedQuery = normalizeText(shaderQuery);
+	const string queryStem = portableShaderStem(shaderQuery);
+	const string pathStem = portableShaderStem(shaderPath);
+	string firstLabel;
+	int matchCount = 0;
+
+	for (const Binding &binding : bindings)
+	{
+		if (binding.action != ADD_SHADER_BOX)
+		{
+			continue;
+		}
+		const string bindingQuery = normalizeText(binding.shaderQuery);
+		const string bindingQueryStem = portableShaderStem(binding.shaderQuery);
+		const string bindingPathStem = portableShaderStem(binding.shaderPath);
+		const bool matches =
+			(!normalizedQuery.empty() && bindingQuery == normalizedQuery) ||
+			(!queryStem.empty() &&
+				(bindingQueryStem == queryStem || bindingPathStem == queryStem)) ||
+			(!pathStem.empty() &&
+				(bindingQueryStem == pathStem || bindingPathStem == pathStem));
+		if (!matches)
+		{
+			continue;
+		}
+		if (firstLabel.empty())
+		{
+			firstLabel = getCompactKeyLabel(binding.key);
+		}
+		matchCount++;
+	}
+
+	if (matchCount > 1)
+	{
+		firstLabel += " +" + ofToString(matchCount - 1);
+	}
+	return firstLabel;
+}
+
 string JPMidiKeymap::getActionName(Action action) const
 {
 	if (action == BYPASS) return "Bypass";
@@ -1408,16 +1479,25 @@ void JPMidiKeymap::drawBoxMappingTargets()
 							  (boxOver ? ofColor(255, 255, 0, 230) : ofColor(255, 255, 0, 120)));
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		ofDrawRectRounded(boxPos.x, boxPos.y, (box->width + 8) * zoom, (box->height + 8) * zoom, 8.0f * zoom);
+		jp_tooltip::draw("Map box selection", boxPos.x - (box->width + 8) * zoom / 2,
+			boxPos.y - (box->height + 8) * zoom / 2,
+			(box->width + 8) * zoom, (box->height + 8) * zoom);
 
 		ofSetLineWidth((bypassOver || bypassBound) ? 3 : 2);
 		ofSetColor(bypassBound ? ofColor(COL_MAPPED_ON, bypassOver ? 255 : 220) :
 								(bypassOver ? COL_ACCENT_RED : ofColor(COL_ACCENT_RED, 170)));
 		ofDrawRectRounded(bypassPos.x, bypassPos.y, (box->bypass.width + 8) * zoom, (box->bypass.height + 8) * zoom, 4.0f * zoom);
+		jp_tooltip::draw("Map bypass", bypassPos.x - (box->bypass.width + 8) * zoom / 2,
+			bypassPos.y - (box->bypass.height + 8) * zoom / 2,
+			(box->bypass.width + 8) * zoom, (box->bypass.height + 8) * zoom);
 
 		ofSetLineWidth((pauseOver || pauseBound) ? 3 : 2);
 		ofSetColor(pauseBound ? ofColor(COL_MAPPED_ON, pauseOver ? 255 : 220) :
 							   (pauseOver ? COL_TEXT_PRIMARY : ofColor(COL_TEXT_PRIMARY, 170)));
 		ofDrawRectRounded(pausePos.x, pausePos.y, (box->onoff.width + 8) * zoom, (box->onoff.height + 8) * zoom, 4.0f * zoom);
+		jp_tooltip::draw("Map pause or resume", pausePos.x - (box->onoff.width + 8) * zoom / 2,
+			pausePos.y - (box->onoff.height + 8) * zoom / 2,
+			(box->onoff.width + 8) * zoom, (box->onoff.height + 8) * zoom);
 		ofFill();
 		ofSetRectMode(OF_RECTMODE_CORNER); // restore
 	}
@@ -1449,6 +1529,10 @@ void JPMidiKeymap::drawInspectorMappingTargets()
 					   (over ? ofColor(COL_ACCENT_CYAN, 255) : ofColor(COL_ACCENT_CYAN, 160)));
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		ofDrawRectRounded(controller->x, controller->y, controller->width + 8, controller->height + 8, 4.0f);
+		jp_tooltip::draw("Map parameter p" + ofToString(i),
+			controller->x - (controller->width + 8) / 2,
+			controller->y - (controller->height + 8) / 2,
+			controller->width + 8, controller->height + 8);
 		ofFill();
 		ofSetRectMode(OF_RECTMODE_CORNER); // restore
 
@@ -1568,7 +1652,7 @@ void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 		{
 			ofSetColor(mapped ? COL_MAPPED_ON : COL_TEXT_DIM);
 		}
-		string keyLabel = mapped ? getKeyLabel(bindings[bindingIndex].key) : "Unmapped";
+		string keyLabel = mapped ? getCompactKeyLabel(bindings[bindingIndex].key) : "Unmapped";
 		float keyMaxW = w - w * 0.34 - 116;
 		keyLabel = fitLabel(keyLabel, keyMaxW);
 		jp_constants::p_font.drawString(keyLabel, x + w * 0.34, rowY + ROW_H - 7);
@@ -1626,7 +1710,7 @@ void JPMidiKeymap::drawGlobalFunctionsSelector(float x, float y, float w)
 		ofSetColor(COL_TEXT_PRIMARY);
 		jp_constants::p_font.drawString(getActionName(globalActions[i]), x + 8, rowY + ROW_H - 7);
 		ofSetColor(mapped ? COL_MAPPED_ON : COL_TEXT_DIM);
-		string keyLabel = mapped ? getKeyLabel(bindings[bindingIndex].key) : "Unmapped";
+		string keyLabel = mapped ? getCompactKeyLabel(bindings[bindingIndex].key) : "Unmapped";
 		float keyMaxW = w - w * 0.34 - 116;
 		keyLabel = fitLabel(keyLabel, keyMaxW);
 		jp_constants::p_font.drawString(keyLabel, x + w * 0.34, rowY + ROW_H - 7);
@@ -1679,7 +1763,7 @@ void JPMidiKeymap::drawAddShaderSelector(float x, float y, float w)
 		ofSetColor(query.empty() ? COL_TEXT_DIM : COL_TEXT_PRIMARY);
 		jp_constants::p_font.drawString(queryLabel, x + 8, rowY + ROW_H - 7);
 
-		string keyLabel = mapped ? getKeyLabel(bindings[bindingIndex].key) :
+		string keyLabel = mapped ? getCompactKeyLabel(bindings[bindingIndex].key) :
 						  (!query.empty() && searched && !resolved ? "Not found" :
 						   (!query.empty() && resolved ? "Found" : "Unmapped"));
 		keyLabel = fitLabel(keyLabel, w - w * 0.34 - 166);
@@ -1742,11 +1826,13 @@ void JPMidiKeymap::drawBindings(float x, float y, float w)
 		{
 			targetLabel = bindings[i].shaderQuery;
 		}
-		string label = getKeyLabel(bindings[i].key) + " -> " + targetLabel + " / " + getActionName(bindings[i].action);
+		string label = getCompactKeyLabel(bindings[i].key) + " -> " +
+			targetLabel + " / " + getActionName(bindings[i].action);
 		if (unresolved)
 		{
 			label += " (missing)";
 		}
+		label = fitLabel(label, w - 112);
 		jp_constants::p_font.drawString(label, x + 8, rowY + ROW_H - 7);
 		drawButton(x + w - 92, rowY + 2, 48, ROW_H - 4, "Learn", rebindIndex == i && learning);
 		drawButton(x + w - 38, rowY + 2, 32, ROW_H - 4, "X", false);

@@ -721,6 +721,7 @@ void JPShaderEditor::drawScrollbar(int tabIndex, float scrollX, float codeY, flo
 
 	ofSetColor(COL_SCROLLBAR_THUMB);
 	ofDrawRectRounded(scrollX + 1, thumbY, SCROLLBAR_W - 2, thumbH, 2);
+	jp_tooltip::draw("Scroll shader code", scrollX, codeY, SCROLLBAR_W, codeH);
 }
 
 void JPShaderEditor::drawStatusBar()

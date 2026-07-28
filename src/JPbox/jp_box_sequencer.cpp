@@ -1,4 +1,5 @@
 #include "jp_box_sequencer.h"
+#include "../JPutils/jp_tooltip.h"
 #include <iostream>
 #include <algorithm>
 
@@ -219,6 +220,7 @@ void JPbox_sequencer::draw()
             ofSetColor(255);
             slots[i]->fbo.draw(sx, sy, slotPreviewSize, slotPreviewSize);
         }
+		jp_tooltip::draw("Select sequencer slot " + ofToString(i), sx, sy, slotPreviewSize, slotPreviewSize);
 
         // Slot number below
         ofSetColor(160);
@@ -241,6 +243,7 @@ void JPbox_sequencer::draw()
     ofSetColor(200);
     float plusLabelW = jp_constants::p_font.stringWidth("+");
     jp_constants::p_font.drawString("+", plusX + btnSize / 2 - plusLabelW / 2, btnY + btnSize / 2 + 5);
+	jp_tooltip::draw("Add sequencer slot", plusX, btnY, btnSize, btnSize);
 
     // Minus button
     ofSetColor(50, 55, 70);
@@ -250,6 +253,7 @@ void JPbox_sequencer::draw()
     ofSetColor(200);
     float minusLabelW = jp_constants::p_font.stringWidth("-");
     jp_constants::p_font.drawString("-", minusX + btnSize / 2 - minusLabelW / 2, btnY + btnSize / 2 + 5);
+	jp_tooltip::draw("Remove sequencer slot", minusX, btnY, btnSize, btnSize);
 
     // Store button rects for hit testing (CORNER mode)
     plusBtnRect.set(plusX, btnY, btnSize, btnSize);

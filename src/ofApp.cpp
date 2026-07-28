@@ -2,6 +2,26 @@
 #include "JPutils/jp_textfield.h"
 #include <iostream>
 #include <algorithm>
+#include <regex>
+
+namespace {
+constexpr float SHADER_ROW_INDENT = 22.0f;
+constexpr float SHADER_STAR_OFFSET = 10.0f;
+constexpr float SHADER_STAR_HIT_HALF_WIDTH = 10.0f;
+constexpr float SHADER_NAME_OFFSET = 22.0f;
+constexpr int PREVIEW_MAX_WIDTH = 512;
+constexpr int PREVIEW_MAX_HEIGHT = 288;
+constexpr float PREVIEW_FRAME_INTERVAL = 1.0f / 30.0f;
+
+bool shaderHasMain(const string &path)
+{
+	const string source = ofBufferFromFile(path).getText();
+	static const std::regex mainPattern(
+		R"(\bvoid\s+main\s*\()",
+		std::regex_constants::ECMAScript | std::regex_constants::optimize);
+	return std::regex_search(source, mainPattern);
+}
+}
 
 //--------------------------------------------------------------
 void ofApp::setup() {
@@ -61,10 +81,11 @@ void ofApp::setup() {
 
 	loadAspreset = true; // Default: drag XML as boxgroup. Press 't' to toggle to full session load.
 
-	// Load preview images for shader index sampler2D preview
-	previewImg1.load("preview1.png");
+	// Use the Guipper artwork as the primary shader-preview input. Keep the
+	// secondary image for blending shaders that need two distinct textures.
+	previewImg1.load("guipper.png");
 	previewImg2.load("preview2.png");
-	if (previewImg1.isAllocated()) cout << "preview1.png loaded OK" << endl;
+	if (previewImg1.isAllocated()) cout << "guipper.png preview loaded OK" << endl;
 	if (previewImg2.isAllocated()) cout << "preview2.png loaded OK" << endl;
 
 	//.----------------------------------------------------------------/
@@ -190,52 +211,14 @@ void ofApp::update() {
 		openloader.activeflag = false;
 	}*/
 
-	// Update preview shader FBO every frame (for animated shaders)
+	// Keep animated previews responsive without competing with the live graph
+	// for a full-resolution render on every application frame.
 	if (previewShaderLoaded && pantallaActiva == SHADER_INDEX) {
-		previewFbo.begin();
-		ofClear(0, 0, 0, 255);
-		previewShader.begin();
-		previewShader.setUniform1f("time", ofGetElapsedTimef());
-		previewShader.setUniform2f("resolution", previewFbo.getWidth(), previewFbo.getHeight());
-		previewShader.setUniform1f("bpm", jp_constants::bpm);
-		previewShader.setUniform4f("mouse",
-			ofMap(ofGetMouseX(), 0, ofGetWidth(), 0, 1),
-			ofMap(ofGetMouseY(), 0, ofGetHeight(), 0, 1),
-			ofMap(jp_constants::mousePressedPos.x, 0, ofGetWidth(), 0, 1),
-			ofMap(jp_constants::mousePressedPos.y, 0, ofGetHeight(), 0, 1));
-		previewShader.setUniform2f("window_mouse",
-			ofMap(ofGetMouseX(), 0, ofGetWidth(), 0, 1),
-			ofMap(ofGetMouseY(), 0, ofGetHeight(), 0, 1));
-		previewShader.setUniform1i("globalframeNum", ofGetFrameNum());
-		previewShader.setUniform1i("boxframeNum", ofGetFrameNum());
-		// Random uniform values for preview (set by RDM button)
-		if (previewRdmActive && !previewRdmValues.empty()) {
-			for (int i = 0; i < (int)previewRdmValues.size() && i < (int)previewUniformNames.size(); i++) {
-				previewShader.setUniform1f(previewUniformNames[i], previewRdmValues[i]);
-			}
+		const float now = ofGetElapsedTimef();
+		if (lastPreviewRenderTime < 0.0f ||
+			now - lastPreviewRenderTime >= PREVIEW_FRAME_INTERVAL) {
+			renderShaderPreview(true);
 		}
-		// Bind preview textures for imageprocessing/blending shaders
-		if (previewImg1.isAllocated()) {
-			previewImg1.getTexture().bind(0);
-			previewShader.setUniform1i("texture1", 0);
-			previewShader.setUniform1i("textura1", 0);
-			previewShader.setUniform1i("input_texture", 0);
-			previewShader.setUniform1i("tex0", 0);
-			previewShader.setUniform1i("textura", 0);
-			previewShader.setUniform1i("texture", 0);
-		}
-		if (previewImg2.isAllocated()) {
-			previewImg2.getTexture().bind(1);
-			previewShader.setUniform1i("texture2", 1);
-			previewShader.setUniform1i("textura2", 1);
-			previewShader.setUniform1i("tex1", 1);
-		}
-		ofSetColor(COL_TEXT_PRIMARY);
-		ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
-		previewShader.end();
-		if (previewImg1.isAllocated()) previewImg1.getTexture().unbind(0);
-		if (previewImg2.isAllocated()) previewImg2.getTexture().unbind(1);
-		previewFbo.end();
 	}
 }
 void ofApp::draw() {
@@ -449,6 +432,7 @@ void ofApp::draw_instrucciones() {
 	ofSetColor(COL_TEXT_PRIMARY);
 	float lw = font_p.stringWidth(langLabel);
 	font_p.drawString(langLabel, langBtnX + langBtnW / 2 - lw / 2, langBtnY + 16);
+	jp_tooltip::draw("Switch help language", langBtnX, langBtnY, langBtnW, langBtnH);
 
 	float drawY = panelY + 55;
 	for (int i = 0; i < maxLines; i++) {
@@ -567,6 +551,14 @@ void ofApp::draw_opciones() {
 			ofSetColor(COL_TEXT_PRIMARY);
 			font_p.drawString("AUTOTAP", tapX + 14, rowY + rowH - 7);
 		}
+		const char *fieldTooltips[] = {
+			"Edit OSC input port",
+			"Edit OSC output port",
+			"Edit render width",
+			"Edit render height",
+			"Edit BPM"
+		};
+		jp_tooltip::draw(fieldTooltips[i], fieldX, rowY, fieldW, rowH);
 	}
 
 	// --- Toggle: Spout ---
@@ -583,6 +575,7 @@ void ofApp::draw_opciones() {
 		ofDrawRectRounded(btnX, rowY, toggleBtnW, rowH, 4.0f);
 		ofSetColor(COL_TEXT_PRIMARY);
 		font_p.drawString(isOn ? "ON" : "OFF", btnX + toggleBtnW / 2 - 12, rowY + rowH - 7);
+		jp_tooltip::draw("Toggle Spout output", btnX, rowY, toggleBtnW, rowH);
 	}
 	toggleRow++;
 #endif
@@ -600,6 +593,7 @@ void ofApp::draw_opciones() {
 		ofDrawRectRounded(btnX, rowY, toggleBtnW, rowH, 4.0f);
 		ofSetColor(COL_TEXT_PRIMARY);
 		font_p.drawString(isOn ? "ON" : "OFF", btnX + toggleBtnW / 2 - 12, rowY + rowH - 7);
+		jp_tooltip::draw("Toggle NDI output", btnX, rowY, toggleBtnW, rowH);
 	}
 	toggleRow++;
 #endif
@@ -633,6 +627,7 @@ void ofApp::draw_opciones() {
 			jp_textfield::drawCaret(font_p, optionsFieldText[fieldIdx], optionsFieldCursor,
 									fieldX + 6, rowY + rowH / 2, rowH - 8);
 		}
+		jp_tooltip::draw("Edit OSC output address", fieldX, rowY, fieldW, rowH);
 	}
 	toggleRow++;
 
@@ -673,6 +668,7 @@ void ofApp::draw_opciones() {
 		ofDrawRectRounded(browseX, rowY, browseW, rowH, 4.0f);
 		ofSetColor(COL_TEXT_PRIMARY);
 		font_p.drawString("BROWSE", browseX + 10, rowY + rowH - 7);
+		jp_tooltip::draw("Edit default composition path", fieldX, rowY, fieldW, rowH);
 	}
 	toggleRow++;
 
@@ -805,6 +801,17 @@ void ofApp::scanShaders() {
 
 	// Only scan these specific root folders (no sub-subdirectories)
 	vector<string> targetFolders = { "blending", "contrib", "generative", "imageprocessing" };
+	int helperFragmentsSkipped = 0;
+	auto appendStandaloneShader = [&](ShaderFolder &folder, const string &path) {
+		if (!shaderHasMain(path)) {
+			helperFragmentsSkipped++;
+			return;
+		}
+		ShaderEntry entry;
+		entry.name = ofFilePath::getBaseName(path);
+		entry.path = path;
+		folder.shaders.push_back(entry);
+	};
 
 	// Root shaders/ folder (files directly in shaders/)
 	{
@@ -821,10 +828,7 @@ void ofApp::scanShaders() {
 			string path = rootDir.getPath(i);
 			string ext = ofToLower(ofFilePath::getFileExt(path));
 			if (ext == "frag") {
-				ShaderEntry e;
-				e.name = ofFilePath::getBaseName(path);
-				e.path = path;
-				rootFolder.shaders.push_back(e);
+				appendStandaloneShader(rootFolder, path);
 			}
 		}
 		if (!rootFolder.shaders.empty()) {
@@ -849,10 +853,7 @@ void ofApp::scanShaders() {
 			if (dir.getFile(j).isDirectory()) continue;
 			string ext = ofToLower(ofFilePath::getFileExt(path));
 			if (ext == "frag") {
-				ShaderEntry e;
-				e.name = ofFilePath::getBaseName(path);
-				e.path = path;
-				folder.shaders.push_back(e);
+				appendStandaloneShader(folder, path);
 			}
 		}
 		if (!folder.shaders.empty()) {
@@ -864,12 +865,19 @@ void ofApp::scanShaders() {
 	selectedShaderFolder = -1;
 	selectedShaderIndex = -1;
 	previewShaderLoaded = false;
+	previewShaderPath.clear();
+	lastPreviewRenderTime = -1.0f;
 	loadFavorites();
 	rebuildFavoritesFolder(); // pins a "favorites" folder on top when any exist
 	cout << "Shader index: found " << shaderFolders.size() << " folders" << endl;
 	int totalShaders = 0;
-	for (auto &f : shaderFolders) totalShaders += (int)f.shaders.size();
+	for (auto &f : shaderFolders) {
+		if (!f.isFavorites) totalShaders += (int)f.shaders.size();
+	}
 	cout << "  total shaders: " << totalShaders << endl;
+	if (helperFragmentsSkipped > 0) {
+		cout << "  helper fragments hidden: " << helperFragmentsSkipped << endl;
+	}
 }
 bool ofApp::isFavorite(const string &path) const {
 	return std::find(favoritePaths.begin(), favoritePaths.end(), path) != favoritePaths.end();
@@ -907,13 +915,16 @@ void ofApp::rebuildFavoritesFolder() {
 	// Preserve the current selection by path across the rebuild (folder indices
 	// shift when the favorites folder appears/disappears).
 	string selPath;
+	bool selectedWasFavorites = false;
 	if (selectedShaderFolder >= 0 && selectedShaderFolder < (int)shaderFolders.size() &&
 		selectedShaderIndex >= 0 && selectedShaderIndex < (int)shaderFolders[selectedShaderFolder].shaders.size()) {
 		selPath = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
+		selectedWasFavorites = shaderFolders[selectedShaderFolder].isFavorites;
 	}
 
 	// Drop any existing favorites pseudo-folder so we rebuild it cleanly.
 	if (!shaderFolders.empty() && shaderFolders.front().isFavorites) {
+		favoritesFolderExpanded = shaderFolders.front().expanded;
 		shaderFolders.erase(shaderFolders.begin());
 	}
 
@@ -921,7 +932,7 @@ void ofApp::rebuildFavoritesFolder() {
 	ShaderFolder fav;
 	fav.name = "favorites";
 	fav.isFavorites = true;
-	fav.expanded = true;
+	fav.expanded = favoritesFolderExpanded;
 	for (auto &folder : shaderFolders) {
 		for (auto &e : folder.shaders) {
 			e.favorite = isFavorite(e.path);
@@ -942,7 +953,7 @@ void ofApp::rebuildFavoritesFolder() {
 			if (found) break;
 		}
 	}
-	if (!fav.shaders.empty()) {
+	if (favoritesDisplayMode == FAVORITES_TOP && !fav.shaders.empty()) {
 		shaderFolders.insert(shaderFolders.begin(), fav);
 	}
 
@@ -950,34 +961,268 @@ void ofApp::rebuildFavoritesFolder() {
 	selectedShaderFolder = -1;
 	selectedShaderIndex = -1;
 	if (!selPath.empty()) {
-		for (size_t f = 0; f < shaderFolders.size() && selectedShaderIndex < 0; f++) {
-			for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
-				if (shaderFolders[f].shaders[s].path == selPath) {
-					selectedShaderFolder = (int)f;
-					selectedShaderIndex = (int)s;
-					break;
+		for (int pass = 0; pass < 2 && selectedShaderIndex < 0; pass++) {
+			for (size_t f = 0; f < shaderFolders.size() && selectedShaderIndex < 0; f++) {
+				bool preferredFolder = selectedWasFavorites ?
+					shaderFolders[f].isFavorites : !shaderFolders[f].isFavorites;
+				if (pass == 0 && !preferredFolder) continue;
+				for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
+					if (shaderFolders[f].shaders[s].path == selPath) {
+						selectedShaderFolder = (int)f;
+						selectedShaderIndex = (int)s;
+						break;
+					}
 				}
 			}
 		}
 	}
+	rebuildShaderFolderOrder();
+}
+void ofApp::rebuildShaderFolderOrder() {
+	shaderFolderOrder.clear();
+	shaderFolderOrder.resize(shaderFolders.size());
+	for (int f = 0; f < (int)shaderFolders.size(); f++) {
+		const ShaderFolder &folder = shaderFolders[f];
+		vector<int> &indices = shaderFolderOrder[f];
+		indices.reserve(folder.shaders.size());
+		for (int i = 0; i < (int)folder.shaders.size(); i++) {
+			indices.push_back(i);
+		}
+		if (favoritesDisplayMode == FAVORITES_IN_FOLDERS && !folder.isFavorites) {
+			std::stable_partition(indices.begin(), indices.end(), [&](int shaderIndex) {
+				return folder.shaders[shaderIndex].favorite;
+			});
+		}
+	}
+}
+void ofApp::toggleFavoritesDisplayMode() {
+	favoritesDisplayMode = favoritesDisplayMode == FAVORITES_TOP ?
+		FAVORITES_IN_FOLDERS : FAVORITES_TOP;
+	rebuildFavoritesFolder();
+	shaderScroll = 0;
+	ensureShaderSelectionVisible();
+	saveSettings();
+}
+ofApp::ShaderBrowserLayout ofApp::getShaderBrowserLayout() const {
+	ShaderBrowserLayout layout;
+	const float panelX = 30.0f;
+	const float panelY = 44.0f;
+	const float panelW = std::max(300.0f, ofGetWidth() * 0.5f - panelX - 4.0f);
+	const float panelH = std::max(420.0f, ofGetHeight() - panelY - 30.0f);
+	const float inset = 15.0f;
+	const float contentX = panelX + inset;
+	const float contentW = panelW - inset * 2.0f;
+	const float footerH = 30.0f;
+	const float footerY = panelY + panelH - footerH - 10.0f;
+	const float previewH = 170.0f;
+	const float previewY = footerY - previewH - 10.0f;
+	const float searchY = panelY + 64.0f;
+	const float searchH = 26.0f;
+	const float buttonGap = 8.0f;
+	const float footerW = (contentW - buttonGap * 2.0f) / 3.0f;
+
+	layout.panel.set(panelX, panelY, panelW, panelH);
+	layout.titleBaseline = panelY + 26.0f;
+	layout.hintBaseline = panelY + 47.0f;
+	layout.favoritesModeButton.set(panelX + panelW - inset - 52.0f, panelY + 10.0f, 52.0f, 24.0f);
+	layout.search.set(contentX, searchY, contentW, searchH);
+	layout.searchClear.set(contentX + contentW - searchH, searchY, searchH, searchH);
+	layout.list.set(contentX, searchY + searchH + 9.0f,
+		contentW, std::max(0.0f, previewY - 8.0f - (searchY + searchH + 9.0f)));
+	layout.preview.set(contentX, previewY, contentW, previewH);
+	layout.loadButton.set(contentX, footerY, footerW, footerH);
+	layout.bindButton.set(contentX + footerW + buttonGap, footerY, footerW, footerH);
+	layout.editButton.set(contentX + (footerW + buttonGap) * 2.0f, footerY, footerW, footerH);
+	return layout;
+}
+const vector<int> &ofApp::getOrderedShaderIndices(int folderIndex) const {
+	static const vector<int> empty;
+	if (folderIndex < 0 || folderIndex >= (int)shaderFolderOrder.size()) return empty;
+	return shaderFolderOrder[folderIndex];
+}
+vector<ofApp::ShaderBrowserRow> ofApp::buildShaderBrowserRows() const {
+	vector<ShaderBrowserRow> rows;
+	const bool searchActive = !shaderSearchText.empty();
+	const string searchLower = ofToLower(shaderSearchText);
+
+	for (int f = 0; f < (int)shaderFolders.size(); f++) {
+		const ShaderFolder &folder = shaderFolders[f];
+		if (searchActive && folder.isFavorites) continue;
+
+		vector<int> visibleShaders;
+		if (searchActive) {
+			const bool folderMatch =
+				ofToLower(folder.name).find(searchLower) != string::npos;
+			for (int shaderIndex : getOrderedShaderIndices(f)) {
+				if (folderMatch ||
+					ofToLower(folder.shaders[shaderIndex].name).find(searchLower) != string::npos) {
+					visibleShaders.push_back(shaderIndex);
+				}
+			}
+			if (!folderMatch && visibleShaders.empty()) continue;
+		}
+
+		ShaderBrowserRow folderRow;
+		folderRow.folderHeader = true;
+		folderRow.folderIndex = f;
+		folderRow.height = 19.0f;
+		rows.push_back(folderRow);
+
+		if (!searchActive && !folder.expanded) continue;
+		const vector<int> &shaderIndices =
+			searchActive ? visibleShaders : getOrderedShaderIndices(f);
+		for (int shaderIndex : shaderIndices) {
+			ShaderBrowserRow shaderRow;
+			shaderRow.folderIndex = f;
+			shaderRow.shaderIndex = shaderIndex;
+			shaderRow.height = 18.0f;
+			rows.push_back(shaderRow);
+		}
+	}
+	return rows;
+}
+int ofApp::getMaxShaderScroll(const vector<ShaderBrowserRow> &rows, float viewportHeight) const {
+	if (rows.empty()) return 0;
+	float usedHeight = 0.0f;
+	int firstVisible = (int)rows.size() - 1;
+	for (int i = (int)rows.size() - 1; i >= 0; i--) {
+		if (usedHeight + rows[i].height > viewportHeight && i < (int)rows.size() - 1) break;
+		usedHeight += rows[i].height;
+		firstVisible = i;
+	}
+	return std::max(0, firstVisible);
+}
+void ofApp::clampShaderScroll(const ShaderBrowserLayout &layout) {
+	const vector<ShaderBrowserRow> rows = buildShaderBrowserRows();
+	shaderScroll = ofClamp(shaderScroll, 0, getMaxShaderScroll(rows, layout.list.height));
+}
+vector<ofApp::ShaderBrowserRow> ofApp::getVisibleShaderBrowserRows(const ShaderBrowserLayout &layout) const {
+	const vector<ShaderBrowserRow> rows = buildShaderBrowserRows();
+	return getVisibleShaderBrowserRows(layout, rows);
+}
+vector<ofApp::ShaderBrowserRow> ofApp::getVisibleShaderBrowserRows(
+	const ShaderBrowserLayout &layout,
+	const vector<ShaderBrowserRow> &rows) const {
+	vector<ShaderBrowserRow> visibleRows;
+	const int start = ofClamp(shaderScroll, 0, getMaxShaderScroll(rows, layout.list.height));
+	float rowY = layout.list.y;
+	for (int i = start; i < (int)rows.size(); i++) {
+		if (rowY + rows[i].height > layout.list.getBottom() + 0.01f) break;
+		ShaderBrowserRow row = rows[i];
+		row.bounds.set(layout.list.x, rowY, layout.list.width, row.height);
+		visibleRows.push_back(row);
+		rowY += row.height;
+	}
+	return visibleRows;
+}
+void ofApp::clearShaderSearch() {
+	shaderSearchText.clear();
+	shaderSearchCursor = 0;
+	shaderScroll = 0;
+	shaderSearchFocused = true;
+	if (selectedShaderFolder >= 0 && selectedShaderFolder < (int)shaderFolders.size() &&
+		!shaderFolders[selectedShaderFolder].isFavorites) {
+		shaderFolders[selectedShaderFolder].expanded = true;
+	}
+	ensureShaderSelectionVisible();
+}
+string ofApp::getSelectedShaderPath() const {
+	if (selectedShaderFolder < 0 || selectedShaderIndex < 0) return "";
+	if (selectedShaderFolder >= (int)shaderFolders.size()) return "";
+	if (selectedShaderIndex >= (int)shaderFolders[selectedShaderFolder].shaders.size()) return "";
+	return shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
+}
+void ofApp::ensurePreviewFbo() {
+	const int renderWidth = std::max(1, jp_constants::renderWidth);
+	const int renderHeight = std::max(1, jp_constants::renderHeight);
+	const float scale = std::min({
+		1.0f,
+		PREVIEW_MAX_WIDTH / (float)renderWidth,
+		PREVIEW_MAX_HEIGHT / (float)renderHeight
+	});
+	const int previewWidth = std::max(1, (int)std::round(renderWidth * scale));
+	const int previewHeight = std::max(1, (int)std::round(renderHeight * scale));
+	if (!previewFbo.isAllocated() ||
+		(int)previewFbo.getWidth() != previewWidth ||
+		(int)previewFbo.getHeight() != previewHeight) {
+		previewFbo.allocate(previewWidth, previewHeight);
+	}
+}
+void ofApp::renderShaderPreview(bool useLiveMouse) {
+	if (!previewShaderLoaded) return;
+	ensurePreviewFbo();
+
+	const float mouseX = useLiveMouse ?
+		ofMap(ofGetMouseX(), 0, ofGetWidth(), 0, 1) : 0.5f;
+	const float mouseY = useLiveMouse ?
+		ofMap(ofGetMouseY(), 0, ofGetHeight(), 0, 1) : 0.5f;
+	const float pressedX = useLiveMouse ?
+		ofMap(jp_constants::mousePressedPos.x, 0, ofGetWidth(), 0, 1) : 0.5f;
+	const float pressedY = useLiveMouse ?
+		ofMap(jp_constants::mousePressedPos.y, 0, ofGetHeight(), 0, 1) : 0.5f;
+	const int previewFrame = useLiveMouse ? ofGetFrameNum() : 0;
+
+	previewFbo.begin();
+	ofClear(0, 0, 0, 255);
+	previewShader.begin();
+	previewShader.setUniform1f("time", ofGetElapsedTimef());
+	previewShader.setUniform2f("resolution", previewFbo.getWidth(), previewFbo.getHeight());
+	previewShader.setUniform1f("bpm", jp_constants::bpm);
+	previewShader.setUniform4f("mouse", mouseX, mouseY, pressedX, pressedY);
+	previewShader.setUniform2f("window_mouse", mouseX, mouseY);
+	previewShader.setUniform1i("globalframeNum", previewFrame);
+	previewShader.setUniform1i("boxframeNum", previewFrame);
+	if (previewRdmActive && !previewRdmValues.empty()) {
+		for (int i = 0;
+			i < (int)previewRdmValues.size() && i < (int)previewUniformNames.size();
+			i++) {
+			previewShader.setUniform1f(previewUniformNames[i], previewRdmValues[i]);
+		}
+	}
+	if (previewImg1.isAllocated()) {
+		previewImg1.getTexture().bind(0);
+		previewShader.setUniform1i("texture1", 0);
+		previewShader.setUniform1i("textura1", 0);
+		previewShader.setUniform1i("input_texture", 0);
+		previewShader.setUniform1i("tex0", 0);
+		previewShader.setUniform1i("textura", 0);
+		previewShader.setUniform1i("texture", 0);
+	}
+	if (previewImg2.isAllocated()) {
+		previewImg2.getTexture().bind(1);
+		previewShader.setUniform1i("texture2", 1);
+		previewShader.setUniform1i("textura2", 1);
+		previewShader.setUniform1i("tex1", 1);
+	}
+	ofSetColor(COL_TEXT_PRIMARY);
+	ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
+	previewShader.end();
+	if (previewImg1.isAllocated()) previewImg1.getTexture().unbind(0);
+	if (previewImg2.isAllocated()) previewImg2.getTexture().unbind(1);
+	previewFbo.end();
+	lastPreviewRenderTime = ofGetElapsedTimef();
 }
 void ofApp::selectShaderForPreview(int f, int s) {
 	if (f < 0 || f >= (int)shaderFolders.size()) return;
 	if (s < 0 || s >= (int)shaderFolders[f].shaders.size()) return;
+	const string shaderPath = shaderFolders[f].shaders[s].path;
 	selectedShaderFolder = f;
 	selectedShaderIndex = s;
+	if (shaderPath == previewShaderPath && previewShaderLoaded) return;
 
 	// Load into preview shader (kept for RDM/EDIT + optional preview render).
-	string shaderPath = shaderFolders[f].shaders[s].path;
+	previewShaderPath = shaderPath;
 	previewShader.unload();
 	previewShaderLoaded = false;
+	lastPreviewRenderTime = -1.0f;
+	previewUniformNames.clear();
+	previewUniformMins.clear();
+	previewUniformMaxs.clear();
+	previewRdmValues.clear();
+	previewRdmActive = false;
 	if (previewShader.load("shaders/default.vert", shaderPath)) {
 		previewShaderLoaded = true;
 		// Parse user-defined uniform float declarations for RDM
-		previewUniformNames.clear();
-		previewUniformMins.clear();
-		previewUniformMaxs.clear();
-		previewRdmValues.clear();
 		ofBuffer shaderBuf2 = ofBufferFromFile(shaderPath);
 		for (auto line : shaderBuf2.getLines()) {
 			if (line.rfind("uniform", 0) == 0 && line.find("float") != string::npos) {
@@ -1012,42 +1257,7 @@ void ofApp::selectShaderForPreview(int f, int s) {
 				}
 			}
 		}
-		previewRdmActive = false;
-		if (!previewFbo.isAllocated()) {
-			previewFbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
-		}
-		// Render first frame immediately with sampler textures
-		previewFbo.begin();
-		ofClear(0, 0, 0, 255);
-		previewShader.begin();
-		previewShader.setUniform1f("time", ofGetElapsedTimef());
-		previewShader.setUniform2f("resolution", previewFbo.getWidth(), previewFbo.getHeight());
-		previewShader.setUniform1f("bpm", jp_constants::bpm);
-		previewShader.setUniform4f("mouse", 0.5, 0.5, 0.5, 0.5);
-		previewShader.setUniform2f("window_mouse", 0.5, 0.5);
-		previewShader.setUniform1i("globalframeNum", 0);
-		previewShader.setUniform1i("boxframeNum", 0);
-		if (previewImg1.isAllocated()) {
-			previewImg1.getTexture().bind(0);
-			previewShader.setUniform1i("texture1", 0);
-			previewShader.setUniform1i("textura1", 0);
-			previewShader.setUniform1i("input_texture", 0);
-			previewShader.setUniform1i("tex0", 0);
-			previewShader.setUniform1i("textura", 0);
-			previewShader.setUniform1i("texture", 0);
-		}
-		if (previewImg2.isAllocated()) {
-			previewImg2.getTexture().bind(1);
-			previewShader.setUniform1i("texture2", 1);
-			previewShader.setUniform1i("textura2", 1);
-			previewShader.setUniform1i("tex1", 1);
-		}
-		ofSetColor(COL_TEXT_PRIMARY);
-		ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
-		previewShader.end();
-		if (previewImg1.isAllocated()) previewImg1.getTexture().unbind(0);
-		if (previewImg2.isAllocated()) previewImg2.getTexture().unbind(1);
-		previewFbo.end();
+		renderShaderPreview(false);
 	}
 }
 void ofApp::loadSelectedShaderBox() {
@@ -1069,28 +1279,9 @@ void ofApp::loadSelectedShaderBox() {
 	loadBoxCount++;
 }
 void ofApp::moveShaderSelection(int dir) {
-	// Flat list of currently-visible shader entries (respecting search filter +
-	// folder expansion), mirroring what draw_shaderindex renders.
 	vector<std::pair<int, int>> vis;
-	bool searchActive = !shaderSearchText.empty();
-	string searchLower = ofToLower(shaderSearchText);
-	for (size_t f = 0; f < shaderFolders.size(); f++) {
-		bool folderMatch = false;
-		if (searchActive) {
-			folderMatch = ofToLower(shaderFolders[f].name).find(searchLower) != string::npos;
-			bool hasMatch = folderMatch;
-			if (!hasMatch)
-				for (auto &e : shaderFolders[f].shaders)
-					if (ofToLower(e.name).find(searchLower) != string::npos) { hasMatch = true; break; }
-			if (!hasMatch) continue;
-		}
-		bool expanded = searchActive ? true : shaderFolders[f].expanded;
-		if (!expanded) continue;
-		for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
-			if (searchActive && !folderMatch &&
-				ofToLower(shaderFolders[f].shaders[s].name).find(searchLower) == string::npos) continue;
-			vis.push_back({(int)f, (int)s});
-		}
+	for (const ShaderBrowserRow &row : buildShaderBrowserRows()) {
+		if (!row.folderHeader) vis.push_back({row.folderIndex, row.shaderIndex});
 	}
 	if (vis.empty()) return;
 	int cur = -1;
@@ -1103,39 +1294,35 @@ void ofApp::moveShaderSelection(int dir) {
 }
 void ofApp::ensureShaderSelectionVisible() {
 	if (selectedShaderFolder < 0 || selectedShaderIndex < 0) return;
-	bool searchActive = !shaderSearchText.empty();
-	string searchLower = ofToLower(shaderSearchText);
-	int line = 0, target = -1;
-	for (size_t f = 0; f < shaderFolders.size(); f++) {
-		bool folderMatch = false;
-		if (searchActive) {
-			folderMatch = ofToLower(shaderFolders[f].name).find(searchLower) != string::npos;
-			bool hasMatch = folderMatch;
-			if (!hasMatch)
-				for (auto &e : shaderFolders[f].shaders)
-					if (ofToLower(e.name).find(searchLower) != string::npos) { hasMatch = true; break; }
-			if (!hasMatch) continue;
-		}
-		line++; // folder header line
-		bool expanded = searchActive ? true : shaderFolders[f].expanded;
-		if (!expanded) continue;
-		for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
-			if (searchActive && !folderMatch &&
-				ofToLower(shaderFolders[f].shaders[s].name).find(searchLower) == string::npos) continue;
-			line++;
-			if ((int)f == selectedShaderFolder && (int)s == selectedShaderIndex) target = line;
+	const ShaderBrowserLayout layout = getShaderBrowserLayout();
+	const vector<ShaderBrowserRow> rows = buildShaderBrowserRows();
+	int target = -1;
+	for (int i = 0; i < (int)rows.size(); i++) {
+		if (!rows[i].folderHeader &&
+			rows[i].folderIndex == selectedShaderFolder &&
+			rows[i].shaderIndex == selectedShaderIndex) {
+			target = i;
+			break;
 		}
 	}
 	if (target < 0) return;
-	float panelY = 44;
-	float panelH = ofGetHeight() - panelY - 30;
-	float fbY = panelY + panelH - 40;
-	float drawTop = panelY + 106;
-	float drawBottom = fbY - 188; // above the 170px preview pane
-	int visibleCount = std::max(1, (int)((drawBottom - drawTop) / 16.0f));
-	if (target <= shaderScroll) shaderScroll = target - 1;
-	else if (target > shaderScroll + visibleCount) shaderScroll = target - visibleCount;
-	if (shaderScroll < 0) shaderScroll = 0;
+	if (target < shaderScroll) {
+		shaderScroll = target;
+	} else {
+		float usedHeight = 0.0f;
+		for (int i = shaderScroll; i <= target; i++) usedHeight += rows[i].height;
+		if (usedHeight > layout.list.height) {
+			usedHeight = 0.0f;
+			int firstVisible = target;
+			for (int i = target; i >= 0; i--) {
+				if (usedHeight + rows[i].height > layout.list.height && i < target) break;
+				usedHeight += rows[i].height;
+				firstVisible = i;
+			}
+			shaderScroll = firstVisible;
+		}
+	}
+	clampShaderScroll(layout);
 }
 // Draw a small 5-pointed star (filled or outline) at (cx,cy) with radius r.
 static void drawStarGlyph(float cx, float cy, float r, bool filled) {
@@ -1155,418 +1342,366 @@ static void drawStarGlyph(float cx, float cy, float r, bool filled) {
 	}
 }
 void ofApp::draw_shaderindex() {
-	// boxes.draw() (called just before this on the Import tab) leaves the rect
-	// mode as CENTER; force CORNER so panel/search/button rects size correctly.
 	ofSetRectMode(OF_RECTMODE_CORNER);
+	shaderSearchFocused = true;
 
-	// Navigator occupies the LEFT half; the right half is left clear so the live
-	// node canvas (drawn behind) shows through and a LOADed box appears there.
-	float panelX = 30, panelY = 44; // below the top screen-tab bar
-	float panelW = ofGetWidth() * 0.5f - panelX - 4;
-	float panelH = ofGetHeight() - panelY - 30;
+	const ShaderBrowserLayout layout = getShaderBrowserLayout();
+	clampShaderScroll(layout);
 
-	// Opaque panel background (left half only). Must be opaque so the live node
-	// canvas drawn behind does not bleed through the navigator's empty space.
-	ofSetColor(COL_BG_DARK);
-	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
-	ofNoFill();
-	ofSetColor(ofColor(COL_ACCENT_CYAN, 80));
-	ofSetLineWidth(1.5f);
-	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
-	ofFill();
-	ofSetLineWidth(1.0f);
-
-	// Title
-	float y = panelY + 26;
-	ofSetColor(COL_ACCENT_CYAN);
-	int totalShaders = 0;
-	for (auto &f : shaderFolders) if (!f.isFavorites) totalShaders += (int)f.shaders.size();
-	string title = language == 0 ?
-		"IMPORT  |  " + ofToString(totalShaders) + " shaders" :
-		"IMPORTAR  |  " + ofToString(totalShaders) + " shaders";
-	font_p.drawString(title, panelX + 16, y);
-
-	// Separator
-	ofSetColor(ofColor(COL_ACCENT_CYAN, 60));
-	ofDrawLine(panelX + 16, y + 6, panelX + panelW - 16, y + 6);
-
-	// Hint (ASCII only; the TTF has no unicode arrows/star glyphs)
-	ofSetColor(COL_TEXT_MUTED);
-	string hint = language == 0 ?
-		"Up/Down navigate  |  star = favorite  |  LOAD adds to canvas >" :
-		"Arriba/Abajo navegar  |  estrella = favorito  |  LOAD anade >";
-	font_p.drawString(hint, panelX + 16, y + 20);
-
-	y += 30;
-
-	float listX = panelX + 15;
-	float listW = panelW - 30;
-
-	// Footer button bar + preview pane both reserve space at the bottom of the
-	// panel. Layout (top->bottom): search, list, preview pane, footer buttons.
-	float fbH = 30;
-	float fbY = panelY + panelH - fbH - 10;
-	float pvAreaH = 170;
-	float pvAreaY = fbY - pvAreaH - 10;
-
-	// ---- SEARCH BAR ----
-	float searchH = 22;
-	float searchY = y + 8;
-	float searchW = listW;
-
-	ofSetColor(COL_BG_BUTTON);
-	ofDrawRectRounded(listX, searchY, searchW, searchH, 4);
-	ofNoFill();
-	ofSetColor(ofColor(COL_ACCENT_CYAN, shaderSearchFocused ? 120 : 50));
-	ofSetLineWidth(1.0f);
-	ofDrawRectRounded(listX, searchY, searchW, searchH, 4);
-	ofFill();
-	ofSetLineWidth(1.0f);
-
-	ofSetColor(COL_TEXT_MUTED);
-	float searchLabelX = listX + 5;
-	string searchLabel = language == 0 ? "Search:" : "Buscar:";
-	font_p.drawString(searchLabel, searchLabelX, searchY + searchH - 5);
-
-	float textX = searchLabelX + font_p.stringWidth(searchLabel) + 3;
-	float textMaxW = searchW - (textX - listX) - 5;
-	string displayText = shaderSearchText;
-	// Truncate text if it exceeds available width
-	if (font_p.stringWidth(displayText) > textMaxW) {
-		while (!displayText.empty() && font_p.stringWidth(displayText) > textMaxW) {
-			displayText = displayText.substr(1);
+	auto fitText = [&](const string &text, float maxWidth) {
+		if (maxWidth <= 0.0f) return string();
+		if (font_p.stringWidth(text) <= maxWidth) return text;
+		string result = text;
+		const string suffix = "...";
+		while (!result.empty() && font_p.stringWidth(result + suffix) > maxWidth) {
+			result.pop_back();
 		}
-		displayText = ".." + displayText;
-	}
-
-	if (shaderSearchText.empty()) {
-		ofSetColor(COL_TEXT_MUTED);
-		string ph = language == 0 ? "type shader name..." : "escribe nombre...";
-		font_p.drawString(ph, textX, searchY + searchH - 5);
-	} else {
-		ofSetColor(COL_TEXT_PRIMARY);
-		font_p.drawString(displayText, textX, searchY + searchH - 5);
-		// Insertion caret: follows the cursor when the text fits; falls back to
-		// the end when the field is truncated with a ".." prefix.
-		if (shaderSearchFocused) {
-			if (displayText == shaderSearchText) {
-				jp_textfield::drawCaret(font_p, shaderSearchText, shaderSearchCursor,
-										textX, searchY + searchH / 2, searchH - 6);
-			} else if ((int)(ofGetElapsedTimef() * 2) % 2 == 0) {
-				float cursorX = textX + font_p.stringWidth(displayText);
-				ofSetColor(COL_ACCENT_CYAN);
-				ofDrawLine(cursorX, searchY + 3, cursorX, searchY + searchH - 3);
-			}
-		}
-	}
-
-	// ---- FOLDER LIST ----
-	float drawTop = searchY + searchH + 20;
-	float drawBottom = pvAreaY - 8; // stop above the preview pane
-	float folderEntryH = 16;
-	float shaderEntryH = 14;
-	float indentStep = 12;
-
-	int currentLine = 0;
-	float drawY = drawTop;
-
-	// Calculate total visible lines for scroll
-	int totalLines = 0;
-	for (size_t f = 0; f < shaderFolders.size(); f++) {
-		// When searching, only count folders/shaders that match
-		bool searchActive = !shaderSearchText.empty();
-		if (searchActive) {
-			string searchLower = ofToLower(shaderSearchText);
-			string folderNameLower = ofToLower(shaderFolders[f].name);
-			bool folderMatch = folderNameLower.find(searchLower) != string::npos;
-			bool hasMatch = folderMatch;
-			if (!hasMatch) {
-				for (size_t ss = 0; ss < shaderFolders[f].shaders.size(); ss++) {
-					if (ofToLower(shaderFolders[f].shaders[ss].name).find(searchLower) != string::npos) {
-						hasMatch = true;
-						break;
-					}
-				}
-			}
-			if (!hasMatch) continue;
-			totalLines++; // folder header (always shown when match)
-			// Count only matching shaders
-			for (size_t ss = 0; ss < shaderFolders[f].shaders.size(); ss++) {
-				string sn = ofToLower(shaderFolders[f].shaders[ss].name);
-				if (folderMatch || sn.find(searchLower) != string::npos) {
-					totalLines++;
-				}
-			}
-		} else {
-			totalLines++; // folder header
-			if (shaderFolders[f].expanded) {
-				totalLines += (int)shaderFolders[f].shaders.size();
-			}
-		}
-	}
-	int visibleCount = (int)((drawBottom - drawTop) / folderEntryH);
-	int maxScroll = std::max(0, totalLines - visibleCount);
-	if (shaderScroll > maxScroll) shaderScroll = maxScroll;
-	if (shaderScroll < 0) shaderScroll = 0;
-
-	// Scroll indicators
-	if (shaderScroll > 0) {
-		ofSetColor(ofColor(COL_ACCENT_CYAN, 120));
-		font_p.drawString("^", listX + listW - 10, drawTop + 4);
-	}
-	if (shaderScroll < maxScroll) {
-		ofSetColor(ofColor(COL_ACCENT_CYAN, 120));
-		font_p.drawString("v", listX + listW - 10, drawBottom - 4);
-	}
-
-	for (size_t f = 0; f < shaderFolders.size(); f++) {
-		if (drawY > drawBottom) break;
-
-		// Search filtering: skip folders with no matching content
-		bool searchActive = !shaderSearchText.empty();
-		bool folderNameMatch = false;
-		bool hasMatchingShader = false;
-		string searchLower = ofToLower(shaderSearchText);
-		if (searchActive) {
-			string folderNameLower = ofToLower(shaderFolders[f].name);
-			folderNameMatch = folderNameLower.find(searchLower) != string::npos;
-			if (!folderNameMatch) {
-				for (size_t ss = 0; ss < shaderFolders[f].shaders.size(); ss++) {
-					string shaderNameLower = ofToLower(shaderFolders[f].shaders[ss].name);
-					if (shaderNameLower.find(searchLower) != string::npos) {
-						hasMatchingShader = true;
-						break;
-					}
-				}
-			}
-			if (!folderNameMatch && !hasMatchingShader) {
-				continue;
-			}
-			// Force-expand when searching
-			shaderFolders[f].expanded = true;
-		}
-
-		// Folder header
-		currentLine++;
-		if (currentLine > shaderScroll) {
-			if (drawY + folderEntryH <= drawBottom) {
-				bool isSelected = ((int)f == selectedShaderFolder && selectedShaderIndex == -1);
-				bool isHovered = ((int)f == hoveredShaderFolder && hoveredShaderIndex == -1);
-
-				// Hover highlight background
-				if (isHovered && !isSelected) {
-					ofSetColor(ofColor(COL_ACCENT_CYAN, 30));
-					ofDrawRectangle(listX, drawY - folderEntryH, listW, folderEntryH);
-				}
-
-				// Hit box debug visualization
-				if (showShaderHitBoxes) {
-					ofNoFill();
-					ofSetColor(isHovered ? 255 : 80, isHovered ? 80 : 230, isHovered ? 80 : 0, isHovered ? 200 : 100);
-					ofSetLineWidth(1.0f);
-					ofDrawRectangle(listX, drawY - folderEntryH, listW, folderEntryH);
-					ofFill();
-					ofSetLineWidth(1.0f);
-				}
-
-				bool arrowHovered = isHovered;
-				// Draw triangle arrow (right=empty, down=expanded)
-				float arrowSize = 5.0f;
-				float arrowX = listX + arrowSize;
-				float arrowYcenter = drawY - folderEntryH / 2.0f;
-				if (arrowHovered) {
-					ofSetColor(0, 255, 255);
-				} else if (isSelected) {
-					ofSetColor(COL_ACCENT_CYAN);
-				} else {
-					ofSetColor(120, 200, 255);
-				}
-				ofFill();
-				if (shaderFolders[f].expanded) {
-					// Downward triangle (expanded)
-					ofDrawTriangle(arrowX - arrowSize, arrowYcenter - arrowSize * 0.6f,
-							arrowX + arrowSize, arrowYcenter - arrowSize * 0.6f,
-							arrowX, arrowYcenter + arrowSize * 0.6f);
-				} else {
-					// Rightward triangle (collapsed)
-					ofDrawTriangle(arrowX - arrowSize * 0.6f, arrowYcenter - arrowSize,
-							arrowX - arrowSize * 0.6f, arrowYcenter + arrowSize,
-							arrowX + arrowSize * 0.6f, arrowYcenter);
-				}
-				// Folder name after arrow. The synthetic favorites folder gets a
-				// gold star prefix + gold text to stand out on top of the list.
-				float fnX = listX + arrowSize * 2 + 6;
-				bool isFavFolder = shaderFolders[f].isFavorites;
-				if (isFavFolder) {
-					ofSetColor(COL_ACCENT_GOLD);
-					drawStarGlyph(fnX + 4, drawY - folderEntryH / 2.0f, 5.0f, true);
-					fnX += 14;
-				}
-				if (arrowHovered) {
-					ofSetColor(0, 255, 255);
-				} else if (isFavFolder) {
-					ofSetColor(COL_ACCENT_GOLD);
-				} else if (isSelected) {
-					ofSetColor(COL_ACCENT_CYAN);
-				} else {
-					ofSetColor(120, 200, 255);
-				}
-				font_p.drawString(shaderFolders[f].name, fnX, drawY);
-
-				// Draw shader count just after the folder name
-				ofSetColor(COL_TEXT_MUTED);
-				string countStr = "(" + ofToString((int)shaderFolders[f].shaders.size()) + ")";
-				font_p.drawString(countStr, fnX + font_p.stringWidth(shaderFolders[f].name) + 8, drawY);
-
-				drawY += folderEntryH;
-			}
-		}
-
-		// Shader entries (if expanded)
-		if (shaderFolders[f].expanded) {
-			for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
-				// Skip non-matching shaders when searching
-				if (searchActive) {
-					string shaderNameLower = ofToLower(shaderFolders[f].shaders[s].name);
-					if (!folderNameMatch && shaderNameLower.find(searchLower) == string::npos) {
-						continue;
-					}
-				}
-				currentLine++;
-				if (currentLine > shaderScroll) {
-					if (drawY + shaderEntryH > drawBottom) break;
-
-					bool isSelected = ((int)f == selectedShaderFolder && (int)s == selectedShaderIndex);
-					bool isHovered = ((int)f == hoveredShaderFolder && (int)s == hoveredShaderIndex);
-
-					// Hover highlight background
-					if (isHovered && !isSelected) {
-						ofSetColor(ofColor(COL_ACCENT_CYAN, 30));
-						ofDrawRectangle(listX + indentStep * 2, drawY - shaderEntryH, listW - indentStep * 2, shaderEntryH);
-					}
-
-					// Hit box debug visualization
-					if (showShaderHitBoxes) {
-						ofNoFill();
-						ofSetColor(isHovered ? 255 : 80, isHovered ? 80 : 230, isHovered ? 80 : 0, isHovered ? 200 : 100);
-						ofSetLineWidth(1.0f);
-						ofDrawRectangle(listX + indentStep * 2, drawY - shaderEntryH, listW - indentStep * 2, shaderEntryH);
-						ofFill();
-						ofSetLineWidth(1.0f);
-					}
-
-					if (isSelected) {
-						ofSetColor(COL_TEXT_PRIMARY);
-					} else if (isHovered) {
-						ofSetColor(COL_TEXT_PRIMARY);
-					} else {
-						ofSetColor(COL_TEXT_DIM);
-					}
-					float nameX = listX + indentStep * 2;
-					font_p.drawString(shaderFolders[f].shaders[s].name, nameX, drawY);
-
-					// Favorite star just after the name so they read as one row
-					// (filled gold = favorite, dim outline = not). Click toggles it.
-					float starCx = nameX + font_p.stringWidth(shaderFolders[f].shaders[s].name) + 12;
-					float starMax = listX + listW - 10;
-					if (starCx > starMax) starCx = starMax;
-					float starCy = drawY - shaderEntryH / 2.0f;
-					bool isFav = shaderFolders[f].shaders[s].favorite;
-					if (isFav) {
-						ofSetColor(COL_ACCENT_GOLD);
-						drawStarGlyph(starCx, starCy, 5.0f, true);
-					} else {
-						ofSetColor(isHovered ? ofColor(COL_TEXT_MUTED) : ofColor(COL_TEXT_MUTED, 90));
-						drawStarGlyph(starCx, starCy, 5.0f, false);
-					}
-					drawY += shaderEntryH;
-				}
-			}
-		}
-	}
-
-	// ---- FOOTER: selected shader label + LOAD / BIND / EDIT buttons ----
-	bool hasSel = (selectedShaderFolder >= 0 && selectedShaderIndex >= 0 &&
-				   selectedShaderFolder < (int)shaderFolders.size() &&
-				   selectedShaderIndex < (int)shaderFolders[selectedShaderFolder].shaders.size());
-	// (The selected shader name is shown in the preview-pane title below the
-	// list, so no separate label is drawn above the buttons here.)
-
-	float fbGap = 8;
-	float fbW = (listW - fbGap * 2) / 3.0f;
-	float loadX = listX;
-	float bindX = listX + fbW + fbGap;
-	float editX = listX + (fbW + fbGap) * 2;
-
-	// Helper to draw a labelled button
-	auto drawFooterBtn = [&](float bx, ofColor fill, ofColor border, const string &label, bool enabled) {
-		ofSetColor(enabled ? fill : ofColor(fill, 60));
-		ofDrawRectRounded(bx, fbY, fbW, fbH, 4.0f);
-		ofNoFill();
-		ofSetColor(enabled ? border : ofColor(border, 80));
-		ofSetLineWidth(1.5f);
-		ofDrawRectRounded(bx, fbY, fbW, fbH, 4.0f);
-		ofFill();
-		ofSetLineWidth(1.0f);
-		ofSetColor(enabled ? ofColor(COL_TEXT_PRIMARY) : ofColor(COL_TEXT_MUTED));
-		float tw = font_p.stringWidth(label);
-		font_p.drawString(label, bx + fbW / 2 - tw / 2, fbY + fbH / 2 + 4);
+		return result.empty() ? suffix : result + suffix;
 	};
 
-	drawFooterBtn(loadX, COL_ACCENT_CYAN_DIM, COL_ACCENT_CYAN,
-				  language == 0 ? "LOAD" : "CARGAR", hasSel);
+	ofSetColor(COL_BG_DARK);
+	ofDrawRectRounded(layout.panel, 8.0f);
+	ofNoFill();
+	ofSetColor(ofColor(COL_BORDER_MUTED, 210));
+	ofSetLineWidth(1.0f);
+	ofDrawRectRounded(layout.panel, 8.0f);
+	ofFill();
 
-	// BIND button — inline MIDI-learn for the add-shader command. Shows a
-	// waiting state while armed for the next MIDI message.
-	if (importBindWaiting) {
-		drawFooterBtn(bindX, COL_ACCENT_GOLD_DIM, COL_ACCENT_GOLD,
-					  language == 0 ? "MOVE MIDI" : "MUEVE MIDI", true);
+	int totalShaders = 0;
+	for (const ShaderFolder &folder : shaderFolders) {
+		if (!folder.isFavorites) totalShaders += (int)folder.shaders.size();
+	}
+	const string title = language == 0 ?
+		"IMPORT  |  " + ofToString(totalShaders) + " shaders" :
+		"IMPORTAR  |  " + ofToString(totalShaders) + " shaders";
+	ofSetColor(COL_ACCENT_CYAN);
+	font_p.drawString(title, layout.panel.x + 16.0f, layout.titleBaseline);
+
+	const bool modeHovered = layout.favoritesModeButton.inside(ofGetMouseX(), ofGetMouseY());
+	ofSetColor(ofColor(COL_BG_BUTTON, 235));
+	ofDrawRectRounded(layout.favoritesModeButton, 4.0f);
+	const float segmentW = layout.favoritesModeButton.width * 0.5f;
+	const float activeSegmentX = favoritesDisplayMode == FAVORITES_TOP ?
+		layout.favoritesModeButton.x : layout.favoritesModeButton.x + segmentW;
+	ofSetColor(modeHovered ? ofColor(COL_ACCENT_GOLD_DIM, 105) :
+		ofColor(COL_ACCENT_GOLD_DIM, 65));
+	ofDrawRectRounded(activeSegmentX + 2.0f, layout.favoritesModeButton.y + 2.0f,
+		segmentW - 4.0f, layout.favoritesModeButton.height - 4.0f, 3.0f);
+	ofNoFill();
+	ofSetColor(modeHovered ? COL_ACCENT_GOLD : COL_BORDER_MUTED);
+	ofDrawRectRounded(layout.favoritesModeButton, 4.0f);
+	ofFill();
+	ofSetColor(ofColor(COL_BORDER_MUTED, 150));
+	ofDrawLine(layout.favoritesModeButton.x + segmentW,
+		layout.favoritesModeButton.y + 4.0f,
+		layout.favoritesModeButton.x + segmentW,
+		layout.favoritesModeButton.getBottom() - 4.0f);
+
+	const float topModeCx = layout.favoritesModeButton.x + segmentW * 0.5f;
+	const float topModeY = layout.favoritesModeButton.y;
+	ofSetColor(COL_ACCENT_GOLD);
+	drawStarGlyph(topModeCx, topModeY + 7.0f, 3.5f, true);
+	ofSetColor(favoritesDisplayMode == FAVORITES_TOP ?
+		COL_ACCENT_CYAN : COL_TEXT_MUTED);
+	ofSetLineWidth(1.4f);
+	ofDrawLine(topModeCx - 7.0f, topModeY + 15.0f,
+		topModeCx + 7.0f, topModeY + 15.0f);
+	ofDrawLine(topModeCx - 7.0f, topModeY + 19.0f,
+		topModeCx + 4.0f, topModeY + 19.0f);
+
+	const float folderModeX = layout.favoritesModeButton.x + segmentW;
+	for (int i = 0; i < 3; i++) {
+		const float rowY = layout.favoritesModeButton.y + 6.0f + i * 6.0f;
+		ofSetColor(COL_ACCENT_GOLD);
+		drawStarGlyph(folderModeX + 7.0f, rowY, 2.4f, true);
+		ofSetColor(favoritesDisplayMode == FAVORITES_IN_FOLDERS ?
+			COL_ACCENT_CYAN : COL_TEXT_MUTED);
+		ofDrawLine(folderModeX + 12.0f, rowY,
+			folderModeX + segmentW - 5.0f, rowY);
+	}
+	ofSetLineWidth(1.0f);
+	jp_tooltip::draw(
+		favoritesDisplayMode == FAVORITES_TOP ?
+			"Show favorites inside folders" :
+			"Show favorites at top",
+		layout.favoritesModeButton.x,
+		layout.favoritesModeButton.y,
+		layout.favoritesModeButton.width,
+		layout.favoritesModeButton.height);
+
+	ofSetColor(ofColor(COL_BORDER_MUTED, 150));
+	ofDrawLine(layout.panel.x + 16.0f, layout.titleBaseline + 6.0f,
+		layout.favoritesModeButton.x - 8.0f, layout.titleBaseline + 6.0f);
+
+	ofSetColor(COL_TEXT_MUTED);
+	const string hint = language == 0 ?
+		"Up/Down navigate | double click/Enter to load" :
+		"Arriba/Abajo navegar | doble clic/Enter para cargar";
+	font_p.drawString(hint, layout.panel.x + 16.0f, layout.hintBaseline);
+
+	const bool clearVisible = !shaderSearchText.empty();
+	const bool clearHovered = clearVisible &&
+		layout.searchClear.inside(ofGetMouseX(), ofGetMouseY());
+	ofSetColor(COL_BG_BUTTON);
+	ofDrawRectRounded(layout.search, 4.0f);
+	ofNoFill();
+	ofSetColor(ofColor(COL_ACCENT_CYAN, 135));
+	ofSetLineWidth(1.0f);
+	ofDrawRectRounded(layout.search, 4.0f);
+	ofFill();
+
+	const string searchLabel = language == 0 ? "Search:" : "Buscar:";
+	const float searchLabelX = layout.search.x + 7.0f;
+	const float searchBaseline = layout.search.y + layout.search.height * 0.5f + 4.0f;
+	ofSetColor(COL_TEXT_MUTED);
+	font_p.drawString(searchLabel, searchLabelX, searchBaseline);
+
+	const float textX = searchLabelX + font_p.stringWidth(searchLabel) + 5.0f;
+	const float textRight = layout.searchClear.x - 5.0f;
+	const float textMaxW = std::max(1.0f, textRight - textX);
+	shaderSearchCursor = ofClamp(shaderSearchCursor, 0, (int)shaderSearchText.size());
+
+	int displayStart = 0;
+	int displayEnd = (int)shaderSearchText.size();
+	while (displayStart < shaderSearchCursor &&
+		font_p.stringWidth(shaderSearchText.substr(displayStart,
+			shaderSearchCursor - displayStart)) > textMaxW) {
+		displayStart++;
+	}
+	while (displayEnd > displayStart &&
+		font_p.stringWidth(shaderSearchText.substr(displayStart,
+			displayEnd - displayStart)) > textMaxW) {
+		displayEnd--;
+	}
+	const string displayText = shaderSearchText.substr(displayStart, displayEnd - displayStart);
+	if (shaderSearchText.empty()) {
+		ofSetColor(ofColor(COL_TEXT_MUTED, 150));
+		const string placeholder = language == 0 ? "type shader name..." : "escribe nombre...";
+		font_p.drawString(placeholder, textX + 3.0f, searchBaseline);
 	} else {
-		drawFooterBtn(bindX, COL_BG_BUTTON, COL_ACCENT_GOLD_DIM, "BIND", hasSel);
+		ofSetColor(COL_TEXT_PRIMARY);
+		font_p.drawString(displayText, textX, searchBaseline);
+	}
+	jp_textfield::drawCaret(font_p, displayText,
+		shaderSearchCursor - displayStart, textX,
+		layout.search.getCenter().y, layout.search.height - 8.0f);
+
+	if (clearVisible) {
+		if (clearHovered) {
+			ofSetColor(ofColor(COL_TEXT_MUTED, 45));
+			ofDrawRectRounded(layout.searchClear.x + 3.0f, layout.searchClear.y + 3.0f,
+				layout.searchClear.width - 6.0f, layout.searchClear.height - 6.0f, 3.0f);
+		}
+		ofSetColor(clearHovered ? COL_TEXT_PRIMARY : COL_TEXT_MUTED);
+		const float cx = layout.searchClear.getCenter().x;
+		const float cy = layout.searchClear.getCenter().y;
+		ofSetLineWidth(1.5f);
+		ofDrawLine(cx - 4.0f, cy - 4.0f, cx + 4.0f, cy + 4.0f);
+		ofDrawLine(cx + 4.0f, cy - 4.0f, cx - 4.0f, cy + 4.0f);
+		ofSetLineWidth(1.0f);
 	}
 
-	drawFooterBtn(editX, COL_BG_BUTTON, COL_ACCENT_GOLD_DIM, "EDIT", hasSel);
+	const vector<ShaderBrowserRow> allRows = buildShaderBrowserRows();
+	const vector<ShaderBrowserRow> visibleRows =
+		getVisibleShaderBrowserRows(layout, allRows);
+	const int maxScroll = getMaxShaderScroll(allRows, layout.list.height);
 
-	// ---- PREVIEW PANE (inside the panel, between list and footer) ----
-	// Live render of the currently-selected shader so you can preview before
-	// loading, framed inside the navigator's background.
-	{
-		float titleH = 18.0f;
-		float pad = 6.0f;
-		// Window frame spanning the panel width in the reserved preview area.
-		ofSetColor(COL_BG_INPUT);
-		ofDrawRectRounded(listX, pvAreaY, listW, pvAreaH, 6);
-		ofNoFill();
-		ofSetColor(ofColor(COL_ACCENT_CYAN, 90));
-		ofSetLineWidth(1.0f);
-		ofDrawRectRounded(listX, pvAreaY, listW, pvAreaH, 6);
-		ofFill();
+	if (shaderScroll > 0) {
+		const float cx = layout.list.getRight() - 8.0f;
+		const float cy = layout.list.y + 5.0f;
+		ofSetColor(ofColor(COL_ACCENT_CYAN, 140));
+		ofDrawTriangle(cx - 4.0f, cy + 3.0f, cx + 4.0f, cy + 3.0f, cx, cy - 2.0f);
+	}
+	if (shaderScroll < maxScroll) {
+		const float cx = layout.list.getRight() - 8.0f;
+		const float cy = layout.list.getBottom() - 5.0f;
+		ofSetColor(ofColor(COL_ACCENT_CYAN, 140));
+		ofDrawTriangle(cx - 4.0f, cy - 3.0f, cx + 4.0f, cy - 3.0f, cx, cy + 2.0f);
+	}
 
-		if (hasSel && previewShaderLoaded && previewFbo.isAllocated()) {
-			// Title
-			ofSetColor(COL_ACCENT_CYAN);
-			string pvTitle = (language == 0 ? "PREVIEW: " : "PREVISTA: ") +
-							 shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].name;
-			while (font_p.stringWidth(pvTitle) > listW - 12 && pvTitle.size() > 3)
-				pvTitle = pvTitle.substr(0, pvTitle.size() - 1);
-			font_p.drawString(pvTitle, listX + pad, pvAreaY + titleH - 3);
+	for (const ShaderBrowserRow &row : visibleRows) {
+		const bool isSelected = row.folderIndex == selectedShaderFolder &&
+			row.shaderIndex == selectedShaderIndex;
+		const bool isHovered = row.folderIndex == hoveredShaderFolder &&
+			row.shaderIndex == hoveredShaderIndex;
 
-			// Aspect-fit the render into the remaining area.
-			float availW = listW - pad * 2;
-			float availH = pvAreaH - titleH - pad * 2;
-			float aspect = previewFbo.getHeight() / (float)previewFbo.getWidth();
-			float drawW = availW;
-			float drawH = drawW * aspect;
-			if (drawH > availH) { drawH = availH; drawW = drawH / aspect; }
-			float drawXp = listX + (listW - drawW) / 2.0f;
-			float drawYp = pvAreaY + titleH + pad + (availH - drawH) / 2.0f;
-			ofSetColor(COL_TEXT_PRIMARY);
-			previewFbo.draw(drawXp, drawYp, drawW, drawH);
-		} else {
+		if (row.folderHeader) {
+			const ShaderFolder &folder = shaderFolders[row.folderIndex];
+			if (isSelected) {
+				ofSetColor(ofColor(COL_ACCENT_CYAN_DIM, 80));
+				ofDrawRectRounded(row.bounds, 3.0f);
+			} else if (isHovered) {
+				ofSetColor(ofColor(COL_BG_HOVER, 210));
+				ofDrawRectRounded(row.bounds, 3.0f);
+			}
+
+			const bool expanded = !shaderSearchText.empty() || folder.expanded;
+			const float arrowCx = row.bounds.x + 7.0f;
+			const float arrowCy = row.bounds.getCenter().y;
+			ofSetColor(folder.isFavorites ? COL_ACCENT_GOLD :
+				(isHovered ? COL_ACCENT_CYAN : ofColor(120, 200, 255)));
+			if (expanded) {
+				ofDrawTriangle(arrowCx - 4.0f, arrowCy - 2.5f,
+					arrowCx + 4.0f, arrowCy - 2.5f,
+					arrowCx, arrowCy + 2.5f);
+			} else {
+				ofDrawTriangle(arrowCx - 2.5f, arrowCy - 4.0f,
+					arrowCx - 2.5f, arrowCy + 4.0f,
+					arrowCx + 2.5f, arrowCy);
+			}
+
+			float folderNameX = row.bounds.x + 16.0f;
+			if (folder.isFavorites) {
+				drawStarGlyph(folderNameX + 4.0f, arrowCy, 5.0f, true);
+				folderNameX += 14.0f;
+			}
+			const string countText = "(" + ofToString((int)folder.shaders.size()) + ")";
+			const float countWidth = font_p.stringWidth(countText);
+			const string folderName = fitText(folder.name,
+				row.bounds.width - (folderNameX - row.bounds.x) - countWidth - 16.0f);
+			ofSetColor(folder.isFavorites ? COL_ACCENT_GOLD :
+				(isHovered ? COL_TEXT_PRIMARY : ofColor(120, 200, 255)));
+			font_p.drawString(folderName, folderNameX, row.bounds.y + row.bounds.height - 4.0f);
 			ofSetColor(COL_TEXT_MUTED);
-			string none = language == 0 ? "select a shader to preview" : "selecciona un shader";
-			font_p.drawString(none, listX + 8, pvAreaY + pvAreaH / 2);
+			font_p.drawString(countText, row.bounds.getRight() - countWidth - 7.0f,
+				row.bounds.y + row.bounds.height - 4.0f);
+		} else {
+			const ShaderEntry &entry =
+				shaderFolders[row.folderIndex].shaders[row.shaderIndex];
+			ofRectangle shaderBounds = row.bounds;
+			shaderBounds.x += SHADER_ROW_INDENT;
+			shaderBounds.width -= SHADER_ROW_INDENT;
+			if (isSelected) {
+				ofSetColor(ofColor(COL_ACCENT_CYAN_DIM, 120));
+				ofDrawRectRounded(shaderBounds, 3.0f);
+				ofSetColor(COL_ACCENT_CYAN);
+				ofDrawRectangle(shaderBounds.x, shaderBounds.y + 2.0f, 2.0f,
+					shaderBounds.height - 4.0f);
+			} else if (isHovered) {
+				ofSetColor(ofColor(COL_BG_HOVER, 220));
+				ofDrawRectRounded(shaderBounds, 3.0f);
+			}
+
+			const float starCx = shaderBounds.x + SHADER_STAR_OFFSET;
+			const float starCy = shaderBounds.getCenter().y;
+			if (entry.favorite) {
+				ofSetColor(COL_ACCENT_GOLD);
+				drawStarGlyph(starCx, starCy, 5.0f, true);
+			} else {
+				ofSetColor(isHovered || isSelected ?
+					ofColor(COL_TEXT_MUTED, 180) : ofColor(COL_TEXT_MUTED, 65));
+				drawStarGlyph(starCx, starCy, 5.0f, false);
+			}
+			const float nameX = shaderBounds.x + SHADER_NAME_OFFSET;
+			const string bindingKey =
+				midiKeymap.getAddShaderBindingLabel(entry.name, entry.path);
+			string bindingLabel = bindingKey.empty() ? "" : "MIDI " + bindingKey;
+			float nameRight = shaderBounds.getRight() - 7.0f;
+			float bindingX = nameRight;
+			if (!bindingLabel.empty()) {
+				const float bindingMaxW =
+					std::min(145.0f, shaderBounds.width * 0.44f);
+				bindingLabel = fitText(bindingLabel, bindingMaxW);
+				const float bindingWidth = font_p.stringWidth(bindingLabel);
+				bindingX = shaderBounds.getRight() - bindingWidth - 7.0f;
+				nameRight = bindingX - 10.0f;
+			}
+			const string shaderName =
+				fitText(entry.name, std::max(20.0f, nameRight - nameX));
+			ofSetColor(isSelected || isHovered ? COL_TEXT_PRIMARY : COL_TEXT_DIM);
+			font_p.drawString(shaderName, nameX, shaderBounds.y + shaderBounds.height - 4.0f);
+			if (!bindingLabel.empty()) {
+				ofSetColor(isSelected || isHovered ? COL_ACCENT_CYAN : COL_MAPPED_ON);
+				font_p.drawString(bindingLabel, bindingX,
+					shaderBounds.y + shaderBounds.height - 4.0f);
+			}
 		}
+
+		if (showShaderHitBoxes) {
+			ofNoFill();
+			ofSetColor(isHovered ? ofColor(255, 80, 80, 200) : ofColor(80, 230, 0, 100));
+			ofDrawRectangle(row.bounds);
+			ofFill();
+		}
+	}
+
+	if (allRows.empty()) {
+		ofSetColor(COL_TEXT_MUTED);
+		const string emptyText = shaderSearchText.empty() ?
+			(language == 0 ? "No shaders found" : "No se encontraron shaders") :
+			(language == 0 ? "No shaders match this search" : "Ningun shader coincide");
+		font_p.drawString(emptyText, layout.list.x + 8.0f, layout.list.y + 22.0f);
+	}
+
+	const bool hasSelection = !getSelectedShaderPath().empty();
+	auto drawFooterButton = [&](const ofRectangle &button, ofColor fill,
+		ofColor border, const string &label, bool enabled) {
+		const bool hovered = enabled && button.inside(ofGetMouseX(), ofGetMouseY());
+		ofSetColor(enabled ? (hovered ? fill.getLerped(COL_TEXT_PRIMARY, 0.08f) : fill) :
+			ofColor(fill, 55));
+		ofDrawRectRounded(button, 4.0f);
+		ofNoFill();
+		ofSetColor(enabled ? border : ofColor(border, 70));
+		ofDrawRectRounded(button, 4.0f);
+		ofFill();
+		ofSetColor(enabled ? COL_TEXT_PRIMARY : COL_TEXT_MUTED);
+		const float labelWidth = font_p.stringWidth(label);
+		font_p.drawString(label, button.getCenter().x - labelWidth * 0.5f,
+			button.getCenter().y + 4.0f);
+	};
+
+	drawFooterButton(layout.loadButton, COL_ACCENT_CYAN_DIM, COL_ACCENT_CYAN,
+		language == 0 ? "LOAD" : "CARGAR", hasSelection);
+	if (importBindWaiting) {
+		drawFooterButton(layout.bindButton, COL_ACCENT_GOLD_DIM, COL_ACCENT_GOLD,
+			language == 0 ? "MOVE MIDI" : "MUEVE MIDI", true);
+	} else {
+		drawFooterButton(layout.bindButton, COL_BG_BUTTON, COL_ACCENT_GOLD_DIM,
+			"BIND", hasSelection);
+	}
+	drawFooterButton(layout.editButton, COL_BG_BUTTON, COL_ACCENT_GOLD_DIM,
+		"EDIT", hasSelection);
+
+	ofSetColor(COL_BG_INPUT);
+	ofDrawRectRounded(layout.preview, 6.0f);
+	ofNoFill();
+	ofSetColor(ofColor(COL_BORDER_MUTED, 210));
+	ofDrawRectRounded(layout.preview, 6.0f);
+	ofFill();
+
+	const float previewTitleH = 18.0f;
+	const float previewPad = 6.0f;
+	if (hasSelection && previewShaderLoaded && previewFbo.isAllocated()) {
+		const ShaderEntry &selected =
+			shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex];
+		const string previewTitle = fitText(
+			(language == 0 ? "PREVIEW: " : "PREVISTA: ") + selected.name,
+			layout.preview.width - previewPad * 2.0f);
+		ofSetColor(COL_ACCENT_CYAN);
+		font_p.drawString(previewTitle, layout.preview.x + previewPad,
+			layout.preview.y + previewTitleH - 3.0f);
+
+		const float availableW = layout.preview.width - previewPad * 2.0f;
+		const float availableH = layout.preview.height - previewTitleH - previewPad * 2.0f;
+		const float aspect = previewFbo.getHeight() / (float)previewFbo.getWidth();
+		float previewW = availableW;
+		float previewH = previewW * aspect;
+		if (previewH > availableH) {
+			previewH = availableH;
+			previewW = previewH / aspect;
+		}
+		const float previewX = layout.preview.x + (layout.preview.width - previewW) * 0.5f;
+		const float previewY = layout.preview.y + previewTitleH + previewPad +
+			(availableH - previewH) * 0.5f;
+		ofSetColor(COL_TEXT_PRIMARY);
+		previewFbo.draw(previewX, previewY, previewW, previewH);
+	} else {
+		ofSetColor(COL_TEXT_MUTED);
+		const string previewState = hasSelection ?
+			(language == 0 ? "preview unavailable" : "vista previa no disponible") :
+			(language == 0 ? "select a shader to preview" : "selecciona un shader");
+		font_p.drawString(previewState, layout.preview.x + 8.0f,
+			layout.preview.getCenter().y);
 	}
 }
 // Esta es la que se dibuja en la otra ventana
@@ -1632,31 +1767,28 @@ void ofApp::keyPressed(int key) {
 		return; // consume other keys while focused
 	}
 
-	// Shader index: Up/Down navigate the shader list (works whether or not the
-	// search field is focused; Left/Right stay with the text cursor).
-	if (pantallaActiva == SHADER_INDEX && (key == OF_KEY_UP || key == OF_KEY_DOWN)) {
-		moveShaderSelection(key == OF_KEY_DOWN ? 1 : -1);
-		return;
-	}
-
-	// Shader index: Enter loads the selected shader onto the canvas (works
-	// whether or not the search field is focused).
-	if (pantallaActiva == SHADER_INDEX && (key == OF_KEY_RETURN || key == '\r')) {
-		loadSelectedShaderBox();
-		return;
-	}
-
-	// Shader index search input
-	if (pantallaActiva == SHADER_INDEX && shaderSearchFocused) {
+	if (pantallaActiva == SHADER_INDEX) {
 		if (key == OF_KEY_ESC) {
-			shaderSearchFocused = false;
+			if (!shaderSearchText.empty()) {
+				clearShaderSearch();
+			} else {
+				pantallaActiva = NODOS;
+				shaderSearchFocused = false;
+				focusedOptionsField = -1;
+			}
+			return;
+		}
+		if (key == OF_KEY_UP || key == OF_KEY_DOWN) {
+			moveShaderSelection(key == OF_KEY_DOWN ? 1 : -1);
 			return;
 		}
 		if (key == OF_KEY_RETURN || key == '\r') {
+			loadSelectedShaderBox();
 			return;
 		}
 		if (jp_textfield::handleKey(shaderSearchText, shaderSearchCursor, key)) {
 			shaderScroll = 0;
+			clampShaderScroll(getShaderBrowserLayout());
 		}
 		return;
 	}
@@ -1689,6 +1821,8 @@ void ofApp::keyPressed(int key) {
 	if (key == '4') {
 		pantallaActiva = SHADER_INDEX;
 		focusedOptionsField = -1;
+		shaderSearchFocused = true;
+		shaderSearchCursor = ofClamp(shaderSearchCursor, 0, (int)shaderSearchText.size());
 		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
 		if (shaderFolders.empty()) {
 			scanShaders();
@@ -1699,13 +1833,6 @@ void ofApp::keyPressed(int key) {
 		pantallaActiva = EDITOR;
 		focusedOptionsField = -1;
 		shaderEditor.setVisible(true);
-	}
-
-	// ESC from shader index goes back to NODOS
-	if (key == OF_KEY_ESC && pantallaActiva == SHADER_INDEX) {
-		pantallaActiva = NODOS;
-		focusedOptionsField = -1;
-		return;
 	}
 
 	// ESC from editor goes back to NODOS
@@ -2025,6 +2152,8 @@ void ofApp::mousePressed(int x, int y, int button) {
 					if (shaderFolders.empty()) {
 						scanShaders();
 					}
+					shaderSearchFocused = true;
+					shaderSearchCursor = ofClamp(shaderSearchCursor, 0, (int)shaderSearchText.size());
 				} else if (tabScreen == EDITOR) {
 					shaderEditor.setVisible(true);
 				}
@@ -2177,169 +2306,113 @@ void ofApp::mousePressed(int x, int y, int button) {
 		}
 	}
 	if (pantallaActiva == SHADER_INDEX && button == 0) {
-		float panelX = 30, panelY = 44;
-		float panelW = ofGetWidth() * 0.5f - panelX - 4;
-		float panelH = ofGetHeight() - panelY - 30;
-		float listX = panelX + 15;
-		float listW = panelW - 30;
-		float fbH = 30;
-		float fbY = panelY + panelH - fbH - 10;
+		const ShaderBrowserLayout layout = getShaderBrowserLayout();
+		shaderSearchFocused = true;
+		if (!layout.panel.inside(x, y)) return;
 
-		// Only the left navigator panel is interactive; clicks in the right
-		// (uncovered) half just unfocus the search field and fall through.
-		if (x < panelX || x > panelX + panelW || y < panelY || y > panelY + panelH) {
-			shaderSearchFocused = false;
+		if (layout.favoritesModeButton.inside(x, y)) {
+			toggleFavoritesDisplayMode();
+			return;
+		}
+		if (!shaderSearchText.empty() && layout.searchClear.inside(x, y)) {
+			clearShaderSearch();
+			return;
+		}
+		if (layout.search.inside(x, y)) {
+			const string searchLabel = language == 0 ? "Search:" : "Buscar:";
+			const float textX = layout.search.x + 7.0f +
+				font_p.stringWidth(searchLabel) + 5.0f;
+			const float textMaxW = std::max(1.0f, layout.searchClear.x - 5.0f - textX);
+			shaderSearchCursor = ofClamp(shaderSearchCursor, 0, (int)shaderSearchText.size());
+			int displayStart = 0;
+			int displayEnd = (int)shaderSearchText.size();
+			while (displayStart < shaderSearchCursor &&
+				font_p.stringWidth(shaderSearchText.substr(displayStart,
+					shaderSearchCursor - displayStart)) > textMaxW) {
+				displayStart++;
+			}
+			while (displayEnd > displayStart &&
+				font_p.stringWidth(shaderSearchText.substr(displayStart,
+					displayEnd - displayStart)) > textMaxW) {
+				displayEnd--;
+			}
+			const string displayText =
+				shaderSearchText.substr(displayStart, displayEnd - displayStart);
+			int localCursor = 0;
+			const float relativeX = std::max(0.0f, (float)x - textX);
+			for (int i = 1; i <= (int)displayText.size(); i++) {
+				const float previousWidth = font_p.stringWidth(displayText.substr(0, i - 1));
+				const float currentWidth = font_p.stringWidth(displayText.substr(0, i));
+				if (relativeX < (previousWidth + currentWidth) * 0.5f) break;
+				localCursor = i;
+			}
+			shaderSearchCursor = ofClamp(displayStart + localCursor,
+				0, (int)shaderSearchText.size());
 			return;
 		}
 
-		// ---- SEARCH BAR CLICK CHECK ----
-		float searchH = 22;
-		float searchY = panelY + 64;
-		if (x >= listX && x <= listX + listW && y >= searchY && y <= searchY + searchH) {
-			shaderSearchFocused = true;
-			shaderSearchCursor = shaderSearchText.size();
+		if (!getSelectedShaderPath().empty()) {
+			const string selectedPath = getSelectedShaderPath();
+			const string selectedName =
+				shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].name;
+			if (layout.loadButton.inside(x, y)) {
+				loadSelectedShaderBox();
+				return;
+			}
+			if (layout.bindButton.inside(x, y)) {
+				if (importBindWaiting || midiKeymap.isLearning()) {
+					midiKeymap.cancelInlineLearn();
+					importBindWaiting = false;
+				} else {
+					midiKeymap.beginAddShaderLearn(selectedName);
+					importBindWaiting = true;
+				}
+				return;
+			}
+			if (layout.editButton.inside(x, y)) {
+				shaderEditor.openShader(selectedPath, selectedName);
+				return;
+			}
+		}
+
+		for (const ShaderBrowserRow &row : getVisibleShaderBrowserRows(layout)) {
+			if (!row.bounds.inside(x, y)) continue;
+			if (row.folderHeader) {
+				selectedShaderFolder = row.folderIndex;
+				selectedShaderIndex = -1;
+				if (shaderSearchText.empty()) {
+					ShaderFolder &folder = shaderFolders[row.folderIndex];
+					folder.expanded = !folder.expanded;
+					if (folder.isFavorites) favoritesFolderExpanded = folder.expanded;
+					clampShaderScroll(layout);
+				}
+				return;
+			}
+
+			const float starCx =
+				row.bounds.x + SHADER_ROW_INDENT + SHADER_STAR_OFFSET;
+			if (x >= starCx - SHADER_STAR_HIT_HALF_WIDTH &&
+				x <= starCx + SHADER_STAR_HIT_HALF_WIDTH) {
+				toggleFavorite(shaderFolders[row.folderIndex].shaders[row.shaderIndex].path);
+				clampShaderScroll(layout);
+				return;
+			}
+
+			const float now = ofGetElapsedTimef();
+			const bool doubleClick =
+				lastShaderClickFolder == row.folderIndex &&
+				lastShaderClickIndex == row.shaderIndex &&
+				now - lastShaderClickTime < 0.35f;
+			selectShaderForPreview(row.folderIndex, row.shaderIndex);
+			if (doubleClick) {
+				loadSelectedShaderBox();
+				lastShaderClickTime = -1.0f;
+			} else {
+				lastShaderClickTime = now;
+				lastShaderClickFolder = row.folderIndex;
+				lastShaderClickIndex = row.shaderIndex;
+			}
 			return;
-		}
-		shaderSearchFocused = false;
-
-		// ---- FOOTER BUTTONS: LOAD / BIND / EDIT ----
-		if (selectedShaderFolder >= 0 && selectedShaderIndex >= 0 &&
-			selectedShaderFolder < (int)shaderFolders.size() &&
-			selectedShaderIndex < (int)shaderFolders[selectedShaderFolder].shaders.size()) {
-			float fbGap = 8;
-			float fbW = (listW - fbGap * 2) / 3.0f;
-			float loadX = listX;
-			float bindX = listX + fbW + fbGap;
-			float editX = listX + (fbW + fbGap) * 2;
-			string selPath = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
-			string selName = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].name;
-
-			if (y >= fbY && y <= fbY + fbH) {
-				// LOAD - add the box near the centre of the right (visible) half so
-				// it appears in the uncovered area for immediate visual feedback.
-				if (x >= loadX && x <= loadX + fbW) {
-					loadSelectedShaderBox();
-					return;
-				}
-				// BIND - inline MIDI-learn for the add-shader command (toggle).
-				if (x >= bindX && x <= bindX + fbW) {
-					if (importBindWaiting || midiKeymap.isLearning()) {
-						midiKeymap.cancelInlineLearn();
-						importBindWaiting = false;
-					} else {
-						midiKeymap.beginAddShaderLearn(selName);
-						importBindWaiting = true;
-					}
-					return;
-				}
-				// EDIT - open the shader in the code editor.
-				if (x >= editX && x <= editX + fbW) {
-					shaderEditor.openShader(selPath, selName);
-					return;
-				}
-			}
-		}
-
-		// ---- FOLDER/SHADER LIST (left side) ----
-		// drawTop = searchY(64) + searchH(22) + 20 = panelY + 106; list stops
-		// above the preview pane (fbY - 188).
-		double clickStartY = panelY + 106;
-		if (x >= listX && x <= listX + listW && y >= clickStartY && y <= fbY - 188) {
-			float drawTop = panelY + 106;
-			float folderEntryH = 16;
-			float shaderEntryH = 14;
-			float indentStep = 12;
-
-			// Iterate the actual tree to compute exact Y ranges (matching draw_shaderindex)
-			int currentLine = 0;
-			float drawY = drawTop;
-
-			for (size_t f = 0; f < shaderFolders.size(); f++) {
-				// Search filtering: skip folders with no matching content
-				{
-					bool searchActive = !shaderSearchText.empty();
-					if (searchActive) {
-						string searchLower = ofToLower(shaderSearchText);
-						string folderNameLower = ofToLower(shaderFolders[f].name);
-						bool folderMatch = folderNameLower.find(searchLower) != string::npos;
-						bool hasMatch = folderMatch;
-						if (!hasMatch) {
-							for (size_t ss = 0; ss < shaderFolders[f].shaders.size(); ss++) {
-								if (ofToLower(shaderFolders[f].shaders[ss].name).find(searchLower) != string::npos) {
-									hasMatch = true;
-									break;
-								}
-							}
-						}
-						if (!hasMatch) continue;
-					}
-				}
-				currentLine++;
-				if (currentLine > shaderScroll) {
-					float folderTop = drawY - folderEntryH;
-					if (y >= folderTop && y < drawY) {
-						// Clicked on folder header - toggle expand
-						shaderFolders[f].expanded = !shaderFolders[f].expanded;
-						selectedShaderFolder = (int)f;
-						selectedShaderIndex = -1;
-						previewShaderLoaded = false;
-						return;
-					}
-					drawY += folderEntryH;
-				}
-
-				if (shaderFolders[f].expanded) {
-					bool searchActive = !shaderSearchText.empty();
-					string searchLower;
-					string folderNameLower;
-					bool folderMatch = false;
-					if (searchActive) {
-						searchLower = ofToLower(shaderSearchText);
-						folderNameLower = ofToLower(shaderFolders[f].name);
-						folderMatch = folderNameLower.find(searchLower) != string::npos;
-					}
-					for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
-						// Skip non-matching shaders when searching
-						if (searchActive) {
-							string sn = ofToLower(shaderFolders[f].shaders[s].name);
-							if (!folderMatch && sn.find(searchLower) == string::npos) {
-								continue;
-							}
-						}
-						currentLine++;
-						if (currentLine > shaderScroll) {
-							float shaderTop = drawY - shaderEntryH;
-							if (y >= shaderTop && y < drawY) {
-								// Star toggle hit box (just after the name, matching draw)
-								float nameX = listX + indentStep * 2;
-								float sCx = nameX + font_p.stringWidth(shaderFolders[f].shaders[s].name) + 12;
-								float sMax = listX + listW - 10;
-								if (sCx > sMax) sCx = sMax;
-								if (x >= sCx - 10 && x <= sCx + 10) {
-									toggleFavorite(shaderFolders[f].shaders[s].path);
-									return;
-								}
-								// Clicked on shader entry - select; double-click loads.
-								float now = ofGetElapsedTimef();
-								bool dbl = (lastShaderClickFolder == (int)f &&
-											lastShaderClickIndex == (int)s &&
-											(now - lastShaderClickTime) < 0.35f);
-								selectShaderForPreview((int)f, (int)s);
-								if (dbl) {
-									loadSelectedShaderBox();
-									lastShaderClickTime = -1.0f; // reset so a 3rd click isn't a dbl
-								} else {
-									lastShaderClickTime = now;
-									lastShaderClickFolder = (int)f;
-									lastShaderClickIndex = (int)s;
-								}
-								return;
-							}
-							drawY += shaderEntryH;
-						}
-					}
-				}
-			}
 		}
 	}
 }
@@ -2352,76 +2425,16 @@ void ofApp::windowResized(int w, int h) {
 }
 void ofApp::keyReleased(int key) { }
 void ofApp::mouseMoved(int x, int y) {
-	if (pantallaActiva == SHADER_INDEX) {
-		float panelX = 30, panelY = 44;
-		float panelW = ofGetWidth() * 0.5f - panelX - 4;
-		float panelH = ofGetHeight() - panelY - 30;
-		float listX = panelX + 15;
-		float listW = panelW - 30;
-		float fbY = panelY + panelH - 40;
+	hoveredShaderFolder = -1;
+	hoveredShaderIndex = -1;
+	if (pantallaActiva != SHADER_INDEX) return;
 
-		// Reset hover state
-		hoveredShaderFolder = -1;
-		hoveredShaderIndex = -1;
-
-		// Search bar offset: drawTop = searchY(64) + searchH(22) + 20 = panelY + 106
-		double clickStartY = panelY + 106;
-		if (x >= listX && x <= listX + listW && y >= clickStartY && y <= fbY - 188) {
-			float folderEntryH = 16;
-			float shaderEntryH = 14;
-			float drawBottom = fbY - 188;
-			float drawY = clickStartY;
-			int currentLine = 0; // mirror draw_shaderindex scroll handling
-
-			for (size_t f = 0; f < shaderFolders.size(); f++) {
-				if (drawY > drawBottom) break;
-				bool searchActive = !shaderSearchText.empty();
-				string searchLower = ofToLower(shaderSearchText);
-				bool folderNameMatch = false;
-				bool hasMatchingShader = false;
-				if (searchActive) {
-					folderNameMatch = ofToLower(shaderFolders[f].name).find(searchLower) != string::npos;
-					if (!folderNameMatch) {
-						for (size_t ss = 0; ss < shaderFolders[f].shaders.size(); ss++) {
-							if (ofToLower(shaderFolders[f].shaders[ss].name).find(searchLower) != string::npos) { hasMatchingShader = true; break; }
-						}
-					}
-					if (!folderNameMatch && !hasMatchingShader) continue;
-				}
-
-				// Folder header — count every line, gate visibility by scroll (matches draw)
-				currentLine++;
-				if (currentLine > shaderScroll) {
-					if (drawY + folderEntryH <= drawBottom) {
-						if (y >= drawY - folderEntryH && y < drawY) {
-							hoveredShaderFolder = (int)f;
-							hoveredShaderIndex = -1;
-							break;
-						}
-						drawY += folderEntryH;
-					}
-				}
-
-				if (shaderFolders[f].expanded) {
-					for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
-						if (searchActive && !folderNameMatch &&
-							ofToLower(shaderFolders[f].shaders[s].name).find(searchLower) == string::npos) {
-							continue;
-						}
-						currentLine++;
-						if (currentLine > shaderScroll) {
-							if (drawY + shaderEntryH > drawBottom) break;
-							if (y >= drawY - shaderEntryH && y < drawY) {
-								hoveredShaderFolder = (int)f;
-								hoveredShaderIndex = (int)s;
-								break;
-							}
-							drawY += shaderEntryH;
-						}
-					}
-					if (hoveredShaderFolder >= 0) break;
-				}
-			}
+	const ShaderBrowserLayout layout = getShaderBrowserLayout();
+	for (const ShaderBrowserRow &row : getVisibleShaderBrowserRows(layout)) {
+		if (row.bounds.inside(x, y)) {
+			hoveredShaderFolder = row.folderIndex;
+			hoveredShaderIndex = row.shaderIndex;
+			break;
 		}
 	}
 }
@@ -2446,12 +2459,10 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 		return;
 	}
 	if (pantallaActiva == SHADER_INDEX) {
-		float panelX = 30, panelY = 44;
-		float panelW = ofGetWidth() * 0.5f - panelX - 4;
-		float panelH = ofGetHeight() - panelY - 30;
-		if (x >= panelX && x <= panelX + panelW && y >= panelY && y <= panelY + panelH) {
+		const ShaderBrowserLayout layout = getShaderBrowserLayout();
+		if (layout.panel.inside(x, y)) {
 			shaderScroll -= (int)scrollY * 3;
-			if (shaderScroll < 0) shaderScroll = 0;
+			clampShaderScroll(layout);
 		}
 		return;
 	}
@@ -2572,6 +2583,7 @@ void ofApp::loadSettings() {
 	auto cuePanelY = settings.getChild("cue_panel_y");
 	auto cuePanelW = settings.getChild("cue_panel_w");
 	auto cuePanelH = settings.getChild("cue_panel_h");
+	auto favoritesDisplayModeChild = settings.getChild("favorites_display_mode");
 
 	cout << "/****************************************************/" << endl;
 	cout << "INITIAL VALUES FROM SETTINGS.XML " << endl;
@@ -2628,6 +2640,10 @@ void ofApp::loadSettings() {
 		defaultCompoPath = defaultCompoChild.getValue();
 		cout << "defaultcompo: " << defaultCompoPath << endl;
 	}
+	if (favoritesDisplayModeChild) {
+		favoritesDisplayMode = favoritesDisplayModeChild.getIntValue() == FAVORITES_IN_FOLDERS ?
+			FAVORITES_IN_FOLDERS : FAVORITES_TOP;
+	}
 
 	receiver.setup(oscportin.getIntValue());
 	sender.setup(oscipout.getValue(), oscportout.getIntValue());
@@ -2683,6 +2699,7 @@ void ofApp::saveSettings() {
 	settings.appendChild("oscout_mode2").set(toXmlString(oscout_mode2));
 	settings.appendChild("defaultcompo").set(defaultCompoPath);
 	settings.appendChild("bpm").set((int)jp_constants::bpm);
+	settings.appendChild("favorites_display_mode").set((int)favoritesDisplayMode);
 
 	xml.save(settingsPath);
 }
@@ -2914,6 +2931,7 @@ void ofApp::drawSaveModal() {
 	modalFont.drawString(saveModalName, fieldX + 8, textY);
 	jp_textfield::drawCaret(modalFont, saveModalName, saveModalCursor,
 							fieldX + 8, fieldY + fieldH * 0.5f, fieldH - 10);
+	jp_tooltip::draw("Enter composition filename", fieldX, fieldY, fieldW, fieldH);
 
 	// Preview path below the field
 	ofSetColor(100, 130, 160);
@@ -2941,6 +2959,7 @@ void ofApp::drawSaveModal() {
 	string saveLabel = "SAVE";
 	float saveLabelW = modalFont.stringWidth(saveLabel);
 	modalFont.drawString(saveLabel, saveBtnX + btnW / 2 - saveLabelW / 2, btnY + btnH / 2 + 5);
+	jp_tooltip::draw("Save as new composition", saveBtnX, btnY, btnW, btnH);
 
 	// --- UPDATE button (amber / gold) ---
 	ofSetColor(220, 190, 50, 230);
@@ -2949,6 +2968,7 @@ void ofApp::drawSaveModal() {
 	string updateLabel = "UPDATE";
 	float updateLabelW = modalFont.stringWidth(updateLabel);
 	modalFont.drawString(updateLabel, updateBtnX + btnW / 2 - updateLabelW / 2, btnY + btnH / 2 + 5);
+	jp_tooltip::draw("Overwrite the selected composition", updateBtnX, btnY, btnW, btnH);
 
 	// --- CANCEL button (gray) ---
 	ofSetColor(ofColor(COL_TEXT_MUTED, 230));
@@ -2957,6 +2977,7 @@ void ofApp::drawSaveModal() {
 	string cancelLabel = "CANCEL";
 	float cancelLabelW = modalFont.stringWidth(cancelLabel);
 	modalFont.drawString(cancelLabel, cancelBtnX + btnW / 2 - cancelLabelW / 2, btnY + btnH / 2 + 5);
+	jp_tooltip::draw("Close without saving", cancelBtnX, btnY, btnW, btnH);
 }
 
 void ofApp::confirmSaveModal() {
@@ -2998,13 +3019,14 @@ void ofApp::drawScreenTabs() {
 	struct ScreenTab {
 		string label;
 		int screenId;
+		string tooltip;
 	};
 	vector<ScreenTab> tabs = {
-		{"NODES", NODOS},
-		{"SETTINGS", OPCIONES},
-		{"HELP", TUTORIAL},
-		{"IMPORT", SHADER_INDEX},
-		{"EDITOR", EDITOR}
+		{"NODES", NODOS, "Edit the node graph"},
+		{"SETTINGS", OPCIONES, "Configure ports, render size, BPM, and output"},
+		{"HELP", TUTORIAL, "View keyboard and workflow help"},
+		{"IMPORT", SHADER_INDEX, "Browse and preview shader boxes"},
+		{"EDITOR", EDITOR, "Edit the selected shader source"}
 	};
 
 	float x = tabX + pad;
@@ -3045,6 +3067,7 @@ void ofApp::drawScreenTabs() {
 		jp_constants::p_font.drawString(label, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
 
 		ofPopStyle();
+		jp_tooltip::draw(tabs[i].tooltip, x, y, tabW, tabH);
 
 		x += tabW + gap;
 	}

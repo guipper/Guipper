@@ -2,6 +2,7 @@
 
 #include "defines.h"
 #include "ofMain.h"
+#include "../JPutils/jp_tooltip.h"
 #include <vector>
 #include <string>
 

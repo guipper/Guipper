@@ -94,6 +94,8 @@ public:
 	void beginAddShaderLearn(const string &shaderQuery);
 	bool isLearning() const { return learning; }
 	void cancelInlineLearn() { cancelLearning(); }
+	string getAddShaderBindingLabel(const string &shaderQuery,
+		const string &shaderPath = "") const;
 
 private:
 	JPboxgroup *boxes = nullptr;
@@ -184,6 +186,7 @@ private:
 	vector<Action> getBoxActions() const;
 	string getKeyId(const MidiKey &key) const;
 	string getKeyLabel(const MidiKey &key) const;
+	string getCompactKeyLabel(const MidiKey &key) const;
 	string getActionName(Action action) const;
 	string actionToXml(Action action) const;
 	Action actionFromXml(string value) const;

@@ -1,4 +1,5 @@
 #include "jp_exposebutton.h"
+#include "../JPutils/jp_tooltip.h"
 
 void JPExposeButton::setup(float _x, float _y, float _size)
 {
@@ -79,6 +80,8 @@ void JPExposeButton::draw()
 		ofDrawRectangle(x, y, width * 0.3f, width * 0.3f);
 	}
 
+	jp_tooltip::draw("Expose parameter to visualizer",
+		x - width / 2.0f, y - height / 2.0f, width, height);
 	ofSetColor(255);
 }
 

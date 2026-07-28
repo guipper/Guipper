@@ -17,6 +17,7 @@
 //#include "JPbox/Shaderrender.h"
 #include "JPutils/jp_fileloader.h"
 #include "JPutils/jp_constants.h"
+#include "JPutils/jp_tooltip.h"
 #include "JPutils/jp_midi_keymap.h"
 #include "JPgui/jp_shader_editor.h"
 #include "ofxOsc.h"
@@ -148,6 +149,33 @@ public:
 		vector<ShaderEntry> shaders;
 	};
 
+	enum FavoritesDisplayMode {
+		FAVORITES_TOP = 0,
+		FAVORITES_IN_FOLDERS = 1
+	};
+
+	struct ShaderBrowserLayout {
+		ofRectangle panel;
+		ofRectangle favoritesModeButton;
+		ofRectangle search;
+		ofRectangle searchClear;
+		ofRectangle list;
+		ofRectangle preview;
+		ofRectangle loadButton;
+		ofRectangle bindButton;
+		ofRectangle editButton;
+		float titleBaseline = 0.0f;
+		float hintBaseline = 0.0f;
+	};
+
+	struct ShaderBrowserRow {
+		bool folderHeader = false;
+		int folderIndex = -1;
+		int shaderIndex = -1;
+		float height = 0.0f;
+		ofRectangle bounds;
+	};
+
 	enum MENUACTIVO
 	{
 		NODOS,       // NODES
@@ -178,6 +206,8 @@ public:
 	ofShader previewShader;
 	ofFbo previewFbo;
 	bool previewShaderLoaded = false;
+	string previewShaderPath;
+	float lastPreviewRenderTime = -1.0f;
 	ofImage previewImg1, previewImg2;
 
 	// Shader index hover state
@@ -200,19 +230,38 @@ public:
 	int loadBoxCount = 0;
 
 	// Favorites (persisted to bin/data/shader_favorites.xml). Paths of starred
-	// shaders; a synthetic "favorites" folder is pinned to the top of the list.
+	// shaders; display placement is controlled separately in settings.xml.
 	vector<string> favoritePaths;
+	FavoritesDisplayMode favoritesDisplayMode = FAVORITES_TOP;
+	bool favoritesFolderExpanded = true;
+	vector<vector<int>> shaderFolderOrder;
 	void loadFavorites();
 	void saveFavorites();
 	bool isFavorite(const string &path) const;
 	void toggleFavorite(const string &path);
 	void rebuildFavoritesFolder();
+	void rebuildShaderFolderOrder();
+	void toggleFavoritesDisplayMode();
+
+	ShaderBrowserLayout getShaderBrowserLayout() const;
+	const vector<int> &getOrderedShaderIndices(int folderIndex) const;
+	vector<ShaderBrowserRow> buildShaderBrowserRows() const;
+	vector<ShaderBrowserRow> getVisibleShaderBrowserRows(const ShaderBrowserLayout &layout) const;
+	vector<ShaderBrowserRow> getVisibleShaderBrowserRows(
+		const ShaderBrowserLayout &layout,
+		const vector<ShaderBrowserRow> &rows) const;
+	int getMaxShaderScroll(const vector<ShaderBrowserRow> &rows, float viewportHeight) const;
+	void clampShaderScroll(const ShaderBrowserLayout &layout);
+	void clearShaderSearch();
+	string getSelectedShaderPath() const;
 
 	// Import-page inline MIDI bind: true while waiting for a MIDI message to
 	// bind the selected shader's add-shader command.
 	bool importBindWaiting = false;
 
 	// Shared preview-selection + keyboard navigation for the shader index.
+	void ensurePreviewFbo();
+	void renderShaderPreview(bool useLiveMouse);
 	void selectShaderForPreview(int f, int s);
 	void moveShaderSelection(int dir); // -1 = up, +1 = down
 	void ensureShaderSelectionVisible();

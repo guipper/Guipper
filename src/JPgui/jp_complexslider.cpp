@@ -1,4 +1,5 @@
 #include "jp_complexslider.h"
+#include "../JPutils/jp_tooltip.h"
 #include <algorithm>
 JPHandler::JPHandler() {}
 JPHandler::~JPHandler() {}
@@ -177,6 +178,10 @@ void JPComplexSlider::draw()
 	}
 	slider_value.draw();
 	boton_collapse.draw();
+	jp_tooltip::draw("Toggle parameter automation",
+		boton_collapse.x - boton_collapse.width / 2.0f,
+		boton_collapse.y - boton_collapse.height / 2.0f,
+		boton_collapse.width, boton_collapse.height);
 
 	// movtype = parameters->movtype;
 	if (parameters->movtype != 0)
