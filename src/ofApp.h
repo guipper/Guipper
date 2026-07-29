@@ -103,15 +103,12 @@ public:
 #endif
 
 	// WINDOW MANAGMENT:
-	std::vector<shared_ptr<ofAppBaseWindow>> windows; // Esto es para las ventanas de los renders.
+	std::vector<shared_ptr<ofAppBaseWindow>> windows; // Live-output windows.
 	std::shared_ptr<ofAppBaseWindow> mainWindow;
 	bool isRenderWindowOpen = false;
 	void window_drawRender(ofEventArgs &args);
 	void window_resized(ofResizeEventArgs &args);
 	void window_mouseMove(ofMouseEventArgs &e);
-	void window_mousePressed(ofMouseEventArgs &e);
-	void window_mouseDragged(ofMouseEventArgs &e);
-	void window_mouseReleased(ofMouseEventArgs &e);
 	void window_keyPressed(ofKeyEventArgs &e);
 
 	void loadSettings();

@@ -256,6 +256,7 @@ void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 	durationGalleryMs = 1200.0f;
 	setupGalleryDurationSlider();
 	setupDefaultCuePanelLayout();
+	setupDefaultMappingPanelLayout();
 }
 void JPboxgroup::draw()
 {
@@ -481,6 +482,7 @@ void JPboxgroup::draw()
 	drawTabs();
 	draw_paramswindow();
 	drawGalleryDurationSlider();
+	drawMappingPanel();
 
 }
 void JPboxgroup::drawCuePreview()
@@ -1048,47 +1050,13 @@ void JPboxgroup::drawMappingGrid(const MappingQuad &quad,
 			(verticalEnd.y - y) / height));
 	}
 
-	// Hide anything outside the crop after drawing the lines. This is a
-	// lightweight polygon mask and keeps the mapped preview's black exterior
-	// consistent with the grid overlay.
-	ofSetColor(COL_BG_DARK);
-	ofFill();
-	const ofVec2f points[4] = {
-		quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft};
-	const ofVec2f center = (points[0] + points[1] +
-		points[2] + points[3]) * 0.25f;
-	const float maskDistance = 2.0f;
-	for (int edgeIndex = 0; edgeIndex < 4; edgeIndex++)
-	{
-		const ofVec2f edgeStart = points[edgeIndex];
-		const ofVec2f edgeEnd = points[(edgeIndex + 1) % 4];
-		const ofVec2f edge = edgeEnd - edgeStart;
-		const float side = edge.x * (center.y - edgeStart.y) -
-			edge.y * (center.x - edgeStart.x);
-		const ofVec2f outward = side >= 0.0f ?
-			ofVec2f(edge.y, -edge.x) : ofVec2f(-edge.y, edge.x);
-		const float length = outward.length();
-		if (length <= 0.00001f)
-		{
-			continue;
-		}
-		const ofVec2f offset = outward * (maskDistance / length);
-		ofBeginShape();
-		ofVertex(x + edgeStart.x * width, y + edgeStart.y * height);
-		ofVertex(x + edgeEnd.x * width, y + edgeEnd.y * height);
-		ofVertex(x + (edgeEnd.x + offset.x) * width,
-			y + (edgeEnd.y + offset.y) * height);
-		ofVertex(x + (edgeStart.x + offset.x) * width,
-			y + (edgeStart.y + offset.y) * height);
-		ofEndShape(true);
-	}
 	ofPopStyle();
 }
 
 void JPboxgroup::drawMappingHandles(const MappingQuad &quad,
-	float x, float y, float width, float height)
+	float x, float y, float width, float height, bool visible)
 {
-	if (!mappingGuidesVisible)
+	if (!visible)
 	{
 		return;
 	}
@@ -1125,33 +1093,206 @@ void JPboxgroup::drawMappingHandles(const MappingQuad &quad,
 	ofPopStyle();
 }
 
-void JPboxgroup::drawMappingEditRender(float _width, float _height)
+ofRectangle JPboxgroup::getMappingPanelPreviewRect() const
 {
+	const float padding = 10.0f;
+	const float headerHeight = 30.0f;
+	const float areaWidth = std::max(1.0f,
+		mappingPanelW - padding * 2.0f);
+	const float areaHeight = std::max(1.0f,
+		mappingPanelH - headerHeight - padding * 2.0f);
+	const ofRectangle local = getMappingPreviewRect(
+		areaWidth, areaHeight);
+	return ofRectangle(
+		mappingPanelX + padding + local.x,
+		mappingPanelY + headerHeight + padding + local.y,
+		local.width, local.height);
+}
+
+void JPboxgroup::drawMappingPanel()
+{
+	if (!mappingEditActive)
+	{
+		return;
+	}
 	JPbox *box = getMappingEditBox();
 	if (box == nullptr)
 	{
-		drawLiveOutput(0, 0, _width, _height);
 		return;
 	}
 
+	clampMappingPanelLayout();
+	const float headerHeight = 30.0f;
+	const float iconSize = 18.0f;
+	const float padding = 10.0f;
+	const float resizeHandleSize = 18.0f;
+	const ofRectangle guidesBounds =
+		getMappingPanelActionBounds(MAPPING_PANEL_GUIDES);
+	const ofRectangle gridBounds =
+		getMappingPanelActionBounds(MAPPING_PANEL_GRID);
+	const ofRectangle renderGuidesBounds =
+		getMappingPanelActionBounds(MAPPING_PANEL_RENDER_GUIDES);
+	const ofRectangle closeBounds =
+		getMappingPanelActionBounds(MAPPING_PANEL_CLOSE);
+	const ofRectangle previewRect = getMappingPanelPreviewRect();
+
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofSetColor(0, 105);
+	ofDrawRectRounded(mappingPanelX + 3.0f, mappingPanelY + 4.0f,
+		mappingPanelW, mappingPanelH, 6.0f);
+	ofSetColor(COL_BG_TAB, 245);
+	ofDrawRectRounded(mappingPanelX, mappingPanelY,
+		mappingPanelW, mappingPanelH, 6.0f);
+	ofSetColor(COL_BG_PANEL, 245);
+	ofDrawRectRounded(mappingPanelX, mappingPanelY,
+		mappingPanelW, headerHeight, 6.0f);
+	ofNoFill();
+	ofSetLineWidth(2.0f);
+	ofSetColor(COL_ACCENT_CYAN, 225);
+	ofDrawRectRounded(mappingPanelX, mappingPanelY,
+		mappingPanelW, mappingPanelH, 6.0f);
+	ofFill();
+
+	string title = "MAP - " + box->name;
+	const float maxTitleWidth = std::max(20.0f,
+		guidesBounds.x - mappingPanelX - padding * 2.0f);
+	while (!title.empty() &&
+		jp_constants::p_font.stringWidth(title) > maxTitleWidth)
+	{
+		title.pop_back();
+	}
+	ofSetColor(COL_ACCENT_CYAN);
+	jp_constants::p_font.drawString(
+		title, mappingPanelX + padding, mappingPanelY + 21.0f);
+
+	auto drawActionHover = [&](const ofRectangle &bounds, bool active) {
+		if (bounds.inside(ofGetMouseX(), ofGetMouseY()))
+		{
+			ofSetColor(active ? ofColor(COL_ACCENT_CYAN, 75) :
+				ofColor(COL_BG_HOVER, 230));
+			ofDrawRectRounded(bounds, 3.0f);
+		}
+	};
+	drawActionHover(guidesBounds, mappingGuidesVisible);
+	drawActionHover(gridBounds, mappingGridVisible);
+	drawActionHover(renderGuidesBounds, mappingRenderGuidesVisible);
+
+	ofSetColor(mappingGuidesVisible ?
+		COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
+	ofNoFill();
+	ofSetLineWidth(1.4f);
+	const float guideLeft = guidesBounds.getCenter().x - 6.0f;
+	const float guideRight = guidesBounds.getCenter().x + 6.0f;
+	const float guideTop = guidesBounds.getCenter().y - 5.0f;
+	const float guideBottom = guidesBounds.getCenter().y + 5.0f;
+	ofDrawLine(guideLeft, guideTop, guideLeft + 3.5f, guideTop);
+	ofDrawLine(guideLeft, guideTop, guideLeft, guideTop + 3.5f);
+	ofDrawLine(guideRight, guideTop, guideRight - 3.5f, guideTop);
+	ofDrawLine(guideRight, guideTop, guideRight, guideTop + 3.5f);
+	ofDrawLine(guideLeft, guideBottom, guideLeft + 3.5f, guideBottom);
+	ofDrawLine(guideLeft, guideBottom, guideLeft, guideBottom - 3.5f);
+	ofDrawLine(guideRight, guideBottom, guideRight - 3.5f, guideBottom);
+	ofDrawLine(guideRight, guideBottom, guideRight, guideBottom - 3.5f);
+
+	ofSetColor(mappingGridVisible ?
+		COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
+	ofDrawRectRounded(gridBounds.getCenter().x - 6.0f,
+		gridBounds.getCenter().y - 6.0f, 12.0f, 12.0f, 1.5f);
+	ofDrawLine(gridBounds.getCenter().x,
+		gridBounds.getCenter().y - 6.0f,
+		gridBounds.getCenter().x,
+		gridBounds.getCenter().y + 6.0f);
+	ofDrawLine(gridBounds.getCenter().x - 6.0f,
+		gridBounds.getCenter().y,
+		gridBounds.getCenter().x + 6.0f,
+		gridBounds.getCenter().y);
+
+	ofSetColor(mappingRenderGuidesVisible ?
+		COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
+	ofDrawRectRounded(renderGuidesBounds.getCenter().x - 6.0f,
+		renderGuidesBounds.getCenter().y - 4.5f,
+		12.0f, 9.0f, 1.5f);
+	ofDrawLine(renderGuidesBounds.getCenter().x - 2.5f,
+		renderGuidesBounds.getCenter().y + 6.0f,
+		renderGuidesBounds.getCenter().x + 2.5f,
+		renderGuidesBounds.getCenter().y + 6.0f);
+	ofDrawLine(renderGuidesBounds.getCenter().x,
+		renderGuidesBounds.getCenter().y + 4.5f,
+		renderGuidesBounds.getCenter().x,
+		renderGuidesBounds.getCenter().y + 6.0f);
+	ofFill();
+
+	const bool closeHovered = closeBounds.inside(
+		ofGetMouseX(), ofGetMouseY());
+	if (closeHovered)
+	{
+		ofSetColor(ofColor(COL_ACCENT_RED, 145));
+		ofDrawRectRounded(closeBounds, 3.0f);
+	}
+	ofSetColor(closeHovered ? COL_ACCENT_RED : COL_TEXT_SECONDARY);
+	ofSetLineWidth(1.5f);
+	ofDrawLine(closeBounds.x + 5.0f, closeBounds.y + 5.0f,
+		closeBounds.x + iconSize - 5.0f,
+		closeBounds.y + iconSize - 5.0f);
+	ofDrawLine(closeBounds.x + iconSize - 5.0f,
+		closeBounds.y + 5.0f,
+		closeBounds.x + 5.0f,
+		closeBounds.y + iconSize - 5.0f);
+
 	ofSetColor(COL_BG_DARK);
-	ofDrawRectangle(0.0f, 0.0f, _width, _height);
+	ofDrawRectangle(previewRect);
 	ofSetColor(255, 255);
-	const ofRectangle previewRect = getMappingPreviewRect(_width, _height);
 	box->fbo.draw(previewRect.x, previewRect.y,
 		previewRect.width, previewRect.height);
 	const MappingQuad quad = getMappingQuad(box);
 	drawMappingGrid(quad, previewRect.x, previewRect.y,
 		previewRect.width, previewRect.height);
 	drawMappingHandles(quad, previewRect.x, previewRect.y,
-		previewRect.width, previewRect.height);
+		previewRect.width, previewRect.height, mappingGuidesVisible);
+
+	ofSetColor(COL_ACCENT_CYAN, 210);
+	ofSetLineWidth(1.2f);
+	ofDrawLine(
+		mappingPanelX + mappingPanelW - resizeHandleSize,
+		mappingPanelY + mappingPanelH - 4.0f,
+		mappingPanelX + mappingPanelW - 4.0f,
+		mappingPanelY + mappingPanelH - resizeHandleSize);
+	ofDrawLine(
+		mappingPanelX + mappingPanelW -
+			resizeHandleSize * 0.65f,
+		mappingPanelY + mappingPanelH - 4.0f,
+		mappingPanelX + mappingPanelW - 4.0f,
+		mappingPanelY + mappingPanelH -
+			resizeHandleSize * 0.65f);
+	jp_tooltip::draw("Toggle mapping borders and corners",
+		guidesBounds.x, guidesBounds.y,
+		guidesBounds.width, guidesBounds.height);
+	jp_tooltip::draw("Toggle mapping calibration grid",
+		gridBounds.x, gridBounds.y,
+		gridBounds.width, gridBounds.height);
+	jp_tooltip::draw(
+		mappingRenderGuidesVisible ?
+			"Hide mapping borders in render window" :
+			"Show mapping borders in render window",
+		renderGuidesBounds.x, renderGuidesBounds.y,
+		renderGuidesBounds.width, renderGuidesBounds.height);
+	jp_tooltip::draw("Close mapping editor",
+		closeBounds.x, closeBounds.y,
+		closeBounds.width, closeBounds.height);
+	jp_tooltip::draw("Resize mapping editor",
+		mappingPanelX + mappingPanelW - resizeHandleSize,
+		mappingPanelY + mappingPanelH - resizeHandleSize,
+		resizeHandleSize, resizeHandleSize);
 	ofPopStyle();
 }
 
 void JPboxgroup::drawMappingOverlay(float _width, float _height)
 {
+	if (!mappingRenderGuidesVisible)
+	{
+		return;
+	}
 	JPbox *box = getMappingEditBox();
 	if (box == nullptr)
 	{
@@ -1159,20 +1300,13 @@ void JPboxgroup::drawMappingOverlay(float _width, float _height)
 	}
 
 	const MappingQuad quad = getMappingQuad(box);
-	drawMappingGrid(quad, 0.0f, 0.0f, _width, _height);
-	drawMappingHandles(quad, 0.0f, 0.0f, _width, _height);
+	drawMappingHandles(quad, 0.0f, 0.0f,
+		_width, _height, true);
 }
 
 bool JPboxgroup::isMappingEditActive() const
 {
 	return mappingEditActive;
-}
-
-bool JPboxgroup::consumeMappingRenderWindowRequest()
-{
-	const bool requested = mappingRenderWindowRequested;
-	mappingRenderWindowRequested = false;
-	return requested;
 }
 
 bool JPboxgroup::toggleMappingEdit()
@@ -1194,8 +1328,9 @@ bool JPboxgroup::toggleMappingEdit()
 	mappingDraggedCorner = -1;
 	mappingGuidesVisible = true;
 	mappingGridVisible = false;
+	mappingRenderGuidesVisible = false;
 	mappingEditActive = true;
-	mappingRenderWindowRequested = true;
+	clampMappingPanelLayout();
 	return true;
 }
 
@@ -1219,15 +1354,28 @@ bool JPboxgroup::toggleMappingGuides()
 	return true;
 }
 
+bool JPboxgroup::toggleMappingRenderGuides()
+{
+	if (!mappingEditActive || getMappingEditBox() == nullptr)
+	{
+		return false;
+	}
+	mappingRenderGuidesVisible = !mappingRenderGuidesVisible;
+	return true;
+}
+
 void JPboxgroup::endMappingEdit()
 {
 	mappingEditActive = false;
 	mappingGuidesVisible = true;
 	mappingGridVisible = false;
-	mappingRenderWindowRequested = false;
+	mappingRenderGuidesVisible = false;
 	mappingTargetIndex = -1;
 	mappingTargetGroupPath.clear();
 	mappingDraggedCorner = -1;
+	mappingPanelDragging = false;
+	mappingPanelResizing = false;
+	mappingPanelPointerCaptured = false;
 }
 
 void JPboxgroup::markMappingParameterChanged()
@@ -1279,34 +1427,163 @@ bool JPboxgroup::updateMappingCorner(int corner, float x, float y,
 	return true;
 }
 
-bool JPboxgroup::mappingMousePressed(int x, int y, int button,
-	float width, float height)
+void JPboxgroup::setupDefaultMappingPanelLayout()
 {
-	if (!mappingEditActive)
+	const float margin = 24.0f;
+	const float headerHeight = 30.0f;
+	const float minimumWidth = 320.0f;
+	mappingPanelW = std::max(minimumWidth,
+		std::min(620.0f, ofGetWidth() * 0.46f));
+	mappingPanelH = headerHeight + 20.0f +
+		(mappingPanelW - 20.0f) * 9.0f / 16.0f;
+	mappingPanelX = margin;
+	mappingPanelY = tabBarOffsetY + 48.0f;
+	clampMappingPanelLayout();
+}
+
+void JPboxgroup::clampMappingPanelLayout()
+{
+	const float margin = 8.0f;
+	const float topMargin = tabBarOffsetY + 40.0f;
+	const float minimumWidth = 320.0f;
+	const float minimumHeight = 220.0f;
+	const float maximumWidth = std::max(
+		minimumWidth, ofGetWidth() - margin * 2.0f);
+	const float maximumHeight = std::max(
+		minimumHeight, ofGetHeight() - topMargin - margin);
+	mappingPanelW = ofClamp(
+		mappingPanelW, minimumWidth, maximumWidth);
+	mappingPanelH = ofClamp(
+		mappingPanelH, minimumHeight, maximumHeight);
+	mappingPanelX = ofClamp(mappingPanelX, margin,
+		std::max(margin, ofGetWidth() - mappingPanelW - margin));
+	mappingPanelY = ofClamp(mappingPanelY, topMargin,
+		std::max(topMargin, ofGetHeight() - mappingPanelH - margin));
+}
+
+bool JPboxgroup::mouseOverMappingPanel() const
+{
+	return mappingEditActive &&
+		ofGetMouseX() >= mappingPanelX &&
+		ofGetMouseX() <= mappingPanelX + mappingPanelW &&
+		ofGetMouseY() >= mappingPanelY &&
+		ofGetMouseY() <= mappingPanelY + mappingPanelH;
+}
+
+ofRectangle JPboxgroup::getMappingPanelActionBounds(
+	MappingPanelAction action) const
+{
+	const float padding = 10.0f;
+	const float headerHeight = 30.0f;
+	const float iconSize = 18.0f;
+	const float iconGap = 5.0f;
+	const int fromRight = MAPPING_PANEL_CLOSE - action;
+	const float x = mappingPanelX + mappingPanelW -
+		padding - iconSize - fromRight * (iconSize + iconGap);
+	const float y = mappingPanelY +
+		(headerHeight - iconSize) * 0.5f;
+	return ofRectangle(x, y, iconSize, iconSize);
+}
+
+bool JPboxgroup::mouseOverMappingPanelHeader() const
+{
+	const float headerHeight = 30.0f;
+	return mouseOverMappingPanel() &&
+		ofGetMouseY() <= mappingPanelY + headerHeight;
+}
+
+bool JPboxgroup::mouseOverMappingPanelResizeHandle() const
+{
+	const float handleSize = 24.0f;
+	return mappingEditActive &&
+		ofGetMouseX() >= mappingPanelX + mappingPanelW - handleSize &&
+		ofGetMouseX() <= mappingPanelX + mappingPanelW &&
+		ofGetMouseY() >= mappingPanelY + mappingPanelH - handleSize &&
+		ofGetMouseY() <= mappingPanelY + mappingPanelH;
+}
+
+bool JPboxgroup::mouseOverMappingPanelCloseIcon() const
+{
+	return mappingEditActive &&
+		getMappingPanelActionBounds(MAPPING_PANEL_CLOSE).inside(
+			ofGetMouseX(), ofGetMouseY());
+}
+
+bool JPboxgroup::update_mappingMousePressed(int mouseButton)
+{
+	if (!mappingEditActive || !mouseOverMappingPanel())
 	{
 		return false;
+	}
+	if (mouseButton != OF_MOUSE_BUTTON_LEFT)
+	{
+		return true;
 	}
 
-	JPbox *box = getMappingEditBox();
-	if (box == nullptr)
+	mappingPanelPointerCaptured = true;
+	mappingDraggedCorner = -1;
+	if (mouseOverMappingPanelCloseIcon())
 	{
 		endMappingEdit();
-		return false;
+		return true;
 	}
-	mappingDraggedCorner = -1;
-	const ofRectangle previewRect = getMappingPreviewRect(width, height);
-	if (button == OF_MOUSE_BUTTON_LEFT && mappingGuidesVisible &&
-		previewRect.width > 0.0f && previewRect.height > 0.0f)
+	if (getMappingPanelActionBounds(MAPPING_PANEL_GUIDES).inside(
+		ofGetMouseX(), ofGetMouseY()))
 	{
+		toggleMappingGuides();
+		return true;
+	}
+	if (getMappingPanelActionBounds(MAPPING_PANEL_GRID).inside(
+		ofGetMouseX(), ofGetMouseY()))
+	{
+		toggleMappingGrid();
+		return true;
+	}
+	if (getMappingPanelActionBounds(
+		MAPPING_PANEL_RENDER_GUIDES).inside(
+			ofGetMouseX(), ofGetMouseY()))
+	{
+		toggleMappingRenderGuides();
+		return true;
+	}
+	if (mouseOverMappingPanelResizeHandle())
+	{
+		mappingPanelResizing = true;
+		mappingPanelDragging = false;
+		mappingPanelDragStartMouse.set(
+			ofGetMouseX(), ofGetMouseY());
+		mappingPanelResizeStartSize.set(
+			mappingPanelW, mappingPanelH);
+		return true;
+	}
+	if (mouseOverMappingPanelHeader())
+	{
+		mappingPanelDragging = true;
+		mappingPanelResizing = false;
+		mappingPanelDragStartMouse.set(
+			ofGetMouseX(), ofGetMouseY());
+		mappingPanelDragStartPos.set(
+			mappingPanelX, mappingPanelY);
+		return true;
+	}
+
+	const ofRectangle previewRect = getMappingPanelPreviewRect();
+	if (mappingGuidesVisible &&
+		previewRect.inside(ofGetMouseX(), ofGetMouseY()))
+	{
+		JPbox *box = getMappingEditBox();
 		const MappingQuad quad = getMappingQuad(box);
 		const ofVec2f points[4] = {
-			quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft};
+			quad.topLeft, quad.topRight,
+			quad.bottomRight, quad.bottomLeft};
 		float closestDistance = 18.0f;
 		for (int i = 0; i < 4; i++)
 		{
-			const float distance = ofVec2f(
-				x - (previewRect.x + points[i].x * previewRect.width),
-				y - (previewRect.y + points[i].y * previewRect.height)).length();
+			const ofVec2f handle(
+				previewRect.x + points[i].x * previewRect.width,
+				previewRect.y + points[i].y * previewRect.height);
+			const float distance = handle.distance(
+				ofVec2f(ofGetMouseX(), ofGetMouseY()));
 			if (distance <= closestDistance)
 			{
 				closestDistance = distance;
@@ -1317,31 +1594,52 @@ bool JPboxgroup::mappingMousePressed(int x, int y, int button,
 	return true;
 }
 
-bool JPboxgroup::mappingMouseDragged(int x, int y, int button,
-	float width, float height)
+bool JPboxgroup::update_mappingMouseDragged(int mouseButton)
 {
-	if (!mappingEditActive)
+	if (mouseButton != OF_MOUSE_BUTTON_LEFT ||
+		!mappingPanelPointerCaptured)
 	{
 		return false;
 	}
-	if (button == OF_MOUSE_BUTTON_LEFT && mappingDraggedCorner >= 0)
+
+	const ofVec2f mouse(ofGetMouseX(), ofGetMouseY());
+	const ofVec2f delta = mouse - mappingPanelDragStartMouse;
+	if (mappingPanelDragging)
 	{
-		const ofRectangle previewRect = getMappingPreviewRect(width, height);
+		mappingPanelX = mappingPanelDragStartPos.x + delta.x;
+		mappingPanelY = mappingPanelDragStartPos.y + delta.y;
+		clampMappingPanelLayout();
+		return true;
+	}
+	if (mappingPanelResizing)
+	{
+		mappingPanelW = mappingPanelResizeStartSize.x + delta.x;
+		mappingPanelH = mappingPanelResizeStartSize.y + delta.y;
+		clampMappingPanelLayout();
+		return true;
+	}
+	if (mappingDraggedCorner >= 0)
+	{
+		const ofRectangle previewRect = getMappingPanelPreviewRect();
 		updateMappingCorner(mappingDraggedCorner,
-			(float)x - previewRect.x, (float)y - previewRect.y,
+			mouse.x - previewRect.x, mouse.y - previewRect.y,
 			previewRect.width, previewRect.height);
 	}
 	return true;
 }
 
-bool JPboxgroup::mappingMouseReleased(int x, int y, int button,
-	float width, float height)
+bool JPboxgroup::update_mappingMouseReleased(int mouseButton)
 {
-	if (!mappingEditActive)
+	if (mouseButton != OF_MOUSE_BUTTON_LEFT ||
+		!mappingPanelPointerCaptured)
 	{
 		return false;
 	}
 	mappingDraggedCorner = -1;
+	mappingPanelDragging = false;
+	mappingPanelResizing = false;
+	mappingPanelPointerCaptured = false;
+	clampMappingPanelLayout();
 	return true;
 }
 
@@ -1739,22 +2037,14 @@ void JPboxgroup::draw_paramswindow()
 			inspectorBox->getTipo() == inspectorBox->SHADERBOX &&
 			shaderEditor != nullptr && !inspectorBox->dir.empty();
 		const bool hasMappingAction = isMappingShaderBox(inspectorBox);
-		const bool hasGuideAction = mappingEditActive &&
-			mappingTargetMatchesCurrentView();
-		const bool hasGridAction = mappingEditActive &&
-			mappingTargetMatchesCurrentView();
 		const float randomActionWidth = 44.0f;
 		const float mappingActionWidth = 48.0f;
 		const float editActionWidth = 48.0f;
-		const float guideActionWidth = 28.0f;
-		const float gridActionWidth = 28.0f;
 		const float headerActionHeight = 24.0f;
 		const float headerActionWidth =
 			(hasRandomAction ? randomActionWidth : 0.0f) +
 			(hasMappingAction ? mappingActionWidth : 0.0f) +
-			(hasEditAction ? editActionWidth : 0.0f) +
-			(hasGuideAction ? guideActionWidth : 0.0f) +
-			(hasGridAction ? gridActionWidth : 0.0f);
+			(hasEditAction ? editActionWidth : 0.0f);
 		const float headerActionRight = panelRight - 9.0f;
 		const float headerActionLeft =
 			headerActionRight - headerActionWidth;
@@ -1768,10 +2058,6 @@ void JPboxgroup::draw_paramswindow()
 		inspectorrandom.height = 0.0f;
 		mappingbutton.width = 0.0f;
 		mappingbutton.height = 0.0f;
-		mappingGuidesButton.width = 0.0f;
-		mappingGuidesButton.height = 0.0f;
-		mappingGridButton.width = 0.0f;
-		mappingGridButton.height = 0.0f;
 		editbutton.width = 0.0f;
 		editbutton.height = 0.0f;
 
@@ -1902,91 +2188,6 @@ void JPboxgroup::draw_paramswindow()
 				mappingbutton.width, mappingbutton.height);
 			drawInspectorClickBounds(mappingbutton);
 			nextActionX += mappingActionWidth;
-		}
-
-		if (hasGuideAction)
-		{
-			if (nextActionX > headerActionLeft)
-			{
-				ofSetColor(ofColor(COL_BORDER_MUTED, 165));
-				ofDrawLine(nextActionX, headerActionTop + 4.0f,
-					nextActionX,
-					headerActionTop + headerActionHeight - 4.0f);
-			}
-			mappingGuidesButton.x = nextActionX + guideActionWidth / 2.0f;
-			mappingGuidesButton.y = headerActionTop + headerActionHeight / 2.0f;
-			mappingGuidesButton.width = guideActionWidth;
-			mappingGuidesButton.height = headerActionHeight;
-			if (mappingGuidesButton.mouseOver())
-			{
-				ofSetColor(ofColor(COL_BG_HOVER, 230));
-				ofDrawRectRounded(nextActionX + 1.0f,
-					headerActionTop + 1.0f,
-					guideActionWidth - 2.0f,
-					headerActionHeight - 2.0f, 2.0f);
-			}
-
-			ofSetColor(mappingGuidesVisible ? COL_ACCENT_CYAN :
-				COL_TEXT_SECONDARY);
-			ofNoFill();
-			ofSetLineWidth(1.4f);
-			const float left = mappingGuidesButton.x - 7.0f;
-			const float right = mappingGuidesButton.x + 7.0f;
-			const float top = mappingGuidesButton.y - 6.0f;
-			const float bottom = mappingGuidesButton.y + 6.0f;
-			ofDrawLine(left, top, left + 4.0f, top);
-			ofDrawLine(left, top, left, top + 4.0f);
-			ofDrawLine(right, top, right - 4.0f, top);
-			ofDrawLine(right, top, right, top + 4.0f);
-			ofDrawLine(left, bottom, left + 4.0f, bottom);
-			ofDrawLine(left, bottom, left, bottom - 4.0f);
-			ofDrawLine(right, bottom, right - 4.0f, bottom);
-			ofDrawLine(right, bottom, right, bottom - 4.0f);
-			ofFill();
-			jp_tooltip::draw("Toggle mapping borders and corners",
-				mappingGuidesButton.x - mappingGuidesButton.width / 2.0f,
-				mappingGuidesButton.y - mappingGuidesButton.height / 2.0f,
-				mappingGuidesButton.width, mappingGuidesButton.height);
-			drawInspectorClickBounds(mappingGuidesButton);
-			nextActionX += guideActionWidth;
-		}
-
-		if (hasGridAction)
-		{
-			if (nextActionX > headerActionLeft)
-			{
-				ofSetColor(ofColor(COL_BORDER_MUTED, 165));
-				ofDrawLine(nextActionX, headerActionTop + 4.0f,
-					nextActionX,
-					headerActionTop + headerActionHeight - 4.0f);
-			}
-			mappingGridButton.x = nextActionX + gridActionWidth / 2.0f;
-			mappingGridButton.y = headerActionTop + headerActionHeight / 2.0f;
-			mappingGridButton.width = gridActionWidth;
-			mappingGridButton.height = headerActionHeight;
-			if (mappingGridButton.mouseOver())
-			{
-				ofSetColor(ofColor(COL_BG_HOVER, 230));
-				ofDrawRectRounded(nextActionX + 1.0f,
-					headerActionTop + 1.0f,
-					gridActionWidth - 2.0f,
-					headerActionHeight - 2.0f, 2.0f);
-			}
-			ofSetColor(mappingGridVisible ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
-			ofNoFill();
-			ofSetLineWidth(1.0f);
-			ofDrawRectRounded(mappingGridButton.x - 7.0f,
-				mappingGridButton.y - 7.0f, 14.0f, 14.0f, 2.0f);
-			ofDrawLine(mappingGridButton.x, mappingGridButton.y - 7.0f,
-				mappingGridButton.x, mappingGridButton.y + 7.0f);
-			ofDrawLine(mappingGridButton.x - 7.0f, mappingGridButton.y,
-				mappingGridButton.x + 7.0f, mappingGridButton.y);
-			ofFill();
-			jp_tooltip::draw("Toggle mapping calibration grid",
-				mappingGridButton.x - mappingGridButton.width / 2.0f,
-				mappingGridButton.y - mappingGridButton.height / 2.0f,
-				mappingGridButton.width, mappingGridButton.height);
-			drawInspectorClickBounds(mappingGridButton);
 		}
 
 		drawInspectorInputRows(inspectorBox);
@@ -2366,6 +2567,7 @@ void JPboxgroup::update_resized(int w, int h)
 	setinspectorsetactiveparams();
 	setupGalleryDurationSlider();
 	clampCuePanelLayout();
+	clampMappingPanelLayout();
 	setControllers();
 	// boxesdrawing.allocate(ofGetWidth(), ofGetHeight());
 }
@@ -2700,16 +2902,6 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		if (mappingbutton.mouseGrab() && isMappingShaderBox(inspectorBox))
 		{
 			toggleMappingEdit();
-			return;
-		}
-		if (mappingGuidesButton.mouseGrab() && mappingEditActive)
-		{
-			toggleMappingGuides();
-			return;
-		}
-		if (mappingGridButton.mouseGrab() && mappingEditActive)
-		{
-			toggleMappingGrid();
 			return;
 		}
 		if (inspectorsetactive.mouseGrab())
@@ -6205,6 +6397,22 @@ void JPboxgroup::getCuePanelLayout(float &x, float &y, float &w, float &h) const
 	w = cuePanelW;
 	h = cuePanelH;
 }
+void JPboxgroup::setMappingPanelLayout(float x, float y, float w, float h)
+{
+	mappingPanelX = x;
+	mappingPanelY = y;
+	mappingPanelW = w;
+	mappingPanelH = h;
+	clampMappingPanelLayout();
+}
+void JPboxgroup::getMappingPanelLayout(
+	float &x, float &y, float &w, float &h) const
+{
+	x = mappingPanelX;
+	y = mappingPanelY;
+	w = mappingPanelW;
+	h = mappingPanelH;
+}
 int JPboxgroup::getMaxParameterCount() const
 {
 	int maxCount = 0;
@@ -6283,6 +6491,10 @@ bool JPboxgroup::setLastBoxOnOff(bool value)
 }
 bool JPboxgroup::mouseOverGui()
 {
+	if (mouseOverMappingPanel())
+	{
+		return true;
+	}
 
 	if (ofGetMouseX() > inspectorwindow_x - inspectorwindow_width / 2 && ofGetMouseX() < inspectorwindow_x + inspectorwindow_width / 2 && ofGetMouseY() > inspectorwindow_y - inspectorwindow_height / 2 && ofGetMouseY() < inspectorwindow_y + inspectorwindow_height / 2)
 	{

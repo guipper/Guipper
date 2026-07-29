@@ -42,18 +42,13 @@ public:
 	void draw();
 	void draw_activerender(); // Dibuja el render activo. Esta es la <que corre en el ofApp.cpp
 	void draw_activerender(float _width, float _height);
-	void drawMappingEditRender(float _width, float _height);
 	void drawMappingOverlay(float _width, float _height);
 	void drawNodeEditorBackground(float _width, float _height);
 	bool isMappingEditActive() const;
-	bool consumeMappingRenderWindowRequest();
 	bool toggleMappingEdit();
 	bool toggleMappingGuides();
 	bool toggleMappingGrid();
 	void endMappingEdit();
-	bool mappingMousePressed(int x, int y, int button, float width, float height);
-	bool mappingMouseDragged(int x, int y, int button, float width, float height);
-	bool mappingMouseReleased(int x, int y, int button, float width, float height);
 
 	void update();
 	void setActiveOnlyBox(int _val);
@@ -62,6 +57,9 @@ public:
 	void update_mouseDragged(int mousebutton); // Lo que hace cuando arrastras en la pantalla.
 	void update_mousePressed(int mouseButton); // Lo que hace cada vez que haces click(ponele).
 	void update_mouseReleased(int mouseButton);
+	bool update_mappingMousePressed(int mouseButton);
+	bool update_mappingMouseDragged(int mouseButton);
+	bool update_mappingMouseReleased(int mouseButton);
 	bool update_cueMousePressed(int mouseButton);
 	bool update_cueMouseDragged(int mouseButton);
 	bool update_cueMouseReleased(int mouseButton);
@@ -133,6 +131,8 @@ public:
 	bool applyCueDraftToSource();
 	void setCuePanelLayout(float x, float y, float w, float h);
 	void getCuePanelLayout(float &x, float &y, float &w, float &h) const;
+	void setMappingPanelLayout(float x, float y, float w, float h);
+	void getMappingPanelLayout(float &x, float &y, float &w, float &h) const;
 	// CUE target helpers (main boxes or preset boxes depending on context)
 	vector<JPbox *>& getCueTargetBoxes();
 	int getCueTargetBoxSize() const;
@@ -408,8 +408,6 @@ private:
 	JPBang inspectorrandom;              // Randomiza todos los parametros del shader en el inspector
 	JPBang editbutton;                   // Boton EDIT para abrir el shader en el editor de codigo
 	JPBang mappingbutton;                // Enters the corner-pin mapping editor
-	JPBang mappingGuidesButton;          // Toggles mapping borders and corner handles
-	JPBang mappingGridButton;            // Toggles the render-window calibration grid
 	float inspectorwindow_setactivesize; // Para el size del setactive:
 
 	void draw_conections();
@@ -441,20 +439,48 @@ private:
 	bool isValidMappingQuad(const MappingQuad &quad) const;
 	ofVec2f projectMappingPoint(const MappingQuad &quad, const ofVec2f &uv) const;
 	ofRectangle getMappingPreviewRect(float width, float height) const;
+	ofRectangle getMappingPanelPreviewRect() const;
 	void drawMappingGrid(const MappingQuad &quad, float x, float y,
 		float width, float height);
 	void drawMappingHandles(const MappingQuad &quad, float x, float y,
-		float width, float height);
+		float width, float height, bool visible);
+	void drawMappingPanel();
+	void setupDefaultMappingPanelLayout();
+	void clampMappingPanelLayout();
+	enum MappingPanelAction
+	{
+		MAPPING_PANEL_GUIDES = 0,
+		MAPPING_PANEL_GRID,
+		MAPPING_PANEL_RENDER_GUIDES,
+		MAPPING_PANEL_CLOSE
+	};
+	ofRectangle getMappingPanelActionBounds(
+		MappingPanelAction action) const;
+	bool mouseOverMappingPanel() const;
+	bool mouseOverMappingPanelHeader() const;
+	bool mouseOverMappingPanelResizeHandle() const;
+	bool mouseOverMappingPanelCloseIcon() const;
+	bool toggleMappingRenderGuides();
 	bool updateMappingCorner(int corner, float x, float y, float width, float height);
 	void markMappingParameterChanged();
 
 	bool mappingEditActive = false;
 	bool mappingGuidesVisible = true;
 	bool mappingGridVisible = false;
-	bool mappingRenderWindowRequested = false;
+	bool mappingRenderGuidesVisible = false;
 	int mappingTargetIndex = -1;
 	vector<int> mappingTargetGroupPath;
 	int mappingDraggedCorner = -1;
+	float mappingPanelX = 24.0f;
+	float mappingPanelY = 96.0f;
+	float mappingPanelW = 560.0f;
+	float mappingPanelH = 350.0f;
+	bool mappingPanelDragging = false;
+	bool mappingPanelResizing = false;
+	bool mappingPanelPointerCaptured = false;
+	ofVec2f mappingPanelDragStartMouse;
+	ofVec2f mappingPanelDragStartPos;
+	ofVec2f mappingPanelResizeStartSize;
 
 	// ofFbo boxesdrawing;
 

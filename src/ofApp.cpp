@@ -146,9 +146,6 @@ void ofApp::setup() {
 }
 void ofApp::update() {
 	boxes.update();
-	if (boxes.consumeMappingRenderWindowRequest() && !isRenderWindowOpen) {
-		openRenderWindow();
-	}
 
 	// Auto-switch to EDITOR screen when a shader is opened from inspector/index
 	if (shaderEditor.justOpened()) {
@@ -1855,6 +1852,11 @@ void ofApp::keyPressed(int key) {
 		return;
 	}
 
+	if (key == OF_KEY_ESC && boxes.isMappingEditActive()) {
+		boxes.endMappingEdit();
+		return;
+	}
+
 	// H toggles hit-box visualization in shader index
 	if (key == 'h' && pantallaActiva == SHADER_INDEX) {
 		showShaderHitBoxes = !showShaderHitBoxes;
@@ -2086,6 +2088,9 @@ void ofApp::mouseDragged(int x, int y, int button) {
 	}
 
 	if (pantallaActiva == NODOS) {
+		if (boxes.update_mappingMouseDragged(button)) {
+			return;
+		}
 		if (boxes.update_cueMouseDragged(button)) {
 			return;
 		}
@@ -2184,6 +2189,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 	}
 
 	if (pantallaActiva == NODOS) {
+		if (boxes.update_mappingMousePressed(button)) {
+			return;
+		}
 		if (boxes.update_cueMousePressed(button)) {
 			return;
 		}
@@ -2455,6 +2463,10 @@ void ofApp::mouseMoved(int x, int y) {
 }
 void ofApp::mouseReleased(int x, int y, int button) {
 	midiKeymap.mouseReleased(x, y, button);
+	if (boxes.update_mappingMouseReleased(button)) {
+		saveSettings();
+		return;
+	}
 	if (boxes.update_cueMouseReleased(button)) {
 		saveSettings();
 		return;
@@ -2561,9 +2573,6 @@ void ofApp::openRenderWindow() {
 		ofAddListener(windows.back()->events().exit, this, &ofApp::exit);
 		ofAddListener(windows.back()->events().keyPressed, this, &ofApp::window_keyPressed);
 		ofAddListener(windows.back()->events().mouseMoved, this, &ofApp::window_mouseMove);
-		ofAddListener(windows.back()->events().mousePressed, this, &ofApp::window_mousePressed);
-		ofAddListener(windows.back()->events().mouseDragged, this, &ofApp::window_mouseDragged);
-		ofAddListener(windows.back()->events().mouseReleased, this, &ofApp::window_mouseReleased);
 		ofAddListener(windows.back()->events().windowResized, this, &ofApp::window_resized);
 	}
 }
@@ -2601,6 +2610,10 @@ void ofApp::loadSettings() {
 	auto cuePanelY = settings.getChild("cue_panel_y");
 	auto cuePanelW = settings.getChild("cue_panel_w");
 	auto cuePanelH = settings.getChild("cue_panel_h");
+	auto mappingPanelX = settings.getChild("mapping_panel_x");
+	auto mappingPanelY = settings.getChild("mapping_panel_y");
+	auto mappingPanelW = settings.getChild("mapping_panel_w");
+	auto mappingPanelH = settings.getChild("mapping_panel_h");
 	auto favoritesDisplayModeChild = settings.getChild("favorites_display_mode");
 
 	cout << "/****************************************************/" << endl;
@@ -2635,6 +2648,13 @@ void ofApp::loadSettings() {
 			ofGetHeight() - cuePanelH.getFloatValue() - 24.0f, // siempre abajo
 			cuePanelW.getFloatValue(),
 			cuePanelH.getFloatValue());
+	}
+	if (mappingPanelX && mappingPanelY && mappingPanelW && mappingPanelH) {
+		boxes.setMappingPanelLayout(
+			mappingPanelX.getFloatValue(),
+			mappingPanelY.getFloatValue(),
+			mappingPanelW.getFloatValue(),
+			mappingPanelH.getFloatValue());
 	}
 
 	cout << "window_width " << jp_constants::window_width << endl;
@@ -2685,6 +2705,12 @@ void ofApp::saveSettings() {
 	float cuePanelW = 0.0f;
 	float cuePanelH = 0.0f;
 	boxes.getCuePanelLayout(cuePanelX, cuePanelY, cuePanelW, cuePanelH);
+	float mappingPanelX = 0.0f;
+	float mappingPanelY = 0.0f;
+	float mappingPanelW = 0.0f;
+	float mappingPanelH = 0.0f;
+	boxes.getMappingPanelLayout(
+		mappingPanelX, mappingPanelY, mappingPanelW, mappingPanelH);
 
 	auto settings = xml.appendChild("settings");
 	settings.appendChild("renderwidth").set(jp_constants::renderWidth);
@@ -2694,6 +2720,10 @@ void ofApp::saveSettings() {
 	settings.appendChild("cue_panel_y").set(cuePanelY);
 	settings.appendChild("cue_panel_w").set(cuePanelW);
 	settings.appendChild("cue_panel_h").set(cuePanelH);
+	settings.appendChild("mapping_panel_x").set(mappingPanelX);
+	settings.appendChild("mapping_panel_y").set(mappingPanelY);
+	settings.appendChild("mapping_panel_w").set(mappingPanelW);
+	settings.appendChild("mapping_panel_h").set(mappingPanelH);
 	settings.appendChild("window_x").set(ceil(window_initialposx));
 	settings.appendChild("window_y").set(ceil(window_initialposy));
 	//settings.appendChild("window_width").set(jp_constants::window_width);
@@ -2797,16 +2827,13 @@ void ofApp::exit() {
 
 // LISTENERS DE LAS VENTANAS:
 void ofApp::window_drawRender(ofEventArgs & args) {
-	if (boxes.isMappingEditActive()) {
-		boxes.drawMappingEditRender(jp_constants::window_width,
-			jp_constants::window_height);
-	} else {
-		boxes.draw_activerender(jp_constants::window_width, jp_constants::window_height);
-	}
+	boxes.draw_activerender(
+		jp_constants::window_width, jp_constants::window_height);
+	boxes.drawMappingOverlay(
+		jp_constants::window_width, jp_constants::window_height);
 }
 void ofApp::exit(ofEventArgs & e) {
 	cout << "EXIT WINDOW " << endl;
-	boxes.endMappingEdit();
 	window_fullscreen = false;
 	isRenderWindowOpen = false;
 	// Save after updating render-window state, but do not destroy the window
@@ -2821,18 +2848,6 @@ void ofApp::window_mouseMove(ofMouseEventArgs & e) {
 	jp_constants::setwindow_mousex(e.x);
 	jp_constants::setwindow_mousey(e.y);
 }
-void ofApp::window_mousePressed(ofMouseEventArgs & e) {
-	boxes.mappingMousePressed(e.x, e.y, e.button,
-		jp_constants::window_width, jp_constants::window_height);
-}
-void ofApp::window_mouseDragged(ofMouseEventArgs & e) {
-	boxes.mappingMouseDragged(e.x, e.y, e.button,
-		jp_constants::window_width, jp_constants::window_height);
-}
-void ofApp::window_mouseReleased(ofMouseEventArgs & e) {
-	boxes.mappingMouseReleased(e.x, e.y, e.button,
-		jp_constants::window_width, jp_constants::window_height);
-}
 void ofApp::window_resized(ofResizeEventArgs & args) {
 	cout << "WINDOWS RESIZED PAPA " << endl;
 	cout << "WIDTH " << args.width << endl;
@@ -2843,11 +2858,6 @@ void ofApp::window_resized(ofResizeEventArgs & args) {
 }
 void ofApp::window_keyPressed(ofKeyEventArgs & e) {
 	cout << "KEYCODE ON WINDOWS : " << e.keycode << endl;
-	if (e.key == OF_KEY_ESC) {
-		boxes.endMappingEdit();
-		return;
-	}
-
 	if (e.keycode == 70 || e.keycode == 71) {
 		window_fullscreen = !window_fullscreen;
 		windows.back()->setFullscreen(window_fullscreen);
