@@ -292,12 +292,14 @@ private:
 		int linkIndex = -1;
 		ofRectangle bounds;
 		ofRectangle upButton;
+		ofRectangle unlinkButton;
 	};
 	float layoutInspectorInputRows(JPbox *box, float startY);
 	void drawInspectorInputRows(JPbox *box);
 	bool handleInspectorInputClick(JPbox *box);
 	bool handleInspectorAutomationClick();
 	bool moveInspectorInputUp(JPbox *box, int linkIndex);
+	bool unlinkInspectorInput(JPbox *box, int linkIndex);
 	void drawCuePreview();
 	void drawLiveOutput(float x, float y, float w, float h);
 	JPbox *getCueDraftSourceBox();

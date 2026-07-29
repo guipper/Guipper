@@ -1390,6 +1390,7 @@ float JPboxgroup::layoutInspectorInputRows(JPbox *box, float startY)
 	const float headerHeight = 24.0f;
 	const float rowHeight = 25.0f;
 	const float arrowSize = 18.0f;
+	const float unlinkSize = 18.0f;
 	const float sectionGap = 7.0f;
 	const float nextControlHalfHeight =
 		box->parameters.getSize() > 0 ? inspectorwindow_sepy * 0.5f : 0.0f;
@@ -1415,6 +1416,9 @@ float JPboxgroup::layoutInspectorInputRows(JPbox *box, float startY)
 		row.upButton.set(row.bounds.x + 3.0f,
 			row.bounds.y + (rowHeight - arrowSize) / 2.0f,
 			arrowSize, arrowSize);
+		row.unlinkButton.set(row.bounds.getRight() - 3.0f - unlinkSize,
+			row.bounds.y + (rowHeight - unlinkSize) / 2.0f,
+			unlinkSize, unlinkSize);
 		inspectorInputRows.push_back(row);
 		rowY += rowHeight;
 	}
@@ -1495,11 +1499,16 @@ void JPboxgroup::drawInspectorInputRows(JPbox *box)
 	{
 		const bool rowHovered = row.bounds.inside(ofGetMouseX(), ofGetMouseY());
 		const bool canMoveUp = row.linkIndex > 0;
+		const bool canUnlink =
+			box->fbohandlergroup.getisPointerSet(row.linkIndex);
 		const bool arrowHovered = canMoveUp &&
 			row.upButton.inside(ofGetMouseX(), ofGetMouseY());
+		const bool unlinkHovered = canUnlink &&
+			row.unlinkButton.inside(ofGetMouseX(), ofGetMouseY());
 		if (rowHovered)
 		{
-			ofSetColor(ofColor(COL_BG_HOVER, arrowHovered ? 205 : 115));
+			ofSetColor(ofColor(COL_BG_HOVER,
+				(arrowHovered || unlinkHovered) ? 205 : 115));
 			ofDrawRectRounded(row.bounds, 3.0f);
 		}
 
@@ -1507,6 +1516,11 @@ void JPboxgroup::drawInspectorInputRows(JPbox *box)
 		{
 			ofSetColor(ofColor(COL_ACCENT_CYAN_DARK, 205));
 			ofDrawRectRounded(row.upButton, 3.0f);
+		}
+		if (unlinkHovered)
+		{
+			ofSetColor(ofColor(COL_ACCENT_RED, 165));
+			ofDrawRectRounded(row.unlinkButton, 3.0f);
 		}
 
 		const float arrowCx = row.upButton.getCenter().x;
@@ -1521,7 +1535,7 @@ void JPboxgroup::drawInspectorInputRows(JPbox *box)
 		ofSetLineWidth(1.0f);
 
 		const float sourceAreaWidth = std::min(165.0f, row.bounds.width * 0.42f);
-		const float sourceRight = row.bounds.getRight() - 8.0f;
+		const float sourceRight = row.unlinkButton.x - 7.0f;
 		string sourceName = box->fbohandlergroup.getisPointerSet(row.linkIndex) ?
 			box->fbohandlergroup.getFboName(row.linkIndex) : "Not connected";
 		sourceName = fitInspectorLabel(sourceName, sourceAreaWidth);
@@ -1549,7 +1563,26 @@ void JPboxgroup::drawInspectorInputRows(JPbox *box)
 				row.upButton.x, row.upButton.y,
 				row.upButton.width, row.upButton.height);
 		}
+
+		const float unlinkCx = row.unlinkButton.getCenter().x;
+		const float unlinkCy = row.unlinkButton.getCenter().y;
+		ofSetColor(canUnlink ?
+			(unlinkHovered ? COL_ACCENT_RED : COL_TEXT_SECONDARY) :
+			ofColor(COL_TEXT_MUTED, 45));
+		ofSetLineWidth(1.5f);
+		ofDrawLine(unlinkCx - 4.0f, unlinkCy - 4.0f,
+			unlinkCx + 4.0f, unlinkCy + 4.0f);
+		ofDrawLine(unlinkCx + 4.0f, unlinkCy - 4.0f,
+			unlinkCx - 4.0f, unlinkCy + 4.0f);
+		ofSetLineWidth(1.0f);
+		if (canUnlink)
+		{
+			jp_tooltip::draw("Unlink texture",
+				row.unlinkButton.x, row.unlinkButton.y,
+				row.unlinkButton.width, row.unlinkButton.height);
+		}
 		drawInspectorClickBounds(row.upButton, canMoveUp);
+		drawInspectorClickBounds(row.unlinkButton, canUnlink);
 	}
 	jp_tooltip::draw(
 		inspectorInputsExpanded ? "Collapse inputs" : "Expand inputs",
@@ -1581,6 +1614,28 @@ bool JPboxgroup::moveInspectorInputUp(JPbox *box, int linkIndex)
 	return true;
 }
 
+bool JPboxgroup::unlinkInspectorInput(JPbox *box, int linkIndex)
+{
+	if (box == nullptr || linkIndex < 0 ||
+		linkIndex >= box->fbohandlergroup.getSize() ||
+		!box->fbohandlergroup.getisPointerSet(linkIndex))
+	{
+		return false;
+	}
+
+	box->fbohandlergroup.deleteFboPointer(linkIndex);
+	if (isCueDraftMode())
+	{
+		markCueDraftDirty(cueSelectedIndex(), CUE_DIRTY_LINKS);
+		updateCueDraftGraph();
+	}
+	else
+	{
+		requestCueRebuild();
+	}
+	return true;
+}
+
 bool JPboxgroup::handleInspectorInputClick(JPbox *box)
 {
 	if (box != nullptr &&
@@ -1592,6 +1647,13 @@ bool JPboxgroup::handleInspectorInputClick(JPbox *box)
 	}
 	for (const InspectorInputRow &row : inspectorInputRows)
 	{
+		if (row.unlinkButton.inside(ofGetMouseX(), ofGetMouseY()) &&
+			box != nullptr &&
+			box->fbohandlergroup.getisPointerSet(row.linkIndex))
+		{
+			unlinkInspectorInput(box, row.linkIndex);
+			return true;
+		}
 		if (row.linkIndex > 0 &&
 			row.upButton.inside(ofGetMouseX(), ofGetMouseY()))
 		{
