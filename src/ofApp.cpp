@@ -2,7 +2,6 @@
 #include "JPutils/jp_textfield.h"
 #include <iostream>
 #include <algorithm>
-#include <regex>
 
 namespace {
 constexpr float SHADER_ROW_INDENT = 22.0f;
@@ -16,10 +15,10 @@ constexpr float PREVIEW_FRAME_INTERVAL = 1.0f / 30.0f;
 bool shaderHasMain(const string &path)
 {
 	const string source = ofBufferFromFile(path).getText();
-	static const std::regex mainPattern(
-		R"(\bvoid\s+main\s*\()",
-		std::regex_constants::ECMAScript | std::regex_constants::optimize);
-	return std::regex_search(source, mainPattern);
+	// Shader files use the GLSL entry-point spelling directly. Avoid the
+	// regex-based filter here: it can reject valid standalone shaders when
+	// their source contains preprocessing directives before main().
+	return source.find("void main") != string::npos;
 }
 }
 
