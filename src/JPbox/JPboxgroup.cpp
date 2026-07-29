@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <algorithm>
 #include <functional>
+#include <cmath>
 
 namespace
 {
@@ -808,6 +809,542 @@ void JPboxgroup::draw_activerender(float _width, float _height)
 	drawLiveOutput(0, 0, _width, _height);
 }
 
+bool JPboxgroup::MappingParameterIndices::valid() const
+{
+	return topLeftX >= 0 && topLeftY >= 0 &&
+		topRightX >= 0 && topRightY >= 0 &&
+		bottomRightX >= 0 && bottomRightY >= 0 &&
+		bottomLeftX >= 0 && bottomLeftY >= 0 && feather >= 0;
+}
+
+JPboxgroup::MappingParameterIndices
+JPboxgroup::getMappingParameterIndices(JPbox *box) const
+{
+	MappingParameterIndices indices;
+	if (box == nullptr)
+	{
+		return indices;
+	}
+
+	for (int i = 0; i < box->parameters.getSize(); i++)
+	{
+		const string name = box->parameters.getName(i);
+		if (name == "top_left_x") indices.topLeftX = i;
+		else if (name == "top_left_y") indices.topLeftY = i;
+		else if (name == "top_right_x") indices.topRightX = i;
+		else if (name == "top_right_y") indices.topRightY = i;
+		else if (name == "bottom_right_x") indices.bottomRightX = i;
+		else if (name == "bottom_right_y") indices.bottomRightY = i;
+		else if (name == "bottom_left_x") indices.bottomLeftX = i;
+		else if (name == "bottom_left_y") indices.bottomLeftY = i;
+		else if (name == "feather") indices.feather = i;
+	}
+	return indices;
+}
+
+bool JPboxgroup::isMappingShaderBox(JPbox *box) const
+{
+	if (box == nullptr || box->getTipo() != box->SHADERBOX)
+	{
+		return false;
+	}
+
+	// The mapping controls are useful before an input is connected, so the
+	// parameter contract is the capability check. The textura1 link remains
+	// optional until the box is wired in the graph.
+	return getMappingParameterIndices(box).valid();
+}
+
+bool JPboxgroup::mappingTargetMatchesCurrentView() const
+{
+	return mappingTargetIndex == getCurrentViewSelectedIndex() &&
+		mappingTargetGroupPath == activeGroupPath;
+}
+
+JPbox *JPboxgroup::getMappingEditBox()
+{
+	if (!mappingEditActive || !mappingTargetMatchesCurrentView())
+	{
+		return nullptr;
+	}
+	JPbox *box = getInspectorBox();
+	return isMappingShaderBox(box) ? box : nullptr;
+}
+
+JPboxgroup::MappingQuad JPboxgroup::getMappingQuad(JPbox *box) const
+{
+	MappingQuad quad;
+	const MappingParameterIndices indices = getMappingParameterIndices(box);
+	if (!indices.valid())
+	{
+		return quad;
+	}
+
+	auto valueAt = [&](int index) {
+		return box->parameters.getFloatValue(index);
+	};
+	quad.topLeft.set(valueAt(indices.topLeftX), valueAt(indices.topLeftY));
+	quad.topRight.set(valueAt(indices.topRightX), valueAt(indices.topRightY));
+	quad.bottomRight.set(valueAt(indices.bottomRightX), valueAt(indices.bottomRightY));
+	quad.bottomLeft.set(valueAt(indices.bottomLeftX), valueAt(indices.bottomLeftY));
+	return quad;
+}
+
+bool JPboxgroup::isValidMappingQuad(const MappingQuad &quad) const
+{
+	auto cross = [](const ofVec2f &a, const ofVec2f &b) {
+		return a.x * b.y - a.y * b.x;
+	};
+	const float c0 = cross(quad.topRight - quad.topLeft,
+		quad.bottomRight - quad.topRight);
+	const float c1 = cross(quad.bottomRight - quad.topRight,
+		quad.bottomLeft - quad.bottomRight);
+	const float c2 = cross(quad.bottomLeft - quad.bottomRight,
+		quad.topLeft - quad.bottomLeft);
+	const float c3 = cross(quad.topLeft - quad.bottomLeft,
+		quad.topRight - quad.topLeft);
+	const float minCross = std::min(std::min(c0, c1), std::min(c2, c3));
+	const float maxCross = std::max(std::max(c0, c1), std::max(c2, c3));
+	return (minCross > 0.00001f || maxCross < -0.00001f) &&
+		std::isfinite(minCross) && std::isfinite(maxCross);
+}
+
+ofVec2f JPboxgroup::projectMappingPoint(const MappingQuad &quad,
+	const ofVec2f &uv) const
+{
+	// Use the same bilinear four-corner warp as mapping.frag. This keeps the
+	// editor grid skewed to all four corners without introducing projective
+	// depth into the preview.
+	const float topWeight = 1.0f - uv.y;
+	const float bottomWeight = uv.y;
+	return quad.topLeft * (1.0f - uv.x) * topWeight +
+		quad.topRight * uv.x * topWeight +
+		quad.bottomRight * uv.x * bottomWeight +
+		quad.bottomLeft * (1.0f - uv.x) * bottomWeight;
+}
+
+ofRectangle JPboxgroup::getMappingPreviewRect(float width, float height) const
+{
+	if (width <= 0.0f || height <= 0.0f)
+	{
+		return ofRectangle(0.0f, 0.0f, width, height);
+	}
+
+	const float outputAspect = jp_constants::renderHeight > 0 ?
+		jp_constants::renderWidth / (float)jp_constants::renderHeight :
+		width / height;
+	float previewWidth = width;
+	float previewHeight = previewWidth / outputAspect;
+	if (previewHeight > height)
+	{
+		previewHeight = height;
+		previewWidth = previewHeight * outputAspect;
+	}
+	return ofRectangle((width - previewWidth) * 0.5f,
+		(height - previewHeight) * 0.5f, previewWidth, previewHeight);
+}
+
+void JPboxgroup::drawMappingGrid(const MappingQuad &quad,
+	float x, float y, float width, float height)
+{
+	if (!mappingGridVisible || !isValidMappingQuad(quad))
+	{
+		return;
+	}
+
+	auto toScreen = [&](const ofVec2f &uv) {
+		const ofVec2f point = projectMappingPoint(quad, uv);
+		return ofVec2f(x + point.x * width, y + point.y * height);
+	};
+	auto drawClippedLine = [&](ofVec2f start, ofVec2f end) {
+		// Clip each grid segment against the four edges of the crop. The
+		// quad is validated as convex above, so half-plane clipping keeps
+		// the overlay local even while corners are being dragged.
+		const ofVec2f points[4] = {
+			quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft};
+		const ofVec2f center = (points[0] + points[1] +
+			points[2] + points[3]) * 0.25f;
+		float lower = 0.0f;
+		float upper = 1.0f;
+		const ofVec2f delta = end - start;
+		for (int edgeIndex = 0; edgeIndex < 4; edgeIndex++)
+		{
+			const ofVec2f edgeStart = points[edgeIndex];
+			const ofVec2f edgeEnd = points[(edgeIndex + 1) % 4];
+			const ofVec2f edge = edgeEnd - edgeStart;
+			const float orientation =
+				(edge.x * (center.y - edgeStart.y) -
+				 edge.y * (center.x - edgeStart.x)) >= 0.0f ? 1.0f : -1.0f;
+			const float startSide = orientation *
+				(edge.x * (start.y - edgeStart.y) -
+				 edge.y * (start.x - edgeStart.x));
+			const float deltaSide = orientation *
+				(edge.x * delta.y - edge.y * delta.x);
+
+			if (std::abs(deltaSide) <= 0.00001f)
+			{
+				if (startSide < 0.0f)
+				{
+					return;
+				}
+				continue;
+			}
+
+			const float crossing = -startSide / deltaSide;
+			if (deltaSide > 0.0f)
+			{
+				lower = std::max(lower, crossing);
+			}
+			else
+			{
+				upper = std::min(upper, crossing);
+			}
+			if (lower > upper)
+			{
+				return;
+			}
+		}
+
+		start += delta * lower;
+		end = start + delta * (upper - lower);
+		const ofVec2f screenStart(x + start.x * width,
+			y + start.y * height);
+		const ofVec2f screenEnd(x + end.x * width,
+			y + end.y * height);
+		ofDrawLine(screenStart, screenEnd);
+	};
+
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofFill();
+	ofSetColor(ofColor(COL_BG_DARK, 75));
+	ofBeginShape();
+	ofVertex(x + quad.topLeft.x * width, y + quad.topLeft.y * height);
+	ofVertex(x + quad.topRight.x * width, y + quad.topRight.y * height);
+	ofVertex(x + quad.bottomRight.x * width, y + quad.bottomRight.y * height);
+	ofVertex(x + quad.bottomLeft.x * width, y + quad.bottomLeft.y * height);
+	ofEndShape(true);
+
+	ofNoFill();
+	ofSetLineWidth(1.0f);
+	for (int i = 1; i < 10; i++)
+	{
+		const float position = i / 10.0f;
+		const ofVec2f horizontalStart = toScreen(ofVec2f(0.0f, position));
+		const ofVec2f horizontalEnd = toScreen(ofVec2f(1.0f, position));
+		const ofVec2f verticalStart = toScreen(ofVec2f(position, 0.0f));
+		const ofVec2f verticalEnd = toScreen(ofVec2f(position, 1.0f));
+		ofSetColor(i == 5 ? ofColor(COL_ACCENT_CYAN, 220) :
+			ofColor(COL_TEXT_PRIMARY, 95));
+		// Convert back to normalized preview coordinates for clipping. The
+		// clipper keeps every bilinear grid segment inside the crop.
+		drawClippedLine(ofVec2f((horizontalStart.x - x) / width,
+			(horizontalStart.y - y) / height),
+			ofVec2f((horizontalEnd.x - x) / width,
+			(horizontalEnd.y - y) / height));
+		drawClippedLine(ofVec2f((verticalStart.x - x) / width,
+			(verticalStart.y - y) / height),
+			ofVec2f((verticalEnd.x - x) / width,
+			(verticalEnd.y - y) / height));
+	}
+
+	// Hide anything outside the crop after drawing the lines. This is a
+	// lightweight polygon mask and keeps the mapped preview's black exterior
+	// consistent with the grid overlay.
+	ofSetColor(COL_BG_DARK);
+	ofFill();
+	const ofVec2f points[4] = {
+		quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft};
+	const ofVec2f center = (points[0] + points[1] +
+		points[2] + points[3]) * 0.25f;
+	const float maskDistance = 2.0f;
+	for (int edgeIndex = 0; edgeIndex < 4; edgeIndex++)
+	{
+		const ofVec2f edgeStart = points[edgeIndex];
+		const ofVec2f edgeEnd = points[(edgeIndex + 1) % 4];
+		const ofVec2f edge = edgeEnd - edgeStart;
+		const float side = edge.x * (center.y - edgeStart.y) -
+			edge.y * (center.x - edgeStart.x);
+		const ofVec2f outward = side >= 0.0f ?
+			ofVec2f(edge.y, -edge.x) : ofVec2f(-edge.y, edge.x);
+		const float length = outward.length();
+		if (length <= 0.00001f)
+		{
+			continue;
+		}
+		const ofVec2f offset = outward * (maskDistance / length);
+		ofBeginShape();
+		ofVertex(x + edgeStart.x * width, y + edgeStart.y * height);
+		ofVertex(x + edgeEnd.x * width, y + edgeEnd.y * height);
+		ofVertex(x + (edgeEnd.x + offset.x) * width,
+			y + (edgeEnd.y + offset.y) * height);
+		ofVertex(x + (edgeStart.x + offset.x) * width,
+			y + (edgeStart.y + offset.y) * height);
+		ofEndShape(true);
+	}
+	ofPopStyle();
+}
+
+void JPboxgroup::drawMappingHandles(const MappingQuad &quad,
+	float x, float y, float width, float height)
+{
+	if (!mappingGuidesVisible)
+	{
+		return;
+	}
+
+	const bool valid = isValidMappingQuad(quad);
+	const ofVec2f points[4] = {
+		quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft};
+
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofNoFill();
+	ofSetLineWidth(2.0f);
+	ofSetColor(valid ? COL_ACCENT_CYAN : COL_ACCENT_RED);
+	for (int i = 0; i < 4; i++)
+	{
+		const ofVec2f &from = points[i];
+		const ofVec2f &to = points[(i + 1) % 4];
+		ofDrawLine(x + from.x * width, y + from.y * height,
+			 x + to.x * width, y + to.y * height);
+	}
+
+	for (int i = 0; i < 4; i++)
+	{
+		const float screenX = x + points[i].x * width;
+		const float screenY = y + points[i].y * height;
+		const bool active = i == mappingDraggedCorner;
+		ofSetColor(active ? COL_ACCENT_GOLD :
+			(valid ? COL_ACCENT_CYAN : COL_ACCENT_RED));
+		ofFill();
+		ofDrawCircle(screenX, screenY, active ? 12.0f : 9.0f);
+		ofSetColor(COL_BG_DARK);
+		ofDrawCircle(screenX, screenY, active ? 5.0f : 3.5f);
+	}
+	ofPopStyle();
+}
+
+void JPboxgroup::drawMappingEditRender(float _width, float _height)
+{
+	JPbox *box = getMappingEditBox();
+	if (box == nullptr)
+	{
+		drawLiveOutput(0, 0, _width, _height);
+		return;
+	}
+
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofSetColor(COL_BG_DARK);
+	ofDrawRectangle(0.0f, 0.0f, _width, _height);
+	ofSetColor(255, 255);
+	const ofRectangle previewRect = getMappingPreviewRect(_width, _height);
+	box->fbo.draw(previewRect.x, previewRect.y,
+		previewRect.width, previewRect.height);
+	const MappingQuad quad = getMappingQuad(box);
+	drawMappingGrid(quad, previewRect.x, previewRect.y,
+		previewRect.width, previewRect.height);
+	drawMappingHandles(quad, previewRect.x, previewRect.y,
+		previewRect.width, previewRect.height);
+	ofPopStyle();
+}
+
+void JPboxgroup::drawMappingOverlay(float _width, float _height)
+{
+	JPbox *box = getMappingEditBox();
+	if (box == nullptr)
+	{
+		return;
+	}
+
+	const MappingQuad quad = getMappingQuad(box);
+	drawMappingGrid(quad, 0.0f, 0.0f, _width, _height);
+	drawMappingHandles(quad, 0.0f, 0.0f, _width, _height);
+}
+
+bool JPboxgroup::isMappingEditActive() const
+{
+	return mappingEditActive;
+}
+
+bool JPboxgroup::consumeMappingRenderWindowRequest()
+{
+	const bool requested = mappingRenderWindowRequested;
+	mappingRenderWindowRequested = false;
+	return requested;
+}
+
+bool JPboxgroup::toggleMappingEdit()
+{
+	if (mappingEditActive)
+	{
+		endMappingEdit();
+		return true;
+	}
+
+	JPbox *box = getInspectorBox();
+	if (!isMappingShaderBox(box))
+	{
+		return false;
+	}
+
+	mappingTargetIndex = getCurrentViewSelectedIndex();
+	mappingTargetGroupPath = activeGroupPath;
+	mappingDraggedCorner = -1;
+	mappingGuidesVisible = true;
+	mappingGridVisible = false;
+	mappingEditActive = true;
+	mappingRenderWindowRequested = true;
+	return true;
+}
+
+bool JPboxgroup::toggleMappingGrid()
+{
+	if (!mappingEditActive || getMappingEditBox() == nullptr)
+	{
+		return false;
+	}
+	mappingGridVisible = !mappingGridVisible;
+	return true;
+}
+
+bool JPboxgroup::toggleMappingGuides()
+{
+	if (!mappingEditActive || getMappingEditBox() == nullptr)
+	{
+		return false;
+	}
+	mappingGuidesVisible = !mappingGuidesVisible;
+	return true;
+}
+
+void JPboxgroup::endMappingEdit()
+{
+	mappingEditActive = false;
+	mappingGuidesVisible = true;
+	mappingGridVisible = false;
+	mappingRenderWindowRequested = false;
+	mappingTargetIndex = -1;
+	mappingTargetGroupPath.clear();
+	mappingDraggedCorner = -1;
+}
+
+void JPboxgroup::markMappingParameterChanged()
+{
+	markCueDraftDirty(cueSelectedIndex(), CUE_DIRTY_PARAMS);
+}
+
+bool JPboxgroup::updateMappingCorner(int corner, float x, float y,
+	float width, float height)
+{
+	JPbox *box = getMappingEditBox();
+	if (box == nullptr || width <= 0.0f || height <= 0.0f)
+	{
+		return false;
+	}
+
+	const MappingParameterIndices indices = getMappingParameterIndices(box);
+	const int xIndices[4] = {indices.topLeftX, indices.topRightX,
+		indices.bottomRightX, indices.bottomLeftX};
+	const int yIndices[4] = {indices.topLeftY, indices.topRightY,
+		indices.bottomRightY, indices.bottomLeftY};
+	if (corner < 0 || corner >= 4 || xIndices[corner] < 0 || yIndices[corner] < 0)
+	{
+		return false;
+	}
+
+	const float nextX = ofClamp(x / width, 0.0f, 1.0f);
+	const float nextY = ofClamp(y / height, 0.0f, 1.0f);
+	if (std::abs(box->parameters.getFloatValue(xIndices[corner]) - nextX) < 0.0001f &&
+		std::abs(box->parameters.getFloatValue(yIndices[corner]) - nextY) < 0.0001f)
+	{
+		return true;
+	}
+
+	const bool wasAnimated =
+		box->parameters.getMovType(xIndices[corner]) != JPParameter::STANDART ||
+		box->parameters.getMovType(yIndices[corner]) != JPParameter::STANDART;
+	box->parameters.setFloatValue(nextX, xIndices[corner]);
+	box->parameters.setFloatLerpValue(nextX, xIndices[corner]);
+	box->parameters.setFloatValue(nextY, yIndices[corner]);
+	box->parameters.setFloatLerpValue(nextY, yIndices[corner]);
+	box->parameters.setmovetype(JPParameter::STANDART, xIndices[corner]);
+	box->parameters.setmovetype(JPParameter::STANDART, yIndices[corner]);
+	if (wasAnimated)
+	{
+		setControllers();
+	}
+	markMappingParameterChanged();
+	return true;
+}
+
+bool JPboxgroup::mappingMousePressed(int x, int y, int button,
+	float width, float height)
+{
+	if (!mappingEditActive)
+	{
+		return false;
+	}
+
+	JPbox *box = getMappingEditBox();
+	if (box == nullptr)
+	{
+		endMappingEdit();
+		return false;
+	}
+	mappingDraggedCorner = -1;
+	const ofRectangle previewRect = getMappingPreviewRect(width, height);
+	if (button == OF_MOUSE_BUTTON_LEFT && mappingGuidesVisible &&
+		previewRect.width > 0.0f && previewRect.height > 0.0f)
+	{
+		const MappingQuad quad = getMappingQuad(box);
+		const ofVec2f points[4] = {
+			quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft};
+		float closestDistance = 18.0f;
+		for (int i = 0; i < 4; i++)
+		{
+			const float distance = ofVec2f(
+				x - (previewRect.x + points[i].x * previewRect.width),
+				y - (previewRect.y + points[i].y * previewRect.height)).length();
+			if (distance <= closestDistance)
+			{
+				closestDistance = distance;
+				mappingDraggedCorner = i;
+			}
+		}
+	}
+	return true;
+}
+
+bool JPboxgroup::mappingMouseDragged(int x, int y, int button,
+	float width, float height)
+{
+	if (!mappingEditActive)
+	{
+		return false;
+	}
+	if (button == OF_MOUSE_BUTTON_LEFT && mappingDraggedCorner >= 0)
+	{
+		const ofRectangle previewRect = getMappingPreviewRect(width, height);
+		updateMappingCorner(mappingDraggedCorner,
+			(float)x - previewRect.x, (float)y - previewRect.y,
+			previewRect.width, previewRect.height);
+	}
+	return true;
+}
+
+bool JPboxgroup::mappingMouseReleased(int x, int y, int button,
+	float width, float height)
+{
+	if (!mappingEditActive)
+	{
+		return false;
+	}
+	mappingDraggedCorner = -1;
+	return true;
+}
+
 void JPboxgroup::drawNodeEditorBackground(float _width, float _height)
 {
 	JPbox *previewBox = getCuePreviewBox();
@@ -1139,12 +1676,23 @@ void JPboxgroup::draw_paramswindow()
 		const bool hasEditAction =
 			inspectorBox->getTipo() == inspectorBox->SHADERBOX &&
 			shaderEditor != nullptr && !inspectorBox->dir.empty();
+		const bool hasMappingAction = isMappingShaderBox(inspectorBox);
+		const bool hasGuideAction = mappingEditActive &&
+			mappingTargetMatchesCurrentView();
+		const bool hasGridAction = mappingEditActive &&
+			mappingTargetMatchesCurrentView();
 		const float randomActionWidth = 44.0f;
+		const float mappingActionWidth = 48.0f;
 		const float editActionWidth = 48.0f;
+		const float guideActionWidth = 28.0f;
+		const float gridActionWidth = 28.0f;
 		const float headerActionHeight = 24.0f;
 		const float headerActionWidth =
 			(hasRandomAction ? randomActionWidth : 0.0f) +
-			(hasEditAction ? editActionWidth : 0.0f);
+			(hasMappingAction ? mappingActionWidth : 0.0f) +
+			(hasEditAction ? editActionWidth : 0.0f) +
+			(hasGuideAction ? guideActionWidth : 0.0f) +
+			(hasGridAction ? gridActionWidth : 0.0f);
 		const float headerActionRight = panelRight - 9.0f;
 		const float headerActionLeft =
 			headerActionRight - headerActionWidth;
@@ -1156,6 +1704,12 @@ void JPboxgroup::draw_paramswindow()
 
 		inspectorrandom.width = 0.0f;
 		inspectorrandom.height = 0.0f;
+		mappingbutton.width = 0.0f;
+		mappingbutton.height = 0.0f;
+		mappingGuidesButton.width = 0.0f;
+		mappingGuidesButton.height = 0.0f;
+		mappingGridButton.width = 0.0f;
+		mappingGridButton.height = 0.0f;
 		editbutton.width = 0.0f;
 		editbutton.height = 0.0f;
 
@@ -1221,7 +1775,7 @@ void JPboxgroup::draw_paramswindow()
 
 		if (hasEditAction)
 		{
-			if (hasRandomAction)
+			if (nextActionX > headerActionLeft)
 			{
 				ofSetColor(ofColor(COL_BORDER_MUTED, 165));
 				ofDrawLine(nextActionX, headerActionTop + 4.0f,
@@ -1250,6 +1804,127 @@ void JPboxgroup::draw_paramswindow()
 				editbutton.y +
 					jp_constants::p_font.stringHeight("EDIT") / 2.0f - 2.0f);
 			drawInspectorClickBounds(editbutton);
+			nextActionX += editActionWidth;
+		}
+
+		if (hasMappingAction)
+		{
+			if (nextActionX > headerActionLeft)
+			{
+				ofSetColor(ofColor(COL_BORDER_MUTED, 165));
+				ofDrawLine(nextActionX, headerActionTop + 4.0f,
+					nextActionX,
+					headerActionTop + headerActionHeight - 4.0f);
+			}
+			mappingbutton.x = nextActionX + mappingActionWidth / 2.0f;
+			mappingbutton.y = headerActionTop + headerActionHeight / 2.0f;
+			mappingbutton.width = mappingActionWidth;
+			mappingbutton.height = headerActionHeight;
+			if (mappingbutton.mouseOver())
+			{
+				ofSetColor(ofColor(COL_BG_HOVER, 230));
+				ofDrawRectRounded(nextActionX + 1.0f,
+					headerActionTop + 1.0f,
+					mappingActionWidth - 2.0f,
+					headerActionHeight - 2.0f, 2.0f);
+			}
+			ofSetColor(mappingEditActive ? COL_ACCENT_CYAN :
+				(mappingbutton.mouseOver() ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY));
+			jp_constants::p_font.drawString(
+				"MAP",
+				mappingbutton.x - jp_constants::p_font.stringWidth("MAP") / 2.0f,
+				mappingbutton.y + jp_constants::p_font.stringHeight("MAP") / 2.0f - 2.0f);
+			jp_tooltip::draw("Edit mapping corners",
+				mappingbutton.x - mappingbutton.width / 2.0f,
+				mappingbutton.y - mappingbutton.height / 2.0f,
+				mappingbutton.width, mappingbutton.height);
+			drawInspectorClickBounds(mappingbutton);
+			nextActionX += mappingActionWidth;
+		}
+
+		if (hasGuideAction)
+		{
+			if (nextActionX > headerActionLeft)
+			{
+				ofSetColor(ofColor(COL_BORDER_MUTED, 165));
+				ofDrawLine(nextActionX, headerActionTop + 4.0f,
+					nextActionX,
+					headerActionTop + headerActionHeight - 4.0f);
+			}
+			mappingGuidesButton.x = nextActionX + guideActionWidth / 2.0f;
+			mappingGuidesButton.y = headerActionTop + headerActionHeight / 2.0f;
+			mappingGuidesButton.width = guideActionWidth;
+			mappingGuidesButton.height = headerActionHeight;
+			if (mappingGuidesButton.mouseOver())
+			{
+				ofSetColor(ofColor(COL_BG_HOVER, 230));
+				ofDrawRectRounded(nextActionX + 1.0f,
+					headerActionTop + 1.0f,
+					guideActionWidth - 2.0f,
+					headerActionHeight - 2.0f, 2.0f);
+			}
+
+			ofSetColor(mappingGuidesVisible ? COL_ACCENT_CYAN :
+				COL_TEXT_SECONDARY);
+			ofNoFill();
+			ofSetLineWidth(1.4f);
+			const float left = mappingGuidesButton.x - 7.0f;
+			const float right = mappingGuidesButton.x + 7.0f;
+			const float top = mappingGuidesButton.y - 6.0f;
+			const float bottom = mappingGuidesButton.y + 6.0f;
+			ofDrawLine(left, top, left + 4.0f, top);
+			ofDrawLine(left, top, left, top + 4.0f);
+			ofDrawLine(right, top, right - 4.0f, top);
+			ofDrawLine(right, top, right, top + 4.0f);
+			ofDrawLine(left, bottom, left + 4.0f, bottom);
+			ofDrawLine(left, bottom, left, bottom - 4.0f);
+			ofDrawLine(right, bottom, right - 4.0f, bottom);
+			ofDrawLine(right, bottom, right, bottom - 4.0f);
+			ofFill();
+			jp_tooltip::draw("Toggle mapping borders and corners",
+				mappingGuidesButton.x - mappingGuidesButton.width / 2.0f,
+				mappingGuidesButton.y - mappingGuidesButton.height / 2.0f,
+				mappingGuidesButton.width, mappingGuidesButton.height);
+			drawInspectorClickBounds(mappingGuidesButton);
+			nextActionX += guideActionWidth;
+		}
+
+		if (hasGridAction)
+		{
+			if (nextActionX > headerActionLeft)
+			{
+				ofSetColor(ofColor(COL_BORDER_MUTED, 165));
+				ofDrawLine(nextActionX, headerActionTop + 4.0f,
+					nextActionX,
+					headerActionTop + headerActionHeight - 4.0f);
+			}
+			mappingGridButton.x = nextActionX + gridActionWidth / 2.0f;
+			mappingGridButton.y = headerActionTop + headerActionHeight / 2.0f;
+			mappingGridButton.width = gridActionWidth;
+			mappingGridButton.height = headerActionHeight;
+			if (mappingGridButton.mouseOver())
+			{
+				ofSetColor(ofColor(COL_BG_HOVER, 230));
+				ofDrawRectRounded(nextActionX + 1.0f,
+					headerActionTop + 1.0f,
+					gridActionWidth - 2.0f,
+					headerActionHeight - 2.0f, 2.0f);
+			}
+			ofSetColor(mappingGridVisible ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
+			ofNoFill();
+			ofSetLineWidth(1.0f);
+			ofDrawRectRounded(mappingGridButton.x - 7.0f,
+				mappingGridButton.y - 7.0f, 14.0f, 14.0f, 2.0f);
+			ofDrawLine(mappingGridButton.x, mappingGridButton.y - 7.0f,
+				mappingGridButton.x, mappingGridButton.y + 7.0f);
+			ofDrawLine(mappingGridButton.x - 7.0f, mappingGridButton.y,
+				mappingGridButton.x + 7.0f, mappingGridButton.y);
+			ofFill();
+			jp_tooltip::draw("Toggle mapping calibration grid",
+				mappingGridButton.x - mappingGridButton.width / 2.0f,
+				mappingGridButton.y - mappingGridButton.height / 2.0f,
+				mappingGridButton.width, mappingGridButton.height);
+			drawInspectorClickBounds(mappingGridButton);
 		}
 
 		drawInspectorInputRows(inspectorBox);
@@ -1342,6 +2017,10 @@ void JPboxgroup::update(){
 
 	// bool unoagarrado = false;
 	update_paramswindow();
+	if (mappingEditActive && getMappingEditBox() == nullptr)
+	{
+		endMappingEdit();
+	}
 	ofVec2f canvasMouse = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
 	
 	// Update sub-boxes when in group view mode
@@ -1956,6 +2635,21 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	if (mouseOverGui() && inspectorBox != nullptr)
 	{
 		arafue = true;
+		if (mappingbutton.mouseGrab() && isMappingShaderBox(inspectorBox))
+		{
+			toggleMappingEdit();
+			return;
+		}
+		if (mappingGuidesButton.mouseGrab() && mappingEditActive)
+		{
+			toggleMappingGuides();
+			return;
+		}
+		if (mappingGridButton.mouseGrab() && mappingEditActive)
+		{
+			toggleMappingGrid();
+			return;
+		}
 		if (inspectorsetactive.mouseGrab())
 		{
 			requestSetActiveRenderForCurrentView(getCurrentViewSelectedIndex());
@@ -5648,6 +6342,7 @@ void JPboxgroup::setupShaderRendersFromDataFolder()
 }
 void JPboxgroup::clear()
 {
+	endMappingEdit();
 	clearSelection();
 	clearCue();
 	transition.setFboPointer1(nullptr);

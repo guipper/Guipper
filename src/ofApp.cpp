@@ -147,6 +147,9 @@ void ofApp::setup() {
 }
 void ofApp::update() {
 	boxes.update();
+	if (boxes.consumeMappingRenderWindowRequest() && !isRenderWindowOpen) {
+		openRenderWindow();
+	}
 
 	// Auto-switch to EDITOR screen when a shader is opened from inspector/index
 	if (shaderEditor.justOpened()) {
@@ -2559,6 +2562,9 @@ void ofApp::openRenderWindow() {
 		ofAddListener(windows.back()->events().exit, this, &ofApp::exit);
 		ofAddListener(windows.back()->events().keyPressed, this, &ofApp::window_keyPressed);
 		ofAddListener(windows.back()->events().mouseMoved, this, &ofApp::window_mouseMove);
+		ofAddListener(windows.back()->events().mousePressed, this, &ofApp::window_mousePressed);
+		ofAddListener(windows.back()->events().mouseDragged, this, &ofApp::window_mouseDragged);
+		ofAddListener(windows.back()->events().mouseReleased, this, &ofApp::window_mouseReleased);
 		ofAddListener(windows.back()->events().windowResized, this, &ofApp::window_resized);
 	}
 }
@@ -2792,10 +2798,16 @@ void ofApp::exit() {
 
 // LISTENERS DE LAS VENTANAS:
 void ofApp::window_drawRender(ofEventArgs & args) {
-	boxes.draw_activerender(jp_constants::window_width, jp_constants::window_height);
+	if (boxes.isMappingEditActive()) {
+		boxes.drawMappingEditRender(jp_constants::window_width,
+			jp_constants::window_height);
+	} else {
+		boxes.draw_activerender(jp_constants::window_width, jp_constants::window_height);
+	}
 }
 void ofApp::exit(ofEventArgs & e) {
 	cout << "EXIT WINDOW " << endl;
+	boxes.endMappingEdit();
 	window_fullscreen = false;
 	isRenderWindowOpen = false;
 	// Save after updating render-window state, but do not destroy the window
@@ -2810,6 +2822,18 @@ void ofApp::window_mouseMove(ofMouseEventArgs & e) {
 	jp_constants::setwindow_mousex(e.x);
 	jp_constants::setwindow_mousey(e.y);
 }
+void ofApp::window_mousePressed(ofMouseEventArgs & e) {
+	boxes.mappingMousePressed(e.x, e.y, e.button,
+		jp_constants::window_width, jp_constants::window_height);
+}
+void ofApp::window_mouseDragged(ofMouseEventArgs & e) {
+	boxes.mappingMouseDragged(e.x, e.y, e.button,
+		jp_constants::window_width, jp_constants::window_height);
+}
+void ofApp::window_mouseReleased(ofMouseEventArgs & e) {
+	boxes.mappingMouseReleased(e.x, e.y, e.button,
+		jp_constants::window_width, jp_constants::window_height);
+}
 void ofApp::window_resized(ofResizeEventArgs & args) {
 	cout << "WINDOWS RESIZED PAPA " << endl;
 	cout << "WIDTH " << args.width << endl;
@@ -2820,6 +2844,10 @@ void ofApp::window_resized(ofResizeEventArgs & args) {
 }
 void ofApp::window_keyPressed(ofKeyEventArgs & e) {
 	cout << "KEYCODE ON WINDOWS : " << e.keycode << endl;
+	if (e.key == OF_KEY_ESC) {
+		boxes.endMappingEdit();
+		return;
+	}
 
 	if (e.keycode == 70 || e.keycode == 71) {
 		window_fullscreen = !window_fullscreen;

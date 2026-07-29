@@ -42,7 +42,18 @@ public:
 	void draw();
 	void draw_activerender(); // Dibuja el render activo. Esta es la <que corre en el ofApp.cpp
 	void draw_activerender(float _width, float _height);
+	void drawMappingEditRender(float _width, float _height);
+	void drawMappingOverlay(float _width, float _height);
 	void drawNodeEditorBackground(float _width, float _height);
+	bool isMappingEditActive() const;
+	bool consumeMappingRenderWindowRequest();
+	bool toggleMappingEdit();
+	bool toggleMappingGuides();
+	bool toggleMappingGrid();
+	void endMappingEdit();
+	bool mappingMousePressed(int x, int y, int button, float width, float height);
+	bool mappingMouseDragged(int x, int y, int button, float width, float height);
+	bool mappingMouseReleased(int x, int y, int button, float width, float height);
 
 	void update();
 	void setActiveOnlyBox(int _val);
@@ -394,9 +405,54 @@ private:
 	JPBang inspectorreload;				 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA
 	JPBang inspectorrandom;              // Randomiza todos los parametros del shader en el inspector
 	JPBang editbutton;                   // Boton EDIT para abrir el shader en el editor de codigo
+	JPBang mappingbutton;                // Enters the corner-pin mapping editor
+	JPBang mappingGuidesButton;          // Toggles mapping borders and corner handles
+	JPBang mappingGridButton;            // Toggles the render-window calibration grid
 	float inspectorwindow_setactivesize; // Para el size del setactive:
 
 	void draw_conections();
+	struct MappingParameterIndices
+	{
+		int topLeftX = -1;
+		int topLeftY = -1;
+		int topRightX = -1;
+		int topRightY = -1;
+		int bottomRightX = -1;
+		int bottomRightY = -1;
+		int bottomLeftX = -1;
+		int bottomLeftY = -1;
+		int feather = -1;
+		bool valid() const;
+	};
+	struct MappingQuad
+	{
+		ofVec2f topLeft;
+		ofVec2f topRight;
+		ofVec2f bottomRight;
+		ofVec2f bottomLeft;
+	};
+	MappingParameterIndices getMappingParameterIndices(JPbox *box) const;
+	bool isMappingShaderBox(JPbox *box) const;
+	bool mappingTargetMatchesCurrentView() const;
+	JPbox *getMappingEditBox();
+	MappingQuad getMappingQuad(JPbox *box) const;
+	bool isValidMappingQuad(const MappingQuad &quad) const;
+	ofVec2f projectMappingPoint(const MappingQuad &quad, const ofVec2f &uv) const;
+	ofRectangle getMappingPreviewRect(float width, float height) const;
+	void drawMappingGrid(const MappingQuad &quad, float x, float y,
+		float width, float height);
+	void drawMappingHandles(const MappingQuad &quad, float x, float y,
+		float width, float height);
+	bool updateMappingCorner(int corner, float x, float y, float width, float height);
+	void markMappingParameterChanged();
+
+	bool mappingEditActive = false;
+	bool mappingGuidesVisible = true;
+	bool mappingGridVisible = false;
+	bool mappingRenderWindowRequested = false;
+	int mappingTargetIndex = -1;
+	vector<int> mappingTargetGroupPath;
+	int mappingDraggedCorner = -1;
 
 	// ofFbo boxesdrawing;
 
