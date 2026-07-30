@@ -1,7 +1,183 @@
 #include "jp_box_cam.h"
+#include <limits>
+#include <map>
+
+class JPCameraCaptureSource
+{
+public:
+	JPCameraCaptureSource(int deviceId, int width, int height)
+		: deviceId(deviceId)
+	{
+		grabber.setDeviceID(deviceId);
+		grabber.setDesiredFrameRate(60);
+		initialized = grabber.setup(width, height);
+		if (!initialized)
+		{
+			ofLogWarning("CAMARITA")
+				<< "Unable to open camera device " << deviceId;
+		}
+	}
+
+	~JPCameraCaptureSource()
+	{
+		grabber.close();
+	}
+
+	void updateOnce()
+	{
+		if (!initialized)
+		{
+			return;
+		}
+		const uint64_t frame = ofGetFrameNum();
+		if (lastUpdateFrame == frame)
+		{
+			return;
+		}
+		lastUpdateFrame = frame;
+		grabber.update();
+	}
+
+	bool isInitialized() const
+	{
+		return initialized && grabber.isInitialized();
+	}
+
+	void draw(float x, float y, float width, float height) const
+	{
+		if (isInitialized())
+		{
+			grabber.draw(x, y, width, height);
+		}
+	}
+
+private:
+	int deviceId = -1;
+	ofVideoGrabber grabber;
+	bool initialized = false;
+	uint64_t lastUpdateFrame = std::numeric_limits<uint64_t>::max();
+};
+
+namespace
+{
+	struct CameraDeviceInfo
+	{
+		int id = -1;
+		string name;
+	};
+
+	vector<CameraDeviceInfo> &cameraDevices()
+	{
+		static vector<CameraDeviceInfo> devices;
+		return devices;
+	}
+
+	bool &cameraDevicesScanned()
+	{
+		static bool scanned = false;
+		return scanned;
+	}
+
+	map<int, weak_ptr<JPCameraCaptureSource>> &cameraSources()
+	{
+		static map<int, weak_ptr<JPCameraCaptureSource>> sources;
+		return sources;
+	}
+
+	void pruneExpiredCameraSources()
+	{
+		auto &sources = cameraSources();
+		for (auto it = sources.begin(); it != sources.end();)
+		{
+			if (it->second.expired())
+			{
+				it = sources.erase(it);
+			}
+			else
+			{
+				++it;
+			}
+		}
+	}
+
+	const vector<CameraDeviceInfo> &discoverCameraDevices()
+	{
+		if (cameraDevicesScanned())
+		{
+			return cameraDevices();
+		}
+
+		cameraDevicesScanned() = true;
+		cameraDevices().clear();
+		ofVideoGrabber probe;
+		const vector<ofVideoDevice> devices = probe.listDevices();
+		for (const ofVideoDevice &device : devices)
+		{
+			if (device.bAvailable)
+			{
+				cameraDevices().push_back({device.id, device.deviceName});
+				ofLogNotice("CAMARITA")
+					<< device.id << ": " << device.deviceName;
+			}
+			else
+			{
+				ofLogNotice("CAMARITA")
+					<< device.id << ": " << device.deviceName
+					<< " - unavailable";
+			}
+		}
+		if (cameraDevices().empty())
+		{
+			ofLogWarning("CAMARITA")
+				<< "No available camera capture devices found";
+		}
+		return cameraDevices();
+	}
+
+	int findDefaultCameraListIndex(const vector<int> &deviceIds)
+	{
+		pruneExpiredCameraSources();
+		const auto &sources = cameraSources();
+		for (int i = 0; i < int(deviceIds.size()); i++)
+		{
+			auto source = sources.find(deviceIds[i]);
+			if (source == sources.end() || source->second.expired())
+			{
+				return i;
+			}
+		}
+		return deviceIds.empty() ? -1 : 0;
+	}
+
+	shared_ptr<JPCameraCaptureSource> acquireCameraSource(
+		int deviceId, int width, int height)
+	{
+		pruneExpiredCameraSources();
+		auto &sources = cameraSources();
+		auto existing = sources.find(deviceId);
+		if (existing != sources.end())
+		{
+			shared_ptr<JPCameraCaptureSource> source =
+				existing->second.lock();
+			if (source)
+			{
+				return source;
+			}
+		}
+
+		shared_ptr<JPCameraCaptureSource> source =
+			make_shared<JPCameraCaptureSource>(
+				deviceId, width, height);
+		sources[deviceId] = source;
+		return source;
+	}
+}
 
 JPbox_cam::JPbox_cam() {}
-JPbox_cam::~JPbox_cam() {}
+JPbox_cam::~JPbox_cam()
+{
+	releaseCameraSource();
+}
 
 void JPbox_cam::setup(string _dir, string _name)
 {
@@ -23,7 +199,15 @@ void JPbox_cam::setup(string _dir, string _name)
 	parameters.addBoolValue(true, "strech");
 
 	refreshCameraDevices();
-	applyCameraIndexFromParameter(true);
+	const int defaultListIndex =
+		findDefaultCameraListIndex(availableDeviceIds);
+	const float defaultValue =
+		defaultListIndex > 0 && availableDeviceIds.size() > 1
+			? float(defaultListIndex) /
+				float(availableDeviceIds.size() - 1)
+			: 0.0f;
+	parameters.setFloatValue(defaultValue, 4);
+	parameters.setFloatLerpValue(defaultValue, 4);
 
 	tipo = CAMBOX;
 }
@@ -31,20 +215,10 @@ void JPbox_cam::setup(string _dir, string _name)
 void JPbox_cam::refreshCameraDevices()
 {
 	availableDeviceIds.clear();
-	vector<ofVideoDevice> devices = vidGrabber.listDevices();
-	for (size_t i = 0; i < devices.size(); i++)
+	const vector<CameraDeviceInfo> &devices = discoverCameraDevices();
+	for (const CameraDeviceInfo &device : devices)
 	{
-		if (devices[i].bAvailable)
-		{
-			availableDeviceIds.push_back(devices[i].id);
-			// log the device
-			ofLogNotice() << devices[i].id << ": " << devices[i].deviceName;
-		}
-		else
-		{
-			// log the device and note it as unavailable
-			ofLogNotice() << devices[i].id << ": " << devices[i].deviceName << " - unavailable ";
-		}
+		availableDeviceIds.push_back(device.id);
 	}
 	camsize = availableDeviceIds.size();
 }
@@ -71,17 +245,27 @@ void JPbox_cam::applyCameraIndexFromParameter(bool force)
 											 float(availableDeviceIds.size() - 1),
 											 true)));
 	targetListIndex = ofClamp(targetListIndex, 0, int(availableDeviceIds.size()) - 1);
-	if (!force && targetListIndex == currentCameraListIndex)
+	const int targetDeviceId = availableDeviceIds[targetListIndex];
+	if (!force &&
+		targetListIndex == currentCameraListIndex &&
+		targetDeviceId == currentDeviceId &&
+		cameraSource)
 	{
 		return;
 	}
 
+	releaseCameraSource();
 	currentCameraListIndex = targetListIndex;
-	currentDeviceId = availableDeviceIds[currentCameraListIndex];
-	vidGrabber.close();
-	vidGrabber.setDeviceID(currentDeviceId);
-	vidGrabber.setDesiredFrameRate(60);
-	vidGrabber.initGrabber(camWidth, camHeight);
+	currentDeviceId = targetDeviceId;
+	cameraSource =
+		acquireCameraSource(currentDeviceId, camWidth, camHeight);
+}
+
+void JPbox_cam::releaseCameraSource()
+{
+	cameraSource.reset();
+	currentCameraListIndex = -1;
+	currentDeviceId = -1;
 }
 
 void JPbox_cam::update()
@@ -89,7 +273,10 @@ void JPbox_cam::update()
 	JPbox::update();
 
 	applyCameraIndexFromParameter();
-	vidGrabber.update();
+	if (cameraSource)
+	{
+		cameraSource->updateOnce();
+	}
 
 	updateFBO();
 }
@@ -109,16 +296,21 @@ void JPbox_cam::updateFBO()
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		fbo.begin();
 		ofClear(0, 255);
-		if (!parameters.getBoolValue(5))
+		if (cameraSource && cameraSource->isInitialized() &&
+			!parameters.getBoolValue(5))
 		{
-			vidGrabber.draw(jp_constants::renderWidth / 2 - mscalex / 2 + moffsetx,
-							jp_constants::renderHeight / 2 - mscaley / 2 + moffsety,
-							mscalex,
-							mscaley);
+			cameraSource->draw(
+				jp_constants::renderWidth / 2 - mscalex / 2 + moffsetx,
+				jp_constants::renderHeight / 2 - mscaley / 2 + moffsety,
+				mscalex,
+				mscaley);
 		}
-		else
+		else if (cameraSource && cameraSource->isInitialized())
 		{
-			vidGrabber.draw(0, 0, jp_constants::renderWidth, jp_constants::renderHeight);
+			cameraSource->draw(
+				0, 0,
+				jp_constants::renderWidth,
+				jp_constants::renderHeight);
 		}
 		fbo.end();
 	}
@@ -136,8 +328,8 @@ void JPbox_cam::draw()
 
 void JPbox_cam::clear()
 {
+	releaseCameraSource();
 	JPbox::clear();
-	vidGrabber.close();
 	cout << "CORRE CLEAR CAMARITA " << endl;
 	fbo.clear();
 	fbo.destroy();

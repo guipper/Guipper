@@ -7,6 +7,8 @@
 #include "../JPutils/jp_fbohandler.h"
 //#include "Shaderrender.h"
 
+class JPCameraCaptureSource;
+
 //#include "JPbox/JPboxgroup.h"
 // Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
 
@@ -18,7 +20,6 @@ public:
 
 	void setup(string _dir, string _name);
 	int camsize;
-	ofVideoGrabber vidGrabber;
 
 	// METODOS HEREDADOS :
 	// void reload();
@@ -27,8 +28,6 @@ public:
 	void updateFBO();
 	void draw();
 	void clear();
-	void refreshCameraDevices();
-	void applyCameraIndexFromParameter(bool force = false);
 	void setPos(float _x, float _y)
 	{
 		JPdragobject::setPos(_x, _y);
@@ -43,9 +42,15 @@ public:
 	// void setUniforms(JPParameterGroup & _parameters, JPFbohandlerGroup & _fbohandlergroup, string _dir, string _name);
 	// ofFbo fbo;
 	// ofShader shader;
+private:
+	void refreshCameraDevices();
+	void applyCameraIndexFromParameter(bool force = false);
+	void releaseCameraSource();
+
 	vector<int> availableDeviceIds;
 	int currentCameraListIndex = -1;
 	int currentDeviceId = -1;
 	int camWidth = 640;
 	int camHeight = 480;
+	std::shared_ptr<JPCameraCaptureSource> cameraSource;
 };
