@@ -30,6 +30,13 @@
 class JPbox_preset : public JPbox
 {
 public:
+	struct ExposedTextureInput
+	{
+		string publicName;
+		string targetBoxName;
+		string targetSamplerName;
+	};
+
 	JPbox_preset(); // constructor declared
 	~JPbox_preset();
 
@@ -61,6 +68,7 @@ public:
 	// exposedParamOriginalIndices[childBoxIndex][paramIndex] = {grandchildIndex, paramIndex}
 	// Used when an exposed param comes from a child's child (propagated one more level)
 	vector<vector<pair<int,int>>> exposedParamOriginalIndices;
+	vector<ExposedTextureInput> exposedTextureInputs;
 
 	// Per-preset viewport zoom/pan - saved/loaded from XML
 	float viewportZoom = 1.0f;
@@ -77,5 +85,33 @@ public:
 	bool isParamExposed(int childIndex, int paramIndex) const;
 	void clearExposedParams();
 	void resizeExposedParams(int numChildren);
+	bool exposeTextureInput(const string &targetBoxName,
+		const string &targetSamplerName,
+		string *publicName = nullptr);
+	bool removeExposedTextureInput(const string &targetBoxName,
+		const string &targetSamplerName);
+	bool removeExposedTextureInputsForBox(const string &targetBoxName);
+	bool isTextureInputExposed(const string &targetBoxName,
+		const string &targetSamplerName) const;
+	bool isExposedTextureInputTarget(const string &targetBoxName,
+		const string &targetSamplerName) const;
+	void renameExposedTextureInputTarget(const string &oldBoxName,
+		const string &newBoxName);
+	bool retargetExposedTextureInput(const string &publicName,
+		const string &targetBoxName,
+		const string &targetSamplerName);
+	void setExposedTextureInputs(
+		const vector<ExposedTextureInput> &inputs);
+	void rebuildExposedTextureInputHandlers();
+	void syncExposedTextureInputs();
+	void pruneInvalidExposedTextureInputs();
+	string getExposedTextureInputTargetLabel(
+		const string &publicName) const;
 	void save();
+
+private:
+	JPbox *findDirectChildByName(const string &childName) const;
+	string makeUniqueExposedTextureInputName(
+		const string &samplerName) const;
+	void updateExposedTextureInputNodePositions();
 };

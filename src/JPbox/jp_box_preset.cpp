@@ -155,9 +155,18 @@ void JPbox_preset::setup(string _directory, string _name)
 			if (paramChild)
 			{
 				int paramIndex = paramChild.getIntValue();
-				if (childIndex >= 0 && childIndex < (int)exposedParams.size() &&
-					paramIndex >= 0 && paramIndex < (int)exposedParams[childIndex].size())
+				if (childIndex >= 0 &&
+					childIndex < (int)exposedParams.size() &&
+					paramIndex >= 0)
 				{
+					if (paramIndex >=
+						(int)exposedParams[childIndex].size())
+					{
+						exposedParams[childIndex].resize(
+							paramIndex + 1, false);
+						exposedParamOriginalIndices[childIndex]
+							.resize(paramIndex + 1, {-1, -1});
+					}
 					exposedParams[childIndex][paramIndex] = true;
 					// Load propagation indices for propagated exposes
 					if (origBoxChild && origParamChild)
@@ -179,6 +188,50 @@ void JPbox_preset::setup(string _directory, string _name)
 			}
 		}
 	}
+
+	auto exposedInputsChild = xml.getChild("exposedInputs");
+	if (exposedInputsChild)
+	{
+		for (auto &inputNode : exposedInputsChild.getChildren("input"))
+		{
+			auto nameNode = inputNode.getChild("name");
+			auto boxNode = inputNode.getChild("box");
+			auto samplerNode = inputNode.getChild("sampler");
+			if (!nameNode || !boxNode || !samplerNode)
+			{
+				continue;
+			}
+			ExposedTextureInput input;
+			input.publicName = nameNode.getValue();
+			input.targetBoxName = boxNode.getValue();
+			input.targetSamplerName = samplerNode.getValue();
+			if (input.publicName.empty() ||
+				input.targetBoxName.empty() ||
+				input.targetSamplerName.empty())
+			{
+				continue;
+			}
+			bool duplicate = false;
+			for (const ExposedTextureInput &existing :
+				exposedTextureInputs)
+			{
+				if (existing.publicName == input.publicName ||
+					(existing.targetBoxName == input.targetBoxName &&
+					 existing.targetSamplerName ==
+						input.targetSamplerName))
+				{
+					duplicate = true;
+					break;
+				}
+			}
+			if (!duplicate)
+			{
+				exposedTextureInputs.push_back(input);
+			}
+		}
+	}
+	pruneInvalidExposedTextureInputs();
+	rebuildExposedTextureInputHandlers();
 
 	// Una vez que cargo todas las cajitas les cargamos los links :
 	// Mira lo que esta este algoritmo para levantar los links entre cajitas papa !!!
@@ -232,6 +285,9 @@ void JPbox_preset::setup(string _directory, string _name)
 void JPbox_preset::update()
 {
 	JPbox::update();
+	pruneInvalidExposedTextureInputs();
+	updateExposedTextureInputNodePositions();
+	syncExposedTextureInputs();
 	updateFBO();
 }
 
@@ -329,6 +385,26 @@ void JPbox_preset::draw()
 	JPbox::draw();
 	fbo.draw(x, y + padding_top / 2 - 3, fbowidth, fboheight);
 	JPbox::draw_outlet();
+
+	for (int i = 0; i < fbohandlergroup.getSize(); i++)
+	{
+		ofNoFill();
+		ofSetColor(0);
+		ofDrawEllipse(fbohandlergroup.getPosX(i),
+			fbohandlergroup.getPosY(i), inlet_size, inlet_size);
+		ofFill();
+		const bool linked =
+			fbohandlergroup.getisPointerSet(i);
+		const bool hovered = fbohandlergroup.mouseOver(i);
+		ofSetColor(linked ?
+			(hovered ? ofColor(100, 255, 0, 255) :
+			 ofColor(0, 120, 0, 255)) :
+			(hovered ? COL_ACCENT_RED :
+			 ofColor(COL_ACCENT_RED, 190)));
+		ofDrawEllipse(fbohandlergroup.getPosX(i),
+			fbohandlergroup.getPosY(i), inlet_size, inlet_size);
+	}
+	ofSetColor(255);
 }
 
 void JPbox_preset::setExposedParam(int childIndex, int paramIndex, bool exposed)
@@ -371,6 +447,342 @@ void JPbox_preset::resizeExposedParams(int numChildren)
 	}
 }
 
+JPbox *JPbox_preset::findDirectChildByName(
+	const string &childName) const
+{
+	for (JPbox *box : boxes)
+	{
+		if (box != nullptr && box->name == childName)
+		{
+			return box;
+		}
+	}
+	return nullptr;
+}
+
+string JPbox_preset::makeUniqueExposedTextureInputName(
+	const string &samplerName) const
+{
+	string baseName = samplerName.empty() ? "input" : samplerName;
+	string candidate = baseName;
+	int suffix = 2;
+	auto nameExists = [this](const string &name) {
+		for (const ExposedTextureInput &input :
+			exposedTextureInputs)
+		{
+			if (input.publicName == name)
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+	while (nameExists(candidate))
+	{
+		candidate = baseName + "_" + ofToString(suffix++);
+	}
+	return candidate;
+}
+
+bool JPbox_preset::exposeTextureInput(
+	const string &targetBoxName,
+	const string &targetSamplerName,
+	string *publicName)
+{
+	for (const ExposedTextureInput &input :
+		exposedTextureInputs)
+	{
+		if (input.targetBoxName == targetBoxName &&
+			input.targetSamplerName == targetSamplerName)
+		{
+			if (publicName != nullptr)
+			{
+				*publicName = input.publicName;
+			}
+			return true;
+		}
+	}
+
+	JPbox *target = findDirectChildByName(targetBoxName);
+	if (target == nullptr)
+	{
+		return false;
+	}
+	const int samplerIndex =
+		target->fbohandlergroup.findIndexByName(targetSamplerName);
+	if (samplerIndex < 0 ||
+		target->fbohandlergroup.getisPointerSet(samplerIndex))
+	{
+		return false;
+	}
+
+	ExposedTextureInput input;
+	input.publicName =
+		makeUniqueExposedTextureInputName(targetSamplerName);
+	input.targetBoxName = targetBoxName;
+	input.targetSamplerName = targetSamplerName;
+	exposedTextureInputs.push_back(input);
+	rebuildExposedTextureInputHandlers();
+	updateExposedTextureInputNodePositions();
+	if (publicName != nullptr)
+	{
+		*publicName = input.publicName;
+	}
+	return true;
+}
+
+bool JPbox_preset::removeExposedTextureInput(
+	const string &targetBoxName,
+	const string &targetSamplerName)
+{
+	for (auto input = exposedTextureInputs.begin();
+		input != exposedTextureInputs.end(); ++input)
+	{
+		if (input->targetBoxName != targetBoxName ||
+			input->targetSamplerName != targetSamplerName)
+		{
+			continue;
+		}
+		JPbox *target =
+			findDirectChildByName(input->targetBoxName);
+		if (target != nullptr)
+		{
+			const int samplerIndex =
+				target->fbohandlergroup.findIndexByName(
+					input->targetSamplerName);
+			if (samplerIndex >= 0)
+			{
+				target->fbohandlergroup.deleteFboPointer(
+					samplerIndex);
+			}
+		}
+		exposedTextureInputs.erase(input);
+		rebuildExposedTextureInputHandlers();
+		updateExposedTextureInputNodePositions();
+		return true;
+	}
+	return false;
+}
+
+bool JPbox_preset::removeExposedTextureInputsForBox(
+	const string &targetBoxName)
+{
+	bool removed = false;
+	for (auto input = exposedTextureInputs.begin();
+		input != exposedTextureInputs.end();)
+	{
+		if (input->targetBoxName == targetBoxName)
+		{
+			input = exposedTextureInputs.erase(input);
+			removed = true;
+		}
+		else
+		{
+			++input;
+		}
+	}
+	if (removed)
+	{
+		rebuildExposedTextureInputHandlers();
+		updateExposedTextureInputNodePositions();
+	}
+	return removed;
+}
+
+bool JPbox_preset::isTextureInputExposed(
+	const string &targetBoxName,
+	const string &targetSamplerName) const
+{
+	return isExposedTextureInputTarget(
+		targetBoxName, targetSamplerName);
+}
+
+bool JPbox_preset::isExposedTextureInputTarget(
+	const string &targetBoxName,
+	const string &targetSamplerName) const
+{
+	for (const ExposedTextureInput &input :
+		exposedTextureInputs)
+	{
+		if (input.targetBoxName == targetBoxName &&
+			input.targetSamplerName == targetSamplerName)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void JPbox_preset::renameExposedTextureInputTarget(
+	const string &oldBoxName,
+	const string &newBoxName)
+{
+	for (ExposedTextureInput &input :
+		exposedTextureInputs)
+	{
+		if (input.targetBoxName == oldBoxName)
+		{
+			input.targetBoxName = newBoxName;
+		}
+	}
+}
+
+bool JPbox_preset::retargetExposedTextureInput(
+	const string &publicName,
+	const string &targetBoxName,
+	const string &targetSamplerName)
+{
+	JPbox *target = findDirectChildByName(targetBoxName);
+	if (target == nullptr ||
+		target->fbohandlergroup.findIndexByName(
+			targetSamplerName) < 0)
+	{
+		return false;
+	}
+	for (ExposedTextureInput &input :
+		exposedTextureInputs)
+	{
+		if (input.publicName == publicName)
+		{
+			input.targetBoxName = targetBoxName;
+			input.targetSamplerName =
+				targetSamplerName;
+			return true;
+		}
+	}
+	return false;
+}
+
+void JPbox_preset::setExposedTextureInputs(
+	const vector<ExposedTextureInput> &inputs)
+{
+	exposedTextureInputs = inputs;
+	pruneInvalidExposedTextureInputs();
+	rebuildExposedTextureInputHandlers();
+	updateExposedTextureInputNodePositions();
+}
+
+void JPbox_preset::rebuildExposedTextureInputHandlers()
+{
+	JPFbohandlerGroup previousHandlers = fbohandlergroup;
+	fbohandlergroup.clear();
+	for (const ExposedTextureInput &input :
+		exposedTextureInputs)
+	{
+		fbohandlergroup.addFbohandler(input.publicName);
+		const int previousIndex =
+			previousHandlers.findIndexByName(input.publicName);
+		const int newIndex = fbohandlergroup.getSize() - 1;
+		if (previousIndex >= 0 &&
+			previousHandlers.getisPointerSet(previousIndex))
+		{
+			fbohandlergroup.setFboPointer(
+				previousHandlers.getFboPointerReference(
+					previousIndex),
+				previousHandlers.getFboNameReference(
+					previousIndex),
+				newIndex);
+		}
+	}
+	fbohandlergroup.setupdragobjects(
+		x, y, outlet_size, outlet_size);
+}
+
+void JPbox_preset::syncExposedTextureInputs()
+{
+	for (const ExposedTextureInput &input :
+		exposedTextureInputs)
+	{
+		JPbox *target =
+			findDirectChildByName(input.targetBoxName);
+		if (target == nullptr)
+		{
+			continue;
+		}
+		const int samplerIndex =
+			target->fbohandlergroup.findIndexByName(
+				input.targetSamplerName);
+		const int publicIndex =
+			fbohandlergroup.findIndexByName(input.publicName);
+		if (samplerIndex < 0 || publicIndex < 0)
+		{
+			continue;
+		}
+		if (fbohandlergroup.getisPointerSet(publicIndex))
+		{
+			target->fbohandlergroup.setFboPointer(
+				fbohandlergroup.getFboPointerReference(
+					publicIndex),
+				fbohandlergroup.getFboNameReference(
+					publicIndex),
+				samplerIndex);
+		}
+		else
+		{
+			target->fbohandlergroup.deleteFboPointer(
+				samplerIndex);
+		}
+	}
+}
+
+void JPbox_preset::pruneInvalidExposedTextureInputs()
+{
+	bool removed = false;
+	for (auto input = exposedTextureInputs.begin();
+		input != exposedTextureInputs.end();)
+	{
+		JPbox *target =
+			findDirectChildByName(input->targetBoxName);
+		if (target == nullptr ||
+			target->fbohandlergroup.findIndexByName(
+				input->targetSamplerName) < 0)
+		{
+			input = exposedTextureInputs.erase(input);
+			removed = true;
+		}
+		else
+		{
+			++input;
+		}
+	}
+	if (removed)
+	{
+		rebuildExposedTextureInputHandlers();
+	}
+}
+
+string JPbox_preset::getExposedTextureInputTargetLabel(
+	const string &publicName) const
+{
+	for (const ExposedTextureInput &input :
+		exposedTextureInputs)
+	{
+		if (input.publicName == publicName)
+		{
+			return input.targetBoxName + "." +
+				input.targetSamplerName;
+		}
+	}
+	return "";
+}
+
+void JPbox_preset::updateExposedTextureInputNodePositions()
+{
+	for (int i = 0; i < fbohandlergroup.getSize(); i++)
+	{
+		float inletY = y;
+		if (fbohandlergroup.getSize() > 1)
+		{
+			inletY = y + ofMap(
+				i, 0, fbohandlergroup.getSize() - 1,
+				-(height / 2) * 3 / 6,
+				(height / 2) * 3 / 6);
+		}
+		fbohandlergroup.setPos(
+			x - width / 2, inletY, i);
+	}
+}
+
 void JPbox_preset::clear()
 {
 	activeRenderTransitionRunning = false;
@@ -385,6 +797,9 @@ void JPbox_preset::clear()
 
 	boxes.clear();
 	exposedParams.clear();
+	exposedParamOriginalIndices.clear();
+	exposedTextureInputs.clear();
+	fbohandlergroup.clear();
 }
 
 void JPbox_preset::addBox(JPbox &_box)
@@ -452,7 +867,10 @@ void JPbox_preset::save()
 			auto fboslinks = data.appendChild("fboslinks");
 			for (int k = 0; k < boxes[i]->fbohandlergroup.getSize(); k++)
 			{
-				if (boxes[i]->fbohandlergroup.getisPointerSet(k))
+				if (boxes[i]->fbohandlergroup.getisPointerSet(k) &&
+					!isExposedTextureInputTarget(
+						boxes[i]->name,
+						boxes[i]->fbohandlergroup.getName(k)))
 				{
 					fboslinks.appendChild(boxes[i]->fbohandlergroup.getName(k))
 						.set(boxes[i]->fbohandlergroup.getFboName(k));
@@ -468,6 +886,24 @@ void JPbox_preset::save()
 			{
 				childPreset->save();
 			}
+		}
+	}
+
+	if (!exposedTextureInputs.empty())
+	{
+		auto exposedInputsNode =
+			xml.appendChild("exposedInputs");
+		for (const ExposedTextureInput &input :
+			exposedTextureInputs)
+		{
+			auto inputNode =
+				exposedInputsNode.appendChild("input");
+			inputNode.appendChild("name")
+				.set(input.publicName);
+			inputNode.appendChild("box")
+				.set(input.targetBoxName);
+			inputNode.appendChild("sampler")
+				.set(input.targetSamplerName);
 		}
 	}
 

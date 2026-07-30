@@ -298,6 +298,7 @@ private:
 		int linkIndex = -1;
 		ofRectangle bounds;
 		ofRectangle upButton;
+		ofRectangle exposeButton;
 		ofRectangle unlinkButton;
 	};
 	float layoutInspectorInputRows(JPbox *box, float startY);
@@ -306,6 +307,11 @@ private:
 	bool handleInspectorAutomationClick();
 	bool moveInspectorInputUp(JPbox *box, int linkIndex);
 	bool unlinkInspectorInput(JPbox *box, int linkIndex);
+	class JPbox_preset *getInspectorInputOwnerPreset() const;
+	bool isInspectorTextureInputExposed(
+		JPbox *box, int linkIndex) const;
+	bool toggleInspectorTextureInputExposure(
+		JPbox *box, int linkIndex);
 	void drawCuePreview();
 	void drawLiveOutput(float x, float y, float w, float h);
 	JPbox *getCueDraftSourceBox();
@@ -319,6 +325,9 @@ private:
 	string makeNameFromDirectory(const string &directory) const;
 	string makeUniqueBoxName(const string &baseName) const;
 	string makeUniqueBoxName(const string &baseName, const vector<JPbox *> &checkBoxes) const;
+	vector<JPbox *> *getCurrentViewBoxes();
+	int *getCurrentViewActiveRenderPointer();
+	string makeNextGroupName(const vector<JPbox *> &siblings) const;
 	int findCueDraftCloneIndexForRealIndex(int index) const;
 	bool isCueSourceIndex(int index) const;
 	bool isCueDraftRealIndex(int index) const;
@@ -362,6 +371,9 @@ private:
 	// (used to seed a preset draft clone from the live box, and to write staged
 	// preset edits back on apply). Only mirrors editable state, not structure.
 	void copyPresetInternalState(class JPbox_preset *destination, class JPbox_preset *source);
+	bool synchronizeCuePresetStructure(
+		class JPbox_preset *destination,
+		class JPbox_preset *source);
 	void snapshotPresetActiveRenders(class JPbox_preset *source, vector<int> &values) const;
 	void restorePresetActiveRenders(class JPbox_preset *destination, const vector<int> &values, int &valueIndex) const;
 	class JPbox_preset *getDraftPresetForCurrentView() const;

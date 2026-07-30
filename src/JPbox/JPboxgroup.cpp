@@ -4,6 +4,7 @@
 #include "../JPutils/jp_tooltip.h"
 #include <filesystem>
 #include <algorithm>
+#include <cctype>
 #include <functional>
 #include <cmath>
 
@@ -213,6 +214,54 @@ string JPboxgroup::makeUniqueBoxName(const string &baseName, const vector<JPbox 
 	return nombre;
 }
 
+vector<JPbox *> *JPboxgroup::getCurrentViewBoxes()
+{
+	if (!isGroupViewActive())
+	{
+		return &boxes;
+	}
+	JPbox_preset *preset = getActivePreset();
+	return preset != nullptr ? &preset->boxes : nullptr;
+}
+
+int *JPboxgroup::getCurrentViewActiveRenderPointer()
+{
+	if (!isGroupViewActive())
+	{
+		return activerender;
+	}
+	JPbox_preset *preset = getActivePreset();
+	return preset != nullptr ? &preset->activeRender : nullptr;
+}
+
+string JPboxgroup::makeNextGroupName(
+	const vector<JPbox *> &siblings) const
+{
+	const string prefix = "group";
+	int highestSuffix = 0;
+	for (JPbox *box : siblings)
+	{
+		if (box == nullptr ||
+			box->name.rfind(prefix, 0) != 0 ||
+			box->name.size() == prefix.size())
+		{
+			continue;
+		}
+		const string suffix = box->name.substr(prefix.size());
+		const bool numeric = std::all_of(
+			suffix.begin(), suffix.end(),
+			[](unsigned char character) {
+				return std::isdigit(character) != 0;
+			});
+		if (numeric)
+		{
+			highestSuffix = std::max(
+				highestSuffix, ofToInt(suffix));
+		}
+	}
+	return prefix + ofToString(highestSuffix + 1);
+}
+
 
 void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 {
@@ -288,6 +337,9 @@ void JPboxgroup::draw()
 	// Draw connections (main view uses the dedicated function, group view draws inline)
 	if (isGroupViewActive())
 	{
+		JPbox_preset *linkOwnerPreset = cueTargetsCurrentView()
+			? getDraftPresetForCurrentView()
+			: getActivePreset();
 		ofSetLineWidth(2);
 		for (int i = (int)activeBoxes.size() - 1; i >= 0; i--)
 		{
@@ -301,6 +353,14 @@ void JPboxgroup::draw()
 				}
 				for (int l = activeBoxes[k]->fbohandlergroup.getSize() - 1; l >= 0; l--)
 				{
+					if (linkOwnerPreset != nullptr &&
+						l < linkSrcK->fbohandlergroup.getSize() &&
+						linkOwnerPreset->isExposedTextureInputTarget(
+							linkSrcK->name,
+							linkSrcK->fbohandlergroup.getName(l)))
+					{
+						continue;
+					}
 					if (l < linkSrcK->fbohandlergroup.getSize() &&
 						linkSrcK->fbohandlergroup.getFboName(l) == activeBoxes[i]->name)
 					{
@@ -1728,7 +1788,16 @@ float JPboxgroup::layoutInspectorInputRows(JPbox *box, float startY)
 {
 	inspectorInputRows.clear();
 	inspectorInputsHeaderBounds.set(0, 0, 0, 0);
-	if (box == nullptr || box->fbohandlergroup.getSize() < 2)
+	if (box == nullptr)
+	{
+		return startY;
+	}
+	const int inputCount = box->fbohandlergroup.getSize();
+	const bool showSingleInput =
+		inputCount > 0 &&
+		(isGroupViewActive() ||
+		 box->getTipo() == JPbox::PRESETBOX);
+	if (inputCount < 2 && !showSingleInput)
 	{
 		return startY;
 	}
@@ -1738,6 +1807,7 @@ float JPboxgroup::layoutInspectorInputRows(JPbox *box, float startY)
 	const float headerHeight = 24.0f;
 	const float rowHeight = 25.0f;
 	const float arrowSize = 18.0f;
+	const float exposeSize = 18.0f;
 	const float unlinkSize = 18.0f;
 	const float sectionGap = 7.0f;
 	const float nextControlHalfHeight =
@@ -1767,6 +1837,10 @@ float JPboxgroup::layoutInspectorInputRows(JPbox *box, float startY)
 		row.unlinkButton.set(row.bounds.getRight() - 3.0f - unlinkSize,
 			row.bounds.y + (rowHeight - unlinkSize) / 2.0f,
 			unlinkSize, unlinkSize);
+		row.exposeButton.set(
+			row.unlinkButton.x - 3.0f - exposeSize,
+			row.bounds.y + (rowHeight - exposeSize) / 2.0f,
+			exposeSize, exposeSize);
 		inspectorInputRows.push_back(row);
 		rowY += rowHeight;
 	}
@@ -1846,17 +1920,36 @@ void JPboxgroup::drawInspectorInputRows(JPbox *box)
 	for (const InspectorInputRow &row : inspectorInputRows)
 	{
 		const bool rowHovered = row.bounds.inside(ofGetMouseX(), ofGetMouseY());
-		const bool canMoveUp = row.linkIndex > 0;
+		const bool exposed =
+			isInspectorTextureInputExposed(box, row.linkIndex);
+		const bool previousExposed =
+			row.linkIndex > 0 &&
+			isInspectorTextureInputExposed(
+				box, row.linkIndex - 1);
+		const bool canMoveUp =
+			row.linkIndex > 0 &&
+			!exposed && !previousExposed;
 		const bool canUnlink =
+			!exposed &&
 			box->fbohandlergroup.getisPointerSet(row.linkIndex);
+		const bool showExpose = isGroupViewActive();
+		const bool canExpose =
+			showExpose &&
+			(exposed ||
+			 !box->fbohandlergroup.getisPointerSet(
+				row.linkIndex));
 		const bool arrowHovered = canMoveUp &&
 			row.upButton.inside(ofGetMouseX(), ofGetMouseY());
+		const bool exposeHovered = canExpose &&
+			row.exposeButton.inside(
+				ofGetMouseX(), ofGetMouseY());
 		const bool unlinkHovered = canUnlink &&
 			row.unlinkButton.inside(ofGetMouseX(), ofGetMouseY());
 		if (rowHovered)
 		{
 			ofSetColor(ofColor(COL_BG_HOVER,
-				(arrowHovered || unlinkHovered) ? 205 : 115));
+				(arrowHovered || exposeHovered ||
+				 unlinkHovered) ? 205 : 115));
 			ofDrawRectRounded(row.bounds, 3.0f);
 		}
 
@@ -1869,6 +1962,13 @@ void JPboxgroup::drawInspectorInputRows(JPbox *box)
 		{
 			ofSetColor(ofColor(COL_ACCENT_RED, 165));
 			ofDrawRectRounded(row.unlinkButton, 3.0f);
+		}
+		if (exposeHovered || exposed)
+		{
+			ofSetColor(exposed ?
+				ofColor(COL_ACCENT_CYAN_DARK, 220) :
+				ofColor(COL_BG_HOVER, 220));
+			ofDrawRectRounded(row.exposeButton, 3.0f);
 		}
 
 		const float arrowCx = row.upButton.getCenter().x;
@@ -1883,7 +1983,9 @@ void JPboxgroup::drawInspectorInputRows(JPbox *box)
 		ofSetLineWidth(1.0f);
 
 		const float sourceAreaWidth = std::min(165.0f, row.bounds.width * 0.42f);
-		const float sourceRight = row.unlinkButton.x - 7.0f;
+		const float sourceRight =
+			(showExpose ? row.exposeButton.x :
+			 row.unlinkButton.x) - 7.0f;
 		string sourceName = box->fbohandlergroup.getisPointerSet(row.linkIndex) ?
 			box->fbohandlergroup.getFboName(row.linkIndex) : "Not connected";
 		sourceName = fitInspectorLabel(sourceName, sourceAreaWidth);
@@ -1891,8 +1993,22 @@ void JPboxgroup::drawInspectorInputRows(JPbox *box)
 
 		const float samplerX = row.upButton.getRight() + 7.0f;
 		const float samplerMaxWidth = std::max(10.0f, sourceX - samplerX - 12.0f);
+		string fullSamplerName =
+			box->fbohandlergroup.getName(row.linkIndex);
+		JPbox_preset *inputPreset =
+			dynamic_cast<JPbox_preset *>(box);
+		if (inputPreset != nullptr)
+		{
+			const string targetLabel =
+				inputPreset->getExposedTextureInputTargetLabel(
+					fullSamplerName);
+			if (!targetLabel.empty())
+			{
+				fullSamplerName += " > " + targetLabel;
+			}
+		}
 		const string samplerName = fitInspectorLabel(
-			box->fbohandlergroup.getName(row.linkIndex), samplerMaxWidth);
+			fullSamplerName, samplerMaxWidth);
 		const float textY = row.bounds.y + row.bounds.height / 2.0f + 4.0f;
 		ofSetColor(COL_TEXT_PRIMARY);
 		jp_constants::p_font.drawString(samplerName, samplerX, textY);
@@ -1910,6 +2026,37 @@ void JPboxgroup::drawInspectorInputRows(JPbox *box)
 				"Swap with " + box->fbohandlergroup.getName(row.linkIndex - 1),
 				row.upButton.x, row.upButton.y,
 				row.upButton.width, row.upButton.height);
+		}
+
+		if (showExpose)
+		{
+			const float exposeCx =
+				row.exposeButton.getCenter().x;
+			const float exposeCy =
+				row.exposeButton.getCenter().y;
+			ofSetColor(exposed ?
+				COL_ACCENT_CYAN :
+				(canExpose ? COL_TEXT_SECONDARY :
+				 ofColor(COL_TEXT_MUTED, 50)));
+			ofSetLineWidth(1.4f);
+			ofDrawLine(exposeCx - 5.0f, exposeCy + 4.0f,
+				exposeCx - 5.0f, exposeCy - 4.0f);
+			ofDrawLine(exposeCx - 5.0f, exposeCy - 4.0f,
+				exposeCx - 1.0f, exposeCy - 4.0f);
+			ofDrawLine(exposeCx - 1.0f, exposeCy + 3.0f,
+				exposeCx + 5.0f, exposeCy - 3.0f);
+			ofDrawLine(exposeCx + 1.0f, exposeCy - 3.0f,
+				exposeCx + 5.0f, exposeCy - 3.0f);
+			ofDrawLine(exposeCx + 5.0f, exposeCy - 3.0f,
+				exposeCx + 5.0f, exposeCy + 1.0f);
+			ofSetLineWidth(1.0f);
+			jp_tooltip::draw(
+				exposed ? "Hide input from parent" :
+					(canExpose ? "Expose input to parent" :
+					 "Unlink texture before exposing"),
+				row.exposeButton.x, row.exposeButton.y,
+				row.exposeButton.width,
+				row.exposeButton.height);
 		}
 
 		const float unlinkCx = row.unlinkButton.getCenter().x;
@@ -1930,6 +2077,8 @@ void JPboxgroup::drawInspectorInputRows(JPbox *box)
 				row.unlinkButton.width, row.unlinkButton.height);
 		}
 		drawInspectorClickBounds(row.upButton, canMoveUp);
+		drawInspectorClickBounds(
+			row.exposeButton, showExpose && canExpose);
 		drawInspectorClickBounds(row.unlinkButton, canUnlink);
 	}
 	jp_tooltip::draw(
@@ -1945,6 +2094,8 @@ bool JPboxgroup::moveInspectorInputUp(JPbox *box, int linkIndex)
 {
 	if (box == nullptr || linkIndex <= 0 ||
 		linkIndex >= box->fbohandlergroup.getSize() ||
+		isInspectorTextureInputExposed(box, linkIndex) ||
+		isInspectorTextureInputExposed(box, linkIndex - 1) ||
 		!box->fbohandlergroup.swapConnections(linkIndex, linkIndex - 1))
 	{
 		return false;
@@ -1966,6 +2117,7 @@ bool JPboxgroup::unlinkInspectorInput(JPbox *box, int linkIndex)
 {
 	if (box == nullptr || linkIndex < 0 ||
 		linkIndex >= box->fbohandlergroup.getSize() ||
+		isInspectorTextureInputExposed(box, linkIndex) ||
 		!box->fbohandlergroup.getisPointerSet(linkIndex))
 	{
 		return false;
@@ -1984,6 +2136,80 @@ bool JPboxgroup::unlinkInspectorInput(JPbox *box, int linkIndex)
 	return true;
 }
 
+JPbox_preset *JPboxgroup::getInspectorInputOwnerPreset() const
+{
+	if (!isGroupViewActive())
+	{
+		return nullptr;
+	}
+	if (isCueDraftMode())
+	{
+		return getDraftPresetForCurrentView();
+	}
+	return getActivePreset();
+}
+
+bool JPboxgroup::isInspectorTextureInputExposed(
+	JPbox *box, int linkIndex) const
+{
+	JPbox_preset *owner =
+		getInspectorInputOwnerPreset();
+	if (owner == nullptr || box == nullptr ||
+		linkIndex < 0 ||
+		linkIndex >= box->fbohandlergroup.getSize())
+	{
+		return false;
+	}
+	return owner->isTextureInputExposed(
+		box->name,
+		box->fbohandlergroup.getName(linkIndex));
+}
+
+bool JPboxgroup::toggleInspectorTextureInputExposure(
+	JPbox *box, int linkIndex)
+{
+	JPbox_preset *owner =
+		getInspectorInputOwnerPreset();
+	if (owner == nullptr || box == nullptr ||
+		linkIndex < 0 ||
+		linkIndex >= box->fbohandlergroup.getSize())
+	{
+		return false;
+	}
+	const string samplerName =
+		box->fbohandlergroup.getName(linkIndex);
+	const bool exposed = owner->isTextureInputExposed(
+		box->name, samplerName);
+	bool changed = false;
+	if (exposed)
+	{
+		changed = owner->removeExposedTextureInput(
+			box->name, samplerName);
+	}
+	else if (!box->fbohandlergroup.getisPointerSet(linkIndex))
+	{
+		changed = owner->exposeTextureInput(
+			box->name, samplerName);
+	}
+	if (!changed)
+	{
+		return false;
+	}
+
+	if (isCueDraftMode())
+	{
+		markCueDraftDirty(
+			cueSelectedIndex(), CUE_DIRTY_LINKS);
+		updateCueDraftGraph();
+	}
+	else
+	{
+		requestCueRebuild();
+	}
+	setControllers();
+	return true;
+}
+
 bool JPboxgroup::handleInspectorInputClick(JPbox *box)
 {
 	if (box != nullptr &&
@@ -1995,6 +2221,17 @@ bool JPboxgroup::handleInspectorInputClick(JPbox *box)
 	}
 	for (const InspectorInputRow &row : inspectorInputRows)
 	{
+		if (isGroupViewActive() &&
+			row.exposeButton.inside(
+				ofGetMouseX(), ofGetMouseY()))
+		{
+			if (toggleInspectorTextureInputExposure(
+				box, row.linkIndex))
+			{
+				return true;
+			}
+			return true;
+		}
 		if (row.unlinkButton.inside(ofGetMouseX(), ofGetMouseY()) &&
 			box != nullptr &&
 			box->fbohandlergroup.getisPointerSet(row.linkIndex))
@@ -2708,6 +2945,13 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 	}
 
 	// Connection dragging: release outlet over an input
+	JPbox_preset *inputOwnerPreset = nullptr;
+	if (isGroupViewActive())
+	{
+		inputOwnerPreset = isCueDraftMode() ?
+			getDraftPresetForCurrentView() :
+			getActivePreset();
+	}
 	JPdragobject::setMouseOverride(canvasMouse);
 	for (int i = (int)activeBoxes.size() - 1; i >= 0; i--)
 	{
@@ -2718,6 +2962,16 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 				if (activeBoxes[k]->fbohandlergroup.mouseOver(l) &&
 					activeBoxes[i]->outletActiveFlag)
 				{
+					if (inputOwnerPreset != nullptr &&
+						inputOwnerPreset
+							->isExposedTextureInputTarget(
+								activeBoxes[k]->name,
+								activeBoxes[k]
+									->fbohandlergroup
+									.getName(l)))
+					{
+						continue;
+					}
 					if (activeBoxes[k]->fbohandlergroup.getFboName(l) == activeBoxes[i]->name)
 					{
 						continue;
@@ -4837,6 +5091,76 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 		return false;
 	}
 
+	struct PresetExposedInputSnapshot
+	{
+		vector<string> presetPath;
+		vector<JPbox_preset::ExposedTextureInput> inputs;
+	};
+	std::function<void(
+		JPbox_preset *,
+		const vector<string> &,
+		vector<PresetExposedInputSnapshot> &)>
+		snapshotExposedInputs =
+		[&snapshotExposedInputs](
+			JPbox_preset *preset,
+			const vector<string> &path,
+			vector<PresetExposedInputSnapshot> &result) {
+			if (preset == nullptr)
+			{
+				return;
+			}
+			PresetExposedInputSnapshot item;
+			item.presetPath = path;
+			item.inputs = preset->exposedTextureInputs;
+			result.push_back(item);
+			for (JPbox *box : preset->boxes)
+			{
+				if (box != nullptr &&
+					box->getTipo() == JPbox::PRESETBOX)
+				{
+					vector<string> childPath = path;
+					childPath.push_back(box->name);
+					snapshotExposedInputs(
+						dynamic_cast<JPbox_preset *>(box),
+						childPath, result);
+				}
+			}
+		};
+	auto restoreExposedInputs =
+		[](JPbox_preset *root,
+		   const vector<PresetExposedInputSnapshot> &items) {
+			for (const PresetExposedInputSnapshot &item :
+				items)
+			{
+				JPbox_preset *preset = root;
+				for (const string &name : item.presetPath)
+				{
+					JPbox_preset *next = nullptr;
+					if (preset != nullptr)
+					{
+						for (JPbox *box : preset->boxes)
+						{
+							if (box != nullptr &&
+								box->name == name &&
+								box->getTipo() ==
+									JPbox::PRESETBOX)
+							{
+								next = dynamic_cast<
+									JPbox_preset *>(box);
+								break;
+							}
+						}
+					}
+					preset = next;
+				}
+				if (preset != nullptr)
+				{
+					preset->setExposedTextureInputs(
+						item.inputs);
+				}
+			}
+		};
+
 	struct DraftSnapshot
 	{
 		int realIndex = -1;
@@ -4848,6 +5172,8 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 		vector<bool> linkSet;
 		vector<int> presetActiveRenders;
 		vector<PresetLinkAssignment> presetLinks;
+		vector<PresetExposedInputSnapshot>
+			presetExposedInputs;
 		unsigned int dirtyFlags = CUE_DIRTY_NONE;
 	};
 
@@ -4875,6 +5201,9 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 				draftPreset, snapshot.presetActiveRenders);
 			snapshotPresetLinks(
 				draftPreset, snapshot.presetLinks);
+			snapshotExposedInputs(
+				draftPreset, {},
+				snapshot.presetExposedInputs);
 		}
 		for (int linkIndex = 0; linkIndex < cueState.draftBoxes[i]->fbohandlergroup.getSize(); linkIndex++)
 		{
@@ -4943,6 +5272,13 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 			int valueIndex = 0;
 			restorePresetActiveRenders(dynamic_cast<JPbox_preset *>(draftBox),
 								 snapshots[i].presetActiveRenders, valueIndex);
+		}
+		if (!snapshots[i].presetExposedInputs.empty() &&
+			draftBox->getTipo() == JPbox::PRESETBOX)
+		{
+			restoreExposedInputs(
+				dynamic_cast<JPbox_preset *>(draftBox),
+				snapshots[i].presetExposedInputs);
 		}
 		if (!snapshots[i].presetLinks.empty() &&
 			draftBox->getTipo() == JPbox::PRESETBOX)
@@ -5111,6 +5447,9 @@ bool JPboxgroup::applyCueDraftToSource()
 				if (realIndex < (int)pb.size() && pb[realIndex] != nullptr)
 				{
 					string deletedName = pb[realIndex]->name;
+					cueState.targetPreset
+						->removeExposedTextureInputsForBox(
+							deletedName);
 					for (int k = 0; k < (int)pb.size(); k++)
 					{
 						if (k == realIndex || pb[k] == nullptr) continue;
@@ -5121,6 +5460,23 @@ bool JPboxgroup::applyCueDraftToSource()
 					pb[realIndex]->clear();
 					delete pb[realIndex];
 					pb.erase(pb.begin() + realIndex);
+					if (realIndex < (int)cueState.targetPreset
+							->exposedParams.size())
+					{
+						cueState.targetPreset->exposedParams.erase(
+							cueState.targetPreset
+								->exposedParams.begin() +
+							realIndex);
+					}
+					if (realIndex < (int)cueState.targetPreset
+							->exposedParamOriginalIndices.size())
+					{
+						cueState.targetPreset
+							->exposedParamOriginalIndices.erase(
+								cueState.targetPreset
+									->exposedParamOriginalIndices
+									.begin() + realIndex);
+					}
 					if (cueState.targetPreset->activeRender > realIndex) cueState.targetPreset->activeRender--;
 				}
 			}
@@ -5437,8 +5793,18 @@ JPbox *JPboxgroup::cloneBoxForCueDraft(int index)
 	// preview would not match the live composite.
 	if (type == source->PRESETBOX)
 	{
-		copyPresetInternalState(dynamic_cast<JPbox_preset *>(draft),
-								dynamic_cast<JPbox_preset *>(source));
+		JPbox_preset *draftPreset =
+			dynamic_cast<JPbox_preset *>(draft);
+		JPbox_preset *sourcePreset =
+			dynamic_cast<JPbox_preset *>(source);
+		if (!synchronizeCuePresetStructure(
+				draftPreset, sourcePreset))
+		{
+			draft->clear();
+			delete draft;
+			return nullptr;
+		}
+		copyPresetInternalState(draftPreset, sourcePreset);
 	}
 	draft->name = source->name;
 	return draft;
@@ -5524,6 +5890,12 @@ void JPboxgroup::snapshotPresetLinks(
 			 linkIndex < box->fbohandlergroup.getSize();
 			 linkIndex++)
 		{
+			if (preset->isExposedTextureInputTarget(
+					box->name,
+					box->fbohandlergroup.getName(linkIndex)))
+			{
+				continue;
+			}
 			PresetLinkAssignment assignment;
 			assignment.presetPath = presetPath;
 			assignment.boxName = box->name;
@@ -5668,6 +6040,11 @@ void JPboxgroup::copyPresetInternalState(JPbox_preset *destination, JPbox_preset
 	}
 	destination->activeRender = source->boxes.empty() ? 0 :
 		ofClamp(source->activeRender, 0, (int)source->boxes.size() - 1);
+	destination->exposedParams = source->exposedParams;
+	destination->exposedParamOriginalIndices =
+		source->exposedParamOriginalIndices;
+	destination->setExposedTextureInputs(
+		source->exposedTextureInputs);
 	int n = std::min((int)destination->boxes.size(), (int)source->boxes.size());
 	for (int i = 0; i < n; i++)
 	{
@@ -5689,6 +6066,89 @@ void JPboxgroup::copyPresetInternalState(JPbox_preset *destination, JPbox_preset
 									dynamic_cast<JPbox_preset *>(source->boxes[i]));
 		}
 	}
+	destination->syncExposedTextureInputs();
+}
+
+bool JPboxgroup::synchronizeCuePresetStructure(
+	JPbox_preset *destination,
+	JPbox_preset *source)
+{
+	if (destination == nullptr || source == nullptr)
+	{
+		return false;
+	}
+
+	bool structureMatches =
+		destination->boxes.size() == source->boxes.size();
+	if (structureMatches)
+	{
+		for (int i = 0; i < (int)source->boxes.size(); i++)
+		{
+			JPbox *destinationBox = destination->boxes[i];
+			JPbox *sourceBox = source->boxes[i];
+			if (destinationBox == nullptr || sourceBox == nullptr ||
+				destinationBox->name != sourceBox->name ||
+				destinationBox->dir != sourceBox->dir ||
+				destinationBox->getTipo() != sourceBox->getTipo())
+			{
+				structureMatches = false;
+				break;
+			}
+		}
+	}
+
+	if (!structureMatches)
+	{
+		destination->clear();
+		for (JPbox *sourceBox : source->boxes)
+		{
+			if (sourceBox == nullptr)
+			{
+				continue;
+			}
+			string cloneName = sourceBox->name;
+			JPbox *clone =
+				createBoxForDirectory(
+					sourceBox->dir, cloneName);
+			if (clone == nullptr)
+			{
+				destination->clear();
+				return false;
+			}
+			clone->setup(sourceBox->dir, cloneName);
+			clone->name = sourceBox->name;
+			copyEditableBoxState(clone, sourceBox);
+			destination->boxes.push_back(clone);
+		}
+		destination->resizeExposedParams(
+			(int)destination->boxes.size());
+	}
+
+	for (int i = 0;
+		i < (int)source->boxes.size() &&
+		i < (int)destination->boxes.size();
+		i++)
+	{
+		JPbox *destinationBox = destination->boxes[i];
+		JPbox *sourceBox = source->boxes[i];
+		if (destinationBox == nullptr || sourceBox == nullptr)
+		{
+			continue;
+		}
+		if (sourceBox->getTipo() == JPbox::PRESETBOX)
+		{
+			if (destinationBox->getTipo() != JPbox::PRESETBOX ||
+				!synchronizeCuePresetStructure(
+					dynamic_cast<JPbox_preset *>(
+						destinationBox),
+					dynamic_cast<JPbox_preset *>(
+						sourceBox)))
+			{
+				return false;
+			}
+		}
+	}
+	return true;
 }
 
 void JPboxgroup::snapshotPresetActiveRenders(JPbox_preset *source, vector<int> &values) const
@@ -6344,6 +6804,10 @@ void JPboxgroup::renderPresetDraftMirroringLive(JPbox_preset *draftPreset, JPbox
 	{
 		return;
 	}
+	// This renderer intentionally bypasses JPbox_preset::update(), so resolve
+	// staged public inlets here before any child shader samples its inputs.
+	draftPreset->pruneInvalidExposedTextureInputs();
+	draftPreset->syncExposedTextureInputs();
 	int n = std::min((int)draftPreset->boxes.size(), (int)livePreset->boxes.size());
 	// Render internal boxes back-to-front (dependency order, matching JPbox_preset::updateFBO).
 	for (int i = n - 1; i >= 0; i--)
@@ -6870,47 +7334,171 @@ void JPboxgroup::groupSelectedBoxes()
 	{
 		return;
 	}
-	// Grouping restructures the real graph (erases boxes + inserts a preset),
-	// which invalidates the cue draft's index/pointer mapping. Discard any active
-	// cue first so it can't be left dangling (would crash on the next cue action).
+
+	// Grouping restructures the real graph, so close a cue before resolving
+	// pointers into the graph that will be modified.
 	if (hasCue())
 	{
 		clearCue();
 	}
 
-	// Calculate average position of selected boxes
-	float avgX = 0, avgY = 0;
-	for (int idx : selectedBoxIndices)
+	vector<JPbox *> *currentBoxes = getCurrentViewBoxes();
+	int *currentActiveRender =
+		getCurrentViewActiveRenderPointer();
+	JPbox_preset *parentPreset =
+		isGroupViewActive() ? getActivePreset() : nullptr;
+	if (currentBoxes == nullptr || currentActiveRender == nullptr)
 	{
-		if (idx >= 0 && idx < boxes.size() && boxes[idx] != nullptr)
+		return;
+	}
+
+	vector<int> selectedIndices = selectedBoxIndices;
+	std::sort(selectedIndices.begin(), selectedIndices.end());
+	selectedIndices.erase(
+		std::unique(selectedIndices.begin(), selectedIndices.end()),
+		selectedIndices.end());
+	selectedIndices.erase(
+		std::remove_if(
+			selectedIndices.begin(), selectedIndices.end(),
+			[currentBoxes](int index) {
+				return index < 0 ||
+					index >= (int)currentBoxes->size() ||
+					(*currentBoxes)[index] == nullptr;
+			}),
+		selectedIndices.end());
+	if (selectedIndices.size() < 2)
+	{
+		return;
+	}
+
+	const string groupName =
+		makeNextGroupName(*currentBoxes);
+	const int previousActiveRender = *currentActiveRender;
+	int groupedActiveRender = 0;
+	for (int i = 0; i < (int)selectedIndices.size(); i++)
+	{
+		if (selectedIndices[i] == previousActiveRender)
 		{
-			avgX += boxes[idx]->x;
-			avgY += boxes[idx]->y;
+			groupedActiveRender = i;
+			break;
 		}
 	}
-	avgX /= (float)selectedBoxIndices.size();
-	avgY /= (float)selectedBoxIndices.size();
 
-	// Sort unique, descending for safe deletion
-	vector<int> sortedIndices = selectedBoxIndices;
-	std::sort(sortedIndices.begin(), sortedIndices.end(), std::greater<int>());
-	sortedIndices.erase(std::unique(sortedIndices.begin(), sortedIndices.end()), sortedIndices.end());
+	float avgX = 0.0f;
+	float avgY = 0.0f;
+	vector<string> selectedNames;
+	selectedNames.reserve(selectedIndices.size());
+	for (int index : selectedIndices)
+	{
+		JPbox *box = (*currentBoxes)[index];
+		avgX += box->x;
+		avgY += box->y;
+		selectedNames.push_back(box->name);
+		if (box->getTipo() == JPbox::PRESETBOX)
+		{
+			JPbox_preset *selectedPreset =
+				dynamic_cast<JPbox_preset *>(box);
+			if (selectedPreset != nullptr)
+			{
+				selectedPreset->save();
+			}
+		}
+	}
+	avgX /= (float)selectedIndices.size();
+	avgY /= (float)selectedIndices.size();
+
+	struct IncomingGroupTextureLink
+	{
+		string targetBoxName;
+		string targetSamplerName;
+		string sourceName;
+		string parentPublicName;
+		string newPublicName;
+	};
+	vector<IncomingGroupTextureLink> incomingTextureLinks;
+	for (int selectedIndex : selectedIndices)
+	{
+		JPbox *targetBox = (*currentBoxes)[selectedIndex];
+		for (int samplerIndex = 0;
+			samplerIndex <
+				targetBox->fbohandlergroup.getSize();
+			samplerIndex++)
+		{
+			const string samplerName =
+				targetBox->fbohandlergroup.getName(
+					samplerIndex);
+			IncomingGroupTextureLink incoming;
+			incoming.targetBoxName = targetBox->name;
+			incoming.targetSamplerName = samplerName;
+
+			if (parentPreset != nullptr)
+			{
+				for (const auto &parentInput :
+					parentPreset->exposedTextureInputs)
+				{
+					if (parentInput.targetBoxName ==
+							targetBox->name &&
+						parentInput.targetSamplerName ==
+							samplerName)
+					{
+						incoming.parentPublicName =
+							parentInput.publicName;
+						break;
+					}
+				}
+			}
+
+			if (!incoming.parentPublicName.empty())
+			{
+				incomingTextureLinks.push_back(incoming);
+				continue;
+			}
+			if (!targetBox->fbohandlergroup
+					.getisPointerSet(samplerIndex))
+			{
+				continue;
+			}
+
+			const string sourceName =
+				targetBox->fbohandlergroup.getFboName(
+					samplerIndex);
+			for (int sourceIndex = 0;
+				sourceIndex < (int)currentBoxes->size();
+				sourceIndex++)
+			{
+				if ((*currentBoxes)[sourceIndex] != nullptr &&
+					(*currentBoxes)[sourceIndex]->name ==
+						sourceName &&
+					std::find(selectedIndices.begin(),
+						selectedIndices.end(), sourceIndex) ==
+						selectedIndices.end())
+				{
+					incoming.sourceName = sourceName;
+					incomingTextureLinks.push_back(incoming);
+					break;
+				}
+			}
+		}
+	}
 
 	// Build XML in the EXACT format that JPbox_preset::setup() expects
 	// (same format as JPboxgroup::save() but only for selected boxes)
 	ofXml xml;
-	xml.appendChild("activerender").set(0);
+	xml.appendChild("activerender").set(groupedActiveRender);
 
-	for (int si : sortedIndices)
+	for (int newIndex = 0;
+		newIndex < (int)selectedIndices.size();
+		newIndex++)
 	{
-		if (si < 0 || si >= boxes.size() || boxes[si] == nullptr) continue;
-
-		JPbox *box = boxes[si];
+		const int sourceIndex = selectedIndices[newIndex];
+		JPbox *box = (*currentBoxes)[sourceIndex];
 		auto data = xml.appendChild("box");
 		data.appendChild("nombre").set(box->name);
-		data.appendChild("x").set((int)box->x);
-		data.appendChild("y").set((int)box->y);
+		data.appendChild("x").set(box->x);
+		data.appendChild("y").set(box->y);
 		data.appendChild("directory").set(box->dir);
+		data.appendChild("onoff").set(box->getonoff());
+		data.appendChild("bypass").set(box->getBypass());
 
 		// Parameters
 		if (box->parameters.getSize() > 0)
@@ -6935,7 +7523,7 @@ void JPboxgroup::groupSelectedBoxes()
 			}
 		}
 
-		// FBO links (preserved between grouped boxes)
+		// Preserve only links whose source is moving into this group.
 		if (box->fbohandlergroup.getPointerSetsSize() > 0)
 		{
 			auto fboslinks = data.appendChild("fboslinks");
@@ -6943,8 +7531,72 @@ void JPboxgroup::groupSelectedBoxes()
 			{
 				if (box->fbohandlergroup.getisPointerSet(k))
 				{
-					fboslinks.appendChild(box->fbohandlergroup.getName(k))
-						.set(box->fbohandlergroup.getFboName(k));
+					const string sourceName =
+						box->fbohandlergroup.getFboName(k);
+					if (std::find(selectedNames.begin(),
+						selectedNames.end(), sourceName) !=
+						selectedNames.end())
+					{
+						fboslinks.appendChild(
+							box->fbohandlergroup.getName(k))
+							.set(sourceName);
+					}
+				}
+			}
+		}
+	}
+
+	// Exposure choices move with their boxes into the generated preset.
+	if (parentPreset != nullptr)
+	{
+		auto exposedNode = xml.appendChild("exposedParams");
+		for (int newIndex = 0;
+			newIndex < (int)selectedIndices.size();
+			newIndex++)
+		{
+			const int sourceIndex = selectedIndices[newIndex];
+			if (sourceIndex < 0 ||
+				sourceIndex >=
+					(int)parentPreset->exposedParams.size())
+			{
+				continue;
+			}
+			for (int parameterIndex = 0;
+				parameterIndex <
+					(int)parentPreset
+						->exposedParams[sourceIndex].size();
+				parameterIndex++)
+			{
+				if (!parentPreset
+						->exposedParams[sourceIndex][parameterIndex])
+				{
+					continue;
+				}
+				auto boxNode =
+					exposedNode.appendChild("box");
+				boxNode.set(newIndex);
+				boxNode.appendChild("param")
+					.set(parameterIndex);
+				if (sourceIndex <
+						(int)parentPreset
+							->exposedParamOriginalIndices.size() &&
+					parameterIndex <
+						(int)parentPreset
+							->exposedParamOriginalIndices
+								[sourceIndex].size())
+				{
+					const pair<int, int> original =
+						parentPreset
+							->exposedParamOriginalIndices
+								[sourceIndex][parameterIndex];
+					if (original.first >= 0 &&
+						original.second >= 0)
+					{
+						boxNode.appendChild("origBox")
+							.set(original.first);
+						boxNode.appendChild("origParam")
+							.set(original.second);
+					}
 				}
 			}
 		}
@@ -6955,31 +7607,210 @@ void JPboxgroup::groupSelectedBoxes()
 	string timestamp = ofGetTimestampString();
 	string outputPath = outputDir + "group_" + timestamp + ".xml";
 	ofFilePath::createEnclosingDirectory(outputPath);
-	xml.save(outputPath);
+	if (!xml.save(outputPath))
+	{
+		ofLogError("JPboxgroup")
+			<< "Unable to save generated group to "
+			<< outputPath;
+		return;
+	}
 	cout << "groupSelectedBoxes: saved to " << outputPath << endl;
 
-	// Clear selection and delete the original boxes
-	clearSelection();
-	for (int i = 0; i < (int)sortedIndices.size(); i++)
+	string setupName = groupName;
+	JPbox *newBox =
+		createBoxForDirectory(outputPath, setupName);
+	if (newBox == nullptr)
 	{
-		deleteBoxAtIndex(sortedIndices[i]);
+		ofLogError("JPboxgroup")
+			<< "Unable to create generated group "
+			<< outputPath;
+		return;
+	}
+	newBox->setup(outputPath, groupName);
+	newBox->setonoff(true);
+	newBox->setPos(avgX, avgY);
+	JPbox_preset *newPreset =
+		dynamic_cast<JPbox_preset *>(newBox);
+	if (newPreset == nullptr)
+	{
+		newBox->clear();
+		delete newBox;
+		ofLogError("JPboxgroup")
+			<< "Generated group is not a preset: "
+			<< outputPath;
+		return;
+	}
+	for (IncomingGroupTextureLink &incoming :
+		incomingTextureLinks)
+	{
+		if (!newPreset->exposeTextureInput(
+				incoming.targetBoxName,
+				incoming.targetSamplerName,
+				&incoming.newPublicName))
+		{
+			ofLogWarning("JPboxgroup")
+				<< "Unable to preserve incoming texture for "
+				<< incoming.targetBoxName << "."
+				<< incoming.targetSamplerName;
+		}
 	}
 
-	// Add the preset using the EXACT same path as loading any preset from disk
-	// This calls createBoxForDirectory -> JPbox_preset -> JPbox_preset::setup()
-	// which loads the XML, creates child boxes, restores params and links
-	addBox(outputPath, avgX, avgY);
+	// Disconnect consumers that remain outside the new group.
+	for (int boxIndex = 0;
+		boxIndex < (int)currentBoxes->size();
+		boxIndex++)
+	{
+		if (std::find(selectedIndices.begin(),
+			selectedIndices.end(), boxIndex) !=
+			selectedIndices.end())
+		{
+			continue;
+		}
+		JPbox *consumer = (*currentBoxes)[boxIndex];
+		if (consumer == nullptr)
+		{
+			continue;
+		}
+		for (int linkIndex = 0;
+			linkIndex < consumer->fbohandlergroup.getSize();
+			linkIndex++)
+		{
+			const string sourceName =
+				consumer->fbohandlergroup
+					.getFboName(linkIndex);
+			if (std::find(selectedNames.begin(),
+				selectedNames.end(), sourceName) !=
+				selectedNames.end())
+			{
+				consumer->fbohandlergroup
+					.deleteFboPointer(linkIndex);
+			}
+		}
+	}
 
-	// Set the newly created preset as the active render (output)
-	int newIdx = (int)boxes.size() - 1;
-	*activerender = newIdx;
+	vector<int> descendingIndices = selectedIndices;
+	std::sort(descendingIndices.begin(),
+		descendingIndices.end(), std::greater<int>());
+	for (int index : descendingIndices)
+	{
+		JPbox *box = (*currentBoxes)[index];
+		box->clear();
+		delete box;
+		currentBoxes->erase(currentBoxes->begin() + index);
+		if (parentPreset != nullptr)
+		{
+			if (index <
+				(int)parentPreset->exposedParams.size())
+			{
+				parentPreset->exposedParams.erase(
+					parentPreset->exposedParams.begin() +
+					index);
+			}
+			if (index <
+				(int)parentPreset
+					->exposedParamOriginalIndices.size())
+			{
+				parentPreset
+					->exposedParamOriginalIndices.erase(
+						parentPreset
+							->exposedParamOriginalIndices
+							.begin() + index);
+			}
+		}
+	}
 
-	// Reset transition so it doesn't draw from deleted boxes' FBOs
-	transition.setFboPointer1(&boxes[newIdx]->fbo);
-	transition.setFboPointer2(&boxes[newIdx]->fbo);
-	transition.setLerpValue(0);
+	currentBoxes->push_back(newBox);
 
-	cout << "groupSelectedBoxes: done, boxes size=" << boxes.size() << " activerender=" << *activerender << endl;
+	const int newIndex = (int)currentBoxes->size() - 1;
+	for (const IncomingGroupTextureLink &incoming :
+		incomingTextureLinks)
+	{
+		if (incoming.newPublicName.empty())
+		{
+			continue;
+		}
+		if (!incoming.sourceName.empty())
+		{
+			JPbox *sourceBox = nullptr;
+			for (JPbox *candidate : *currentBoxes)
+			{
+				if (candidate != nullptr &&
+					candidate != newBox &&
+					candidate->name == incoming.sourceName)
+				{
+					sourceBox = candidate;
+					break;
+				}
+			}
+			const int publicIndex =
+				newPreset->fbohandlergroup.findIndexByName(
+					incoming.newPublicName);
+			if (sourceBox != nullptr && publicIndex >= 0)
+			{
+				newPreset->fbohandlergroup.setFboPointer(
+					&sourceBox->fbo, &sourceBox->name,
+					publicIndex);
+			}
+		}
+		if (parentPreset != nullptr &&
+			!incoming.parentPublicName.empty())
+		{
+			parentPreset->retargetExposedTextureInput(
+				incoming.parentPublicName,
+				groupName, incoming.newPublicName);
+		}
+	}
+	if (parentPreset != nullptr)
+	{
+		parentPreset->syncExposedTextureInputs();
+	}
+	newPreset->syncExposedTextureInputs();
+	if (!incomingTextureLinks.empty())
+	{
+		newPreset->save();
+	}
+	*currentActiveRender = newIndex;
+	clearSelection();
+	shaderboxagarrado = false;
+	ouletagarrado = false;
+	cualestaagarrado = -1;
+	outlet_cualestaagarrado = -1;
+	groupPreviewBoxIndex = -1;
+
+	if (parentPreset != nullptr)
+	{
+		parentPreset->exposedParams.resize(
+			currentBoxes->size());
+		parentPreset->exposedParamOriginalIndices.resize(
+			currentBoxes->size());
+		parentPreset->exposedParams[newIndex].assign(
+			newBox->parameters.getSize(), false);
+		parentPreset
+			->exposedParamOriginalIndices[newIndex].assign(
+				newBox->parameters.getSize(), {-1, -1});
+		parentPreset->activeRenderTransitionRunning = false;
+		parentPreset->activeRenderTransitionInitialized = false;
+		parentPreset->activeRenderTransitionTarget = -1;
+		parentPreset->lastCompositedActiveRender = newIndex;
+		groupInspectorIndex = newIndex;
+	}
+	else
+	{
+		openguinumber = newIndex;
+		transition.setFboPointer1(&newBox->fbo);
+		transition.setFboPointer2(&newBox->fbo);
+		transition.setLerpValue(0);
+	}
+
+	setControllers();
+	ensureTabStateSize();
+	requestCueRebuild();
+	cout << "groupSelectedBoxes: created " << groupName
+		 << " in " << (parentPreset != nullptr ?
+			 parentPreset->name : "MAIN")
+		 << ", boxes=" << currentBoxes->size()
+		 << " activeRender=" << *currentActiveRender
+		 << endl;
 }
 
 void JPboxgroup::deleteSelectedShader()
@@ -7024,6 +7855,8 @@ void JPboxgroup::deleteSelectedShader()
 				if (idx < 0 || idx >= (int)preset->boxes.size()) continue;
 
 				string deletedName = preset->boxes[idx]->name;
+				preset->removeExposedTextureInputsForBox(
+					deletedName);
 
 				// Remove FBO links pointing to the deleted box
 				for (int k = (int)preset->boxes.size() - 1; k >= 0; k--)
@@ -7042,6 +7875,19 @@ void JPboxgroup::deleteSelectedShader()
 				delete preset->boxes[idx];
 				preset->boxes[idx] = nullptr;
 				preset->boxes.erase(preset->boxes.begin() + idx);
+				if (idx < (int)preset->exposedParams.size())
+				{
+					preset->exposedParams.erase(
+						preset->exposedParams.begin() + idx);
+				}
+				if (idx < (int)preset
+						->exposedParamOriginalIndices.size())
+				{
+					preset->exposedParamOriginalIndices.erase(
+						preset
+							->exposedParamOriginalIndices.begin() +
+						idx);
+				}
 			}
 
 			// After bulk delete, check if empty
@@ -7071,6 +7917,8 @@ void JPboxgroup::deleteSelectedShader()
 		{
 			int idx = groupInspectorIndex;
 			string deletedName = preset->boxes[idx]->name;
+			preset->removeExposedTextureInputsForBox(
+				deletedName);
 
 			// Remove FBO links pointing to the deleted box
 			for (int k = (int)preset->boxes.size() - 1; k >= 0; k--)
@@ -7090,6 +7938,19 @@ void JPboxgroup::deleteSelectedShader()
 			delete preset->boxes[idx];
 			preset->boxes[idx] = nullptr;
 			preset->boxes.erase(preset->boxes.begin() + idx);
+			if (idx < (int)preset->exposedParams.size())
+			{
+				preset->exposedParams.erase(
+					preset->exposedParams.begin() + idx);
+			}
+			if (idx < (int)preset
+					->exposedParamOriginalIndices.size())
+			{
+				preset->exposedParamOriginalIndices.erase(
+					preset
+						->exposedParamOriginalIndices.begin() +
+					idx);
+			}
 
 			// Adjust preset's activeRender
 			if (preset->boxes.empty())
@@ -8199,14 +9060,26 @@ void JPboxgroup::keyPressed(int key)
 				// Case 1: Child tab rename (tabRenameTabIndex > pathLen)
 				int realIdx = childIndices[childIndex];
 				const vector<JPbox *> *boxList = &boxes;
+				JPbox_preset *ownerPreset = nullptr;
 				if (isGroupViewActive())
 				{
-					JPbox_preset *preset = getActivePreset();
-					if (preset != nullptr) boxList = &preset->boxes;
+					ownerPreset = getActivePreset();
+					if (ownerPreset != nullptr)
+					{
+						boxList = &ownerPreset->boxes;
+					}
 				}
 				if (realIdx >= 0 && realIdx < (int)boxList->size() && (*boxList)[realIdx] != nullptr)
 				{
+					const string oldName =
+						(*boxList)[realIdx]->name;
 					(*boxList)[realIdx]->name = tabRenameBuffer;
+					if (ownerPreset != nullptr)
+					{
+						ownerPreset
+							->renameExposedTextureInputTarget(
+								oldName, tabRenameBuffer);
+					}
 					renamed = true;
 				}
 			}
@@ -8215,6 +9088,7 @@ void JPboxgroup::keyPressed(int key)
 				// Case 2: Breadcrumb tab rename (tabRenameTabIndex in 1..pathLen)
 				int realIdx = activeGroupPath[pathLen - 1];
 				const vector<JPbox *> *boxList = nullptr;
+				JPbox_preset *ownerPreset = nullptr;
 
 				if (pathLen == 1)
 				{
@@ -8243,12 +9117,21 @@ void JPboxgroup::keyPressed(int key)
 						if (valid)
 						{
 							boxList = &parentPreset->boxes;
+							ownerPreset = parentPreset;
 						}
 					}
 				}
 				if (boxList != nullptr && realIdx >= 0 && realIdx < (int)boxList->size() && (*boxList)[realIdx] != nullptr)
 				{
+					const string oldName =
+						(*boxList)[realIdx]->name;
 					(*boxList)[realIdx]->name = tabRenameBuffer;
+					if (ownerPreset != nullptr)
+					{
+						ownerPreset
+							->renameExposedTextureInputTarget(
+								oldName, tabRenameBuffer);
+					}
 					renamed = true;
 				}
 			}
