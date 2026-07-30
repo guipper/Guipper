@@ -2566,6 +2566,14 @@ void ofApp::keyPressed(int key) {
 		midiKeymap.togglePanel();
 	}
 
+	// The detailed key event handles graph clipboard shortcuts below. Consume
+	// their legacy key callback so Ctrl+C cannot also create a camera box.
+	if (pantallaActiva == NODOS &&
+		ofGetKeyPressed(OF_KEY_CONTROL) &&
+		(key == 'c' || key == 'C' || key == 'v' || key == 'V')) {
+		return;
+	}
+
 	if (pantallaActiva == NODOS) {
 		if (key == 't') {
 			loadAspreset = !loadAspreset;
@@ -2760,14 +2768,23 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		return;
 	}
 
-	// Ctrl+C (key=3) -> copy selected boxes
-	if (e.key == 3 && pantallaActiva == NODOS) {
+	const bool controlDown = e.hasModifier(OF_KEY_CONTROL);
+	const bool copyShortcut =
+		e.key == 3 ||
+		(controlDown &&
+			(e.keycode == GLFW_KEY_C || e.key == 'c' || e.key == 'C'));
+	const bool pasteShortcut =
+		e.key == 22 ||
+		(controlDown &&
+			(e.keycode == GLFW_KEY_V || e.key == 'v' || e.key == 'V'));
+
+	// GLFW reports Ctrl+letter as a normal letter plus a modifier on Linux.
+	if (copyShortcut && pantallaActiva == NODOS) {
 		boxes.copySelectedBoxes();
 		return;
 	}
 
-	// Ctrl+V (key=22) -> paste boxes
-	if (e.key == 22 && pantallaActiva == NODOS) {
+	if (pasteShortcut && pantallaActiva == NODOS) {
 		boxes.pasteBoxes();
 		return;
 	}
