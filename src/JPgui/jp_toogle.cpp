@@ -114,13 +114,28 @@ void JPToogle::drawSelectedTexture()
 				parameters->movtype == JPParameter::RANDOM) ||
 			(textureindex == GODER &&
 				(parameters->movtype == JPParameter::GODER ||
-				 parameters->movtype == JPParameter::GOIZQ));
+				 parameters->movtype == JPParameter::GOIZQ)) ||
+			(textureindex == BPM_SYNC &&
+				parameters->movtype == JPParameter::BPM);
 		drawAutomationButton(x, y, width, height, active, hovered);
 		ofSetColor(active ? COL_ACCENT_CYAN :
 			(hovered ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY));
 		ofSetLineWidth(1.7f);
 
-		if (textureindex == RAN)
+		if (textureindex == BPM_SYNC)
+		{
+			const float left = x - 8.0f;
+			const float right = x + 8.0f;
+			ofBeginShape();
+			ofVertex(left, y);
+			ofVertex(x - 4.0f, y);
+			ofVertex(x - 1.5f, y - 6.0f);
+			ofVertex(x + 1.5f, y + 6.0f);
+			ofVertex(x + 4.0f, y);
+			ofVertex(right, y);
+			ofEndShape(false);
+		}
+		else if (textureindex == RAN)
 		{
 			const float left = x - 7.0f;
 			const float right = x + 7.0f;

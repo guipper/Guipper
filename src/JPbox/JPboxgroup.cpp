@@ -2252,6 +2252,13 @@ bool JPboxgroup::handleInspectorInputClick(JPbox *box)
 bool JPboxgroup::handleInspectorAutomationClick()
 {
 	const ofVec2f mouse(ofGetMouseX(), ofGetMouseY());
+	auto boundsFor = [](const JPdragobject &control)
+	{
+		return ofRectangle(
+			control.x - control.width / 2.0f,
+			control.y - control.height / 2.0f,
+			control.width, control.height);
+	};
 	for (JPcontroller *controller : controllers)
 	{
 		JPComplexSlider *slider =
@@ -2261,19 +2268,58 @@ bool JPboxgroup::handleInspectorAutomationClick()
 			continue;
 		}
 
-		const ofRectangle bounds(
-			slider->boton_collapse.x -
-				slider->boton_collapse.width / 2.0f,
-			slider->boton_collapse.y -
-				slider->boton_collapse.height / 2.0f,
-			slider->boton_collapse.width,
-			slider->boton_collapse.height);
-		if (!bounds.inside(mouse))
+		JPParameter *parameter = slider->parameters;
+		if (parameter->bpmEligible &&
+			parameter->movtype == JPParameter::BPM &&
+			slider->boton_bpm.activable2 &&
+			boundsFor(slider->bpm_rate_button).inside(mouse))
 		{
+			parameter->cycleBpmRate();
+			parameter->update();
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode())
+			{
+				updateCueDraftGraph();
+			}
+			return true;
+		}
+		if (parameter->bpmEligible &&
+			parameter->movtype != JPParameter::STANDART &&
+			slider->boton_bpm.activable2 &&
+			boundsFor(slider->boton_bpm).inside(mouse))
+		{
+			parameter->movtype = JPParameter::BPM;
+			parameter->needsUpdate = false;
+			parameter->update();
+			slider->boton_bpm.activable = false;
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode())
+			{
+				updateCueDraftGraph();
+			}
+			return true;
+		}
+
+		if (!boundsFor(slider->boton_collapse).inside(mouse))
+		{
+			if (isCueDraftMode() &&
+				parameter->movtype != JPParameter::STANDART)
+			{
+				const bool overAutomationControl =
+					boundsFor(slider->slider_speed).inside(mouse) ||
+					boundsFor(slider->handler1).inside(mouse) ||
+					boundsFor(slider->handler2).inside(mouse) ||
+					boundsFor(slider->boton_idayvuelta).inside(mouse) ||
+					boundsFor(slider->boton_random).inside(mouse) ||
+					boundsFor(slider->boton_direccion).inside(mouse);
+				if (overAutomationControl)
+				{
+					markCueDraftDirty(cueSelectedIndex());
+				}
+			}
 			continue;
 		}
 
-		JPParameter *parameter = slider->parameters;
 		parameter->movtype = parameter->movtype == 0 ? 1 : 0;
 		parameter->needsUpdate = false;
 		parameter->update();
@@ -3774,6 +3820,7 @@ void JPboxgroup::save(string outputPath)
 					param.appendChild("value").set(boxes[i]->parameters.getFloatValue(k));
 					param.appendChild("movtype").set(boxes[i]->parameters.getMovType(k));
 					param.appendChild("speed").set(boxes[i]->parameters.getSpeed(k));
+					param.appendChild("bpmrate").set(boxes[i]->parameters.getBpmRate(k));
 				}
 			}
 		}
@@ -3953,6 +4000,11 @@ void JPboxgroup::load(string _dirinput)
 				bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), index);
 				bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), index);
 				bx->parameters.setSpeed(param.getChild("speed").getFloatValue(), index);
+				auto bpmRate = param.getChild("bpmrate");
+				if (bpmRate)
+				{
+					bx->parameters.setBpmRate(bpmRate.getIntValue(), index);
+				}
 			}
 			else if (bx->parameters.getType(index) == bx->parameters.BOOL)
 			{
@@ -6888,6 +6940,7 @@ void JPboxgroup::copyParametersByNameOrIndex(JPParameterGroup &destination, JPPa
 			destination.setMin(source.getMin(srcIndex), dstIndex);
 			destination.setMax(source.getMax(srcIndex), dstIndex);
 			destination.setSpeed(source.getSpeed(srcIndex), dstIndex);
+			destination.setBpmRate(source.getBpmRate(srcIndex), dstIndex);
 			destination.setmovetype(source.getMovType(srcIndex), dstIndex);
 		}
 		else if (source.getType(srcIndex) == source.BOOL)
@@ -7519,6 +7572,7 @@ void JPboxgroup::groupSelectedBoxes()
 					param.appendChild("value").set(box->parameters.getFloatValue(k));
 					param.appendChild("movtype").set(box->parameters.getMovType(k));
 					param.appendChild("speed").set(box->parameters.getSpeed(k));
+					param.appendChild("bpmrate").set(box->parameters.getBpmRate(k));
 				}
 			}
 		}
@@ -8097,6 +8151,7 @@ void JPboxgroup::copySelectedBoxes()
 					param.appendChild("value").set(box->parameters.getFloatValue(k));
 					param.appendChild("movtype").set(box->parameters.getMovType(k));
 					param.appendChild("speed").set(box->parameters.getSpeed(k));
+					param.appendChild("bpmrate").set(box->parameters.getBpmRate(k));
 				}
 			}
 		}
@@ -8229,6 +8284,11 @@ void JPboxgroup::pasteBoxes()
 						bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), paramIndex);
 						bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), paramIndex);
 						bx->parameters.setSpeed(param.getChild("speed").getFloatValue(), paramIndex);
+						auto bpmRate = param.getChild("bpmrate");
+						if (bpmRate)
+						{
+							bx->parameters.setBpmRate(bpmRate.getIntValue(), paramIndex);
+						}
 					}
 					else if (bx->parameters.getType(paramIndex) == bx->parameters.BOOL)
 					{

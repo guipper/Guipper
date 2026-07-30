@@ -1,4 +1,5 @@
 #include "jp_constants.h"
+#include <cmath>
 
 int jp_constants::renderWidth;
 int jp_constants::renderHeight;
@@ -8,6 +9,7 @@ int jp_constants::window_mousex;
 int jp_constants::window_mousey;
 float jp_constants::durationgallery;
 float jp_constants::bpm = 120.0f;
+float jp_constants::beatOriginSeconds = 0.0f;
 
 ofTrueTypeFont jp_constants::p_font;
 ofTrueTypeFont jp_constants::h_font;
@@ -85,7 +87,37 @@ void jp_constants::init(int _renderwidth, int _renderheight, int _window_width, 
 	background.load("img/design/componentes/fondo.png");*/
 }
 void jp_constants::setdurationgallery(float _durationgallery) { durationgallery = _durationgallery; }
-void jp_constants::setBpm(float _bpm) { bpm = _bpm; }
+void jp_constants::setBpm(float _bpm)
+{
+	const float nextBpm = std::isfinite(_bpm) ?
+		std::max(0.0f, _bpm) : 0.0f;
+	if (std::abs(nextBpm - bpm) > 0.0001f)
+	{
+		bpm = nextBpm;
+		syncBeat();
+	}
+	else
+	{
+		bpm = nextBpm;
+	}
+}
+void jp_constants::syncBeat(float elapsedSeconds)
+{
+	beatOriginSeconds = elapsedSeconds >= 0.0f ?
+		elapsedSeconds : ofGetElapsedTimef();
+}
+float jp_constants::getBeatPhase(float multiplier)
+{
+	if (bpm <= 0.0f || multiplier <= 0.0f)
+	{
+		return 0.0f;
+	}
+	const double elapsed = std::max(
+		0.0, double(ofGetElapsedTimef() - beatOriginSeconds));
+	const double beatPosition =
+		elapsed * double(bpm) / 60.0 * double(multiplier);
+	return float(beatPosition - std::floor(beatPosition));
+}
 void jp_constants::setrenderWidth(int _renderwidth) { renderWidth = _renderwidth; }
 void jp_constants::setrenderHeight(int _renderheight) { renderHeight = _renderheight; }
 void jp_constants::setwindow_width(int _window_width) { window_width = _window_width; }

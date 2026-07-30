@@ -86,6 +86,8 @@ public:
 	static void setwindow_mousey(int _window_mousey);
 	static void setdurationgallery(float _window_mousey);
 	static void setBpm(float _bpm);
+	static void syncBeat(float elapsedSeconds = -1.0f);
+	static float getBeatPhase(float multiplier = 1.0f);
 
 	static int renderWidth;
 	static int renderHeight;
@@ -93,6 +95,7 @@ public:
 	static int window_height;
 	static float durationgallery;
 	static float bpm;
+	static float beatOriginSeconds;
 	static int window_mousex;
 	static int window_mousey;
 

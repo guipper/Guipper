@@ -78,6 +78,50 @@ void drawClickBounds(JPdragobject &control, bool enabled = true)
 		2.0f);
 	ofPopStyle();
 }
+
+std::string bpmRateLabel(int rate)
+{
+	switch (rate)
+	{
+	case JPParameter::BPM_RATE_QUARTER: return "1/4x";
+	case JPParameter::BPM_RATE_HALF: return "1/2x";
+	case JPParameter::BPM_RATE_DOUBLE: return "2x";
+	case JPParameter::BPM_RATE_QUADRUPLE: return "4x";
+	default: return "1x";
+	}
+}
+
+void drawBpmRateControl(JPdragobject &control, int rate)
+{
+	const bool hovered = control.mouseOver();
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofSetColor(hovered ? ofColor(COL_BG_HOVER, 235) :
+		ofColor(COL_BG_INPUT, 210));
+	ofDrawRectRounded(
+		control.x - control.width / 2.0f,
+		control.y - control.height / 2.0f,
+		control.width,
+		control.height,
+		3.0f);
+	ofNoFill();
+	ofSetColor(hovered ? COL_TEXT_PRIMARY :
+		ofColor(COL_ACCENT_CYAN, 210));
+	ofDrawRectRounded(
+		control.x - control.width / 2.0f,
+		control.y - control.height / 2.0f,
+		control.width,
+		control.height,
+		3.0f);
+	ofFill();
+	const string label = bpmRateLabel(rate);
+	ofSetColor(hovered ? COL_TEXT_PRIMARY : COL_ACCENT_CYAN);
+	jp_constants::p_font.drawString(
+		label,
+		control.x - jp_constants::p_font.stringWidth(label) / 2.0f,
+		control.y + jp_constants::p_font.stringHeight(label) / 2.0f);
+	ofPopStyle();
+}
 }
 
 void JPHandler::setup(float _x, float _y, float _w, float _h)
@@ -146,6 +190,7 @@ void JPComplexSlider::setup(float _x, float _y, float _width, float _height, JPP
 	slider_value.setParametersPointer(parameters);
 	boton_idayvuelta.setParametersPointer(parameters);
 	boton_random.setParametersPointer(parameters);
+	boton_bpm.setParametersPointer(parameters);
 	slider_speed.setParametersPointer(parameters);
 
 	activable2 = true;
@@ -231,8 +276,18 @@ void JPComplexSlider::draw()
 		boton_idayvuelta.draw();
 		boton_random.draw();
 		boton_direccion.draw();
+		if (parameters->bpmEligible)
+		{
+			boton_bpm.draw();
+			if (parameters->movtype == JPParameter::BPM)
+			{
+				drawBpmRateControl(bpm_rate_button, parameters->bpmRate);
+			}
+		}
 
-		jp_tooltip::draw("Automation speed",
+		jp_tooltip::draw(
+			parameters->movtype == JPParameter::BPM ?
+				"BPM pulse decay" : "Automation speed",
 			slider_speed.x - slider_speed.width / 2.0f,
 			slider_speed.y - slider_speed.height / 2.0f,
 			slider_speed.width, slider_speed.height);
@@ -252,6 +307,21 @@ void JPComplexSlider::draw()
 			boton_direccion.x - boton_direccion.width / 2.0f,
 			boton_direccion.y - boton_direccion.height / 2.0f,
 			boton_direccion.width, boton_direccion.height);
+		if (parameters->bpmEligible)
+		{
+			jp_tooltip::draw("Sync parameter to global BPM",
+				boton_bpm.x - boton_bpm.width / 2.0f,
+				boton_bpm.y - boton_bpm.height / 2.0f,
+				boton_bpm.width, boton_bpm.height);
+			if (parameters->movtype == JPParameter::BPM)
+			{
+				jp_tooltip::draw(
+					"BPM pulse rate: " + bpmRateLabel(parameters->bpmRate),
+					bpm_rate_button.x - bpm_rate_button.width / 2.0f,
+					bpm_rate_button.y - bpm_rate_button.height / 2.0f,
+					bpm_rate_button.width, bpm_rate_button.height);
+			}
+		}
 	}
 
 	drawClickBounds(boton_collapse, activable2);
@@ -264,6 +334,14 @@ void JPComplexSlider::draw()
 		drawClickBounds(boton_idayvuelta, boton_idayvuelta.activable2);
 		drawClickBounds(boton_random, boton_random.activable2);
 		drawClickBounds(boton_direccion, boton_direccion.activable2);
+		if (parameters->bpmEligible)
+		{
+			drawClickBounds(boton_bpm, boton_bpm.activable2);
+			if (parameters->movtype == JPParameter::BPM)
+			{
+				drawClickBounds(bpm_rate_button, boton_bpm.activable2);
+			}
+		}
 	}
 }
 void JPComplexSlider::update()
@@ -289,6 +367,7 @@ void JPComplexSlider::update()
 		boton_idayvuelta.activable2 = false;
 		boton_random.activable2 = false;
 		boton_direccion.activable2 = false;
+		boton_bpm.activable2 = false;
 		handler1.activeFlag = false;
 		handler2.activeFlag = false;
 	}
@@ -334,6 +413,10 @@ void JPComplexSlider::update()
 				boton_idayvuelta.activable2 = true;
 				boton_random.activable2 = true;
 				boton_direccion.activable2 = true;
+				if (parameters->bpmEligible)
+				{
+					boton_bpm.activable2 = true;
+				}
 			}
 			else
 			{
@@ -341,6 +424,7 @@ void JPComplexSlider::update()
 				boton_idayvuelta.activable2 = false;
 				boton_random.activable2 = false;
 				boton_direccion.activable2 = false;
+				boton_bpm.activable2 = false;
 			}
 		}
 	}
@@ -370,8 +454,10 @@ void JPComplexSlider::setPosAndSize()
 	}
 	else
 	{
+		const bool hasBpmMode = parameters->bpmEligible;
 		float botonsepx = 35; // ESTA HABRIA QUE HACERLA VARIABLE GLOBAL EN OTRO LUGAR O COMO HACEMO ?!
-		float slidervaluewidth = width * 2 / 4;
+		float slidervaluewidth = width *
+			(hasBpmMode ? 1.7f : 2.0f) / 4.0f;
 
 		float slidervaluex = boton_collapse.x +
 							 slidervaluewidth / 2 +
@@ -390,10 +476,10 @@ void JPComplexSlider::setPosAndSize()
 						   value,
 						   name);
 
-		const float sliderspeedw = 40.0f;
+		const float sliderspeedw = hasBpmMode ? 38.0f : 40.0f;
 		const float sliderspeedh = 40.0f;
-		const float modeButtonSize = 26.0f;
-		const float modeButtonGap = 6.0f;
+		const float modeButtonSize = hasBpmMode ? 24.0f : 26.0f;
+		const float modeButtonGap = hasBpmMode ? 4.0f : 6.0f;
 
 		float pos = slidervaluex + slider_value.width / 2 + sliderspeedw / 2;
 
@@ -417,6 +503,20 @@ void JPComplexSlider::setPosAndSize()
 		pos += modeButtonSize + modeButtonGap;
 		boton_direccion.setup(
 			pos, y, modeButtonSize, modeButtonSize);
+		if (hasBpmMode)
+		{
+			pos += modeButtonSize + modeButtonGap;
+			boton_bpm.setup(
+				pos, y, modeButtonSize, modeButtonSize);
+			const float rateWidth = 32.0f;
+			pos += modeButtonSize / 2.0f + modeButtonGap +
+				rateWidth / 2.0f;
+			bpm_rate_button.setup(
+				pos,
+				y,
+				rateWidth,
+				modeButtonSize);
+		}
 
 		slider_speed.paleta = 1;
 		controllertype = SLIDER;
@@ -454,6 +554,10 @@ void JPComplexSlider::setPosAndSize()
 	boton_idayvuelta.setUseTexture(boton_idayvuelta.IDAYVUELTA);
 	boton_random.setUseTexture(boton_idayvuelta.RAN);
 	boton_direccion.setUseTexture(boton_idayvuelta.GODER);
+	if (parameters->bpmEligible)
+	{
+		boton_bpm.setUseTexture(boton_bpm.BPM_SYNC);
+	}
 	boton_collapse.setUseTexture(boton_collapse.COLLAPSE);
 	boton_collapse.activable = true; // Force activable after setUseTexture (needsUpdate may be true during setControllers)
 	boton_collapse.activable2 = false;

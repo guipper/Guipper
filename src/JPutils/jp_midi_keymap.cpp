@@ -146,9 +146,11 @@ namespace
 	}
 }
 
-void JPMidiKeymap::setup(JPboxgroup *_boxes)
+void JPMidiKeymap::setup(
+	JPboxgroup *_boxes, std::function<void()> _bpmTapCallback)
 {
 	boxes = _boxes;
+	bpmTapCallback = _bpmTapCallback;
 	globalKeymapPath = ofToDataPath("midi_keymap.xml");
 	ensureAddShaderDraftRow();
 	openInputs();
@@ -583,6 +585,10 @@ void JPMidiKeymap::applyBinding(const Binding &binding, float midiValue)
 	else if (binding.action == TOGGLE_GALLERY)
 	{
 		toggleGalleryMode();
+	}
+	else if (binding.action == BPM_TAP)
+	{
+		if (bpmTapCallback) bpmTapCallback();
 	}
 	else if (binding.action == ADD_SHADER_BOX)
 	{
@@ -1128,6 +1134,7 @@ vector<JPMidiKeymap::Action> JPMidiKeymap::getGlobalActions() const
 	actions.push_back(NEXT_SHADER_GALLERY);
 	actions.push_back(PREV_SHADER_GALLERY);
 	actions.push_back(TOGGLE_GALLERY);
+	actions.push_back(BPM_TAP);
 	return actions;
 }
 
@@ -1214,6 +1221,7 @@ string JPMidiKeymap::getActionName(Action action) const
 	if (action == NEXT_SHADER_GALLERY) return "Next Shader Gallery";
 	if (action == PREV_SHADER_GALLERY) return "Prev Shader Gallery";
 	if (action == TOGGLE_GALLERY) return "Toggle Gallery Mode";
+	if (action == BPM_TAP) return "BPM Tap";
 	if (action == ADD_SHADER_BOX) return "Add Shader Box";
 	return "Unknown";
 }
@@ -1232,6 +1240,7 @@ string JPMidiKeymap::actionToXml(Action action) const
 	if (action == NEXT_SHADER_GALLERY) return "next_shader_gallery";
 	if (action == PREV_SHADER_GALLERY) return "prev_shader_gallery";
 	if (action == TOGGLE_GALLERY) return "toggle_gallery";
+	if (action == BPM_TAP) return "bpm_tap";
 	if (action == ADD_SHADER_BOX) return "add_shader_box";
 	return "bypass";
 }
@@ -1249,6 +1258,7 @@ JPMidiKeymap::Action JPMidiKeymap::actionFromXml(string value) const
 	if (value == "next_shader_gallery") return NEXT_SHADER_GALLERY;
 	if (value == "prev_shader_gallery") return PREV_SHADER_GALLERY;
 	if (value == "toggle_gallery") return TOGGLE_GALLERY;
+	if (value == "bpm_tap") return BPM_TAP;
 	if (value == "add_shader_box") return ADD_SHADER_BOX;
 	return BYPASS;
 }

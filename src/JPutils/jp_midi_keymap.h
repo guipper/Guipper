@@ -3,6 +3,7 @@
 #include "ofMain.h"
 #include "ofxMidi.h"
 #include "../JPbox/JPboxgroup.h"
+#include <functional>
 #include <map>
 #include <mutex>
 
@@ -23,6 +24,7 @@ public:
 		NEXT_SHADER_GALLERY,
 		PREV_SHADER_GALLERY,
 		TOGGLE_GALLERY,
+		BPM_TAP,
 		ADD_SHADER_BOX
 	};
 
@@ -70,7 +72,7 @@ public:
 		bool showScrollbar = false;
 	};
 
-	void setup(JPboxgroup *_boxes);
+	void setup(JPboxgroup *_boxes, std::function<void()> _bpmTapCallback);
 	void exit();
 	void update();
 	void draw();
@@ -106,6 +108,7 @@ private:
 	map<string, bool> ccHighState;
 	std::mutex pendingMutex;
 	string globalKeymapPath;
+	std::function<void()> bpmTapCallback;
 
 	bool panelOpen = false;
 	bool editMode = false;

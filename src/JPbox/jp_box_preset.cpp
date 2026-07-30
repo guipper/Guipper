@@ -126,6 +126,11 @@ void JPbox_preset::setup(string _directory, string _name)
 				bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), index);
 				bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), index);
 				bx->parameters.setSpeed(param.getChild("speed").getFloatValue(), index);
+				auto bpmRate = param.getChild("bpmrate");
+				if (bpmRate)
+				{
+					bx->parameters.setBpmRate(bpmRate.getIntValue(), index);
+				}
 			}
 			else if (bx->parameters.getType(index) == bx->parameters.BOOL)
 			{
@@ -857,6 +862,7 @@ void JPbox_preset::save()
 					param.appendChild("value").set(boxes[i]->parameters.getFloatValue(k));
 					param.appendChild("movtype").set(boxes[i]->parameters.getMovType(k));
 					param.appendChild("speed").set(boxes[i]->parameters.getSpeed(k));
+					param.appendChild("bpmrate").set(boxes[i]->parameters.getBpmRate(k));
 				}
 			}
 		}

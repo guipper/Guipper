@@ -74,7 +74,7 @@ void ofApp::setup() {
 	receiver.setup(PORT);
 	oscout_mode1 = true;
 	oscout_mode2 = true;
-	midiKeymap.setup(&boxes);
+	midiKeymap.setup(&boxes, [this]() { autoTap(); });
 
 	loadSettings();
 
@@ -1446,6 +1446,7 @@ void ofApp::autoTap() {
 		}
 	}
 	tapTimestamps.push_back(now);
+	jp_constants::syncBeat(now);
 
 	if (tapTimestamps.size() >= 2) {
 		// Calculate average interval
@@ -3765,7 +3766,7 @@ void ofApp::loadSettings() {
 		oscportout ? oscportout.getIntValue() : 0);
 	{
 		auto bpmaux = settings.getChild("bpm");
-		if (bpmaux) jp_constants::bpm = (float)bpmaux.getIntValue();
+		if (bpmaux) jp_constants::setBpm((float)bpmaux.getIntValue());
 	}
 	liveOutputs.clear();
 	nextLiveOutputId = 1;

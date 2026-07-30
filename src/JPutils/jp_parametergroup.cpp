@@ -1,4 +1,7 @@
 #include "jp_parametergroup.h"
+#include "jp_constants.h"
+#include <algorithm>
+#include <cmath>
 
 void JPParameter::setup(float _var, string _name)
 
@@ -7,12 +10,15 @@ void JPParameter::setup(float _var, string _name)
 	floatValue = _var;
 	floatLerpValue = _var;
 	variabletype = FLOAT;
+	movtype = STANDART;
 	dir = true;
 
 	min = 0.0;
 	max = 1.0;
 	speed = 0.2;
 	seed = ofRandom(10000);
+	bpmEligible = false;
+	bpmRate = BPM_RATE_ONE;
 	needsUpdate = false;
 }
 void JPParameter::setup(bool _var, string _name)
@@ -20,10 +26,33 @@ void JPParameter::setup(bool _var, string _name)
 	name = _name;
 	boolValue = _var;
 	variabletype = BOOL;
+	movtype = STANDART;
 
 	min = 0.0;
 	max = 1.0;
 	speed = 1.0;
+	bpmEligible = false;
+	bpmRate = BPM_RATE_ONE;
+	needsUpdate = false;
+}
+float JPParameter::getBpmMultiplier() const
+{
+	switch (bpmRate)
+	{
+	case BPM_RATE_QUARTER: return 0.25f;
+	case BPM_RATE_HALF: return 0.5f;
+	case BPM_RATE_DOUBLE: return 2.0f;
+	case BPM_RATE_QUADRUPLE: return 4.0f;
+	default: return 1.0f;
+	}
+}
+void JPParameter::cycleBpmRate()
+{
+	bpmRate = (std::clamp(
+		bpmRate,
+		int(BPM_RATE_QUARTER),
+		int(BPM_RATE_QUADRUPLE)) + 1) %
+		(int(BPM_RATE_QUADRUPLE) + 1);
 }
 void JPParameter::update()
 {
@@ -72,6 +101,24 @@ void JPParameter::update()
 			floatValue = n;
 			floatLerpValue = n;
 		}
+		if (movtype == BPM)
+		{
+			if (!bpmEligible || jp_constants::bpm <= 0.0f)
+			{
+				floatLerpValue = min;
+			}
+			else
+			{
+				const float phase = jp_constants::getBeatPhase(
+					getBpmMultiplier());
+				const float decayExponent = ofLerp(
+					0.5f, 12.0f, ofClamp(speed, 0.0f, 1.0f));
+				const float envelope = std::pow(
+					std::max(0.0f, 1.0f - phase),
+					decayExponent);
+				floatLerpValue = ofLerp(min, max, envelope);
+			}
+		}
 	}
 
 	floatValue = floatLerpValue;
@@ -80,10 +127,12 @@ void JPParameter::update()
 }
 
 /*****************************************************************************/
-void JPParameterGroup::addFloatValue(float _var, string _name)
+void JPParameterGroup::addFloatValue(
+	float _var, string _name, bool _bpmEligible)
 {
 	JPParameter *param = new JPParameter();
 	param->setup(_var, _name);
+	param->bpmEligible = _bpmEligible;
 	parameters.push_back(param);
 }
 void JPParameterGroup::addBoolValue(bool _var, string _name)
@@ -175,7 +224,10 @@ void JPParameterGroup::setmovetype(int _movetype, int _index)
 
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
-		parameters[_index]->movtype = _movetype;
+		parameters[_index]->movtype =
+			_movetype == JPParameter::BPM &&
+				!parameters[_index]->bpmEligible ?
+				JPParameter::STANDART : _movetype;
 	}
 }
 // SETTERS
@@ -212,6 +264,16 @@ void JPParameterGroup::setSpeed(float _val, int _index)
 	{
 		parameters[_index]->speed = _val;
 	}
+}
+void JPParameterGroup::setBpmRate(int _rate, int _index)
+{
+	if (_index < 0 || _index >= parameters.size())
+		return;
+
+	parameters[_index]->bpmRate = std::clamp(
+		_rate,
+		int(JPParameter::BPM_RATE_QUARTER),
+		int(JPParameter::BPM_RATE_QUADRUPLE));
 }
 void JPParameterGroup::setBoolValue(bool _val, int _index)
 {
@@ -267,6 +329,13 @@ float JPParameterGroup::getSpeed(int _index)
 		return 0.0;
 
 	return parameters[_index]->speed;
+}
+int JPParameterGroup::getBpmRate(int _index)
+{
+	if (_index < 0 || _index >= parameters.size())
+		return JPParameter::BPM_RATE_ONE;
+
+	return parameters[_index]->bpmRate;
 }
 float JPParameterGroup::getFloatValue(int _index)
 {

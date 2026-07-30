@@ -27,7 +27,8 @@ public:
 		IDAYVUELTA,
 		GODER,
 		GOIZQ,
-		RAN
+		RAN,
+		BPM_SYNC
 	};
 
 private:

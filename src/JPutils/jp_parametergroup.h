@@ -22,8 +22,18 @@ public:
 		GODER,
 		GOIZQ,
 		RANDOM,
+		BPM,
+	};
+	enum BpmRate
+	{
+		BPM_RATE_QUARTER,
+		BPM_RATE_HALF,
+		BPM_RATE_ONE,
+		BPM_RATE_DOUBLE,
+		BPM_RATE_QUADRUPLE,
 	};
 	int movtype;
+	int bpmRate;
 
 	string name;
 	float floatValue;
@@ -35,7 +45,10 @@ public:
 	float min;
 	float max;
 
+	bool bpmEligible;
 	bool needsUpdate;
+	float getBpmMultiplier() const;
+	void cycleBpmRate();
 	// float speed;
 private:
 	bool dir;
@@ -56,7 +69,7 @@ public:
 		FLOAT
 	};
 	string name;
-	void addFloatValue(float _var, string name);
+	void addFloatValue(float _var, string name, bool bpmEligible = false);
 	void addBoolValue(bool _var, string name);
 	void clear();
 	void coutData();
@@ -69,6 +82,7 @@ public:
 	float getLerpValue(int _index);
 	float getMin(int _index);
 	float getMax(int _index);
+	int getBpmRate(int _index);
 	bool getBoolValue(int _index);
 	int getMovType(int _index);
 	JPParameter *getJParameter(int _index);
@@ -80,6 +94,7 @@ public:
 	void setMax(float _val, int _index);
 	void setName(string _name);
 	void setSpeed(float _val, int _index);
+	void setBpmRate(int _rate, int _index);
 	void update();
 	void setmovetype(int _movetype, int _index);
 	vector<JPParameter *> parameters;

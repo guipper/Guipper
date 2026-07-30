@@ -31,6 +31,8 @@ public:
 	JPToogle boton_idayvuelta;
 	JPToogle boton_random;
 	JPToogle boton_direccion;
+	JPToogle boton_bpm;
+	JPdragobject bpm_rate_button;
 
 	JPKnob slider_speed;
 	JPSlider slider_value;

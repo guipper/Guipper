@@ -89,8 +89,20 @@ void JPbox_shader::reload()
 				else if (parameters.getType(k) == parameters.FLOAT)
 				{
 					parameters.setFloatValue(auxparameters.getFloatValue(i), k);
-
 					parameters.setFloatLerpValue(auxparameters.getLerpValue(i), k);
+					parameters.setMin(auxparameters.getMin(i), k);
+					parameters.setMax(auxparameters.getMax(i), k);
+					parameters.setSpeed(auxparameters.getSpeed(i), k);
+					parameters.setBpmRate(auxparameters.getBpmRate(i), k);
+					const int previousMoveType =
+						auxparameters.getMovType(i);
+					const bool canRestoreMoveType =
+						previousMoveType != JPParameter::BPM ||
+						parameters.getJParameter(k)->bpmEligible;
+					parameters.setmovetype(
+						canRestoreMoveType ? previousMoveType :
+							JPParameter::STANDART,
+						k);
 				}
 			}
 		}
@@ -428,7 +440,7 @@ void JPbox_shader::setUniforms(JPParameterGroup &_parameters,
 					value = ofToFloat(frase[4]);
 					// cout << "Value : " << value << endl;
 				}
-				_parameters.addFloatValue(value, frase[2]);
+				_parameters.addFloatValue(value, frase[2], true);
 			}
 			else if (linesOfTheFile[l].find("sampler2DRect") != std::string::npos)
 			{
