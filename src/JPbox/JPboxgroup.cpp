@@ -6472,59 +6472,67 @@ int JPboxgroup::getMaxParameterCount() const
 	}
 	return maxCount;
 }
+int JPboxgroup::getOpenParameterCount() const
+{
+	return controllers.size();
+}
+JPParameter *JPboxgroup::getOpenParameterAtIndex(
+	int parameterIndex) const
+{
+	if (parameterIndex < 0 ||
+		parameterIndex >= (int)controllers.size() ||
+		controllers[parameterIndex] == nullptr)
+	{
+		return nullptr;
+	}
+	return controllers[parameterIndex]->parameters;
+}
 bool JPboxgroup::setOpenBoxParameterAtIndex(int parameterIndex, float value)
 {
-	JPbox *inspectorBox = getInspectorBox();
-	if (inspectorBox == nullptr ||
-		parameterIndex < 0 ||
-		parameterIndex >= inspectorBox->parameters.getSize())
+	JPParameter *parameter =
+		getOpenParameterAtIndex(parameterIndex);
+	if (parameter == nullptr)
 	{
 		return false;
 	}
 
-	int type = inspectorBox->parameters.getType(parameterIndex);
-	if (type == inspectorBox->parameters.FLOAT)
+	const float normalizedValue =
+		ofClamp(value, 0.0f, 1.0f);
+	JPcontroller *controller = controllers[parameterIndex];
+	if (parameter->variabletype == JPParameter::FLOAT)
 	{
-		JPParameter *parameter =
-			inspectorBox->parameters.getJParameter(parameterIndex);
-		if (parameter != nullptr &&
-			parameter->movtype != JPParameter::STANDART)
+		if (parameter->movtype != JPParameter::STANDART)
 		{
-			const float speed = ofClamp(value, 0.0f, 1.0f);
-			inspectorBox->parameters.setSpeed(speed, parameterIndex);
+			parameter->speed = normalizedValue;
 			markCueDraftDirty(cueSelectedIndex());
-			if (parameterIndex < controllers.size())
+			JPComplexSlider *slider =
+				dynamic_cast<JPComplexSlider *>(controller);
+			if (slider != nullptr)
 			{
-				JPComplexSlider *slider =
-					dynamic_cast<JPComplexSlider *>(
-						controllers[parameterIndex]);
-				if (slider != nullptr && slider->parameters == parameter)
-				{
-					slider->speed = speed;
-					slider->slider_speed.value = speed;
-				}
+				slider->speed = normalizedValue;
+				slider->slider_speed.value = normalizedValue;
 			}
 			return true;
 		}
 
-		inspectorBox->parameters.setFloatValue(value, parameterIndex);
-		inspectorBox->parameters.setFloatLerpValue(value, parameterIndex);
+		parameter->floatValue = normalizedValue;
+		parameter->floatLerpValue = normalizedValue;
 		markCueDraftDirty(cueSelectedIndex());
-		if (parameterIndex < controllers.size())
+		if (controller != nullptr)
 		{
-			controllers[parameterIndex]->value = value;
+			controller->value = normalizedValue;
 		}
 		return true;
 	}
-	if (type == inspectorBox->parameters.BOOL)
+	if (parameter->variabletype == JPParameter::BOOL)
 	{
-		bool boolValue = value > 0.5f;
-		inspectorBox->parameters.setBoolValue(boolValue, parameterIndex);
+		const bool boolValue = normalizedValue > 0.5f;
+		parameter->boolValue = boolValue;
 		markCueDraftDirty(cueSelectedIndex());
-		if (parameterIndex < controllers.size())
+		if (controller != nullptr)
 		{
-			controllers[parameterIndex]->boolValue = boolValue;
-			controllers[parameterIndex]->activeFlag = false;
+			controller->boolValue = boolValue;
+			controller->activeFlag = false;
 		}
 		return true;
 	}

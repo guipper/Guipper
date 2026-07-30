@@ -1018,6 +1018,11 @@ JPbox *JPMidiKeymap::getSelectedParameterBox() const
 int JPMidiKeymap::getGlobalParameterIndexCount() const
 {
 	int maxCount = boxes != nullptr ? boxes->getMaxParameterCount() : 0;
+	if (boxes != nullptr)
+	{
+		maxCount = std::max(
+			maxCount, boxes->getOpenParameterCount());
+	}
 	return std::max(DEFAULT_GLOBAL_PARAMETER_INDEX_COUNT, maxCount);
 }
 
@@ -1506,31 +1511,34 @@ void JPMidiKeymap::drawBoxMappingTargets()
 
 void JPMidiKeymap::drawInspectorMappingTargets()
 {
-	if (boxes->openguinumber < 0 || boxes->openguinumber >= boxes->boxes.size())
+	if (boxes == nullptr || boxes->getInspectorBox() == nullptr)
 	{
 		return;
 	}
 
-	const int parameterCount =
-		boxes->boxes[boxes->openguinumber]->parameters.getSize();
 	for (int i = 0;
-		 i < boxes->controllers.size() && i < parameterCount;
+		 i < boxes->getOpenParameterCount();
 		 i++)
 	{
-		int type = boxes->boxes[boxes->openguinumber]->parameters.getType(i);
-		if (type != boxes->boxes[boxes->openguinumber]->parameters.FLOAT &&
-			type != boxes->boxes[boxes->openguinumber]->parameters.BOOL)
+		JPParameter *parameter =
+			boxes->getOpenParameterAtIndex(i);
+		if (parameter == nullptr ||
+			(parameter->variabletype != JPParameter::FLOAT &&
+			 parameter->variabletype != JPParameter::BOOL))
 		{
 			continue;
 		}
 
 		JPcontroller *controller = boxes->controllers[i];
+		if (controller == nullptr)
+		{
+			continue;
+		}
 		bool over = controller->mouseOver();
 		bool bound = hasBindingForAction(PARAMETER, "", i);
 		bool mapsAutomationSpeed =
-			type == boxes->boxes[boxes->openguinumber]->parameters.FLOAT &&
-			boxes->boxes[boxes->openguinumber]->parameters.getMovType(i) !=
-				JPParameter::STANDART;
+			parameter->variabletype == JPParameter::FLOAT &&
+			parameter->movtype != JPParameter::STANDART;
 		ofNoFill();
 		ofSetLineWidth((over || bound) ? 3 : 2);
 		ofSetColor(bound ? ofColor(COL_MAPPED_ON, over ? 255 : 220) :
@@ -1613,7 +1621,6 @@ void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 	ofSetColor(COL_TEXT_DIM);
 	jp_constants::p_font.drawString("MIDI binding", x + w * 0.34, y);
 
-	JPbox *parameterBox = getSelectedParameterBox();
 	float rowY = y + PARAM_HEADER_H;
 	for (int i = 0; i < getGlobalParameterIndexCount(); i++)
 	{
@@ -1621,15 +1628,15 @@ void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 		int bindingIndex = findParameterBindingForIndex(i);
 		bool mapped = bindingIndex >= 0;
 		bool over = mouseInRect(x, rowY, w, ROW_H);
-		bool isBoolParameter = parameterBox != nullptr &&
-							   i < parameterBox->parameters.getSize() &&
-							   parameterBox->parameters.getType(i) == parameterBox->parameters.BOOL;
-		bool mapsAutomationSpeed = parameterBox != nullptr &&
-							   i < parameterBox->parameters.getSize() &&
-							   parameterBox->parameters.getType(i) == parameterBox->parameters.FLOAT &&
-							   parameterBox->parameters.getMovType(i) != JPParameter::STANDART;
+		JPParameter *parameter =
+			boxes->getOpenParameterAtIndex(i);
+		bool isBoolParameter = parameter != nullptr &&
+			parameter->variabletype == JPParameter::BOOL;
+		bool mapsAutomationSpeed = parameter != nullptr &&
+			parameter->variabletype == JPParameter::FLOAT &&
+			parameter->movtype != JPParameter::STANDART;
 		bool boolValue = isBoolParameter &&
-						 parameterBox->parameters.getBoolValue(i);
+			parameter->boolValue;
 
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		if (isBoolParameter)
@@ -2398,16 +2405,19 @@ bool JPMidiKeymap::tryCaptureBoxFunctionClick(int x, int y)
 
 bool JPMidiKeymap::tryCaptureInspectorFunctionClick(int x, int y)
 {
-	if (boxes->openguinumber < 0 || boxes->openguinumber >= boxes->boxes.size())
+	if (boxes == nullptr || boxes->getInspectorBox() == nullptr)
 	{
 		return false;
 	}
-	for (int i = 0; i < boxes->controllers.size(); i++)
+	for (int i = 0; i < boxes->getOpenParameterCount(); i++)
 	{
-		int type = boxes->boxes[boxes->openguinumber]->parameters.getType(i);
-		if (boxes->controllers[i]->mouseOver() &&
-			(type == boxes->boxes[boxes->openguinumber]->parameters.FLOAT ||
-			 type == boxes->boxes[boxes->openguinumber]->parameters.BOOL))
+		JPParameter *parameter =
+			boxes->getOpenParameterAtIndex(i);
+		JPcontroller *controller = boxes->controllers[i];
+		if (parameter != nullptr && controller != nullptr &&
+			controller->mouseOver() &&
+			(parameter->variabletype == JPParameter::FLOAT ||
+			 parameter->variabletype == JPParameter::BOOL))
 		{
 			Binding binding;
 			binding.action = PARAMETER;

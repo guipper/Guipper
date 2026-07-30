@@ -150,6 +150,8 @@ public:
 	// Name lookup scoped to the cue's target graph (preset-aware findBoxIndexByName).
 	int findCueTargetBoxIndexByName(const string &boxName) const;
 	int getMaxParameterCount() const;
+	int getOpenParameterCount() const;
+	JPParameter *getOpenParameterAtIndex(int parameterIndex) const;
 	bool setOpenBoxParameterAtIndex(int parameterIndex, float value);
 	bool setLastBoxOnOff(bool value);
 
