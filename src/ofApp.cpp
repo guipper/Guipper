@@ -2,6 +2,8 @@
 #include "JPutils/jp_textfield.h"
 #include <iostream>
 #include <algorithm>
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
 
 namespace {
 constexpr float SHADER_ROW_INDENT = 22.0f;
@@ -146,6 +148,23 @@ void ofApp::setup() {
 }
 void ofApp::update() {
 	boxes.update();
+	updateRetiredLiveOutputWindows();
+	const float now = ofGetElapsedTimef();
+	if (lastLiveOutputMonitorRefresh < 0.0f ||
+		now - lastLiveOutputMonitorRefresh >= 2.0f)
+	{
+		refreshLiveOutputMonitors();
+		for (int i = 0; i < (int)liveOutputs.size(); i++)
+		{
+			LiveOutputRuntime &output = liveOutputs[i];
+			if (output.config.enabled && output.window &&
+				resolveLiveOutputMonitor(output.config) < 0)
+			{
+				closeLiveOutputWindow(i, true);
+				output.createAttempted = true;
+			}
+		}
+	}
 
 	// Auto-switch to EDITOR screen when a shader is opened from inspector/index
 	if (shaderEditor.justOpened()) {
@@ -477,22 +496,42 @@ void ofApp::draw_instrucciones() {
 void ofApp::draw_opciones() {
 	float panelW = 500;
 	float panelX = 30;           // left-aligned, consistent across pages
-	float panelY = 44;           // below the top screen-tab bar
-	float fieldX = panelX + 145; // panel-relative
+	float panelY = 44 - settingsScroll; // below the top screen-tab bar
+	float fieldX = panelX + 175; // room for graph-render labels
 	float fieldW = 200;
 	float rowH = 28;
 	float sepy = 40;
 	int totalRows = FIELD_OSC_IP_OUT + 6; // fields + spout + ndi + osc ip + compo + activecompo + save
 	float panelH = 55 + totalRows * sepy + 25;
-	float toggleBtnW = 70;
+	const float actionBtnW = 100;
+	auto drawSettingsButton = [&](const ofRectangle &bounds,
+		const string &label, const ofColor &accent, bool active) {
+		const bool hovered = bounds.inside(
+			ofGetMouseX(), ofGetMouseY());
+		ofColor fillColor = active ?
+			ofColor(accent, 215) :
+			(hovered ? COL_BG_HOVER : COL_BG_BUTTON);
+		ofSetColor(fillColor);
+		ofDrawRectRounded(bounds, 4.0f);
+		ofNoFill();
+		ofSetColor(active || hovered ? accent : COL_BORDER_DEFAULT);
+		ofSetLineWidth(1.0f);
+		ofDrawRectRounded(bounds, 4.0f);
+		ofFill();
+		ofSetColor(active ? COL_TEXT_PRIMARY :
+			(hovered ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY));
+		font_p.drawString(label,
+			bounds.getCenter().x - font_p.stringWidth(label) * 0.5f,
+			bounds.getBottom() - 7.0f);
+	};
 
 	// Glassmorphism panel background
 	ofSetColor(ofColor(COL_BG_DARK, 235));
-	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
+	ofDrawRectRounded(panelX, panelY, panelW, panelH, 8);
 	ofNoFill();
 	ofSetColor(ofColor(COL_ACCENT_CYAN, 80));
 	ofSetLineWidth(1.5f);
-	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
+	ofDrawRectRounded(panelX, panelY, panelW, panelH, 8);
 	ofFill();
 	ofSetLineWidth(1.0f);
 
@@ -504,8 +543,8 @@ void ofApp::draw_opciones() {
 	string labels[FIELD_OSC_IP_OUT] = {
 		"OSC Port In:",
 		"OSC Port Out:",
-		"Render Width:",
-		"Render Height:",
+		"Graph Render Width:",
+		"Graph Render Height:",
 		"BPM:"
 	};
 
@@ -544,17 +583,15 @@ void ofApp::draw_opciones() {
 		// AUTOTAP button next to BPM field
 		if (i == FIELD_BPM) {
 			float tapX = fieldX + fieldW + 10;
-			float tapW = 100;
-			ofSetColor(COL_ACCENT_GOLD_DIM);
-			ofDrawRectRounded(tapX, rowY, tapW, rowH, 4.0f);
-			ofSetColor(COL_TEXT_PRIMARY);
-			font_p.drawString("AUTOTAP", tapX + 14, rowY + rowH - 7);
+			drawSettingsButton(
+				ofRectangle(tapX, rowY, actionBtnW, rowH),
+				"AUTOTAP", COL_ACCENT_GOLD, false);
 		}
 		const char *fieldTooltips[] = {
 			"Edit OSC input port",
 			"Edit OSC output port",
-			"Edit render width",
-			"Edit render height",
+			"Edit graph render width",
+			"Edit graph render height",
 			"Edit BPM"
 		};
 		jp_tooltip::draw(fieldTooltips[i], fieldX, rowY, fieldW, rowH);
@@ -570,11 +607,11 @@ void ofApp::draw_opciones() {
 
 		float btnX = fieldX;
 		bool isOn = spoutActive;
-		ofSetColor(isOn ? COL_ACCENT_GREEN : COL_ACCENT_RED_DIM);
-		ofDrawRectRounded(btnX, rowY, toggleBtnW, rowH, 4.0f);
-		ofSetColor(COL_TEXT_PRIMARY);
-		font_p.drawString(isOn ? "ON" : "OFF", btnX + toggleBtnW / 2 - 12, rowY + rowH - 7);
-		jp_tooltip::draw("Toggle Spout output", btnX, rowY, toggleBtnW, rowH);
+		drawSettingsButton(
+			ofRectangle(btnX, rowY, actionBtnW, rowH),
+			isOn ? "ON" : "OFF", COL_ACCENT_GREEN, isOn);
+		jp_tooltip::draw("Toggle Spout output",
+			btnX, rowY, actionBtnW, rowH);
 	}
 	toggleRow++;
 #endif
@@ -588,11 +625,11 @@ void ofApp::draw_opciones() {
 
 		float btnX = fieldX;
 		bool isOn = ndiActive;
-		ofSetColor(isOn ? COL_ACCENT_GREEN : COL_ACCENT_RED_DIM);
-		ofDrawRectRounded(btnX, rowY, toggleBtnW, rowH, 4.0f);
-		ofSetColor(COL_TEXT_PRIMARY);
-		font_p.drawString(isOn ? "ON" : "OFF", btnX + toggleBtnW / 2 - 12, rowY + rowH - 7);
-		jp_tooltip::draw("Toggle NDI output", btnX, rowY, toggleBtnW, rowH);
+		drawSettingsButton(
+			ofRectangle(btnX, rowY, actionBtnW, rowH),
+			isOn ? "ON" : "OFF", COL_ACCENT_GREEN, isOn);
+		jp_tooltip::draw("Toggle NDI output",
+			btnX, rowY, actionBtnW, rowH);
 	}
 	toggleRow++;
 #endif
@@ -662,11 +699,9 @@ void ofApp::draw_opciones() {
 
 		// BROWSE button next to the field
 		float browseX = fieldX + fieldW + 10;
-		float browseW = 70;
-		ofSetColor(60, 80, 140);
-		ofDrawRectRounded(browseX, rowY, browseW, rowH, 4.0f);
-		ofSetColor(COL_TEXT_PRIMARY);
-		font_p.drawString("BROWSE", browseX + 10, rowY + rowH - 7);
+		drawSettingsButton(
+			ofRectangle(browseX, rowY, actionBtnW, rowH),
+			"BROWSE", COL_ACCENT_CYAN, false);
 		jp_tooltip::draw("Edit default composition path", fieldX, rowY, fieldW, rowH);
 	}
 	toggleRow++;
@@ -688,18 +723,19 @@ void ofApp::draw_opciones() {
 	// --- Save button ---
 	{
 		float rowY = panelY + 55 + toggleRow * sepy;
-		float saveW = 160;
-		float saveX = panelX + panelW / 2 - saveW / 2;
-		ofSetColor(COL_ACCENT_CYAN_DIM);
-		ofDrawRectRounded(saveX, rowY, saveW, rowH + 4, 6.0f);
-		ofSetColor(COL_TEXT_PRIMARY);
-		font_p.drawString("SAVE SETTINGS", saveX + saveW / 2 - 48, rowY + rowH + 4 - 6);
+		float saveW = fieldW;
+		float saveX = fieldX;
+		drawSettingsButton(
+			ofRectangle(saveX, rowY, saveW, rowH),
+			"SAVE SETTINGS", COL_ACCENT_CYAN, true);
 
 		// Save feedback text
 		if (saveFeedbackTime > 0 && ofGetElapsedTimef() - saveFeedbackTime < 3.0f) {
 			ofSetColor(COL_MAPPED_ON);
 			float fw = font_p.stringWidth(saveFeedbackText);
-			font_p.drawString(saveFeedbackText, saveX + saveW / 2 - fw / 2, rowY + rowH + 4 + 20);
+			font_p.drawString(saveFeedbackText,
+				saveX + saveW / 2 - fw / 2,
+				rowY + rowH + 20);
 		} else {
 			saveFeedbackTime = 0;
 		}
@@ -710,6 +746,616 @@ void ofApp::draw_opciones() {
 		ofSetColor(COL_TEXT_MUTED);
 		font_p.drawString("Enter to apply | Click outside to cancel", panelX + 15, panelY + panelH - 10);
 	}
+	drawLiveOutputSettings();
+}
+
+vector<string> ofApp::getLiveOutputSourceOptions() const
+{
+	vector<string> options;
+	options.push_back("MAIN Active");
+	const vector<string> boxNames = boxes.getBoxNames();
+	options.insert(options.end(), boxNames.begin(), boxNames.end());
+	return options;
+}
+
+ofApp::LiveOutputSettingsLayout
+ofApp::getLiveOutputSettingsLayout() const
+{
+	LiveOutputSettingsLayout layout;
+	const float margin = 30.0f;
+	const float generalPanelW = 500.0f;
+	const float generalPanelH =
+		55.0f + (FIELD_OSC_IP_OUT + 6) * 40.0f + 25.0f;
+	layout.twoColumns = ofGetWidth() >= 1080;
+	layout.panel.x = layout.twoColumns ?
+		margin + generalPanelW + 16.0f : margin;
+	layout.panel.y = layout.twoColumns ?
+		44.0f : 44.0f + generalPanelH + 16.0f;
+	layout.panel.y -= settingsScroll;
+	layout.panel.width = layout.twoColumns ?
+		std::max(500.0f, ofGetWidth() - layout.panel.x - margin) :
+		std::max(500.0f, ofGetWidth() - margin * 2.0f);
+	layout.panel.height = generalPanelH;
+
+	layout.addButton.set(
+		layout.panel.getRight() - 58.0f,
+		layout.panel.y + 13.0f, 22.0f, 22.0f);
+	layout.deleteButton.set(
+		layout.panel.getRight() - 30.0f,
+		layout.panel.y + 13.0f, 22.0f, 22.0f);
+
+	const float listW = std::min(184.0f, layout.panel.width * 0.34f);
+	layout.list.set(layout.panel.x + 14.0f, layout.panel.y + 50.0f,
+		listW, layout.panel.height - 64.0f);
+	const int visibleRows = std::max(1, (int)(layout.list.height / 31.0f));
+	const int maxListScroll = std::max(
+		0, (int)liveOutputs.size() - visibleRows);
+	const int firstOutput = ofClamp(
+		liveOutputListScroll, 0, maxListScroll);
+	for (int row = 0;
+		row < visibleRows && firstOutput + row < (int)liveOutputs.size();
+		row++)
+	{
+		layout.rows.push_back(ofRectangle(
+			layout.list.x, layout.list.y + row * 31.0f,
+			layout.list.width, 28.0f));
+		layout.rowIndices.push_back(firstOutput + row);
+	}
+
+	const float editorX = layout.list.getRight() + 18.0f;
+	const float editorW =
+		layout.panel.getRight() - 14.0f - editorX;
+	const float controlX = editorX + 94.0f;
+	const float controlW = std::max(120.0f, editorW - 94.0f);
+	float rowY = layout.panel.y + 78.0f;
+	layout.enabledToggle.set(controlX, rowY, 70.0f, 28.0f);
+	rowY += 43.0f;
+	layout.sourceButton.set(controlX, rowY, controlW, 28.0f);
+	rowY += 43.0f;
+	layout.monitorButton.set(controlX, rowY, controlW, 28.0f);
+	rowY += 47.0f;
+	layout.windowModeButton.set(
+		controlX, rowY, controlW * 0.5f - 3.0f, 28.0f);
+	layout.fullscreenModeButton.set(
+		controlX + controlW * 0.5f + 3.0f, rowY,
+		controlW * 0.5f - 3.0f, 28.0f);
+	rowY += 47.0f;
+	layout.widthField.set(
+		controlX, rowY, controlW * 0.5f - 3.0f, 28.0f);
+	layout.heightField.set(
+		controlX + controlW * 0.5f + 3.0f, rowY,
+		controlW * 0.5f - 3.0f, 28.0f);
+
+	if (liveOutputMenu != LIVE_OUTPUT_MENU_NONE)
+	{
+		const ofRectangle &anchor =
+			liveOutputMenu == LIVE_OUTPUT_MENU_SOURCE ?
+				layout.sourceButton : layout.monitorButton;
+		const int optionCount =
+			liveOutputMenu == LIVE_OUTPUT_MENU_SOURCE ?
+				(int)getLiveOutputSourceOptions().size() :
+				(int)liveOutputMonitors.size();
+		const int visibleOptions = std::min(8, optionCount);
+		const int firstOption = ofClamp(liveOutputMenuScroll, 0,
+			std::max(0, optionCount - visibleOptions));
+		layout.popup.set(anchor.x, anchor.getBottom() + 2.0f,
+			anchor.width, visibleOptions * 27.0f + 4.0f);
+		for (int i = 0; i < visibleOptions; i++)
+		{
+			layout.popupRows.push_back(ofRectangle(
+				layout.popup.x + 2.0f,
+				layout.popup.y + 2.0f + i * 27.0f,
+				layout.popup.width - 4.0f, 25.0f));
+			layout.popupOptionIndices.push_back(firstOption + i);
+		}
+	}
+	return layout;
+}
+
+void ofApp::drawLiveOutputSettings()
+{
+	const LiveOutputSettingsLayout layout =
+		getLiveOutputSettingsLayout();
+	auto clippedText = [&](const string &text, float maxWidth) {
+		if (font_p.stringWidth(text) <= maxWidth)
+		{
+			return text;
+		}
+		string clipped = text;
+		while (!clipped.empty() &&
+			font_p.stringWidth(clipped + "...") > maxWidth)
+		{
+			clipped.pop_back();
+		}
+		return clipped + "...";
+	};
+	auto drawControl = [&](const ofRectangle &bounds,
+		const string &label, bool active, bool disabled = false) {
+		ofSetColor(disabled ? COL_BG_DARK :
+			(active ? COL_ACCENT_CYAN_DIM : COL_BG_INPUT));
+		ofDrawRectRounded(bounds, 4.0f);
+		ofNoFill();
+		ofSetColor(active ? COL_ACCENT_CYAN :
+			(disabled ? COL_TEXT_MUTED : COL_MAPPED_OFF));
+		ofDrawRectRounded(bounds, 4.0f);
+		ofFill();
+		ofSetColor(disabled ? COL_TEXT_MUTED : COL_TEXT_PRIMARY);
+		const string visible = bounds.width < 40.0f ?
+			label : clippedText(label, bounds.width - 14.0f);
+		const float textX = bounds.width < 40.0f ?
+			bounds.getCenter().x - font_p.stringWidth(visible) * 0.5f :
+			bounds.x + 7.0f;
+		font_p.drawString(visible, textX,
+			bounds.getBottom() - 7.0f);
+	};
+
+	ofSetColor(ofColor(COL_BG_DARK, 242));
+	ofDrawRectRounded(layout.panel, 8.0f);
+	ofNoFill();
+	ofSetColor(ofColor(COL_ACCENT_CYAN, 80));
+	ofSetLineWidth(1.5f);
+	ofDrawRectRounded(layout.panel, 8.0f);
+	ofFill();
+	ofSetLineWidth(1.0f);
+
+	ofSetColor(COL_ACCENT_CYAN);
+	font_p.drawString("LIVE OUTPUTS", layout.panel.x + 15.0f,
+		layout.panel.y + 30.0f);
+	drawControl(layout.addButton, "+", false);
+	drawControl(layout.deleteButton, "x", false, liveOutputs.empty());
+
+	ofSetColor(COL_BG_INPUT);
+	ofDrawRectRounded(layout.list, 5.0f);
+	if (liveOutputs.empty())
+	{
+		ofSetColor(COL_TEXT_MUTED);
+		font_p.drawString("No outputs", layout.list.x + 10.0f,
+			layout.list.y + 24.0f);
+	}
+	for (int row = 0; row < (int)layout.rows.size(); row++)
+	{
+		const int outputIndex = layout.rowIndices[row];
+		const LiveOutputRuntime &output = liveOutputs[outputIndex];
+		const bool selected = outputIndex == selectedLiveOutput;
+		const ofRectangle &bounds = layout.rows[row];
+		if (selected)
+		{
+			ofSetColor(COL_ACCENT_CYAN_DIM);
+			ofDrawRectRounded(bounds, 4.0f);
+		}
+		else if (bounds.inside(ofGetMouseX(), ofGetMouseY()))
+		{
+			ofSetColor(COL_BG_HOVER);
+			ofDrawRectRounded(bounds, 4.0f);
+		}
+
+		ofSetColor(output.window ? COL_ACCENT_GREEN :
+			(output.config.enabled ? COL_ACCENT_GOLD : COL_TEXT_MUTED));
+		ofDrawCircle(bounds.x + 10.0f, bounds.getCenter().y, 3.5f);
+		ofSetColor(selected ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
+		font_p.drawString(getLiveOutputDisplayName(outputIndex),
+			bounds.x + 20.0f, bounds.getBottom() - 8.0f);
+	}
+
+	if (selectedLiveOutput >= 0 &&
+		selectedLiveOutput < (int)liveOutputs.size())
+	{
+		const LiveOutputRuntime &output =
+			liveOutputs[selectedLiveOutput];
+		const LiveOutputConfig &config = output.config;
+		const float editorX = layout.list.getRight() + 18.0f;
+		const float labelX = editorX;
+		ofSetColor(COL_TEXT_PRIMARY);
+		font_p.drawString(getLiveOutputDisplayName(selectedLiveOutput),
+			editorX, layout.panel.y + 59.0f);
+
+		const float labelYs[] = {
+			layout.enabledToggle.getBottom() - 7.0f,
+			layout.sourceButton.getBottom() - 7.0f,
+			layout.monitorButton.getBottom() - 7.0f,
+			layout.windowModeButton.getBottom() - 7.0f,
+			layout.widthField.getBottom() - 7.0f
+		};
+		const char *labels[] = {
+			"Enabled", "Source", "Monitor", "Mode", "Resolution"
+		};
+		for (int i = 0; i < 5; i++)
+		{
+			ofSetColor(COL_TEXT_SECONDARY);
+			font_p.drawString(labels[i], labelX, labelYs[i]);
+		}
+
+		drawControl(layout.enabledToggle,
+			config.enabled ? "ON" : "OFF", config.enabled);
+		const string sourceLabel =
+			config.sourceMode == LIVE_OUTPUT_MAIN_ACTIVE ?
+				"MAIN Active" : config.sourceBox;
+		drawControl(layout.sourceButton,
+			sourceLabel + "  v", false);
+
+		const int monitorIndex = resolveLiveOutputMonitor(config);
+		string monitorLabel = config.monitorName.empty() ?
+			"Select monitor" : config.monitorName;
+		if (monitorIndex >= 0)
+		{
+			const LiveOutputMonitor &monitor =
+				liveOutputMonitors[monitorIndex];
+			monitorLabel += " | " + ofToString(monitor.width) +
+				"x" + ofToString(monitor.height);
+			if (monitor.primary)
+			{
+				monitorLabel += " | Primary";
+			}
+		}
+		drawControl(layout.monitorButton,
+			monitorLabel + "  v", false);
+		drawControl(layout.windowModeButton, "WINDOW",
+			!config.fullscreen);
+		drawControl(layout.fullscreenModeButton, "FULLSCREEN",
+			config.fullscreen);
+		drawControl(layout.widthField,
+			liveOutputFieldText[0],
+			focusedLiveOutputField == 0, config.fullscreen);
+		drawControl(layout.heightField,
+			liveOutputFieldText[1],
+			focusedLiveOutputField == 1, config.fullscreen);
+		if (focusedLiveOutputField >= 0 && !config.fullscreen)
+		{
+			const ofRectangle &field = focusedLiveOutputField == 0 ?
+				layout.widthField : layout.heightField;
+			jp_textfield::drawCaret(font_p,
+				liveOutputFieldText[focusedLiveOutputField],
+				liveOutputFieldCursor, field.x + 7.0f,
+				field.getCenter().y, field.height - 8.0f);
+		}
+
+		const bool sourceMissing =
+			config.sourceMode == LIVE_OUTPUT_FIXED_BOX &&
+			!boxes.hasBoxName(config.sourceBox);
+		string status = "Disabled";
+		ofColor statusColor = COL_TEXT_MUTED;
+		if (config.enabled && monitorIndex < 0)
+		{
+			status = "Monitor disconnected";
+			statusColor = COL_ACCENT_RED;
+		}
+		else if (sourceMissing)
+		{
+			status = "Missing source";
+			statusColor = COL_ACCENT_RED;
+		}
+		else if (output.window)
+		{
+			status = "Live";
+			statusColor = COL_ACCENT_GREEN;
+		}
+		else if (config.enabled)
+		{
+			status = "Opening...";
+			statusColor = COL_ACCENT_GOLD;
+		}
+		ofSetColor(statusColor);
+		font_p.drawString(status, layout.sourceButton.x,
+			layout.heightField.getBottom() + 31.0f);
+
+		jp_tooltip::draw("Enable this live output",
+			layout.enabledToggle.x, layout.enabledToggle.y,
+			layout.enabledToggle.width, layout.enabledToggle.height);
+		jp_tooltip::draw("Choose the render source",
+			layout.sourceButton.x, layout.sourceButton.y,
+			layout.sourceButton.width, layout.sourceButton.height);
+		jp_tooltip::draw("Choose the output monitor",
+			layout.monitorButton.x, layout.monitorButton.y,
+			layout.monitorButton.width, layout.monitorButton.height);
+		jp_tooltip::draw("Use a resizable output window",
+			layout.windowModeButton.x, layout.windowModeButton.y,
+			layout.windowModeButton.width,
+			layout.windowModeButton.height);
+		jp_tooltip::draw("Use the monitor native fullscreen mode",
+			layout.fullscreenModeButton.x,
+			layout.fullscreenModeButton.y,
+			layout.fullscreenModeButton.width,
+			layout.fullscreenModeButton.height);
+	}
+	else
+	{
+		ofSetColor(COL_TEXT_MUTED);
+		font_p.drawString("Add an output to configure it",
+			layout.list.getRight() + 18.0f,
+			layout.panel.y + 82.0f);
+	}
+
+	jp_tooltip::draw("Add live output",
+		layout.addButton.x, layout.addButton.y,
+		layout.addButton.width, layout.addButton.height);
+	if (!liveOutputs.empty())
+	{
+		jp_tooltip::draw("Delete selected live output",
+			layout.deleteButton.x, layout.deleteButton.y,
+			layout.deleteButton.width, layout.deleteButton.height);
+	}
+
+	if (liveOutputMenu != LIVE_OUTPUT_MENU_NONE)
+	{
+		const vector<string> sourceOptions =
+			getLiveOutputSourceOptions();
+		ofSetColor(COL_BG_DARK);
+		ofDrawRectRounded(layout.popup, 4.0f);
+		ofNoFill();
+		ofSetColor(COL_ACCENT_CYAN);
+		ofDrawRectRounded(layout.popup, 4.0f);
+		ofFill();
+		for (int row = 0; row < (int)layout.popupRows.size(); row++)
+		{
+			const ofRectangle &bounds = layout.popupRows[row];
+			const int optionIndex = layout.popupOptionIndices[row];
+			if (bounds.inside(ofGetMouseX(), ofGetMouseY()))
+			{
+				ofSetColor(COL_BG_HOVER);
+				ofDrawRectangle(bounds);
+			}
+			string label;
+			if (liveOutputMenu == LIVE_OUTPUT_MENU_SOURCE)
+			{
+				label = sourceOptions[optionIndex];
+			}
+			else
+			{
+				const LiveOutputMonitor &monitor =
+					liveOutputMonitors[optionIndex];
+				label = monitor.name + " | " +
+					ofToString(monitor.width) + "x" +
+					ofToString(monitor.height);
+				if (monitor.primary)
+				{
+					label += " | Primary";
+				}
+			}
+			ofSetColor(COL_TEXT_PRIMARY);
+			font_p.drawString(
+				clippedText(label, bounds.width - 12.0f),
+				bounds.x + 6.0f, bounds.getBottom() - 7.0f);
+		}
+	}
+}
+
+void ofApp::setSelectedLiveOutput(int index)
+{
+	selectedLiveOutput = liveOutputs.empty() ? -1 :
+		ofClamp(index, 0, (int)liveOutputs.size() - 1);
+	focusedLiveOutputField = -1;
+	liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+	initLiveOutputFields();
+}
+
+void ofApp::initLiveOutputFields()
+{
+	if (selectedLiveOutput < 0 ||
+		selectedLiveOutput >= (int)liveOutputs.size())
+	{
+		liveOutputFieldText[0].clear();
+		liveOutputFieldText[1].clear();
+		focusedLiveOutputField = -1;
+		return;
+	}
+	liveOutputFieldText[0] = ofToString(
+		liveOutputs[selectedLiveOutput].config.width);
+	liveOutputFieldText[1] = ofToString(
+		liveOutputs[selectedLiveOutput].config.height);
+}
+
+void ofApp::applyLiveOutputField()
+{
+	if (focusedLiveOutputField < 0 ||
+		selectedLiveOutput < 0 ||
+		selectedLiveOutput >= (int)liveOutputs.size())
+	{
+		focusedLiveOutputField = -1;
+		return;
+	}
+	LiveOutputRuntime &output = liveOutputs[selectedLiveOutput];
+	const int value = ofClamp(ofToInt(
+		liveOutputFieldText[focusedLiveOutputField]), 64, 16384);
+	if (focusedLiveOutputField == 0)
+	{
+		output.config.width = value;
+	}
+	else
+	{
+		output.config.height = value;
+	}
+	focusedLiveOutputField = -1;
+	initLiveOutputFields();
+	if (output.window && !output.config.fullscreen)
+	{
+		output.window->setWindowShape(
+			output.config.width, output.config.height);
+	}
+	saveSettings();
+}
+
+bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
+{
+	if (button != OF_MOUSE_BUTTON_LEFT)
+	{
+		return false;
+	}
+	LiveOutputSettingsLayout layout = getLiveOutputSettingsLayout();
+
+	if (liveOutputMenu != LIVE_OUTPUT_MENU_NONE)
+	{
+		for (int row = 0; row < (int)layout.popupRows.size(); row++)
+		{
+			if (!layout.popupRows[row].inside(x, y))
+			{
+				continue;
+			}
+			if (selectedLiveOutput < 0 ||
+				selectedLiveOutput >= (int)liveOutputs.size())
+			{
+				liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+				return true;
+			}
+			const int optionIndex =
+				layout.popupOptionIndices[row];
+			LiveOutputRuntime &output =
+				liveOutputs[selectedLiveOutput];
+			if (liveOutputMenu == LIVE_OUTPUT_MENU_SOURCE)
+			{
+				const vector<string> options =
+					getLiveOutputSourceOptions();
+				if (optionIndex == 0)
+				{
+					output.config.sourceMode =
+						LIVE_OUTPUT_MAIN_ACTIVE;
+				}
+				else if (optionIndex < (int)options.size())
+				{
+					output.config.sourceMode =
+						LIVE_OUTPUT_FIXED_BOX;
+					output.config.sourceBox =
+						options[optionIndex];
+				}
+			}
+			else if (optionIndex >= 0 &&
+				optionIndex < (int)liveOutputMonitors.size())
+			{
+				const LiveOutputMonitor &monitor =
+					liveOutputMonitors[optionIndex];
+				output.config.monitorName = monitor.name;
+					output.config.monitorIndex = monitor.index;
+					output.config.hasPosition = false;
+					requestLiveOutputRecreate(selectedLiveOutput);
+					updateLiveOutputs();
+				}
+			liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+			liveOutputMenuScroll = 0;
+			saveSettings();
+			return true;
+		}
+		if (layout.popup.inside(x, y))
+		{
+			return true;
+		}
+		liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+		liveOutputMenuScroll = 0;
+		layout = getLiveOutputSettingsLayout();
+	}
+
+	if (focusedLiveOutputField >= 0 &&
+		!layout.widthField.inside(x, y) &&
+		!layout.heightField.inside(x, y))
+	{
+		applyLiveOutputField();
+		layout = getLiveOutputSettingsLayout();
+	}
+
+	if (layout.addButton.inside(x, y))
+	{
+		addLiveOutput();
+		return true;
+	}
+	if (!liveOutputs.empty() &&
+		layout.deleteButton.inside(x, y))
+	{
+		removeSelectedLiveOutput();
+		return true;
+	}
+	for (int row = 0; row < (int)layout.rows.size(); row++)
+	{
+		if (layout.rows[row].inside(x, y))
+		{
+			setSelectedLiveOutput(layout.rowIndices[row]);
+			return true;
+		}
+	}
+
+	if (selectedLiveOutput < 0 ||
+		selectedLiveOutput >= (int)liveOutputs.size())
+	{
+		return layout.panel.inside(x, y);
+	}
+	LiveOutputRuntime &output = liveOutputs[selectedLiveOutput];
+	if (layout.enabledToggle.inside(x, y))
+	{
+		output.config.enabled = !output.config.enabled;
+		output.createAttempted = false;
+		if (output.config.enabled)
+		{
+			requestLiveOutputRecreate(selectedLiveOutput);
+		}
+		else
+		{
+			output.closePending = true;
+		}
+		updateLiveOutputs();
+		saveSettings();
+		return true;
+	}
+	if (layout.sourceButton.inside(x, y))
+	{
+		liveOutputMenu = LIVE_OUTPUT_MENU_SOURCE;
+		liveOutputMenuScroll = 0;
+		focusedLiveOutputField = -1;
+		return true;
+	}
+	if (layout.monitorButton.inside(x, y))
+	{
+		refreshLiveOutputMonitors();
+		liveOutputMenu = LIVE_OUTPUT_MENU_MONITOR;
+		liveOutputMenuScroll = 0;
+		focusedLiveOutputField = -1;
+		return true;
+	}
+	if (layout.windowModeButton.inside(x, y))
+	{
+		if (output.config.fullscreen)
+		{
+			output.config.fullscreen = false;
+			requestLiveOutputRecreate(selectedLiveOutput);
+			updateLiveOutputs();
+			saveSettings();
+		}
+		return true;
+	}
+	if (layout.fullscreenModeButton.inside(x, y))
+	{
+		if (!output.config.fullscreen)
+		{
+			output.config.fullscreen = true;
+			requestLiveOutputRecreate(selectedLiveOutput);
+			updateLiveOutputs();
+			saveSettings();
+		}
+		return true;
+	}
+	if (!output.config.fullscreen &&
+		(layout.widthField.inside(x, y) ||
+		 layout.heightField.inside(x, y)))
+	{
+		focusedLiveOutputField =
+			layout.widthField.inside(x, y) ? 0 : 1;
+		liveOutputFieldCursor =
+			liveOutputFieldText[focusedLiveOutputField].size();
+		focusedOptionsField = -1;
+		return true;
+	}
+	return layout.panel.inside(x, y);
+}
+
+void ofApp::clampSettingsScroll()
+{
+	if (ofGetWidth() >= 1080)
+	{
+		settingsScroll = 0.0f;
+		return;
+	}
+	const float panelH =
+		55.0f + (FIELD_OSC_IP_OUT + 6) * 40.0f + 25.0f;
+	const float contentHeight =
+		44.0f + panelH + 16.0f + panelH + 30.0f;
+	settingsScroll = ofClamp(settingsScroll, 0.0f,
+		std::max(0.0f, contentHeight - ofGetHeight()));
 }
 
 void ofApp::initOptionsFields() {
@@ -727,6 +1373,25 @@ void ofApp::initOptionsFields() {
 		optionsFieldText[FIELD_DEFAULT_COMPO] = "savefiles/data.xml";
 	}
 	focusedOptionsField = -1;
+	focusedLiveOutputField = -1;
+	liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+	refreshLiveOutputMonitors();
+	bool reopenConnectedOutput = false;
+	for (LiveOutputRuntime &output : liveOutputs)
+	{
+		if (output.config.enabled && !output.window &&
+			resolveLiveOutputMonitor(output.config) >= 0)
+		{
+			output.createAttempted = false;
+			reopenConnectedOutput = true;
+		}
+	}
+	if (reopenConnectedOutput)
+	{
+		updateLiveOutputs();
+	}
+	initLiveOutputFields();
+	clampSettingsScroll();
 }
 
 void ofApp::applyOptionsField() {
@@ -1777,6 +2442,32 @@ void ofApp::keyPressed(int key) {
 		jp_textfield::handleKey(optionsFieldText[focusedOptionsField], optionsFieldCursor, key, numericOnly);
 		return; // consume other keys while focused
 	}
+	if (focusedLiveOutputField >= 0)
+	{
+		if (key == OF_KEY_RETURN || key == '\r')
+		{
+			applyLiveOutputField();
+			return;
+		}
+		if (key == OF_KEY_ESC)
+		{
+			focusedLiveOutputField = -1;
+			initLiveOutputFields();
+			return;
+		}
+		jp_textfield::handleKey(
+			liveOutputFieldText[focusedLiveOutputField],
+			liveOutputFieldCursor, key, true);
+		return;
+	}
+	if (pantallaActiva == OPCIONES &&
+		liveOutputMenu != LIVE_OUTPUT_MENU_NONE &&
+		key == OF_KEY_ESC)
+	{
+		liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+		liveOutputMenuScroll = 0;
+		return;
+	}
 
 	if (pantallaActiva == SHADER_INDEX) {
 		if (key == OF_KEY_ESC) {
@@ -1807,6 +2498,8 @@ void ofApp::keyPressed(int key) {
 	if (key == '1') {
 		pantallaActiva = NODOS;
 		focusedOptionsField = -1;
+		focusedLiveOutputField = -1;
+		liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
 		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
 	}
 
@@ -1826,12 +2519,16 @@ void ofApp::keyPressed(int key) {
 	if (key == '3') {
 		pantallaActiva = TUTORIAL;
 		focusedOptionsField = -1;
+		focusedLiveOutputField = -1;
+		liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
 		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
 	}
 
 	if (key == '4') {
 		pantallaActiva = SHADER_INDEX;
 		focusedOptionsField = -1;
+		focusedLiveOutputField = -1;
+		liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
 		shaderSearchFocused = true;
 		shaderSearchCursor = ofClamp(shaderSearchCursor, 0, (int)shaderSearchText.size());
 		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
@@ -1843,6 +2540,8 @@ void ofApp::keyPressed(int key) {
 	if (key == '5') {
 		pantallaActiva = EDITOR;
 		focusedOptionsField = -1;
+		focusedLiveOutputField = -1;
+		liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
 		shaderEditor.setVisible(true);
 	}
 
@@ -2158,6 +2857,8 @@ void ofApp::mousePressed(int x, int y, int button) {
 			if (pantallaActiva != tabScreen) {
 				pantallaActiva = tabScreen;
 				focusedOptionsField = -1;
+				focusedLiveOutputField = -1;
+				liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
 
 				// Hide editor when leaving EDITOR screen
 				if (pantallaActiva != EDITOR) shaderEditor.setVisible(false);
@@ -2211,15 +2912,17 @@ void ofApp::mousePressed(int x, int y, int button) {
 		}
 	}
 	if (pantallaActiva == OPCIONES) {
+		if (handleLiveOutputSettingsClick(x, y, button)) {
+			return;
+		}
 		// Layout constants matching draw_opciones()
-		float panelW = 500;
 		float panelX = 30;
-		float panelY = 44;
-		float fieldX = panelX + 145;
+		float panelY = 44 - settingsScroll;
+		float fieldX = panelX + 175;
 		float fieldW = 200;
 		float rowH = 28;
 		float sepy = 40;
-		float toggleBtnW = 70;
+		const float actionBtnW = 100;
 
 		// Check if clicked inside any text field
 		focusedOptionsField = -1;
@@ -2234,8 +2937,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 			// AUTOTAP button next to BPM field
 			if (i == FIELD_BPM) {
 				float tapX = fieldX + fieldW + 10;
-				float tapW = 100;
-				if (x >= tapX && x <= tapX + tapW &&
+				if (x >= tapX && x <= tapX + actionBtnW &&
 					y >= rowY && y <= rowY + rowH) {
 					autoTap();
 					return;
@@ -2249,7 +2951,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 #ifdef SPOUT
 		{
 			float rowY = panelY + 55 + toggleRow * sepy;
-			if (x >= fieldX && x <= fieldX + toggleBtnW &&
+			if (x >= fieldX && x <= fieldX + actionBtnW &&
 				y >= rowY && y <= rowY + rowH) {
 				spoutActive = !spoutActive;
 				return;
@@ -2261,7 +2963,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 #ifdef NDI
 		{
 			float rowY = panelY + 55 + toggleRow * sepy;
-			if (x >= fieldX && x <= fieldX + toggleBtnW &&
+			if (x >= fieldX && x <= fieldX + actionBtnW &&
 				y >= rowY && y <= rowY + rowH) {
 				ndiActive = !ndiActive;
 				return;
@@ -2295,8 +2997,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 			}
 			// Click on BROWSE button
 			float browseX = fieldX + fieldW + 10;
-			float browseW = 70;
-			if (x >= browseX && x <= browseX + browseW &&
+			if (x >= browseX && x <= browseX + actionBtnW &&
 				y >= rowY && y <= rowY + rowH) {
 				// Launch system file dialog to select the XML
 				ofFileDialogResult result = ofSystemLoadDialog("Select default composition XML", false);
@@ -2317,10 +3018,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 		// Check Save button
 		{
 			float rowY = panelY + 55 + toggleRow * sepy;
-			float saveW = 160;
-			float saveX = panelX + panelW / 2 - saveW / 2;
-			if (x >= saveX && x <= saveX + saveW &&
-				y >= rowY && y <= rowY + rowH + 4) {
+			float saveX = fieldX;
+			if (x >= saveX && x <= saveX + fieldW &&
+				y >= rowY && y <= rowY + rowH) {
 				saveSettings();
 				saveFeedbackText = "Saved!";
 				saveFeedbackTime = ofGetElapsedTimef();
@@ -2443,6 +3143,7 @@ void ofApp::windowResized(int w, int h) {
 
 	// El resize lo hace solo para mover la interfaz. Los tamaos de render se mantienen igual
 	boxes.update_resized(ofGetWidth(), ofGetHeight());
+	clampSettingsScroll();
 	// InitGLtexture(sendertexture, ofGetWidth(), ofGetHeight()); //!?!??!!?
 	//	boxes.update_resized(jp_constants::renderWidth, jp_constants::renderHeight);
 }
@@ -2491,6 +3192,38 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 			shaderScroll -= (int)scrollY * 3;
 			clampShaderScroll(layout);
 		}
+		return;
+	}
+	if (pantallaActiva == OPCIONES)
+	{
+		const LiveOutputSettingsLayout layout =
+			getLiveOutputSettingsLayout();
+		if (liveOutputMenu != LIVE_OUTPUT_MENU_NONE &&
+			(layout.popup.inside(x, y) ||
+			 layout.sourceButton.inside(x, y) ||
+			 layout.monitorButton.inside(x, y)))
+		{
+			const int optionCount =
+				liveOutputMenu == LIVE_OUTPUT_MENU_SOURCE ?
+					(int)getLiveOutputSourceOptions().size() :
+					(int)liveOutputMonitors.size();
+			liveOutputMenuScroll = ofClamp(
+				liveOutputMenuScroll - (int)scrollY,
+				0, std::max(0, optionCount - 8));
+			return;
+		}
+		if (layout.list.inside(x, y))
+		{
+			const int visibleRows = std::max(
+				1, (int)(layout.list.height / 31.0f));
+			liveOutputListScroll = ofClamp(
+				liveOutputListScroll - (int)scrollY,
+				0, std::max(0,
+					(int)liveOutputs.size() - visibleRows));
+			return;
+		}
+		settingsScroll -= scrollY * 36.0f;
+		clampSettingsScroll();
 		return;
 	}
 	if (pantallaActiva == NODOS) {
@@ -2548,46 +3281,393 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
 		xx += dropSpacing.x;
 	}
 }
-void ofApp::openRenderWindow() {
-	if (!isRenderWindowOpen) {
-		windows.clear();
-		isRenderWindowOpen = true;
-		ofGLFWWindowSettings settings;
 
-		// Match the main window's GL context (see main.cpp). Required on
-		// Linux/macOS: without an explicit core-profile version the render
-		// window's context can mismatch the main window and fail to create.
-		settings.setGLVersion(3, 2);
-		settings.setSize(jp_constants::window_width, jp_constants::window_height);
-		settings.setPosition(ofVec2f(window_initialposx, window_initialposy));
-		settings.resizable = true;
-		settings.shareContextWith = mainWindow;
+void ofApp::refreshLiveOutputMonitors()
+{
+	liveOutputMonitors.clear();
+	lastLiveOutputMonitorRefresh = ofGetElapsedTimef();
+	int count = 0;
+	GLFWmonitor **monitors = glfwGetMonitors(&count);
+	GLFWmonitor *primary = glfwGetPrimaryMonitor();
+	for (int i = 0; i < count; i++)
+	{
+		const GLFWvidmode *mode = glfwGetVideoMode(monitors[i]);
+		if (mode == nullptr)
+		{
+			continue;
+		}
 
-		windows.push_back(ofCreateWindow(settings));
-
-		cout << "windows size" << windows.size() << endl;
-
-		// window_width = 600;
-		// window_height = 600;
-		ofAddListener(windows.back()->events().draw, this, &ofApp::window_drawRender);
-		ofAddListener(windows.back()->events().exit, this, &ofApp::exit);
-		ofAddListener(windows.back()->events().keyPressed, this, &ofApp::window_keyPressed);
-		ofAddListener(windows.back()->events().mouseMoved, this, &ofApp::window_mouseMove);
-		ofAddListener(windows.back()->events().windowResized, this, &ofApp::window_resized);
+		LiveOutputMonitor monitor;
+		const char *name = glfwGetMonitorName(monitors[i]);
+		monitor.name = name != nullptr && name[0] != '\0' ?
+			name : "Monitor " + ofToString(i + 1);
+		monitor.index = i;
+		glfwGetMonitorPos(monitors[i], &monitor.x, &monitor.y);
+		monitor.width = mode->width;
+		monitor.height = mode->height;
+		monitor.primary = monitors[i] == primary;
+		liveOutputMonitors.push_back(monitor);
 	}
 }
-void ofApp::loadSettings() {
 
-	const auto settingsPath = ofToDataPath("settings.xml");
+int ofApp::resolveLiveOutputMonitor(const LiveOutputConfig &config) const
+{
+	if (!config.monitorName.empty())
+	{
+		int firstNameMatch = -1;
+		for (int i = 0; i < (int)liveOutputMonitors.size(); i++)
+		{
+			if (liveOutputMonitors[i].name != config.monitorName)
+			{
+				continue;
+			}
+			if (firstNameMatch < 0)
+			{
+				firstNameMatch = i;
+			}
+			if (liveOutputMonitors[i].index == config.monitorIndex)
+			{
+				return i;
+			}
+		}
+		return firstNameMatch;
+	}
 
-	// If file does not exist, do not change anything (use default values)
-	if (!ofFile(settingsPath).exists())
+	for (int i = 0; i < (int)liveOutputMonitors.size(); i++)
+	{
+		if (liveOutputMonitors[i].index == config.monitorIndex)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+string ofApp::makeLiveOutputId()
+{
+	while (true)
+	{
+		const string candidate = "output_" + ofToString(nextLiveOutputId++);
+		bool used = false;
+		for (const LiveOutputRuntime &output : liveOutputs)
+		{
+			if (output.config.id == candidate)
+			{
+				used = true;
+				break;
+			}
+		}
+		if (!used)
+		{
+			return candidate;
+		}
+	}
+}
+
+string ofApp::getLiveOutputDisplayName(int index) const
+{
+	if (index >= 0 && index < (int)liveOutputs.size())
+	{
+		const string &id = liveOutputs[index].config.id;
+		const string prefix = "output_";
+		if (id.rfind(prefix, 0) == 0 &&
+			id.size() > prefix.size())
+		{
+			return "Output " + id.substr(prefix.size());
+		}
+	}
+	return "Output " + ofToString(index + 1);
+}
+
+void ofApp::initializeDefaultLiveOutput()
+{
+	if (liveOutputMonitors.empty())
+	{
+		refreshLiveOutputMonitors();
+	}
+
+	LiveOutputRuntime output;
+	output.config.id = makeLiveOutputId();
+	for (const LiveOutputMonitor &monitor : liveOutputMonitors)
+	{
+		if (monitor.primary)
+		{
+			output.config.monitorName = monitor.name;
+			output.config.monitorIndex = monitor.index;
+			break;
+		}
+	}
+	if (output.config.monitorName.empty() && !liveOutputMonitors.empty())
+	{
+		output.config.monitorName = liveOutputMonitors[0].name;
+		output.config.monitorIndex = liveOutputMonitors[0].index;
+	}
+	liveOutputs.push_back(output);
+	selectedLiveOutput = (int)liveOutputs.size() - 1;
+	initLiveOutputFields();
+}
+
+void ofApp::addLiveOutput()
+{
+	initializeDefaultLiveOutput();
+	saveSettings();
+}
+
+void ofApp::removeSelectedLiveOutput()
+{
+	if (selectedLiveOutput < 0 ||
+		selectedLiveOutput >= (int)liveOutputs.size())
+	{
 		return;
+	}
+	closeLiveOutputWindow(selectedLiveOutput, true);
+	liveOutputs.erase(liveOutputs.begin() + selectedLiveOutput);
+	selectedLiveOutput = liveOutputs.empty() ? -1 :
+		ofClamp(selectedLiveOutput, 0, (int)liveOutputs.size() - 1);
+	liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+	initLiveOutputFields();
+	saveSettings();
+}
+
+int ofApp::findLiveOutputByWindow(ofAppBaseWindow *window) const
+{
+	if (window == nullptr)
+	{
+		return -1;
+	}
+	for (int i = 0; i < (int)liveOutputs.size(); i++)
+	{
+		if (liveOutputs[i].window.get() == window)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+void ofApp::closeLiveOutputWindow(int index, bool intentional)
+{
+	if (index < 0 || index >= (int)liveOutputs.size())
+	{
+		return;
+	}
+	LiveOutputRuntime &output = liveOutputs[index];
+	if (!output.window)
+	{
+		output.closePending = false;
+		return;
+	}
+
+	(void)intentional;
+	ofRemoveListener(output.window->events().draw,
+		this, &ofApp::window_drawRender);
+	ofRemoveListener(output.window->events().exit,
+		this, &ofApp::exit);
+	ofRemoveListener(output.window->events().keyPressed,
+		this, &ofApp::window_keyPressed);
+	ofRemoveListener(output.window->events().mouseMoved,
+		this, &ofApp::window_mouseMove);
+	ofRemoveListener(output.window->events().windowResized,
+		this, &ofApp::window_resized);
+	ofRemoveListener(output.window->events().windowMoved,
+		this, &ofApp::window_moved);
+	output.window->setWindowShouldClose();
+	RetiredLiveOutputWindow retired;
+	retired.window = output.window;
+	retiredLiveOutputWindows.push_back(retired);
+	output.window.reset();
+	output.closePending = false;
+}
+
+void ofApp::createLiveOutputWindow(int index)
+{
+	if (index < 0 || index >= (int)liveOutputs.size())
+	{
+		return;
+	}
+	LiveOutputRuntime &output = liveOutputs[index];
+	if (!output.config.enabled || output.window)
+	{
+		return;
+	}
+
+	output.createAttempted = true;
+	refreshLiveOutputMonitors();
+	const int resolvedMonitor = resolveLiveOutputMonitor(output.config);
+	if (resolvedMonitor < 0)
+	{
+		return;
+	}
+	const LiveOutputMonitor &monitor = liveOutputMonitors[resolvedMonitor];
+	output.config.monitorIndex = monitor.index;
+
+	ofGLFWWindowSettings settings;
+	settings.setGLVersion(3, 2);
+	settings.shareContextWith = mainWindow;
+	settings.monitor = monitor.index;
+	settings.resizable = !output.config.fullscreen;
+	settings.title = "Guipper - " + getLiveOutputDisplayName(index);
+	if (output.config.fullscreen)
+	{
+		settings.windowMode = OF_FULLSCREEN;
+		settings.setSize(monitor.width, monitor.height);
+	}
+	else
+	{
+		output.config.width = ofClamp(output.config.width, 64, 16384);
+		output.config.height = ofClamp(output.config.height, 64, 16384);
+		settings.windowMode = OF_WINDOW;
+		settings.setSize(output.config.width, output.config.height);
+		if (!output.config.hasPosition)
+		{
+			output.config.x = monitor.x +
+				(monitor.width - output.config.width) / 2;
+			output.config.y = monitor.y +
+				(monitor.height - output.config.height) / 2;
+			output.config.hasPosition = true;
+		}
+		settings.setPosition(ofVec2f(output.config.x, output.config.y));
+	}
+
+	output.window = ofCreateWindow(settings);
+	if (!output.window)
+	{
+		return;
+	}
+	output.createAttempted = false;
+	output.window->setWindowTitle(settings.title);
+#ifdef TARGET_LINUX
+	auto glfwWindow = dynamic_pointer_cast<ofAppGLFWWindow>(output.window);
+	if (glfwWindow)
+	{
+		ofImage appIcon;
+		if (appIcon.load("guipper.png"))
+		{
+			appIcon.setImageType(OF_IMAGE_COLOR_ALPHA);
+			glfwWindow->setWindowIcon(appIcon.getPixels());
+		}
+	}
+#endif
+
+	ofAddListener(output.window->events().draw,
+		this, &ofApp::window_drawRender);
+	ofAddListener(output.window->events().exit,
+		this, &ofApp::exit);
+	ofAddListener(output.window->events().keyPressed,
+		this, &ofApp::window_keyPressed);
+	ofAddListener(output.window->events().mouseMoved,
+		this, &ofApp::window_mouseMove);
+	ofAddListener(output.window->events().windowResized,
+		this, &ofApp::window_resized);
+	ofAddListener(output.window->events().windowMoved,
+		this, &ofApp::window_moved);
+}
+
+void ofApp::requestLiveOutputRecreate(int index)
+{
+	if (index < 0 || index >= (int)liveOutputs.size())
+	{
+		return;
+	}
+	liveOutputs[index].recreatePending = true;
+	liveOutputs[index].createAttempted = false;
+}
+
+void ofApp::updateLiveOutputs()
+{
+	for (int i = 0; i < (int)liveOutputs.size(); i++)
+	{
+		LiveOutputRuntime &output = liveOutputs[i];
+		if (output.recreatePending)
+		{
+			if (output.window)
+			{
+				closeLiveOutputWindow(i, true);
+			}
+			output.recreatePending = false;
+			output.createAttempted = false;
+		}
+		else if (output.closePending || (!output.config.enabled && output.window))
+		{
+			closeLiveOutputWindow(i, true);
+			continue;
+		}
+
+		if (output.config.enabled && !output.window &&
+			!output.createAttempted)
+		{
+			createLiveOutputWindow(i);
+		}
+	}
+}
+
+void ofApp::updateRetiredLiveOutputWindows()
+{
+	for (int i = (int)retiredLiveOutputWindows.size() - 1;
+		i >= 0; i--)
+	{
+		RetiredLiveOutputWindow &retired =
+			retiredLiveOutputWindows[i];
+		if (retired.releaseCountdown > 0)
+		{
+			retired.releaseCountdown--;
+			continue;
+		}
+		retiredLiveOutputWindows.erase(
+			retiredLiveOutputWindows.begin() + i);
+	}
+}
+
+void ofApp::openRenderWindow() {
+	if (liveOutputs.empty())
+	{
+		initializeDefaultLiveOutput();
+	}
+	selectedLiveOutput = 0;
+	liveOutputs[0].config.enabled = true;
+	if (!liveOutputs[0].window)
+	{
+		liveOutputs[0].recreatePending = true;
+	}
+	updateLiveOutputs();
+	saveSettings();
+}
+void ofApp::loadSettings() {
+	const auto settingsPath = ofToDataPath("settings.xml");
+	refreshLiveOutputMonitors();
+	if (!ofFile(settingsPath).exists())
+	{
+		initializeDefaultLiveOutput();
+		return;
+	}
 
 	ofXml xml;
-	xml.load(settingsPath);
+	if (!xml.load(settingsPath))
+	{
+		initializeDefaultLiveOutput();
+		return;
+	}
 
 	auto settings = xml.getChild("settings");
+	if (!settings)
+	{
+		initializeDefaultLiveOutput();
+		return;
+	}
+	auto intValue = [](const ofXml &parent, const string &name, int fallback) {
+		auto child = parent.getChild(name);
+		return child ? child.getIntValue() : fallback;
+	};
+	auto boolValue = [](const ofXml &parent, const string &name, bool fallback) {
+		auto child = parent.getChild(name);
+		return child ? child.getBoolValue() : fallback;
+	};
+	auto stringValue = [](const ofXml &parent, const string &name,
+		const string &fallback) {
+		auto child = parent.getChild(name);
+		return child ? child.getValue() : fallback;
+	};
+
 	auto renderwidthaux = settings.getChild("renderwidth");
 	auto renderheightaux = settings.getChild("renderheight");
 	auto windowx = settings.getChild("window_x");
@@ -2616,32 +3696,17 @@ void ofApp::loadSettings() {
 	auto mappingPanelH = settings.getChild("mapping_panel_h");
 	auto favoritesDisplayModeChild = settings.getChild("favorites_display_mode");
 
-	cout << "/****************************************************/" << endl;
-	cout << "INITIAL VALUES FROM SETTINGS.XML " << endl;
-	cout << "renderwidth " << renderwidthaux.getIntValue() << endl;
-	cout << "renderheight " << renderheightaux.getIntValue() << endl;
-	cout << "windowx " << windowx.getIntValue() << endl;
-	cout << "windowy " << windowy.getIntValue() << endl;
-	cout << "windowwidth " << windowwidth.getIntValue() << endl;
-	cout << "windowheight " << windowheight.getIntValue() << endl;
-	cout << "windowopen " << windowopen.getBoolValue() << endl;
-	cout << "windowfullscreen " << window_fullscreenaux.getBoolValue() << endl;
-	cout << "oscportin " << oscportin.getIntValue() << endl;
-	cout << "oscportout " << oscportout.getIntValue() << endl;
-	cout << "oscipout " << oscipout.getValue() << endl;
-#ifdef SPOUT
-	cout << "spouton " << spouton.getBoolValue() << endl;
-#endif
-	cout << "oscout1 " << oscout1.getBoolValue() << endl;
-	cout << "oscout2 " << oscout2.getBoolValue() << endl;
-	cout << "durationgallery " << durationgallery.getFloatValue() << endl;
-	cout << "/****************************************************/" << endl;
-
-	jp_constants::init(renderwidthaux.getIntValue(),
-		renderheightaux.getIntValue(),
-		windowwidth.getIntValue(),
-		windowheight.getIntValue());
-	boxes.setDurationGalleryMs(durationgallery.getFloatValue());
+	const int graphWidth = renderwidthaux ?
+		renderwidthaux.getIntValue() : jp_constants::renderWidth;
+	const int graphHeight = renderheightaux ?
+		renderheightaux.getIntValue() : jp_constants::renderHeight;
+	const int legacyWidth = windowwidth ?
+		windowwidth.getIntValue() : 1280;
+	const int legacyHeight = windowheight ?
+		windowheight.getIntValue() : 720;
+	jp_constants::init(graphWidth, graphHeight, legacyWidth, legacyHeight);
+	boxes.setDurationGalleryMs(durationgallery ?
+		durationgallery.getFloatValue() : boxes.getDurationGalleryMs());
 	if (cuePanelX && cuePanelY && cuePanelW && cuePanelH) {
 		boxes.setCuePanelLayout(
 			24.0f, // siempre izquierda
@@ -2657,13 +3722,8 @@ void ofApp::loadSettings() {
 			mappingPanelH.getFloatValue());
 	}
 
-	cout << "window_width " << jp_constants::window_width << endl;
-
-	window_initialposx = windowx.getIntValue();
-	window_initialposy = windowy.getIntValue();
-	window_fullscreen = window_fullscreenaux;
 #ifdef SPOUT
-	spoutActive = spouton.getBoolValue();
+	if (spouton) spoutActive = spouton.getBoolValue();
 #endif
 #ifdef NDI
 	{
@@ -2671,8 +3731,8 @@ void ofApp::loadSettings() {
 		if (ndion) ndiActive = ndion.getBoolValue();
 	}
 #endif
-	oscout_mode1 = oscout1.getBoolValue();
-	oscout_mode2 = oscout2.getBoolValue();
+	if (oscout1) oscout_mode1 = oscout1.getBoolValue();
+	if (oscout2) oscout_mode2 = oscout2.getBoolValue();
 
 	if (defaultCompoChild) {
 		defaultCompoPath = defaultCompoChild.getValue();
@@ -2683,15 +3743,95 @@ void ofApp::loadSettings() {
 			FAVORITES_IN_FOLDERS : FAVORITES_TOP;
 	}
 
-	receiver.setup(oscportin.getIntValue());
-	sender.setup(oscipout.getValue(), oscportout.getIntValue());
+	receiver.setup(oscportin ? oscportin.getIntValue() : PORT);
+	sender.setup(oscipout ? oscipout.getValue() : "127.0.0.1",
+		oscportout ? oscportout.getIntValue() : 0);
 	{
 		auto bpmaux = settings.getChild("bpm");
 		if (bpmaux) jp_constants::bpm = (float)bpmaux.getIntValue();
 	}
-	if (windowopen.getBoolValue()) {
-		openRenderWindow();
+	liveOutputs.clear();
+	nextLiveOutputId = 1;
+	auto liveOutputsNode = settings.getChild("live_outputs");
+	if (liveOutputsNode)
+	{
+		for (auto &outputNode : liveOutputsNode.getChildren("output"))
+		{
+			LiveOutputRuntime output;
+			output.config.id = stringValue(outputNode, "id", "");
+			if (output.config.id.empty())
+			{
+				output.config.id = makeLiveOutputId();
+			}
+			output.config.enabled = boolValue(outputNode, "enabled", false);
+			const string sourceMode = stringValue(
+				outputNode, "source_mode", "main_active");
+			output.config.sourceMode = sourceMode == "fixed_box" ?
+				LIVE_OUTPUT_FIXED_BOX : LIVE_OUTPUT_MAIN_ACTIVE;
+			output.config.sourceBox = stringValue(
+				outputNode, "source_box", "");
+			output.config.monitorName = stringValue(
+				outputNode, "monitor_name", "");
+			output.config.monitorIndex = intValue(
+				outputNode, "monitor_index", 0);
+			output.config.width = ofClamp(
+				intValue(outputNode, "width", 1280), 64, 16384);
+			output.config.height = ofClamp(
+				intValue(outputNode, "height", 720), 64, 16384);
+			output.config.x = intValue(outputNode, "x", 0);
+			output.config.y = intValue(outputNode, "y", 0);
+			output.config.hasPosition = boolValue(
+				outputNode, "has_position", true);
+			output.config.fullscreen = boolValue(
+				outputNode, "fullscreen", false);
+			liveOutputs.push_back(output);
+		}
 	}
+	else
+	{
+		LiveOutputRuntime output;
+		output.config.id = makeLiveOutputId();
+		output.config.enabled = windowopen ?
+			windowopen.getBoolValue() : false;
+		output.config.width = ofClamp(legacyWidth, 64, 16384);
+		output.config.height = ofClamp(legacyHeight, 64, 16384);
+		output.config.x = windowx ? windowx.getIntValue() : 0;
+		output.config.y = windowy ? windowy.getIntValue() : 0;
+		output.config.hasPosition = windowx && windowy;
+		output.config.fullscreen = window_fullscreenaux ?
+			window_fullscreenaux.getBoolValue() : false;
+
+		const int centerX = output.config.x + output.config.width / 2;
+		const int centerY = output.config.y + output.config.height / 2;
+		int monitorMatch = -1;
+		for (int i = 0; i < (int)liveOutputMonitors.size(); i++)
+		{
+			const LiveOutputMonitor &monitor = liveOutputMonitors[i];
+			if (centerX >= monitor.x &&
+				centerX < monitor.x + monitor.width &&
+				centerY >= monitor.y &&
+				centerY < monitor.y + monitor.height)
+			{
+				monitorMatch = i;
+				break;
+			}
+			if (monitor.primary)
+			{
+				monitorMatch = i;
+			}
+		}
+		if (monitorMatch >= 0)
+		{
+			output.config.monitorName =
+				liveOutputMonitors[monitorMatch].name;
+			output.config.monitorIndex =
+				liveOutputMonitors[monitorMatch].index;
+		}
+		liveOutputs.push_back(output);
+	}
+	selectedLiveOutput = liveOutputs.empty() ? -1 : 0;
+	initLiveOutputFields();
+	updateLiveOutputs();
 }
 std::string toXmlString(const bool value) {
 	return value ? "true" : "false";
@@ -2711,6 +3851,22 @@ void ofApp::saveSettings() {
 	float mappingPanelH = 0.0f;
 	boxes.getMappingPanelLayout(
 		mappingPanelX, mappingPanelY, mappingPanelW, mappingPanelH);
+	for (LiveOutputRuntime &output : liveOutputs)
+	{
+		if (!output.window || output.config.fullscreen ||
+			output.recreatePending ||
+			output.window->getWindowMode() != OF_WINDOW)
+		{
+			continue;
+		}
+		const glm::vec2 position = output.window->getWindowPosition();
+		const glm::vec2 size = output.window->getWindowSize();
+		output.config.x = (int)position.x;
+		output.config.y = (int)position.y;
+		output.config.width = std::max(64, (int)size.x);
+		output.config.height = std::max(64, (int)size.y);
+		output.config.hasPosition = true;
+	}
 
 	auto settings = xml.appendChild("settings");
 	settings.appendChild("renderwidth").set(jp_constants::renderWidth);
@@ -2724,16 +3880,19 @@ void ofApp::saveSettings() {
 	settings.appendChild("mapping_panel_y").set(mappingPanelY);
 	settings.appendChild("mapping_panel_w").set(mappingPanelW);
 	settings.appendChild("mapping_panel_h").set(mappingPanelH);
-	settings.appendChild("window_x").set(ceil(window_initialposx));
-	settings.appendChild("window_y").set(ceil(window_initialposy));
-	//settings.appendChild("window_width").set(jp_constants::window_width);
-	//settings.appendChild("window_height").set(jp_constants::window_height)s;
-	//settings.appendChild("window_fullscreen").set(toXmlString(window_fullscreen));
-
-	settings.appendChild("window_width").set(600);
-	settings.appendChild("window_height").set(600);
-	settings.appendChild("window_fullscreen").set(false);
-	settings.appendChild("window_open").set(toXmlString(isRenderWindowOpen));
+	LiveOutputConfig legacyOutput;
+	if (!liveOutputs.empty())
+	{
+		legacyOutput = liveOutputs.front().config;
+	}
+	settings.appendChild("window_x").set(legacyOutput.x);
+	settings.appendChild("window_y").set(legacyOutput.y);
+	settings.appendChild("window_width").set(legacyOutput.width);
+	settings.appendChild("window_height").set(legacyOutput.height);
+	settings.appendChild("window_fullscreen").set(
+		toXmlString(legacyOutput.fullscreen));
+	settings.appendChild("window_open").set(
+		toXmlString(legacyOutput.enabled));
 #ifdef SPOUT
 	settings.appendChild("spouton").set(toXmlString(spoutActive));
 #endif
@@ -2748,6 +3907,30 @@ void ofApp::saveSettings() {
 	settings.appendChild("defaultcompo").set(defaultCompoPath);
 	settings.appendChild("bpm").set((int)jp_constants::bpm);
 	settings.appendChild("favorites_display_mode").set((int)favoritesDisplayMode);
+
+	auto liveOutputsNode = settings.appendChild("live_outputs");
+	for (const LiveOutputRuntime &output : liveOutputs)
+	{
+		const LiveOutputConfig &config = output.config;
+		auto outputNode = liveOutputsNode.appendChild("output");
+		outputNode.appendChild("id").set(config.id);
+		outputNode.appendChild("enabled").set(
+			toXmlString(config.enabled));
+		outputNode.appendChild("source_mode").set(
+			config.sourceMode == LIVE_OUTPUT_FIXED_BOX ?
+				"fixed_box" : "main_active");
+		outputNode.appendChild("source_box").set(config.sourceBox);
+		outputNode.appendChild("monitor_name").set(config.monitorName);
+		outputNode.appendChild("monitor_index").set(config.monitorIndex);
+		outputNode.appendChild("width").set(config.width);
+		outputNode.appendChild("height").set(config.height);
+		outputNode.appendChild("x").set(config.x);
+		outputNode.appendChild("y").set(config.y);
+		outputNode.appendChild("has_position").set(
+			toXmlString(config.hasPosition));
+		outputNode.appendChild("fullscreen").set(
+			toXmlString(config.fullscreen));
+	}
 
 	xml.save(settingsPath);
 }
@@ -2819,48 +4002,102 @@ void ofApp::updateOSC() {
 	}
 }
 void ofApp::exit() {
-	//cout << "LALA" << endl;
-	//windows.back()->close();
 	saveSettings();
 	midiKeymap.exit();
 }
 
 // LISTENERS DE LAS VENTANAS:
 void ofApp::window_drawRender(ofEventArgs & args) {
-	boxes.draw_activerender(
-		jp_constants::window_width, jp_constants::window_height);
-	boxes.drawMappingOverlay(
-		jp_constants::window_width, jp_constants::window_height);
+	const int index = findLiveOutputByWindow(ofGetWindowPtr());
+	if (index < 0 || !liveOutputs[index].window)
+	{
+		return;
+	}
+
+	const LiveOutputConfig &config = liveOutputs[index].config;
+	const float width = liveOutputs[index].window->getWidth();
+	const float height = liveOutputs[index].window->getHeight();
+	ofClear(0, 0, 0, 255);
+	ofSetColor(255);
+	const bool followMain =
+		config.sourceMode == LIVE_OUTPUT_MAIN_ACTIVE;
+	const bool sourceAvailable = boxes.drawLiveOutputSource(
+		followMain, config.sourceBox, width, height);
+	if (sourceAvailable)
+	{
+		boxes.drawMappingOverlayForSource(
+			followMain, config.sourceBox, width, height);
+	}
+	else
+	{
+		const string message = followMain ?
+			"No active source" : "Missing source";
+		ofSetColor(COL_TEXT_MUTED);
+		const float textWidth = font_p.stringWidth(message);
+		font_p.drawString(message,
+			(width - textWidth) * 0.5f, height * 0.5f);
+	}
 }
 void ofApp::exit(ofEventArgs & e) {
-	cout << "EXIT WINDOW " << endl;
-	window_fullscreen = false;
-	isRenderWindowOpen = false;
-	// Save after updating render-window state, but do not destroy the window
-	// vector from inside the window's own exit callback.
+	const int index = findLiveOutputByWindow(ofGetWindowPtr());
+	if (index < 0)
+	{
+		return;
+	}
+	LiveOutputRuntime &output = liveOutputs[index];
+	output.config.enabled = false;
+	output.closePending = false;
+	RetiredLiveOutputWindow retired;
+	retired.window = output.window;
+	retiredLiveOutputWindows.push_back(retired);
+	output.window.reset();
 	saveSettings();
 }
 void ofApp::window_mouseMove(ofMouseEventArgs & e) {
-
-	/*window_mousex = e.x;
-	window_mousey = e.y;*/
-
-	jp_constants::setwindow_mousex(e.x);
-	jp_constants::setwindow_mousey(e.y);
+	// Live outputs are display-only. Their pointer state is intentionally local.
 }
 void ofApp::window_resized(ofResizeEventArgs & args) {
-	cout << "WINDOWS RESIZED PAPA " << endl;
-	cout << "WIDTH " << args.width << endl;
-	cout << "HEIGHT " << args.height << endl;
-
-	jp_constants::setwindow_width(args.width);
-	jp_constants::setwindow_height(args.height);
+	const int index = findLiveOutputByWindow(ofGetWindowPtr());
+	if (index < 0 || liveOutputs[index].config.fullscreen ||
+		liveOutputs[index].recreatePending ||
+		!liveOutputs[index].window ||
+		liveOutputs[index].window->getWindowMode() != OF_WINDOW)
+	{
+		return;
+	}
+	liveOutputs[index].config.width = std::max(64, args.width);
+	liveOutputs[index].config.height = std::max(64, args.height);
+	if (selectedLiveOutput == index && focusedLiveOutputField < 0)
+	{
+		initLiveOutputFields();
+	}
+}
+void ofApp::window_moved(ofWindowPosEventArgs &args) {
+	const int index = findLiveOutputByWindow(ofGetWindowPtr());
+	if (index < 0 || liveOutputs[index].config.fullscreen ||
+		liveOutputs[index].recreatePending ||
+		!liveOutputs[index].window ||
+		liveOutputs[index].window->getWindowMode() != OF_WINDOW)
+	{
+		return;
+	}
+	liveOutputs[index].config.x = (int)args.x;
+	liveOutputs[index].config.y = (int)args.y;
+	liveOutputs[index].config.hasPosition = true;
 }
 void ofApp::window_keyPressed(ofKeyEventArgs & e) {
-	cout << "KEYCODE ON WINDOWS : " << e.keycode << endl;
-	if (e.keycode == 70 || e.keycode == 71) {
-		window_fullscreen = !window_fullscreen;
-		windows.back()->setFullscreen(window_fullscreen);
+	if (e.key == 'f' || e.key == 'F')
+	{
+		const int index = findLiveOutputByWindow(ofGetWindowPtr());
+		if (index < 0)
+		{
+			return;
+		}
+		liveOutputs[index].config.fullscreen =
+			!liveOutputs[index].config.fullscreen;
+		requestLiveOutputRecreate(index);
+		updateLiveOutputs();
+		saveSettings();
 	}
 }
 

@@ -102,23 +102,85 @@ public:
 	bool ndiActive = true;
 #endif
 
-	// WINDOW MANAGMENT:
-	std::vector<shared_ptr<ofAppBaseWindow>> windows; // Live-output windows.
+	// LIVE OUTPUT WINDOW MANAGEMENT
+	enum LiveOutputSourceMode
+	{
+		LIVE_OUTPUT_MAIN_ACTIVE = 0,
+		LIVE_OUTPUT_FIXED_BOX = 1
+	};
+
+	struct LiveOutputMonitor
+	{
+		string name;
+		int index = 0;
+		int x = 0;
+		int y = 0;
+		int width = 0;
+		int height = 0;
+		bool primary = false;
+	};
+
+	struct LiveOutputConfig
+	{
+		string id;
+		bool enabled = false;
+		LiveOutputSourceMode sourceMode = LIVE_OUTPUT_MAIN_ACTIVE;
+		string sourceBox;
+		string monitorName;
+		int monitorIndex = 0;
+		int width = 1280;
+		int height = 720;
+		int x = 0;
+		int y = 0;
+		bool hasPosition = false;
+		bool fullscreen = false;
+	};
+
+	struct LiveOutputRuntime
+	{
+		LiveOutputConfig config;
+		shared_ptr<ofAppBaseWindow> window;
+		bool recreatePending = false;
+		bool closePending = false;
+		bool createAttempted = false;
+	};
+
+	struct RetiredLiveOutputWindow
+	{
+		shared_ptr<ofAppBaseWindow> window;
+		int releaseCountdown = 2;
+	};
+
+	vector<LiveOutputMonitor> liveOutputMonitors;
+	vector<LiveOutputRuntime> liveOutputs;
+	vector<RetiredLiveOutputWindow> retiredLiveOutputWindows;
+	float lastLiveOutputMonitorRefresh = -1.0f;
 	std::shared_ptr<ofAppBaseWindow> mainWindow;
-	bool isRenderWindowOpen = false;
+	int selectedLiveOutput = 0;
+	int nextLiveOutputId = 1;
 	void window_drawRender(ofEventArgs &args);
 	void window_resized(ofResizeEventArgs &args);
+	void window_moved(ofWindowPosEventArgs &args);
 	void window_mouseMove(ofMouseEventArgs &e);
 	void window_keyPressed(ofKeyEventArgs &e);
+	void refreshLiveOutputMonitors();
+	void updateLiveOutputs();
+	void updateRetiredLiveOutputWindows();
+	void createLiveOutputWindow(int index);
+	void closeLiveOutputWindow(int index, bool intentional);
+	void requestLiveOutputRecreate(int index);
+	int findLiveOutputByWindow(ofAppBaseWindow *window) const;
+	int resolveLiveOutputMonitor(const LiveOutputConfig &config) const;
+	void addLiveOutput();
+	void removeSelectedLiveOutput();
+	void initializeDefaultLiveOutput();
+	string makeLiveOutputId();
+	string getLiveOutputDisplayName(int index) const;
 
 	void loadSettings();
 	void saveSettings();
 	void saveSession(string path);
 	void loadSession(string path);
-
-	float window_initialposx;
-	float window_initialposy;
-	bool window_fullscreen;
 
 	// OSC MANAGMENT
 	ofxOscSender sender;
@@ -292,6 +354,50 @@ public:
 	int optionsFieldCursor = 0;
 	void applyOptionsField();
 	void initOptionsFields();
+
+	enum LiveOutputMenu
+	{
+		LIVE_OUTPUT_MENU_NONE = 0,
+		LIVE_OUTPUT_MENU_SOURCE,
+		LIVE_OUTPUT_MENU_MONITOR
+	};
+
+	struct LiveOutputSettingsLayout
+	{
+		ofRectangle panel;
+		ofRectangle list;
+		vector<ofRectangle> rows;
+		vector<int> rowIndices;
+		ofRectangle addButton;
+		ofRectangle deleteButton;
+		ofRectangle enabledToggle;
+		ofRectangle sourceButton;
+		ofRectangle monitorButton;
+		ofRectangle windowModeButton;
+		ofRectangle fullscreenModeButton;
+		ofRectangle widthField;
+		ofRectangle heightField;
+		ofRectangle popup;
+		vector<ofRectangle> popupRows;
+		vector<int> popupOptionIndices;
+		bool twoColumns = false;
+	};
+
+	LiveOutputMenu liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+	int focusedLiveOutputField = -1;
+	string liveOutputFieldText[2];
+	int liveOutputFieldCursor = 0;
+	float settingsScroll = 0.0f;
+	int liveOutputListScroll = 0;
+	int liveOutputMenuScroll = 0;
+	LiveOutputSettingsLayout getLiveOutputSettingsLayout() const;
+	void drawLiveOutputSettings();
+	bool handleLiveOutputSettingsClick(int x, int y, int button);
+	void initLiveOutputFields();
+	void applyLiveOutputField();
+	void setSelectedLiveOutput(int index);
+	vector<string> getLiveOutputSourceOptions() const;
+	void clampSettingsScroll();
 
 	// AutoTap for BPM
 	vector<float> tapTimestamps;

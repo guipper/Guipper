@@ -42,7 +42,11 @@ public:
 	void draw();
 	void draw_activerender(); // Dibuja el render activo. Esta es la <que corre en el ofApp.cpp
 	void draw_activerender(float _width, float _height);
+	bool drawLiveOutputSource(bool followMainActive,
+		const string &sourceBoxName, float _width, float _height);
 	void drawMappingOverlay(float _width, float _height);
+	void drawMappingOverlayForSource(bool followMainActive,
+		const string &sourceBoxName, float _width, float _height);
 	void drawNodeEditorBackground(float _width, float _height);
 	bool isMappingEditActive() const;
 	bool toggleMappingEdit();

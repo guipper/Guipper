@@ -811,6 +811,32 @@ void JPboxgroup::draw_activerender(float _width, float _height)
 	drawLiveOutput(0, 0, _width, _height);
 }
 
+bool JPboxgroup::drawLiveOutputSource(bool followMainActive,
+	const string &sourceBoxName, float _width, float _height)
+{
+	if (followMainActive)
+	{
+		if (boxes.empty() || activerender == nullptr ||
+			*activerender < 0 || *activerender >= (int)boxes.size())
+		{
+			return false;
+		}
+		drawLiveOutput(0.0f, 0.0f, _width, _height);
+		return true;
+	}
+
+	JPbox *source = findBoxByName(sourceBoxName);
+	if (source == nullptr || !source->fbo.isAllocated())
+	{
+		return false;
+	}
+
+	ofSetColor(255);
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	source->fbo.draw(0.0f, 0.0f, _width, _height);
+	return true;
+}
+
 bool JPboxgroup::MappingParameterIndices::valid() const
 {
 	return topLeftX >= 0 && topLeftY >= 0 &&
@@ -1302,6 +1328,30 @@ void JPboxgroup::drawMappingOverlay(float _width, float _height)
 	const MappingQuad quad = getMappingQuad(box);
 	drawMappingHandles(quad, 0.0f, 0.0f,
 		_width, _height, true);
+}
+
+void JPboxgroup::drawMappingOverlayForSource(bool followMainActive,
+	const string &sourceBoxName, float _width, float _height)
+{
+	if (!mappingEditActive || mappingTargetIndex < 0)
+	{
+		return;
+	}
+
+	const int topLevelIndex = mappingTargetGroupPath.empty() ?
+		mappingTargetIndex : mappingTargetGroupPath.front();
+	if (topLevelIndex < 0 || topLevelIndex >= (int)boxes.size())
+	{
+		return;
+	}
+
+	const bool sourceMatches = followMainActive ?
+		(activerender != nullptr && *activerender == topLevelIndex) :
+		boxes[topLevelIndex]->name == sourceBoxName;
+	if (sourceMatches)
+	{
+		drawMappingOverlay(_width, _height);
+	}
 }
 
 bool JPboxgroup::isMappingEditActive() const
