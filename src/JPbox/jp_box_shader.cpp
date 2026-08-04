@@ -339,7 +339,10 @@ void JPbox_shader::updateFBO()
 		shader.begin();
 		update_globalUniforms();
 		update_NonglobalUniforms();
-		ofSetColor(255, 0, 0);
+		// White, not red: the bound shader ignores the global colour, but this
+		// leaks out of the fbo as global GL state and tinted every drawer that
+		// ran later in the frame without setting its own colour.
+		ofSetColor(255, 255);
 		ofRect(0, 0, fbo.getWidth(), fbo.getHeight());
 		
 		shader.end();

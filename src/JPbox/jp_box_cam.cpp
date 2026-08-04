@@ -296,6 +296,10 @@ void JPbox_cam::updateFBO()
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		fbo.begin();
 		ofClear(0, 255);
+		// ofClear does not touch the draw colour, and the colour is global GL
+		// state shared with every other box updated this frame. Without this
+		// the camera comes out tinted by whatever ran before it.
+		ofSetColor(255, 255);
 		if (cameraSource && cameraSource->isInitialized() &&
 			!parameters.getBoolValue(5))
 		{
