@@ -64,6 +64,8 @@ public:
 	void gotMessage(ofMessage msg);
 	
 	void exit();
+	void shutdownApp();
+	bool appShutdownDone = false;
 	// ofxKFW2::Device kinect;
 
 	ofTrueTypeFont font_p; // Titulo de compo
@@ -168,6 +170,7 @@ public:
 	void updateRetiredLiveOutputWindows();
 	void createLiveOutputWindow(int index);
 	void closeLiveOutputWindow(int index, bool intentional);
+	void closeAllLiveOutputWindows();
 	void requestLiveOutputRecreate(int index);
 	int findLiveOutputByWindow(ofAppBaseWindow *window) const;
 	int resolveLiveOutputMonitor(const LiveOutputConfig &config) const;

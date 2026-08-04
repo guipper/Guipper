@@ -3497,6 +3497,27 @@ void ofApp::closeLiveOutputWindow(int index, bool intentional)
 	output.closePending = false;
 }
 
+// The live outputs are separate windows owned by the main loop, so closing the
+// GUI does not remove them: the loop keeps spinning on the leftovers and the
+// process survives with orphaned output windows on screen. Tear them all down
+// when the app exits. This deliberately leaves config.enabled alone, so the
+// outputs come back on the next launch.
+void ofApp::closeAllLiveOutputWindows()
+{
+	for (int i = 0; i < (int)liveOutputs.size(); i++)
+	{
+		liveOutputs[i].recreatePending = false;
+		liveOutputs[i].closePending = false;
+		if (liveOutputs[i].window)
+		{
+			closeLiveOutputWindow(i, true);
+		}
+	}
+	// Nothing will drain the retired list after exit, so release it here
+	// instead of holding the windows alive until ofApp is destroyed.
+	retiredLiveOutputWindows.clear();
+}
+
 void ofApp::createLiveOutputWindow(int index)
 {
 	if (index < 0 || index >= (int)liveOutputs.size())
@@ -4019,9 +4040,22 @@ void ofApp::updateOSC() {
 		}
 	}
 }
-void ofApp::exit() {
+// Shutting down has to be idempotent and reachable from either exit overload.
+// ofBaseApp::exit(ofEventArgs&) is virtual and normally forwards to exit(), but
+// we override the ofEventArgs version for the live output windows, which
+// replaces that forwarder: OF routes the app's own exit event here too, so
+// exit() alone never runs.
+void ofApp::shutdownApp() {
+	if (appShutdownDone) {
+		return;
+	}
+	appShutdownDone = true;
 	saveSettings();
 	midiKeymap.exit();
+	closeAllLiveOutputWindows();
+}
+void ofApp::exit() {
+	shutdownApp();
 }
 
 // LISTENERS DE LAS VENTANAS:
@@ -4060,6 +4094,9 @@ void ofApp::exit(ofEventArgs & e) {
 	const int index = findLiveOutputByWindow(ofGetWindowPtr());
 	if (index < 0)
 	{
+		// Not one of the live outputs, so this is the main window closing:
+		// shut the whole app down, which also takes the output windows with it.
+		shutdownApp();
 		return;
 	}
 	LiveOutputRuntime &output = liveOutputs[index];
