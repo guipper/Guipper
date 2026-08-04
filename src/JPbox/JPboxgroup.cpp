@@ -2370,13 +2370,17 @@ void JPboxgroup::draw_paramswindow()
 			inspectorBox->getTipo() == inspectorBox->SHADERBOX &&
 			shaderEditor != nullptr && !inspectorBox->dir.empty();
 		const bool hasMappingAction = isMappingShaderBox(inspectorBox);
+		const bool hasCameraAction =
+			inspectorBox->getTipo() == inspectorBox->CAMBOX;
 		const float randomActionWidth = 44.0f;
 		const float mappingActionWidth = 48.0f;
 		const float editActionWidth = 48.0f;
+		const float cameraActionWidth = 48.0f;
 		const float headerActionHeight = 24.0f;
 		const float headerActionWidth =
 			(hasRandomAction ? randomActionWidth : 0.0f) +
 			(hasMappingAction ? mappingActionWidth : 0.0f) +
+			(hasCameraAction ? cameraActionWidth : 0.0f) +
 			(hasEditAction ? editActionWidth : 0.0f);
 		const float headerActionRight = panelRight - 9.0f;
 		const float headerActionLeft =
@@ -2393,6 +2397,8 @@ void JPboxgroup::draw_paramswindow()
 		mappingbutton.height = 0.0f;
 		editbutton.width = 0.0f;
 		editbutton.height = 0.0f;
+		camerarefreshbutton.width = 0.0f;
+		camerarefreshbutton.height = 0.0f;
 
 		float titleX = panelLeft + 14.0f;
 		string title = name;
@@ -2452,6 +2458,44 @@ void JPboxgroup::draw_paramswindow()
 					jp_constants::p_font.stringHeight("RDM") / 2.0f - 2.0f);
 			drawInspectorClickBounds(inspectorrandom);
 			nextActionX += randomActionWidth;
+		}
+
+		if (hasCameraAction)
+		{
+			if (nextActionX > headerActionLeft)
+			{
+				ofSetColor(ofColor(COL_BORDER_MUTED, 165));
+				ofDrawLine(nextActionX, headerActionTop + 4.0f,
+					nextActionX,
+					headerActionTop + headerActionHeight - 4.0f);
+			}
+			camerarefreshbutton.x = nextActionX + cameraActionWidth / 2.0f;
+			camerarefreshbutton.y =
+				headerActionTop + headerActionHeight / 2.0f;
+			camerarefreshbutton.width = cameraActionWidth;
+			camerarefreshbutton.height = headerActionHeight;
+			if (camerarefreshbutton.mouseOver())
+			{
+				ofSetColor(ofColor(COL_BG_HOVER, 230));
+				ofDrawRectRounded(nextActionX + 1.0f,
+					headerActionTop + 1.0f,
+					cameraActionWidth - 2.0f,
+					headerActionHeight - 2.0f, 2.0f);
+			}
+			ofSetColor(camerarefreshbutton.mouseOver() ?
+				COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
+			jp_constants::p_font.drawString(
+				"SCAN",
+				camerarefreshbutton.x -
+					jp_constants::p_font.stringWidth("SCAN") / 2.0f,
+				camerarefreshbutton.y +
+					jp_constants::p_font.stringHeight("SCAN") / 2.0f - 2.0f);
+			jp_tooltip::draw("Rescan cameras connected after startup",
+				camerarefreshbutton.x - camerarefreshbutton.width / 2.0f,
+				camerarefreshbutton.y - camerarefreshbutton.height / 2.0f,
+				camerarefreshbutton.width, camerarefreshbutton.height);
+			drawInspectorClickBounds(camerarefreshbutton);
+			nextActionX += cameraActionWidth;
 		}
 
 		if (hasEditAction)
@@ -3285,6 +3329,12 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 					updateCueDraftGraph();
 				}
 			}
+		}
+		if (camerarefreshbutton.mouseGrab() &&
+			inspectorBox->getTipo() == inspectorBox->CAMBOX)
+		{
+			JPbox_cam::rescanCameraDevices();
+			return;
 		}
 		if (editbutton.mouseGrab() && shaderEditor != nullptr)
 		{

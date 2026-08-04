@@ -426,6 +426,7 @@ private:
 	JPBang inspectorrandom;              // Randomiza todos los parametros del shader en el inspector
 	JPBang editbutton;                   // Boton EDIT para abrir el shader en el editor de codigo
 	JPBang mappingbutton;                // Enters the corner-pin mapping editor
+	JPBang camerarefreshbutton;          // Re-enumerates camera capture devices
 	float inspectorwindow_setactivesize; // Para el size del setactive:
 
 	void draw_conections();

@@ -21,6 +21,11 @@ public:
 	void setup(string _dir, string _name);
 	int camsize;
 
+	// Re-enumerates capture devices so a camera plugged in after startup shows
+	// up. Static and generation counted: every camera box picks the new list up
+	// on its next update, not just the one whose button was clicked.
+	static void rescanCameraDevices();
+
 	// METODOS HEREDADOS :
 	// void reload();
 	void setup(ofTrueTypeFont &_font);
@@ -50,6 +55,7 @@ private:
 	vector<int> availableDeviceIds;
 	int currentCameraListIndex = -1;
 	int currentDeviceId = -1;
+	uint64_t appliedRescanGeneration = 0;
 	int camWidth = 640;
 	int camHeight = 480;
 	std::shared_ptr<JPCameraCaptureSource> cameraSource;

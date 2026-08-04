@@ -78,6 +78,14 @@ namespace
 		return scanned;
 	}
 
+	// Bumped by a rescan. Each box compares it against its own copy so one
+	// refresh reaches every camera box, not only the one that was clicked.
+	uint64_t &cameraRescanGeneration()
+	{
+		static uint64_t generation = 0;
+		return generation;
+	}
+
 	map<int, weak_ptr<JPCameraCaptureSource>> &cameraSources()
 	{
 		static map<int, weak_ptr<JPCameraCaptureSource>> sources;
@@ -212,6 +220,18 @@ void JPbox_cam::setup(string _dir, string _name)
 	tipo = CAMBOX;
 }
 
+void JPbox_cam::rescanCameraDevices()
+{
+	// Only the list is invalidated here. Boxes still hold their sources, so
+	// nothing goes black; each one drops and reopens its device on its next
+	// update, which is what picks up a device id that has moved.
+	cameraDevicesScanned() = false;
+	cameraDevices().clear();
+	pruneExpiredCameraSources();
+	cameraRescanGeneration()++;
+	ofLogNotice("CAMARITA") << "Rescanning capture devices";
+}
+
 void JPbox_cam::refreshCameraDevices()
 {
 	availableDeviceIds.clear();
@@ -272,7 +292,13 @@ void JPbox_cam::update()
 {
 	JPbox::update();
 
-	applyCameraIndexFromParameter();
+	const bool rescanned = appliedRescanGeneration != cameraRescanGeneration();
+	if (rescanned)
+	{
+		appliedRescanGeneration = cameraRescanGeneration();
+		refreshCameraDevices();
+	}
+	applyCameraIndexFromParameter(rescanned);
 	if (cameraSource)
 	{
 		cameraSource->updateOnce();
