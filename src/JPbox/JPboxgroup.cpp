@@ -937,6 +937,11 @@ bool JPboxgroup::isMappingShaderBox(JPbox *box) const
 		return false;
 	}
 
+	if (isAdvancedMappingShaderBox(box))
+	{
+		return true;
+	}
+
 	// The mapping controls are useful before an input is connected, so the
 	// parameter contract is the capability check. The textura1 link remains
 	// optional until the box is wired in the graph.
@@ -1182,7 +1187,9 @@ void JPboxgroup::drawMappingHandles(const MappingQuad &quad,
 ofRectangle JPboxgroup::getMappingPanelPreviewRect() const
 {
 	const float padding = 10.0f;
-	const float headerHeight = 30.0f;
+	JPbox *box = const_cast<JPboxgroup *>(this)->getMappingEditBox();
+	const float headerHeight = isAdvancedMappingShaderBox(box) ?
+		60.0f : 30.0f;
 	const float areaWidth = std::max(1.0f,
 		mappingPanelW - padding * 2.0f);
 	const float areaHeight = std::max(1.0f,
@@ -1204,6 +1211,12 @@ void JPboxgroup::drawMappingPanel()
 	JPbox *box = getMappingEditBox();
 	if (box == nullptr)
 	{
+		return;
+	}
+
+	if (isAdvancedMappingShaderBox(box))
+	{
+		drawAdvancedMappingPanel();
 		return;
 	}
 
@@ -1385,6 +1398,12 @@ void JPboxgroup::drawMappingOverlay(float _width, float _height)
 		return;
 	}
 
+	if (isAdvancedMappingShaderBox(box))
+	{
+		drawAdvancedMappingOverlay(0.0f, 0.0f, _width, _height, true);
+		return;
+	}
+
 	const MappingQuad quad = getMappingQuad(box);
 	drawMappingHandles(quad, 0.0f, 0.0f,
 		_width, _height, true);
@@ -1486,6 +1505,11 @@ void JPboxgroup::endMappingEdit()
 	mappingPanelDragging = false;
 	mappingPanelResizing = false;
 	mappingPanelPointerCaptured = false;
+	advancedMappingDragKind = ADVANCED_MAPPING_DRAG_NONE;
+	advancedMappingDragIndex = -1;
+	advancedMappingSelectedMaskNode = -1;
+	advancedMappingDragLayer = -1;
+	advancedMappingDragSnapshot.mask.clear();
 }
 
 void JPboxgroup::markMappingParameterChanged()
@@ -1555,7 +1579,9 @@ void JPboxgroup::clampMappingPanelLayout()
 {
 	const float margin = 8.0f;
 	const float topMargin = tabBarOffsetY + 40.0f;
-	const float minimumWidth = 320.0f;
+	JPbox *box = getMappingEditBox();
+	const float minimumWidth = isAdvancedMappingShaderBox(box) ?
+		420.0f : 320.0f;
 	const float minimumHeight = 220.0f;
 	const float maximumWidth = std::max(
 		minimumWidth, ofGetWidth() - margin * 2.0f);
@@ -1624,6 +1650,10 @@ bool JPboxgroup::update_mappingMousePressed(int mouseButton)
 	if (!mappingEditActive || !mouseOverMappingPanel())
 	{
 		return false;
+	}
+	if (getAdvancedMappingEditBox() != nullptr)
+	{
+		return updateAdvancedMappingMousePressed(mouseButton);
 	}
 	if (mouseButton != OF_MOUSE_BUTTON_LEFT)
 	{
@@ -1706,6 +1736,10 @@ bool JPboxgroup::update_mappingMousePressed(int mouseButton)
 
 bool JPboxgroup::update_mappingMouseDragged(int mouseButton)
 {
+	if (getAdvancedMappingEditBox() != nullptr)
+	{
+		return updateAdvancedMappingMouseDragged(mouseButton);
+	}
 	if (mouseButton != OF_MOUSE_BUTTON_LEFT ||
 		!mappingPanelPointerCaptured)
 	{
@@ -1740,6 +1774,10 @@ bool JPboxgroup::update_mappingMouseDragged(int mouseButton)
 
 bool JPboxgroup::update_mappingMouseReleased(int mouseButton)
 {
+	if (getAdvancedMappingEditBox() != nullptr)
+	{
+		return updateAdvancedMappingMouseReleased(mouseButton);
+	}
 	if (mouseButton != OF_MOUSE_BUTTON_LEFT ||
 		!mappingPanelPointerCaptured)
 	{
@@ -2568,9 +2606,15 @@ void JPboxgroup::draw_paramswindow()
 		}
 
 		drawInspectorInputRows(inspectorBox);
+		drawAdvancedMappingParameterHeaders(inspectorBox);
 
 		for (int i = 0; i < controllers.size(); i++)
 		{
+			if (controllers[i]->width <= 0.0f ||
+				controllers[i]->height <= 0.0f)
+			{
+				continue;
+			}
 			controllers[i]->draw();
 			if (dynamic_cast<JPComplexSlider *>(controllers[i]) == nullptr)
 			{
@@ -3170,6 +3214,13 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	}
 
 	JPbox *inputInspectorBox = getInspectorBox();
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
+		inputInspectorBox != nullptr && mouseOverGui() &&
+		handleAdvancedMappingParameterHeaderClick(inputInspectorBox))
+	{
+		return;
+	}
+
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
 		inputInspectorBox != nullptr && mouseOverGui() &&
 		handleInspectorInputClick(inputInspectorBox))
@@ -3846,6 +3897,7 @@ void JPboxgroup::save(string outputPath)
 		data.appendChild("directory").set(boxes[i]->dir);
 		data.appendChild("onoff").set(boxes[i]->getonoff());
 		data.appendChild("bypass").set(boxes[i]->getBypass());
+		boxes[i]->saveCustomState(data);
 		// boxes[i]->parameters.coutData();
 		if (boxes[i]->parameters.getSize() > 0)
 		{
@@ -4063,6 +4115,7 @@ void JPboxgroup::load(string _dirinput)
 			}
 			index++;
 		}
+		bx->loadCustomState(box);
 
 	
 #ifdef SPOUT
@@ -4189,6 +4242,7 @@ void JPboxgroup::setControllers(){
 	}
 	exposeButtons.clear();
 	inspectorInputRows.clear();
+	advancedMappingParameterHeaders.clear();
 	inspectorInputsHeaderBounds.set(0, 0, 0, 0);
 
 	JPbox *inspectorBox = getInspectorBox();
@@ -4196,6 +4250,12 @@ void JPboxgroup::setControllers(){
 	{
 		return;
 	}
+
+	JPbox_shader *advancedShader = dynamic_cast<JPbox_shader *>(inspectorBox);
+	JPbox_shader::AdvancedMappingState *advancedState =
+		advancedShader != nullptr && advancedShader->isAdvancedMappingShader() ?
+		advancedShader->getAdvancedMappingState() : nullptr;
+	int lastAdvancedLayer = -1;
 
 	inspectorwindow_height = 0;
 	float slider_width = inspectorwindow_width * 3 / 4;
@@ -4230,8 +4290,41 @@ void JPboxgroup::setControllers(){
 
 	for (int k = 0; k < inspectorBox->parameters.getSize(); k++)
 	{
+		const string parameterName = inspectorBox->parameters.getName(k);
+		const int advancedLayer =
+			getAdvancedMappingParameterLayer(parameterName);
+		if (advancedState != nullptr && advancedLayer >= 0 &&
+			advancedLayer != lastAdvancedLayer)
+		{
+			InspectorParameterGroupHeader header;
+			header.layerIndex = advancedLayer;
+			header.bounds.set(
+				inspectorwindow_x - inspectorwindow_width / 2.0f + 10.0f,
+				inspectorwindow_height - standardControllerHeight / 2.0f,
+				inspectorwindow_width - 20.0f, 24.0f);
+			advancedMappingParameterHeaders.push_back(header);
+			inspectorwindow_height += 24.0f;
+			lastAdvancedLayer = advancedLayer;
+		}
+		const bool parameterHidden = advancedState != nullptr &&
+			advancedLayer >= 0 &&
+			!advancedState->layers[advancedLayer].inspectorExpanded;
+
 		if (inspectorBox->parameters.getType(k) == inspectorBox->parameters.FLOAT)
 		{
+
+			if (parameterHidden)
+			{
+				JPComplexSlider *sl = new JPComplexSlider();
+				sl->setup(inspectorwindow_x, -10000.0f,
+					controllerWidth, standardControllerHeight,
+					inspectorBox->parameters.parameters[k]);
+				sl->name = parameterName.substr(7);
+				sl->width = 0.0f;
+				sl->height = 0.0f;
+				controllers.push_back(sl);
+				continue;
+			}
 
 			float complexsliderheight = standardControllerHeight;
 			if (inspectorBox->parameters.getMovType(k) != 0)
@@ -4262,6 +4355,8 @@ void JPboxgroup::setControllers(){
 			sl->setup(inspectorwindow_x,
 					  inspectorwindow_height, controllerWidth, complexsliderheight,
 					  inspectorBox->parameters.parameters[k]);
+			if (advancedLayer >= 0)
+				sl->name = parameterName.substr(7);
 
 			controllers.push_back(sl);
 
@@ -4282,8 +4377,15 @@ void JPboxgroup::setControllers(){
 			toogle->setParametersPointer(inspectorBox->parameters.getJParameter(k));
 			toogle->setup(inspectorwindow_x,
 						  inspectorwindow_height, slider_width, slider_height, inspectorBox->parameters.getName(k), inspectorBox->parameters.getBoolValue(k));
+			if (parameterHidden)
+			{
+				toogle->y = -10000.0f;
+				toogle->width = 0.0f;
+				toogle->height = 0.0f;
+			}
 			controllers.push_back(toogle);
-			inspectorwindow_height += complexsliderheight;
+			if (!parameterHidden)
+				inspectorwindow_height += complexsliderheight;
 		}
 		}
 
@@ -5515,6 +5617,8 @@ bool JPboxgroup::applyCueDraftToSource()
 					  CUE_DIRTY_ADDED | CUE_DIRTY_PRESET_ACTIVE)) != 0)
 		{
 			copyParametersByNameOrIndex(targetBoxes[realIndex]->parameters, cueState.draftBoxes[draftIndex]->parameters);
+			targetBoxes[realIndex]->copyCustomStateFrom(
+				cueState.draftBoxes[draftIndex]);
 			// For a preset/group, the editable state (incl. exposed params) lives
 			// in its internal sub-boxes; commit those staged edits back to the live
 			// preset too.
@@ -5922,6 +6026,7 @@ void JPboxgroup::copyEditableBoxState(JPbox *destination, JPbox *source)
 	destination->setonoff(source->getonoff());
 	destination->setBypass(source->getBypass());
 	destination->setPos(source->x, source->y);
+	destination->copyCustomStateFrom(source);
 }
 
 void JPboxgroup::copyBoxLinksByName(
@@ -6157,6 +6262,8 @@ void JPboxgroup::copyPresetInternalState(JPbox_preset *destination, JPbox_preset
 		destination->boxes[i]->parameters = source->boxes[i]->parameters; // deep copy
 		destination->boxes[i]->setonoff(source->boxes[i]->getonoff());
 		destination->boxes[i]->setBypass(source->boxes[i]->getBypass());
+		destination->boxes[i]->copyCustomStateFrom(
+			source->boxes[i]);
 		copyBoxLinksByName(
 			destination->boxes[i],
 			source->boxes[i],
@@ -6581,6 +6688,8 @@ bool JPboxgroup::revertCueDraftBox(int index)
 	cueState.draftBoxes[draftIndex]->parameters = cueState.draftBaselineParameters[draftIndex];
 	cueState.draftBoxes[draftIndex]->setonoff(cueState.draftBaselineOnOff[draftIndex]);
 	cueState.draftBoxes[draftIndex]->setBypass(cueState.draftBaselineBypass[draftIndex]);
+	cueState.draftBoxes[draftIndex]->copyCustomStateFrom(
+		tboxes[index]);
 	if (cueState.draftBoxes[draftIndex]->getTipo() == JPbox::PRESETBOX &&
 		tboxes[index]->getTipo() == JPbox::PRESETBOX)
 	{
@@ -7602,6 +7711,7 @@ void JPboxgroup::groupSelectedBoxes()
 		data.appendChild("directory").set(box->dir);
 		data.appendChild("onoff").set(box->getonoff());
 		data.appendChild("bypass").set(box->getBypass());
+		box->saveCustomState(data);
 
 		// Parameters
 		if (box->parameters.getSize() > 0)
@@ -8181,6 +8291,7 @@ void JPboxgroup::copySelectedBoxes()
 		data.appendChild("directory").set(box->dir);
 		data.appendChild("onoff").set(box->getonoff());
 		data.appendChild("bypass").set(box->getBypass());
+		box->saveCustomState(data);
 
 		// Parameters
 		if (box->parameters.getSize() > 0)
@@ -8349,6 +8460,7 @@ void JPboxgroup::pasteBoxes()
 				}
 			}
 		}
+		bx->loadCustomState(box);
 
 		srcNames.push_back(nombre.getValue());
 		newBoxes.push_back(bx);

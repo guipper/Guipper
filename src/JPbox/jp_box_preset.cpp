@@ -139,6 +139,7 @@ void JPbox_preset::setup(string _directory, string _name)
 			}
 			index++;
 		}
+		bx->loadCustomState(box);
 		boxes.push_back(bx);
 	}
 
@@ -841,6 +842,7 @@ void JPbox_preset::save()
 		data.appendChild("directory").set(boxes[i]->dir);
 		data.appendChild("onoff").set(boxes[i]->getonoff());
 		data.appendChild("bypass").set(boxes[i]->getBypass());
+		boxes[i]->saveCustomState(data);
 
 		if (boxes[i]->parameters.getSize() > 0)
 		{

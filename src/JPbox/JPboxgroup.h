@@ -420,6 +420,13 @@ private:
 	ofRectangle inspectorInputsHeaderBounds;
 	bool inspectorInputsExpanded = true;
 	vector<InspectorInputRow> inspectorInputRows;
+	struct InspectorParameterGroupHeader
+	{
+		int layerIndex = -1;
+		ofRectangle bounds;
+	};
+	vector<InspectorParameterGroupHeader>
+		advancedMappingParameterHeaders;
 
 	JPBang inspectorsetactive;			 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA
 	JPBang inspectorreload;				 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA
@@ -452,8 +459,10 @@ private:
 	};
 	MappingParameterIndices getMappingParameterIndices(JPbox *box) const;
 	bool isMappingShaderBox(JPbox *box) const;
+	bool isAdvancedMappingShaderBox(JPbox *box) const;
 	bool mappingTargetMatchesCurrentView() const;
 	JPbox *getMappingEditBox();
+	JPbox_shader *getAdvancedMappingEditBox();
 	MappingQuad getMappingQuad(JPbox *box) const;
 	bool isValidMappingQuad(const MappingQuad &quad) const;
 	ofVec2f projectMappingPoint(const MappingQuad &quad, const ofVec2f &uv) const;
@@ -482,6 +491,80 @@ private:
 	bool toggleMappingRenderGuides();
 	bool updateMappingCorner(int corner, float x, float y, float width, float height);
 	void markMappingParameterChanged();
+	int getAdvancedMappingParameterLayer(const string &name) const;
+	void drawAdvancedMappingParameterHeaders(JPbox *box);
+	bool handleAdvancedMappingParameterHeaderClick(JPbox *box);
+
+	enum AdvancedMappingTool
+	{
+		ADVANCED_MAPPING_PEN = 0,
+		ADVANCED_MAPPING_MESH,
+		ADVANCED_MAPPING_MOVE
+	};
+	// Which shape the move tool is acting on. Persists across drags so the
+	// bounding box stays on screen between a move and a resize.
+	enum AdvancedMappingMoveTarget
+	{
+		ADVANCED_MAPPING_TARGET_SURFACE = 0,
+		ADVANCED_MAPPING_TARGET_MASK
+	};
+	enum AdvancedMappingDragKind
+	{
+		ADVANCED_MAPPING_DRAG_NONE = 0,
+		ADVANCED_MAPPING_DRAG_MASK_ANCHOR,
+		ADVANCED_MAPPING_DRAG_MASK_IN,
+		ADVANCED_MAPPING_DRAG_MASK_OUT,
+		ADVANCED_MAPPING_DRAG_SURFACE_CORNER,
+		ADVANCED_MAPPING_DRAG_SURFACE_HANDLE,
+		ADVANCED_MAPPING_DRAG_MOVE_SHAPE,
+		ADVANCED_MAPPING_DRAG_SCALE_SHAPE
+	};
+	// Toolbar order is the grouping the user sees: pick a layer, pick a tool,
+	// shape what the tool selected, reference image, file in/out. Layers must
+	// stay first and contiguous - the click and draw code identifies them by
+	// index alone.
+	enum AdvancedMappingToolbarAction
+	{
+		ADVANCED_MAPPING_LAYER_1 = 0,
+		ADVANCED_MAPPING_LAYER_2,
+		ADVANCED_MAPPING_LAYER_3,
+		ADVANCED_MAPPING_LAYER_4,
+		ADVANCED_MAPPING_TOOL_MESH,
+		ADVANCED_MAPPING_TOOL_PEN,
+		ADVANCED_MAPPING_TOOL_MOVE,
+		ADVANCED_MAPPING_BEZIER,
+		ADVANCED_MAPPING_SMOOTH,
+		ADVANCED_MAPPING_FIT,
+		ADVANCED_MAPPING_GUIDE,
+		ADVANCED_MAPPING_SVG_IMPORT,
+		ADVANCED_MAPPING_SVG_EXPORT,
+		ADVANCED_MAPPING_TOOLBAR_COUNT
+	};
+	ofRectangle getAdvancedMappingToolbarBounds(
+		AdvancedMappingToolbarAction action) const;
+	bool advancedMappingBezierActive(
+		const JPbox_shader::AdvancedMappingLayer &layer) const;
+	// Bounding box of the move tool's current target, in normalized space, and
+	// its four corner handles in screen space. Returns false when the target
+	// has no usable outline (an empty or two node mask).
+	bool getAdvancedMappingMoveBox(
+		const JPbox_shader::AdvancedMappingLayer &layer,
+		ofRectangle &box) const;
+	void drawAdvancedMappingPanel();
+	// interactive: only the editor panel passes true. The render window draws
+	// the same overlay in another GL context, where editor chrome (move box,
+	// handles, hover highlight) has no meaning and the mouse is not ours.
+	void drawAdvancedMappingOverlay(float x, float y,
+		float width, float height, bool includeHandles,
+		bool interactive = false);
+	bool updateAdvancedMappingMousePressed(int mouseButton);
+	bool updateAdvancedMappingMouseDragged(int mouseButton);
+	bool updateAdvancedMappingMouseReleased(int mouseButton);
+	ofVec2f projectAdvancedMappingPoint(
+		const JPbox_shader::AdvancedMappingLayer &layer,
+		const ofVec2f &uv) const;
+	void markAdvancedMappingChanged(JPbox_shader *box,
+		int layerIndex, bool maskChanged);
 
 	bool mappingEditActive = false;
 	bool mappingGuidesVisible = true;
@@ -500,6 +583,27 @@ private:
 	ofVec2f mappingPanelDragStartMouse;
 	ofVec2f mappingPanelDragStartPos;
 	ofVec2f mappingPanelResizeStartSize;
+	AdvancedMappingTool advancedMappingTool = ADVANCED_MAPPING_MESH;
+	AdvancedMappingDragKind advancedMappingDragKind =
+		ADVANCED_MAPPING_DRAG_NONE;
+	int advancedMappingDragIndex = -1;
+	int advancedMappingSelectedMaskNode = -1;
+	// Bezier edge handles are off until asked for, so a fresh surface is a
+	// plain corner-pin quad. See advancedMappingBezierActive for how a layer
+	// that already carries a curve overrides this.
+	bool advancedMappingBezierEnabled = false;
+	AdvancedMappingMoveTarget advancedMappingMoveTarget =
+		ADVANCED_MAPPING_TARGET_SURFACE;
+	// A move or scale writes snapshot + offset rather than accumulating a per
+	// frame delta, so a dropped or replayed mouse frame lands in the same
+	// place. The preview rect is captured too: clampMappingPanelLayout can
+	// resize the panel mid drag, which would otherwise teleport the shape.
+	JPbox_shader::AdvancedMappingLayer advancedMappingDragSnapshot;
+	ofRectangle advancedMappingDragPreview;
+	ofVec2f advancedMappingDragStartUv;
+	ofVec2f advancedMappingScaleAnchor;
+	ofVec2f advancedMappingScaleHandle;
+	int advancedMappingDragLayer = -1;
 
 	// ofFbo boxesdrawing;
 

@@ -24,7 +24,7 @@ class JPbox : public JPdragobject
 {
 public:
 	JPbox();
-	~JPbox();
+	virtual ~JPbox();
 
 	bool isactiverender;
 
@@ -50,6 +50,9 @@ public:
 	virtual void updateFBO();
 	void draw_outlet();
 	virtual void clear();
+	virtual void saveCustomState(ofXml &boxNode) const;
+	virtual void loadCustomState(const ofXml &boxNode);
+	virtual void copyCustomStateFrom(const JPbox *source);
 	void setPos(float _x, float _y)
 	{
 		JPdragobject::setPos(_x, _y);

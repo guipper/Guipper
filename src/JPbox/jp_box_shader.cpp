@@ -4,8 +4,14 @@
 #include <filesystem>
 
 
-JPbox_shader::JPbox_shader() {}
-JPbox_shader::~JPbox_shader() {}
+JPbox_shader::JPbox_shader()
+{
+	advancedMappingMaskDirty.fill(true);
+}
+JPbox_shader::~JPbox_shader()
+{
+	clearAdvancedMappingResources();
+}
 
 void JPbox_shader::reload()
 {
@@ -153,6 +159,10 @@ void JPbox_shader::setup(ofTrueTypeFont &_font,
 	// parameters.coutData();
 	name = _nombre;
 	dir = _dir;
+	if (isAdvancedMappingShader())
+	{
+		initializeAdvancedMappingState();
+	}
 	showCode = true;
 	try
 	{
@@ -194,6 +204,10 @@ void JPbox_shader::setup2(string _dir,
 	// parameters.coutData();
 	name = _nombre;
 	dir = _dir;
+	if (isAdvancedMappingShader())
+	{
+		initializeAdvancedMappingState();
+	}
 	try
 	{
 		shader.load("shaders/default.vert", dir);
@@ -233,6 +247,10 @@ void JPbox_shader::setup(string _dir,
 	// parameters.coutData();
 	name = _nombre;
 	dir = _dir;
+	if (isAdvancedMappingShader())
+	{
+		initializeAdvancedMappingState();
+	}
 	try
 	{
 		shader.load("shaders/default.vert", dir);
@@ -317,6 +335,7 @@ void JPbox_shader::clear()
 	fbo.destroy();
 	// fbohandlergroup.clear();
 	shader.unload();
+	clearAdvancedMappingResources();
 }
 void JPbox_shader::update()
 {
@@ -333,12 +352,37 @@ void JPbox_shader::updateFBO()
 	}
 	if (onoff.boolValue && shader.isLoaded())
 	{
+		if (isAdvancedMappingShader())
+		{
+			for (int layerIndex = 0;
+				 layerIndex < ADVANCED_MAPPING_LAYER_COUNT;
+				 layerIndex++)
+			{
+				// Same name based test updateAdvancedMappingUniforms uses, so
+				// the mask and the connected flag can never disagree.
+				const int inletIndex =
+					getAdvancedMappingInletIndex(layerIndex);
+				if (inletIndex < 0 ||
+					!fbohandlergroup.getisPointerSet(inletIndex))
+					continue;
+				const bool maskSizeChanged = advancedMappingMasks[layerIndex].isAllocated() &&
+					(advancedMappingMasks[layerIndex].getWidth() != fbo.getWidth() ||
+					 advancedMappingMasks[layerIndex].getHeight() != fbo.getHeight());
+				if (advancedMappingMaskDirty[layerIndex] ||
+					!advancedMappingMasks[layerIndex].isAllocated() || maskSizeChanged)
+					rebuildAdvancedMappingMask(layerIndex);
+			}
+		}
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		ofSetColor(255, 255);
 		fbo.begin();
 		shader.begin();
 		update_globalUniforms();
 		update_NonglobalUniforms();
+		if (isAdvancedMappingShader())
+		{
+			updateAdvancedMappingUniforms();
+		}
 		// White, not red: the bound shader ignores the global colour, but this
 		// leaks out of the fbo as global GL state and tinted every drawer that
 		// ran later in the frame without setting its own colour.
@@ -387,12 +431,15 @@ void JPbox_shader::setUniforms(JPParameterGroup &_parameters,
 	{
 		linesOfTheFile.push_back(line);
 	}
-
 	_parameters.setName(_name);
 	for (int l = 0; l < linesOfTheFile.size(); l++)
 	{
 		if (linesOfTheFile[l].rfind("uniform", 0) == 0)
 		{
+			if (linesOfTheFile[l].find("@internal") != std::string::npos)
+			{
+				continue;
+			}
 			if (linesOfTheFile[l].find("float") != std::string::npos)
 			{
 				// cout << "FLOAT NAME : " << name << endl;

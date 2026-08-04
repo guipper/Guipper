@@ -46,6 +46,9 @@ namespace
 
 JPbox::JPbox() {}
 JPbox::~JPbox() {}
+void JPbox::saveCustomState(ofXml &boxNode) const {}
+void JPbox::loadCustomState(const ofXml &boxNode) {}
+void JPbox::copyCustomStateFrom(const JPbox *source) {}
 void JPbox::reloadShaderonly() {}
 void JPbox::reload() {}
 void JPbox::setup(ofTrueTypeFont &_font)
