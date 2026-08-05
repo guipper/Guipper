@@ -58,6 +58,10 @@ void JPbox_preset::setup(string _directory, string _name)
 		{
 			bx = new JPbox_video();
 		}
+		else if (directory.getValue().find("kinect2") != std::string::npos)
+		{
+			bx = new JPbox_kinect2();
+		}
 		else if (directory.getValue().find("cam") != std::string::npos)
 		{
 			bx = new JPbox_cam();

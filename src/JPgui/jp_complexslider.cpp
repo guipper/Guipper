@@ -447,8 +447,8 @@ void JPComplexSlider::setPosAndSize()
 		slider_value.setup(x, y,
 						   slidervaluewidth,
 						   height * 8 / 10,
-						   0.0,
-						   1.0,
+						   parameters->min,
+						   parameters->max,
 						   value,
 						   name);
 	}

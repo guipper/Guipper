@@ -116,6 +116,10 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	{
 		nombre = "CAMARITA";
 	}
+	else if (directory.find("kinect2") != std::string::npos)
+	{
+		nombre = "KINECT2";
+	}
 #ifdef SPOUT
 	else if (directory.find("spoutReceiver") != std::string::npos)
 	{
@@ -160,6 +164,10 @@ JPbox *JPboxgroup::createBoxForDirectory(const string &directory, string &name) 
 	else if (directory.find(".xml") != std::string::npos)
 	{
 		bx = new JPbox_preset();
+	}
+	else if (directory.find("kinect2") != std::string::npos)
+	{
+		bx = new JPbox_kinect2();
 	}
 	else if (directory.find("cam") != std::string::npos)
 	{
@@ -2494,7 +2502,8 @@ void JPboxgroup::draw_paramswindow()
 			shaderEditor != nullptr && !inspectorBox->dir.empty();
 		const bool hasMappingAction = isMappingShaderBox(inspectorBox);
 		const bool hasCameraAction =
-			inspectorBox->getTipo() == inspectorBox->CAMBOX;
+			inspectorBox->getTipo() == inspectorBox->CAMBOX ||
+			inspectorBox->getTipo() == inspectorBox->KINECT2BOX;
 		const float randomActionWidth = 44.0f;
 		const float mappingActionWidth = 48.0f;
 		const float editActionWidth = 48.0f;
@@ -2607,13 +2616,17 @@ void JPboxgroup::draw_paramswindow()
 			}
 			ofSetColor(camerarefreshbutton.mouseOver() ?
 				COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
+			const bool isKinect =
+				inspectorBox->getTipo() == inspectorBox->KINECT2BOX;
+			const string scanLabel = isKinect ? "RETRY" : "SCAN";
 			jp_constants::p_font.drawString(
-				"SCAN",
+				scanLabel,
 				camerarefreshbutton.x -
-					jp_constants::p_font.stringWidth("SCAN") / 2.0f,
+					jp_constants::p_font.stringWidth(scanLabel) / 2.0f,
 				camerarefreshbutton.y +
 					jp_constants::p_font.stringHeight("SCAN") / 2.0f - 2.0f);
-			jp_tooltip::draw("Rescan cameras connected after startup",
+			jp_tooltip::draw(isKinect ? "Reconnect the Kinect v2" :
+				"Rescan cameras connected after startup",
 				camerarefreshbutton.x - camerarefreshbutton.width / 2.0f,
 				camerarefreshbutton.y - camerarefreshbutton.height / 2.0f,
 				camerarefreshbutton.width, camerarefreshbutton.height);
@@ -2692,6 +2705,35 @@ void JPboxgroup::draw_paramswindow()
 
 		drawInspectorInputRows(inspectorBox);
 		drawAdvancedMappingParameterHeaders(inspectorBox);
+
+		if (auto *kinect = dynamic_cast<JPbox_kinect2 *>(inspectorBox))
+		{
+			const char *labels[] = {"COLOR", "DEPTH", "IR"};
+			for (int i = 0; i < 3; ++i)
+			{
+				const bool selected = (int)kinect->getStream() == i;
+				const bool hovered = kinectStreamButtons[i].inside(
+					ofGetMouseX(), ofGetMouseY());
+				ofSetColor(selected ? COL_ACCENT_CYAN_DIM :
+					(hovered ? COL_BG_HOVER : COL_BG_INPUT));
+				ofDrawRectRounded(kinectStreamButtons[i], 3.0f);
+				ofNoFill();
+				ofSetColor(selected ? COL_ACCENT_CYAN : COL_BORDER_MUTED);
+				ofDrawRectRounded(kinectStreamButtons[i], 3.0f);
+				ofFill();
+				ofSetColor(selected ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
+				jp_constants::p_font.drawString(labels[i],
+					kinectStreamButtons[i].getCenter().x -
+						jp_constants::p_font.stringWidth(labels[i]) / 2.0f,
+					kinectStreamButtons[i].getCenter().y +
+						jp_constants::p_font.stringHeight(labels[i]) / 2.0f - 2.0f);
+			}
+			ofSetColor(kinect->getCaptureStatus() == "STREAMING" ?
+				COL_ACCENT_GREEN : COL_ACCENT_GOLD);
+			jp_constants::p_font.drawString(kinect->getCaptureStatus(),
+				panelLeft + 12.0f,
+				kinectStreamButtons[0].getBottom() + 16.0f);
+		}
 
 		for (int i = 0; i < controllers.size(); i++)
 		{
@@ -3230,7 +3272,9 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 					// This is because if movtype is 0, it doesn't update to avoid OSC overwrite
 					// Manual update for movtype 0 sliders
 					controllers[i]->value = ofMap(ofGetMouseX(), controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
-													  controllers[i]->x + (controllers[i]->width * 3 / 4) / 2, 0.0, 1.0, true);
+						controllers[i]->x + (controllers[i]->width * 3 / 4) / 2,
+						inspectorBox->parameters.getMin(i),
+						inspectorBox->parameters.getMax(i), true);
 
 					inspectorBox->parameters.setFloatValue(controllers[i]->value, i);
 					inspectorBox->parameters.setFloatLerpValue(controllers[i]->value, i);
@@ -3472,6 +3516,25 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			JPbox_cam::rescanCameraDevices();
 			return;
 		}
+		if (camerarefreshbutton.mouseGrab() &&
+			inspectorBox->getTipo() == inspectorBox->KINECT2BOX)
+		{
+			if (auto *kinect = dynamic_cast<JPbox_kinect2 *>(inspectorBox))
+				kinect->requestReconnect();
+			return;
+		}
+		if (auto *kinect = dynamic_cast<JPbox_kinect2 *>(inspectorBox))
+		{
+			for (int i = 0; i < 3; ++i)
+			{
+				if (kinectStreamButtons[i].inside(ofGetMouseX(), ofGetMouseY()))
+				{
+					kinect->setStream((JPbox_kinect2::Stream)i);
+					markCueDraftDirty(cueSelectedIndex());
+					return;
+				}
+			}
+		}
 		if (editbutton.mouseGrab() && shaderEditor != nullptr)
 		{
 			string shaderDir = inspectorBox->dir;
@@ -3526,7 +3589,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		// PONGO EN FALSE TODOS LOS QUE NO TENGO ACTIVOS:
 		for (int i = 0; i < controllers.size(); i++)
 		{
-			if (i != activeone && i < inspectorBox->parameters.getSize())
+			if (i != activeone || i >= inspectorBox->parameters.getSize())
 			{
 				controllers[i]->activeFlag = false;
 			}
@@ -3534,8 +3597,12 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			{
 				// Esto es porque si esta en movtype 0 no actualiza para que no pise con el OSC , entonces hay que actualizarlo manualmente
 				// Esta es la actualizaci�n manual. Acordate que si el movtype esta en 0 el valor NO SE ACTUALIZA.
-				controllers[i]->value = ofMap(ofGetMouseX(), controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
-											  controllers[i]->x + (controllers[i]->width * 3 / 4) / 2, 0.0, 1.0, true);
+					controllers[i]->value = ofMap(
+						ofGetMouseX(),
+						controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
+						controllers[i]->x + (controllers[i]->width * 3 / 4) / 2,
+						inspectorBox->parameters.getMin(i),
+						inspectorBox->parameters.getMax(i), true);
 				inspectorBox->parameters.setFloatValue(controllers[i]->value, i);
 				inspectorBox->parameters.setFloatLerpValue(controllers[i]->value, i);
 				markCueDraftDirty(cueSelectedIndex());
@@ -3548,7 +3615,9 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			{
 				if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT)
 				{
-					float rdm = ofRandom(1);
+						float rdm = ofRandom(
+							inspectorBox->parameters.getMin(i),
+							inspectorBox->parameters.getMax(i));
 					inspectorBox->parameters.setFloatLerpValue(rdm, i);
 					inspectorBox->parameters.setFloatValue(rdm, i);
 					markCueDraftDirty(cueSelectedIndex());
@@ -4141,6 +4210,10 @@ void JPboxgroup::load(string _dirinput)
 		{
 			bx = new JPbox_video();
 		}
+		else if (directory.getValue().find("kinect2") != std::string::npos)
+		{
+			bx = new JPbox_kinect2();
+		}
 		else if (directory.getValue().find("cam") != std::string::npos)
 		{
 			bx = new JPbox_cam();
@@ -4363,6 +4436,22 @@ void JPboxgroup::setControllers(){
 	inspectorwindow_height += inspectorwindow_sepy * 0.5;
 	inspectorwindow_height = layoutInspectorInputRows(
 		inspectorBox, inspectorwindow_height);
+	if (inspectorBox->getTipo() == inspectorBox->KINECT2BOX)
+	{
+		const float left = inspectorwindow_x - inspectorwindow_width / 2.0f + 10.0f;
+		const float gap = 4.0f;
+		const float width = (inspectorwindow_width - 20.0f - gap * 2.0f) / 3.0f;
+		for (int i = 0; i < 3; ++i)
+		{
+			kinectStreamButtons[i].set(left + i * (width + gap),
+				inspectorwindow_height - 10.0f, width, 26.0f);
+		}
+		inspectorwindow_height += 54.0f;
+	}
+	else
+	{
+		for (ofRectangle &button : kinectStreamButtons) button.set(0, 0, 0, 0);
+	}
 	/*inspectorwindow_height += inspectorwindow_setactivesize;
 	inspectorwindow_height += inspectorwindow_sepy * 0.5;
 	*/

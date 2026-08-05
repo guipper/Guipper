@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 #include "defines.h"
@@ -9,6 +10,7 @@
 #include "jp_box_image.h"
 #include "jp_box_video.h"
 #include "jp_box_cam.h"
+#include "jp_box_kinect2.h"
 
 class JPShaderEditor; // forward declaration
 
@@ -452,6 +454,7 @@ private:
 	JPBang editbutton;                   // Boton EDIT para abrir el shader en el editor de codigo
 	JPBang mappingbutton;                // Enters the corner-pin mapping editor
 	JPBang camerarefreshbutton;          // Re-enumerates camera capture devices
+	std::array<ofRectangle, 3> kinectStreamButtons;
 	float inspectorwindow_setactivesize; // Para el size del setactive:
 
 	void draw_conections();

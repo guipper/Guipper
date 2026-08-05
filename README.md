@@ -38,6 +38,27 @@ Special thanks to Kali Shade for contributing a wide range of shaders to the off
 ## Installation
 Provide step-by-step instructions on how to install and configure Guipper. Include information on how to download and compile the source code, as well as any additional required configurations.
 
+### Kinect v2 on Linux
+
+Guipper can capture Kinect v2 color, depth, and infrared directly through
+`libfreenect2`; TouchDesigner, Spout, and an NDI bridge are not required.
+
+```bash
+./scripts/install_kinect2_linux.sh
+```
+
+The script installs a pinned `libfreenect2` revision in `/usr/local`, installs
+the Kinect udev rules, and prints the command used to test all streams with
+`Protonect`. The Kinect v2 requires its powered adapter and a direct USB 3
+connection. Reconnect the device after installing the rules, verify Protonect,
+then rebuild Guipper with `make -j2`.
+
+When `pkg-config --exists freenect2` succeeds, Guipper enables native Kinect v2
+capture automatically. Otherwise it still builds, and saved Kinect boxes show
+an installation-required status. In the node view, press `Shift+C` to add a
+Kinect box. Add three boxes and select `COLOR`, `DEPTH`, and `IR` in their
+inspectors; all three share one device connection.
+
 ## User Guide
 Offer a detailed guide on effectively using Guipper. Include code examples, explanations of key functions, and screenshots or videos showcasing the visual results that can be achieved.
 
@@ -122,5 +143,3 @@ Escribime al mail : julian.d.puppo@gmail.com
   <li>Implementar un sistema de branches o versionado del mismo shader dentro de la interfaz (requiere tener el IDE interno funcionando).</li>
   <li>Interfaz de triggers similar a la de Resolume, con una grilla.</li>
 </ul>
-
-

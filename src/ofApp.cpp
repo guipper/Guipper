@@ -334,6 +334,7 @@ void ofApp::draw_instrucciones() {
 	es[esLines++] = "h : Agregar caja SPOUT INPUT";
 	es[esLines++] = "c : Agregar caja camara";
 	es[esLines++] = "n : Agregar caja NDI RECEIVER";
+	es[esLines++] = "Shift+C : Agregar caja KINECT V2";
 	es[esLines++] = "i : Agregar caja Frame Difference";
 	es[esLines++] = "k : Abrir/cerrar panel MIDI Keymap";
 	es[esLines++] = "m : Exportar imagen (captura de pantalla)";
@@ -386,6 +387,7 @@ void ofApp::draw_instrucciones() {
 	en[enLines++] = "h : Add SPOUT INPUT box";
 	en[enLines++] = "c : Add Camera box";
 	en[enLines++] = "n : Add NDI RECEIVER box";
+	en[enLines++] = "Shift+C : Add KINECT V2 box";
 	en[enLines++] = "i : Add Frame Difference box";
 	en[enLines++] = "k : Open/close MIDI Keymap panel";
 	en[enLines++] = "m : Export screenshot to exportimgs/";
@@ -4036,6 +4038,9 @@ void ofApp::keyPressed(int key) {
 		if (key == 'c') {
 			// boxes.addCamBox();
 			boxes.addBox("cam");
+		}
+		if (key == 'C') {
+			boxes.addBox("kinect2");
 		}
 		if (key == 'n') {
 #ifdef NDI

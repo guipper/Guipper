@@ -96,6 +96,13 @@ PROJECT_EXCLUSIONS += $(PROJECT_ROOT)/vendor%
 # Possible defines: NDI (requires ofxNDI addon), SPOUT (only Windows), TEST (para probar a ver si dibuja)
 PROJECT_DEFINES = TEST
 
+# Kinect v2 is optional. Projects containing Kinect boxes still load without
+# the driver; pkg-config enables the native capture backend when installed.
+ifeq ($(shell pkg-config --exists freenect2 && echo yes),yes)
+PROJECT_DEFINES += KINECT2
+PROJECT_PKG_CONFIG_LIBRARIES += freenect2
+endif
+
 #define TEST true
 
 
