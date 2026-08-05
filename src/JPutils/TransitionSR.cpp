@@ -81,19 +81,28 @@ void TransitionSR::reload() {
 	shader.load("", "shaders/blending/mix.frag");
 }
 void TransitionSR::draw(float _x, float _y, float _w, float _h){
+	if (!este.isAllocated()) return;
+	drawSubsection(_x, _y, _w, _h,
+		0.0f, 0.0f, este.getWidth(), este.getHeight());
+}
+void TransitionSR::drawSubsection(float _x, float _y, float _w, float _h,
+	float _sx, float _sy, float _sw, float _sh){
+	// ofFbo::draw guards on allocation for us; going through the texture does
+	// not, so guard here. getTexture() still resolves MSAA, so this is
+	// equivalent to draw(), not a shortcut past it.
+	if (!este.isAllocated()) return;
 	ofSetColor(255, 255);
 	ofSetRectMode(OF_RECTMODE_CORNER);
-
-
-	//fbo1->draw(_x, _y, _w/2, _h);
-	//fbo2->draw(_x+_w/2, _y, _w/2, _h);
-	//ofSetRectMode(OF_RECTMODE_CORNER);
-	//este.draw(ofGetWidth()/2, ofGetHeight()/2,300 ,300);
-	este.draw(_x,_y,_w,_h);
-//	ofDrawEllipse(ofGetWidth() / 2, ofGetHeight() / 2, 100, 100);
+	este.getTexture().drawSubsection(_x, _y, _w, _h, _sx, _sy, _sw, _sh);
 }
-void TransitionSR::resize() {
-	este.allocate(ofGetWidth(), ofGetHeight());
+bool TransitionSR::isSourceAllocated() const {
+	return este.isAllocated();
+}
+float TransitionSR::getSourceWidth() const {
+	return este.getWidth();
+}
+float TransitionSR::getSourceHeight() const {
+	return este.getHeight();
 }
 
 void TransitionSR::setFboPointer1(ofFbo * _fbo1) {

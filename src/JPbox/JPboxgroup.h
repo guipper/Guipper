@@ -42,11 +42,25 @@ public:
 	void draw();
 	void draw_activerender(); // Dibuja el render activo. Esta es la <que corre en el ofApp.cpp
 	void draw_activerender(float _width, float _height);
+	// normCrop is the normalized sub-rectangle of the source to show, and
+	// bezelCanvasPx is inset from it on all four sides. Defaults are the whole
+	// frame with no inset, i.e. the pre-wall behaviour. outEffectiveNorm
+	// receives the rect actually sampled after the inset and clamping - the
+	// mapping overlay needs that, not the raw request.
 	bool drawLiveOutputSource(bool followMainActive,
-		const string &sourceBoxName, float _width, float _height);
-	void drawMappingOverlay(float _width, float _height);
+		const string &sourceBoxName, float _width, float _height,
+		const ofRectangle &normCrop = ofRectangle(0.0f, 0.0f, 1.0f, 1.0f),
+		float bezelCanvasPx = 0.0f,
+		ofRectangle *outEffectiveNorm = nullptr);
+	// Real pixel size of the texture a live output samples. Used to convert a
+	// normalized crop into pixels; nothing reallocates render FBOs at runtime,
+	// so these can differ from jp_constants::renderWidth/Height.
+	ofVec2f getMasterCanvasSize() const;
+	ofVec2f getBoxFboSize(const string &boxName) const;
+	void drawMappingOverlay(float _x, float _y, float _width, float _height);
 	void drawMappingOverlayForSource(bool followMainActive,
-		const string &sourceBoxName, float _width, float _height);
+		const string &sourceBoxName, float _x, float _y,
+		float _width, float _height);
 	void drawNodeEditorBackground(float _width, float _height);
 	bool isMappingEditActive() const;
 	bool toggleMappingEdit();
@@ -313,7 +327,11 @@ private:
 	bool toggleInspectorTextureInputExposure(
 		JPbox *box, int linkIndex);
 	void drawCuePreview();
-	void drawLiveOutput(float x, float y, float w, float h);
+	// srcNorm is the normalized part of each texture to sample. It defaults to
+	// the whole frame: this is also the main render screen, the node editor
+	// background and the cue preview, and only the live output path crops.
+	void drawLiveOutput(float x, float y, float w, float h,
+		const ofRectangle &srcNorm = ofRectangle(0.0f, 0.0f, 1.0f, 1.0f));
 	JPbox *getCueDraftSourceBox();
 	JPbox *getCueDraftBoxForRealIndex(int index) const;
 	JPbox *getEditableBoxForRealIndex(int index);

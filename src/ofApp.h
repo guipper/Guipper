@@ -136,6 +136,44 @@ public:
 		int y = 0;
 		bool hasPosition = false;
 		bool fullscreen = false;
+		// Screen wall. cropEnabled stays false by default so an untiled output
+		// keeps using the plain full frame draw, which is the known good path.
+		// The rect is normalized so it survives a render resolution change; it
+		// is edited in canvas pixels and converted against the texture actually
+		// being sampled, never against jp_constants.
+		bool cropEnabled = false;
+		double cropX = 0.0;
+		double cropY = 0.0;
+		double cropW = 1.0;
+		double cropH = 1.0;
+		// Canvas pixels inset on all four sides. Positive shrinks the sampled
+		// rect, which is what two abutting screens need so the image stays
+		// continuous across the seam their frames cover. NEGATIVE samples wider,
+		// which is what a CRT needs: the tube overscans and cuts the edges, so
+		// the signal has to be bigger than the region you want to see.
+		int bezelPx = 0;
+		// Where this screen's VISIBLE GLASS sits in the installation, in mm.
+		// Measured with a tape, glass only - never the plastic case, so bezels
+		// and the gaps between scattered screens are handled implicitly. Drives
+		// the crop in SPATIAL mode; ignored in FREEFORM.
+		double physX = 0.0;
+		double physY = 0.0;
+		double physW = 0.0;
+		double physH = 0.0;
+		// Alignment aid: replaces the content with a calibration pattern.
+		bool testPattern = false;
+		// Opens as an ordinary window at width x height with no matching
+		// display attached, so a whole installation can be rehearsed on one
+		// machine. Skips monitor resolution entirely.
+		bool virtualMonitor = false;
+	};
+
+	// SPATIAL derives every crop from the measured physical layout; FREEFORM
+	// keeps hand authored crop rects. Installation wide, not per output.
+	enum WallLayoutMode
+	{
+		WALL_MODE_FREEFORM = 0,
+		WALL_MODE_SPATIAL
 	};
 
 	struct LiveOutputRuntime
@@ -365,9 +403,32 @@ public:
 		LIVE_OUTPUT_MENU_MONITOR
 	};
 
+	enum LiveOutputSettingsTab
+	{
+		LO_TAB_OUTPUTS = 0,
+		LO_TAB_WALL,
+		LO_TAB_COUNT
+	};
+
+	// Per output numeric fields. The commit path switches on these, so a new
+	// entry must be added to applyLiveOutputField's switch as well - it used to
+	// end in an else that wrote height, which would silently swallow new ids.
+	enum LiveOutputField
+	{
+		LO_FIELD_WIDTH = 0,
+		LO_FIELD_HEIGHT,
+		LO_FIELD_CROP_X,
+		LO_FIELD_CROP_Y,
+		LO_FIELD_CROP_W,
+		LO_FIELD_CROP_H,
+		LO_FIELD_BEZEL,
+		LO_FIELD_COUNT
+	};
+
 	struct LiveOutputSettingsLayout
 	{
 		ofRectangle panel;
+		vector<ofRectangle> tabs;
 		ofRectangle list;
 		vector<ofRectangle> rows;
 		vector<int> rowIndices;
@@ -380,6 +441,20 @@ public:
 		ofRectangle fullscreenModeButton;
 		ofRectangle widthField;
 		ofRectangle heightField;
+		// Wall tab. fieldRects is indexed by LiveOutputField so the draw code,
+		// the hit test and the caret all read the same geometry.
+		ofRectangle tiledToggle;
+		ofRectangle modeToggle;
+		ofRectangle viewToggle;
+		ofRectangle patternToggle;
+		ofRectangle fieldRects[LO_FIELD_COUNT];
+		ofRectangle splitColsField;
+		ofRectangle splitRowsField;
+		ofRectangle splitButton;
+		ofRectangle bezelSignButton;
+		ofRectangle matchAspectButton;
+		ofRectangle matchResolutionButton;
+		ofRectangle preview;
 		ofRectangle popup;
 		vector<ofRectangle> popupRows;
 		vector<int> popupOptionIndices;
@@ -387,20 +462,90 @@ public:
 	};
 
 	LiveOutputMenu liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+	LiveOutputSettingsTab liveOutputTab = LO_TAB_OUTPUTS;
 	int focusedLiveOutputField = -1;
-	string liveOutputFieldText[2];
+	string liveOutputFieldText[LO_FIELD_COUNT];
 	int liveOutputFieldCursor = 0;
+	bool liveOutputFieldSelectAll = false;
+	// The split cols/rows live outside the per output array on purpose:
+	// initLiveOutputFields runs on every selection change and on every output
+	// window resize, so anything in that array is wiped mid edit.
+	string splitFieldText[2];
+	int focusedSplitField = -1;
+	int splitFieldCursor = 0;
+	bool splitFieldSelectAll = false;
+	int lastLiveOutputInputClick = -1;
+	uint64_t lastLiveOutputInputClickMs = 0;
+
+	// Dragging tiles in the wall preview. Snapshot based like the mapping MOVE
+	// tool: the crop is written as snapshot + delta so a dropped mouse frame
+	// cannot accumulate drift.
+	enum WallDragMode
+	{
+		WALL_DRAG_NONE = 0,
+		WALL_DRAG_MOVE,
+		WALL_DRAG_RESIZE
+	};
+	WallLayoutMode wallMode = WALL_MODE_FREEFORM;
+	// The wall preview shows either the canvas and its crops, or the room and
+	// the screens standing in it.
+	bool wallRoomView = false;
+	WallDragMode wallDragMode = WALL_DRAG_NONE;
+	int wallDragOutput = -1;
+	int wallDragCorner = -1;   // 0 TL, 1 TR, 2 BL, 3 BR; opposite is 3 - i
+	ofVec2f wallDragStartMouse;
+	ofRectangle wallDragStartCrop;
 	float settingsScroll = 0.0f;
 	int liveOutputListScroll = 0;
 	int liveOutputMenuScroll = 0;
 	LiveOutputSettingsLayout getLiveOutputSettingsLayout() const;
 	void drawLiveOutputSettings();
+	void drawLiveOutputWallTab(const LiveOutputSettingsLayout &layout,
+		float editorX);
 	bool handleLiveOutputSettingsClick(int x, int y, int button);
+	bool handleLiveOutputSettingsDrag(int x, int y, int button);
+	bool handleLiveOutputSettingsRelease(int x, int y, int button);
+	// A tile's rect inside the wall preview, shared by the draw code, the hit
+	// test and the drag so they cannot disagree.
+	ofRectangle getWallTileRect(const LiveOutputSettingsLayout &layout,
+		int outputIndex) const;
+	// Bounding box of every tiled output's measured glass, in mm. Empty when
+	// nothing has been measured yet.
+	ofRectangle getInstallationBounds() const;
+	// Rewrites every tiled output's crop from its measured position. No-op in
+	// FREEFORM mode.
+	void applySpatialLayout();
+	// Screen rect inside the room view, scaled to fit the preview.
+	ofRectangle getRoomScreenRect(const LiveOutputSettingsLayout &layout,
+		int outputIndex) const;
+	void drawWallCanvasView(const LiveOutputSettingsLayout &layout);
+	void drawWallRoomView(const LiveOutputSettingsLayout &layout);
+	// Alignment pattern: labelled rings at 2/4/6/8 percent, a grid and the
+	// screen number, drawn into an arbitrary rect so the output window and the
+	// room view can share it.
+	void drawLiveOutputTestPattern(const ofRectangle &bounds,
+		int outputIndex);
 	void initLiveOutputFields();
 	void applyLiveOutputField();
+	void applySplitField();
+	void applyWallSplit();
+	void clearLiveOutputInteractionState();
+	void focusAdjacentLiveOutputField(bool backwards);
 	void setSelectedLiveOutput(int index);
+	void setLiveOutputTab(LiveOutputSettingsTab tab);
 	vector<string> getLiveOutputSourceOptions() const;
 	void clampSettingsScroll();
+	// One definition of the panel height, shared by the layout and the scroll
+	// clamp; they used to carry duplicate copies of the same expression.
+	float getLiveOutputPanelHeight(LiveOutputSettingsTab tab) const;
+	float getSettingsContentHeight() const;
+	// Canvas size a crop is measured against. Falls back to jp_constants when
+	// the source texture is not resolvable yet.
+	ofVec2f getLiveOutputCanvasSize(const LiveOutputConfig &config) const;
+	// Current output size. Fullscreen outputs use their live window or monitor
+	// dimensions without overwriting the saved windowed size.
+	ofVec2f getLiveOutputTargetSize(const LiveOutputRuntime &output) const;
+	ofRectangle getLiveOutputSourceRect(const LiveOutputConfig &config) const;
 
 	// AutoTap for BPM
 	vector<float> tapTimestamps;

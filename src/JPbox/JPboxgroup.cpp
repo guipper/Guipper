@@ -872,8 +872,38 @@ void JPboxgroup::draw_activerender(float _width, float _height)
 }
 
 bool JPboxgroup::drawLiveOutputSource(bool followMainActive,
-	const string &sourceBoxName, float _width, float _height)
+	const string &sourceBoxName, float _width, float _height,
+	const ofRectangle &normCrop, float bezelCanvasPx,
+	ofRectangle *outEffectiveNorm)
 {
+	// crop -> canvas pixels -> uniform bezel inset -> clamp, then back to
+	// normalized. Done against the real texture size, so it is computed per
+	// source below rather than once here.
+	auto effectiveFor = [&](float texW, float texH) {
+		ofRectangle rect(normCrop.x * texW, normCrop.y * texH,
+			normCrop.width * texW, normCrop.height * texH);
+		const float rawLeft = rect.x + bezelCanvasPx;
+		const float rawTop = rect.y + bezelCanvasPx;
+		const float rawRight = rect.getRight() - bezelCanvasPx;
+		const float rawBottom = rect.getBottom() - bezelCanvasPx;
+		// Clamp rather than skip: a one pixel stretched output is diagnosable,
+		// a black window reads as a crash.
+		const float left = ofClamp(rawLeft, 0.0f, std::max(0.0f, texW - 1.0f));
+		const float top = ofClamp(rawTop, 0.0f, std::max(0.0f, texH - 1.0f));
+		const float right = ofClamp(rawRight, left + 1.0f, texW);
+		const float bottom = ofClamp(rawBottom, top + 1.0f, texH);
+		rect.set(left, top, right - left, bottom - top);
+		if (texW > 0.0f && texH > 0.0f && outEffectiveNorm != nullptr)
+			outEffectiveNorm->set(rect.x / texW, rect.y / texH,
+				rect.width / texW, rect.height / texH);
+		return rect;
+	};
+	const bool cropped = !(normCrop.x <= 0.0f && normCrop.y <= 0.0f &&
+		normCrop.width >= 1.0f && normCrop.height >= 1.0f) ||
+		bezelCanvasPx != 0.0f;
+	if (outEffectiveNorm != nullptr)
+		outEffectiveNorm->set(0.0f, 0.0f, 1.0f, 1.0f);
+
 	if (followMainActive)
 	{
 		if (boxes.empty() || activerender == nullptr ||
@@ -881,7 +911,20 @@ bool JPboxgroup::drawLiveOutputSource(bool followMainActive,
 		{
 			return false;
 		}
-		drawLiveOutput(0.0f, 0.0f, _width, _height);
+		if (!cropped)
+		{
+			drawLiveOutput(0.0f, 0.0f, _width, _height);
+			return true;
+		}
+		// The transition canvas is the master render, so measure against it.
+		const float texW = transition.isSourceAllocated() ?
+			transition.getSourceWidth() : (float)jp_constants::renderWidth;
+		const float texH = transition.isSourceAllocated() ?
+			transition.getSourceHeight() : (float)jp_constants::renderHeight;
+		const ofRectangle rect = effectiveFor(texW, texH);
+		drawLiveOutput(0.0f, 0.0f, _width, _height,
+			ofRectangle(rect.x / texW, rect.y / texH,
+				rect.width / texW, rect.height / texH));
 		return true;
 	}
 
@@ -893,7 +936,15 @@ bool JPboxgroup::drawLiveOutputSource(bool followMainActive,
 
 	ofSetColor(255);
 	ofSetRectMode(OF_RECTMODE_CORNER);
-	source->fbo.draw(0.0f, 0.0f, _width, _height);
+	if (!cropped)
+	{
+		source->fbo.draw(0.0f, 0.0f, _width, _height);
+		return true;
+	}
+	const ofRectangle rect = effectiveFor(source->fbo.getWidth(),
+		source->fbo.getHeight());
+	source->fbo.getTexture().drawSubsection(0.0f, 0.0f, _width, _height,
+		rect.x, rect.y, rect.width, rect.height);
 	return true;
 }
 
@@ -1386,7 +1437,8 @@ void JPboxgroup::drawMappingPanel()
 	ofPopStyle();
 }
 
-void JPboxgroup::drawMappingOverlay(float _width, float _height)
+void JPboxgroup::drawMappingOverlay(float _x, float _y,
+	float _width, float _height)
 {
 	if (!mappingRenderGuidesVisible)
 	{
@@ -1400,17 +1452,18 @@ void JPboxgroup::drawMappingOverlay(float _width, float _height)
 
 	if (isAdvancedMappingShaderBox(box))
 	{
-		drawAdvancedMappingOverlay(0.0f, 0.0f, _width, _height, true);
+		drawAdvancedMappingOverlay(_x, _y, _width, _height, true);
 		return;
 	}
 
 	const MappingQuad quad = getMappingQuad(box);
-	drawMappingHandles(quad, 0.0f, 0.0f,
+	drawMappingHandles(quad, _x, _y,
 		_width, _height, true);
 }
 
 void JPboxgroup::drawMappingOverlayForSource(bool followMainActive,
-	const string &sourceBoxName, float _width, float _height)
+	const string &sourceBoxName, float _x, float _y,
+	float _width, float _height)
 {
 	if (!mappingEditActive || mappingTargetIndex < 0)
 	{
@@ -1429,7 +1482,7 @@ void JPboxgroup::drawMappingOverlayForSource(bool followMainActive,
 		boxes[topLevelIndex]->name == sourceBoxName;
 	if (sourceMatches)
 	{
-		drawMappingOverlay(_width, _height);
+		drawMappingOverlay(_x, _y, _width, _height);
 	}
 }
 
@@ -1804,21 +1857,53 @@ void JPboxgroup::drawNodeEditorBackground(float _width, float _height)
 	drawLiveOutput(0, 0, _width, _height);
 }
 
-void JPboxgroup::drawLiveOutput(float x, float y, float w, float h)
+void JPboxgroup::drawLiveOutput(float x, float y, float w, float h,
+	const ofRectangle &srcNorm)
 {
 	if (boxes.size() >= 1)
 	{
 		ofSetRectMode(OF_RECTMODE_CORNER);
-		//boxes[*activerender]->fbo.draw(0, 0, w, h);
+		const bool whole = srcNorm.x <= 0.0f && srcNorm.y <= 0.0f &&
+			srcNorm.width >= 1.0f && srcNorm.height >= 1.0f;
+		// Normalized to pixels per texture, never from one global number: the
+		// activerender fbo and the transition canvas can differ in size, and
+		// the transition canvas is not reallocated on every render resize.
+		auto sub = [&](float texW, float texH) {
+			return ofRectangle(srcNorm.x * texW, srcNorm.y * texH,
+				std::max(1.0f, srcNorm.width * texW),
+				std::max(1.0f, srcNorm.height * texH));
+		};
 
 		//QUE ONDA QUE LO TENGO QUE DIBUJAR DIFERENTE!?
 		if (boxes.size() > 2) {
-			transition.draw(x, y, w, h);
+			if (whole) transition.draw(x, y, w, h);
+			else {
+				const ofRectangle s = sub(transition.getSourceWidth(),
+					transition.getSourceHeight());
+				transition.drawSubsection(x, y, w, h,
+					s.x, s.y, s.width, s.height);
+			}
 		}
+		else if (activerender != nullptr && *activerender >= 0 &&
+			*activerender < (int)boxes.size()) {
+			ofFbo &source = boxes[*activerender]->fbo;
+			if (whole) source.draw(x, y, w, h);
+			else if (source.isAllocated()) {
+				const ofRectangle s = sub(source.getWidth(),
+					source.getHeight());
+				source.getTexture().drawSubsection(x, y, w, h,
+					s.x, s.y, s.width, s.height);
+			}
+		}
+		// Second pass kept as is: in the <=2 branch the layer underneath shows
+		// through wherever the transition canvas is transparent.
+		if (whole) transition.draw(x, y, w, h);
 		else {
-			boxes[*activerender]->fbo.draw(x, y, w, h);
+			const ofRectangle s = sub(transition.getSourceWidth(),
+				transition.getSourceHeight());
+			transition.drawSubsection(x, y, w, h,
+				s.x, s.y, s.width, s.height);
 		}
-		transition.draw(x, y, w, h);
 	}
 }
 
@@ -4865,6 +4950,22 @@ int JPboxgroup::findBoxIndexByName(string boxName) const
 	}
 	return -1;
 }
+ofVec2f JPboxgroup::getMasterCanvasSize() const
+{
+	if (transition.isSourceAllocated())
+		return ofVec2f(transition.getSourceWidth(),
+			transition.getSourceHeight());
+	return ofVec2f(0.0f, 0.0f);
+}
+
+ofVec2f JPboxgroup::getBoxFboSize(const string &boxName) const
+{
+	JPbox *box = findBoxByName(boxName);
+	if (box == nullptr || !box->fbo.isAllocated())
+		return ofVec2f(0.0f, 0.0f);
+	return ofVec2f(box->fbo.getWidth(), box->fbo.getHeight());
+}
+
 JPbox *JPboxgroup::findBoxByName(string boxName) const
 {
 	int index = findBoxIndexByName(boxName);

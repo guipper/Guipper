@@ -157,7 +157,10 @@ void ofApp::update() {
 		for (int i = 0; i < (int)liveOutputs.size(); i++)
 		{
 			LiveOutputRuntime &output = liveOutputs[i];
+			// Virtual screens have no monitor to lose; without this guard they
+			// would be closed every two seconds.
 			if (output.config.enabled && output.window &&
+				!output.config.virtualMonitor &&
 				resolveLiveOutputMonitor(output.config) < 0)
 			{
 				closeLiveOutputWindow(i, true);
@@ -764,8 +767,7 @@ ofApp::getLiveOutputSettingsLayout() const
 	LiveOutputSettingsLayout layout;
 	const float margin = 30.0f;
 	const float generalPanelW = 500.0f;
-	const float generalPanelH =
-		55.0f + (FIELD_OSC_IP_OUT + 6) * 40.0f + 25.0f;
+	const float generalPanelH = getLiveOutputPanelHeight(LO_TAB_OUTPUTS);
 	layout.twoColumns = ofGetWidth() >= 1080;
 	layout.panel.x = layout.twoColumns ?
 		margin + generalPanelW + 16.0f : margin;
@@ -775,7 +777,7 @@ ofApp::getLiveOutputSettingsLayout() const
 	layout.panel.width = layout.twoColumns ?
 		std::max(500.0f, ofGetWidth() - layout.panel.x - margin) :
 		std::max(500.0f, ofGetWidth() - margin * 2.0f);
-	layout.panel.height = generalPanelH;
+	layout.panel.height = getLiveOutputPanelHeight(liveOutputTab);
 
 	layout.addButton.set(
 		layout.panel.getRight() - 58.0f,
@@ -784,9 +786,25 @@ ofApp::getLiveOutputSettingsLayout() const
 		layout.panel.getRight() - 30.0f,
 		layout.panel.y + 13.0f, 22.0f, 22.0f);
 
+	// Tab strip sits between the title and everything else, so every rect below
+	// shifts by tabStripH rather than overlapping the first control row.
+	const float tabH = 22.0f;
+	const float tabStripH = tabH + 8.0f;
+	const char *tabLabels[LO_TAB_COUNT] = {"OUTPUTS", "WALL"};
+	float tabX = layout.panel.x + 14.0f;
+	for (int i = 0; i < LO_TAB_COUNT; i++)
+	{
+		const float tabW = std::max(70.0f,
+			font_p.stringWidth(tabLabels[i]) + 24.0f);
+		layout.tabs.push_back(ofRectangle(
+			tabX, layout.panel.y + 38.0f, tabW, tabH));
+		tabX += tabW + 2.0f;
+	}
+
 	const float listW = std::min(184.0f, layout.panel.width * 0.34f);
-	layout.list.set(layout.panel.x + 14.0f, layout.panel.y + 50.0f,
-		listW, layout.panel.height - 64.0f);
+	layout.list.set(layout.panel.x + 14.0f,
+		layout.panel.y + 50.0f + tabStripH,
+		listW, layout.panel.height - 64.0f - tabStripH);
 	const int visibleRows = std::max(1, (int)(layout.list.height / 31.0f));
 	const int maxListScroll = std::max(
 		0, (int)liveOutputs.size() - visibleRows);
@@ -807,26 +825,75 @@ ofApp::getLiveOutputSettingsLayout() const
 		layout.panel.getRight() - 14.0f - editorX;
 	const float controlX = editorX + 94.0f;
 	const float controlW = std::max(120.0f, editorW - 94.0f);
-	float rowY = layout.panel.y + 78.0f;
-	layout.enabledToggle.set(controlX, rowY, 70.0f, 28.0f);
-	rowY += 43.0f;
-	layout.sourceButton.set(controlX, rowY, controlW, 28.0f);
-	rowY += 43.0f;
-	layout.monitorButton.set(controlX, rowY, controlW, 28.0f);
-	rowY += 47.0f;
-	layout.windowModeButton.set(
-		controlX, rowY, controlW * 0.5f - 3.0f, 28.0f);
-	layout.fullscreenModeButton.set(
-		controlX + controlW * 0.5f + 3.0f, rowY,
-		controlW * 0.5f - 3.0f, 28.0f);
-	rowY += 47.0f;
-	layout.widthField.set(
-		controlX, rowY, controlW * 0.5f - 3.0f, 28.0f);
-	layout.heightField.set(
-		controlX + controlW * 0.5f + 3.0f, rowY,
-		controlW * 0.5f - 3.0f, 28.0f);
+	float rowY = layout.panel.y + 78.0f + tabStripH;
+	if (liveOutputTab == LO_TAB_OUTPUTS)
+	{
+		layout.enabledToggle.set(controlX, rowY, 70.0f, 28.0f);
+		rowY += 43.0f;
+		layout.sourceButton.set(controlX, rowY, controlW, 28.0f);
+		rowY += 43.0f;
+		layout.monitorButton.set(controlX, rowY, controlW, 28.0f);
+		rowY += 47.0f;
+		layout.windowModeButton.set(
+			controlX, rowY, controlW * 0.5f - 3.0f, 28.0f);
+		layout.fullscreenModeButton.set(
+			controlX + controlW * 0.5f + 3.0f, rowY,
+			controlW * 0.5f - 3.0f, 28.0f);
+		rowY += 47.0f;
+		layout.widthField.set(
+			controlX, rowY, controlW * 0.5f - 3.0f, 28.0f);
+		layout.heightField.set(
+			controlX + controlW * 0.5f + 3.0f, rowY,
+			controlW * 0.5f - 3.0f, 28.0f);
+	}
+	else
+	{
+		const float halfW = controlW * 0.5f - 3.0f;
+		const float rightX = controlX + controlW * 0.5f + 3.0f;
+		layout.tiledToggle.set(controlX, rowY, 70.0f, 28.0f);
+		layout.modeToggle.set(controlX + 78.0f, rowY,
+			std::max(110.0f, controlW - 78.0f), 28.0f);
+		rowY += 43.0f;
+		// X / Y then W / H, two per row.
+		layout.fieldRects[LO_FIELD_CROP_X].set(controlX, rowY, halfW, 28.0f);
+		layout.fieldRects[LO_FIELD_CROP_Y].set(rightX, rowY, halfW, 28.0f);
+		rowY += 43.0f;
+		layout.fieldRects[LO_FIELD_CROP_W].set(controlX, rowY, halfW, 28.0f);
+		layout.fieldRects[LO_FIELD_CROP_H].set(rightX, rowY, halfW, 28.0f);
+		rowY += 43.0f;
+		layout.fieldRects[LO_FIELD_BEZEL].set(controlX, rowY,
+			halfW - 36.0f, 28.0f);
+		layout.bezelSignButton.set(controlX + halfW - 32.0f, rowY, 32.0f, 28.0f);
+		const float matchW = halfW * 0.5f - 3.0f;
+		layout.matchAspectButton.set(rightX, rowY, matchW, 28.0f);
+		layout.matchResolutionButton.set(
+			rightX + matchW + 6.0f, rowY, matchW, 28.0f);
+		rowY += 47.0f;
+		// SPLIT fills every enabled output's rect from a cols x rows grid.
+		const float thirdW = std::max(44.0f, (controlW - 12.0f) / 3.0f);
+		layout.splitColsField.set(controlX, rowY, thirdW, 28.0f);
+		layout.splitRowsField.set(controlX + thirdW + 6.0f, rowY,
+			thirdW, 28.0f);
+		layout.splitButton.set(controlX + (thirdW + 6.0f) * 2.0f, rowY,
+			controlW - (thirdW + 6.0f) * 2.0f, 28.0f);
+		rowY += 43.0f;
+		layout.viewToggle.set(controlX, rowY, halfW, 28.0f);
+		layout.patternToggle.set(rightX, rowY, halfW, 28.0f);
+		rowY += 40.0f;
+		// Preview of every tile, in canvas aspect, filling what is left.
+		const float previewH = std::max(60.0f,
+			layout.panel.getBottom() - 14.0f - rowY);
+		const float canvasAspect = jp_constants::renderHeight > 0 ?
+			(float)jp_constants::renderWidth /
+				(float)jp_constants::renderHeight : 1.7778f;
+		float previewW = previewH * canvasAspect;
+		float finalH = previewH;
+		if (previewW > controlW) { previewW = controlW; finalH = previewW / canvasAspect; }
+		layout.preview.set(controlX, rowY, previewW, finalH);
+	}
 
-	if (liveOutputMenu != LIVE_OUTPUT_MENU_NONE)
+	if (liveOutputTab == LO_TAB_OUTPUTS &&
+		liveOutputMenu != LIVE_OUTPUT_MENU_NONE)
 	{
 		const ofRectangle &anchor =
 			liveOutputMenu == LIVE_OUTPUT_MENU_SOURCE ?
@@ -834,7 +901,7 @@ ofApp::getLiveOutputSettingsLayout() const
 		const int optionCount =
 			liveOutputMenu == LIVE_OUTPUT_MENU_SOURCE ?
 				(int)getLiveOutputSourceOptions().size() :
-				(int)liveOutputMonitors.size();
+				(int)liveOutputMonitors.size() + 1;
 		const int visibleOptions = std::min(8, optionCount);
 		const int firstOption = ofClamp(liveOutputMenuScroll, 0,
 			std::max(0, optionCount - visibleOptions));
@@ -850,6 +917,743 @@ ofApp::getLiveOutputSettingsLayout() const
 		}
 	}
 	return layout;
+}
+
+void ofApp::drawLiveOutputTestPattern(const ofRectangle &bounds,
+	int outputIndex)
+{
+	if (bounds.width < 4.0f || bounds.height < 4.0f) return;
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofFill();
+	ofSetColor(0);
+	ofDrawRectangle(bounds);
+
+	// Grid, so geometry errors and non-square pixels are visible.
+	ofSetColor(40, 60, 70);
+	ofSetLineWidth(1.0f);
+	for (int i = 1; i < 10; i++)
+	{
+		const float fx = bounds.x + bounds.width * i / 10.0f;
+		const float fy = bounds.y + bounds.height * i / 10.0f;
+		ofDrawLine(fx, bounds.y, fx, bounds.getBottom());
+		ofDrawLine(bounds.x, fy, bounds.getRight(), fy);
+	}
+
+	// Labelled rings at 2/4/6/8 percent. Read off the outermost ring you can
+	// still see on the tube and type that as the overscan; on a CRT the frame
+	// eats the edges, so the answer goes in as a NEGATIVE bezel, which samples
+	// wider to compensate.
+	const int percents[4] = {2, 4, 6, 8};
+	const ofColor ringColors[4] = {
+		ofColor(255, 80, 80), ofColor(226, 174, 64),
+		ofColor(46, 190, 120), ofColor(0, 175, 190)};
+	ofNoFill();
+	for (int i = 0; i < 4; i++)
+	{
+		const float insetX = bounds.width * percents[i] / 100.0f;
+		const float insetY = bounds.height * percents[i] / 100.0f;
+		ofSetColor(ringColors[i]);
+		ofSetLineWidth(1.5f);
+		ofDrawRectangle(bounds.x + insetX, bounds.y + insetY,
+			bounds.width - insetX * 2.0f, bounds.height - insetY * 2.0f);
+		if (bounds.width > 220.0f)
+		{
+			const string label = ofToString(percents[i]) + "%";
+			ofFill();
+			font_p.drawString(label, bounds.x + insetX + 3.0f,
+				bounds.y + insetY + 13.0f);
+			ofNoFill();
+		}
+	}
+
+	// Corner brackets, so a cut corner is unmistakable.
+	ofSetColor(255);
+	ofSetLineWidth(2.0f);
+	const float arm = std::min(bounds.width, bounds.height) * 0.08f;
+	const float cx[2] = {bounds.x, bounds.getRight()};
+	const float cy[2] = {bounds.y, bounds.getBottom()};
+	for (int i = 0; i < 2; i++)
+	{
+		for (int j = 0; j < 2; j++)
+		{
+			const float sx = i == 0 ? 1.0f : -1.0f;
+			const float sy = j == 0 ? 1.0f : -1.0f;
+			ofDrawLine(cx[i], cy[j], cx[i] + arm * sx, cy[j]);
+			ofDrawLine(cx[i], cy[j], cx[i], cy[j] + arm * sy);
+		}
+	}
+
+	// Screen identity, centred and large enough to read across a room.
+	ofFill();
+	const string name = outputIndex >= 0 &&
+		outputIndex < (int)liveOutputs.size() ?
+		getLiveOutputDisplayName(outputIndex) : "";
+	const string number = ofToString(outputIndex + 1);
+	if (bounds.width > 120.0f)
+	{
+		ofSetColor(255);
+		jp_constants::h_font.drawString(number,
+			bounds.getCenter().x -
+				jp_constants::h_font.stringWidth(number) * 0.5f,
+			bounds.getCenter().y + 7.0f);
+		ofSetColor(COL_TEXT_SECONDARY);
+		font_p.drawString(name,
+			bounds.getCenter().x - font_p.stringWidth(name) * 0.5f,
+			bounds.getCenter().y + 28.0f);
+	}
+	else
+	{
+		ofSetColor(255);
+		font_p.drawString(number, bounds.getCenter().x - 3.0f,
+			bounds.getCenter().y + 4.0f);
+	}
+	ofPopStyle();
+}
+
+ofRectangle ofApp::getInstallationBounds() const
+{
+	bool any = false;
+	float minX = 0.0f, minY = 0.0f, maxX = 0.0f, maxY = 0.0f;
+	for (const LiveOutputRuntime &output : liveOutputs)
+	{
+		const LiveOutputConfig &config = output.config;
+		// Only measured, tiled screens take part. A screen with no measurement
+		// would otherwise drag the bounding box to the origin.
+		if (!config.cropEnabled) continue;
+		if (config.physW <= 0.0 || config.physH <= 0.0) continue;
+		const float x0 = (float)config.physX;
+		const float y0 = (float)config.physY;
+		const float x1 = (float)(config.physX + config.physW);
+		const float y1 = (float)(config.physY + config.physH);
+		if (!any) { minX = x0; minY = y0; maxX = x1; maxY = y1; any = true; }
+		else
+		{
+			minX = std::min(minX, x0);
+			minY = std::min(minY, y0);
+			maxX = std::max(maxX, x1);
+			maxY = std::max(maxY, y1);
+		}
+	}
+	if (!any) return ofRectangle();
+	return ofRectangle(minX, minY, maxX - minX, maxY - minY);
+}
+
+void ofApp::applySpatialLayout()
+{
+	if (wallMode != WALL_MODE_SPATIAL) return;
+	const ofRectangle bounds = getInstallationBounds();
+	if (bounds.width <= 0.0f || bounds.height <= 0.0f) return;
+	// The canvas is stretched across the installation's bounding box, so each
+	// screen samples exactly the part of it that falls behind its own glass.
+	// Everything between the screens is canvas nobody sees, which is the point.
+	for (LiveOutputRuntime &output : liveOutputs)
+	{
+		LiveOutputConfig &config = output.config;
+		if (!config.cropEnabled) continue;
+		if (config.physW <= 0.0 || config.physH <= 0.0) continue;
+		config.cropX = (config.physX - bounds.x) / bounds.width;
+		config.cropY = (config.physY - bounds.y) / bounds.height;
+		config.cropW = config.physW / bounds.width;
+		config.cropH = config.physH / bounds.height;
+	}
+}
+
+ofRectangle ofApp::getRoomScreenRect(const LiveOutputSettingsLayout &layout,
+	int outputIndex) const
+{
+	if (outputIndex < 0 || outputIndex >= (int)liveOutputs.size())
+		return ofRectangle();
+	const LiveOutputConfig &config = liveOutputs[outputIndex].config;
+	if (config.physW <= 0.0 || config.physH <= 0.0) return ofRectangle();
+	const ofRectangle bounds = getInstallationBounds();
+	if (bounds.width <= 0.0f || bounds.height <= 0.0f) return ofRectangle();
+	// One scale for both axes so the room is not distorted: the installation is
+	// letterboxed inside the preview.
+	const float scale = std::min(layout.preview.width / bounds.width,
+		layout.preview.height / bounds.height);
+	const float originX = layout.preview.x +
+		(layout.preview.width - bounds.width * scale) * 0.5f;
+	const float originY = layout.preview.y +
+		(layout.preview.height - bounds.height * scale) * 0.5f;
+	return ofRectangle(
+		originX + ((float)config.physX - bounds.x) * scale,
+		originY + ((float)config.physY - bounds.y) * scale,
+		(float)config.physW * scale, (float)config.physH * scale);
+}
+
+void ofApp::drawWallRoomView(const LiveOutputSettingsLayout &layout)
+{
+	// The room itself, so the empty space between scattered screens reads as
+	// wall rather than as missing content.
+	ofSetColor(8, 10, 12);
+	ofDrawRectRounded(layout.preview, 4.0f);
+	ofNoFill();
+	ofSetColor(ofColor(COL_BORDER_MUTED, 200));
+	ofDrawRectRounded(layout.preview, 4.0f);
+	ofFill();
+
+	const ofRectangle bounds = getInstallationBounds();
+	if (bounds.width <= 0.0f || bounds.height <= 0.0f)
+	{
+		ofSetColor(COL_TEXT_MUTED);
+		font_p.drawString("Measure each screen (Pos/Size mm) to see the room",
+			layout.preview.x + 10.0f, layout.preview.y + 22.0f);
+		return;
+	}
+
+	for (int i = 0; i < (int)liveOutputs.size(); i++)
+	{
+		const LiveOutputConfig &config = liveOutputs[i].config;
+		const ofRectangle screen = getRoomScreenRect(layout, i);
+		if (screen.width < 1.0f || screen.height < 1.0f) continue;
+		const bool isSelected = i == selectedLiveOutput;
+
+		// Live content, drawn through the same path the real window uses so
+		// what you see here is what the screen shows.
+		if (config.testPattern)
+		{
+			drawLiveOutputTestPattern(screen, i);
+		}
+		else
+		{
+			ofSetColor(0);
+			ofDrawRectangle(screen);
+			const ofRectangle crop = config.cropEnabled ?
+				ofRectangle(config.cropX, config.cropY,
+					config.cropW, config.cropH) :
+				ofRectangle(0.0f, 0.0f, 1.0f, 1.0f);
+			const float bezel = config.cropEnabled ?
+				(float)config.bezelPx : 0.0f;
+			ofPushMatrix();
+			ofTranslate(screen.x, screen.y);
+			ofSetColor(255);
+			boxes.drawLiveOutputSource(
+				config.sourceMode == LIVE_OUTPUT_MAIN_ACTIVE,
+				config.sourceBox, screen.width, screen.height, crop, bezel);
+			ofPopMatrix();
+		}
+
+		ofNoFill();
+		ofSetLineWidth(isSelected ? 2.0f : 1.0f);
+		ofSetColor(isSelected ? COL_ACCENT_CYAN : COL_TEXT_MUTED);
+		ofDrawRectangle(screen);
+		ofFill();
+		ofSetLineWidth(1.0f);
+		if (screen.width > 24.0f && screen.height > 14.0f)
+		{
+			ofSetColor(isSelected ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
+			font_p.drawString(ofToString(i + 1),
+				screen.x + 4.0f, screen.getBottom() - 4.0f);
+		}
+	}
+
+	// Scale readout, so the preview can be related to the real thing.
+	const float scale = std::min(layout.preview.width / bounds.width,
+		layout.preview.height / bounds.height);
+	ofSetColor(COL_TEXT_MUTED);
+	font_p.drawString(ofToString((int)std::lround(bounds.width)) + " x " +
+		ofToString((int)std::lround(bounds.height)) + " mm   1:" +
+		ofToString((int)std::lround(1.0f / std::max(0.0001f, scale))),
+		layout.preview.x + 6.0f, layout.preview.getBottom() - 6.0f);
+}
+
+ofRectangle ofApp::getWallTileRect(const LiveOutputSettingsLayout &layout,
+	int outputIndex) const
+{
+	if (outputIndex < 0 || outputIndex >= (int)liveOutputs.size())
+		return ofRectangle();
+	const LiveOutputConfig &config = liveOutputs[outputIndex].config;
+	return ofRectangle(
+		layout.preview.x + config.cropX * layout.preview.width,
+		layout.preview.y + config.cropY * layout.preview.height,
+		config.cropW * layout.preview.width,
+		config.cropH * layout.preview.height);
+}
+
+bool ofApp::handleLiveOutputSettingsDrag(int x, int y, int button)
+{
+	if (button != OF_MOUSE_BUTTON_LEFT) return false;
+	if (wallDragMode == WALL_DRAG_NONE) return false;
+	if (wallDragOutput < 0 || wallDragOutput >= (int)liveOutputs.size())
+	{
+		wallDragMode = WALL_DRAG_NONE;
+		wallDragOutput = -1;
+		wallDragCorner = -1;
+		return false;
+	}
+	const LiveOutputSettingsLayout layout = getLiveOutputSettingsLayout();
+	if (layout.preview.width <= 0.0f || layout.preview.height <= 0.0f)
+		return true;
+	LiveOutputConfig &config = liveOutputs[wallDragOutput].config;
+	const ofVec2f canvas = getLiveOutputCanvasSize(config);
+
+	// Snapshot plus delta, in normalized units.
+	const double dx = (x - wallDragStartMouse.x) / layout.preview.width;
+	const double dy = (y - wallDragStartMouse.y) / layout.preview.height;
+	const ofRectangle &start = wallDragStartCrop;
+
+	// Snap candidates: the canvas edges and every other tile's edges, so tiles
+	// can be made to abut exactly instead of leaving a one pixel seam.
+	const double snapX = 6.0 / layout.preview.width;
+	const double snapY = 6.0 / layout.preview.height;
+	vector<double> edgesX{0.0, 1.0};
+	vector<double> edgesY{0.0, 1.0};
+	for (int i = 0; i < (int)liveOutputs.size(); i++)
+	{
+		if (i == wallDragOutput) continue;
+		const LiveOutputConfig &other = liveOutputs[i].config;
+		if (!other.cropEnabled) continue;
+		edgesX.push_back(other.cropX);
+		edgesX.push_back(other.cropX + other.cropW);
+		edgesY.push_back(other.cropY);
+		edgesY.push_back(other.cropY + other.cropH);
+	}
+	// Reports whether it actually snapped. Without that flag an edge that did
+	// not snap looks like a zero distance move and always wins the comparison
+	// below against the edge that did.
+	auto snap = [](double value, const vector<double> &edges, double tol,
+		bool &snapped) {
+		double best = value;
+		double bestDist = tol;
+		snapped = false;
+		for (double edge : edges)
+		{
+			const double dist = std::abs(value - edge);
+			if (dist < bestDist)
+			{
+				bestDist = dist;
+				best = edge;
+				snapped = true;
+			}
+		}
+		return best;
+	};
+	// Whole canvas pixels, so the fields stay clean integers.
+	auto quantX = [&](double v) {
+		return std::lround(v * canvas.x) / (double)canvas.x; };
+	auto quantY = [&](double v) {
+		return std::lround(v * canvas.y) / (double)canvas.y; };
+
+	if (wallDragMode == WALL_DRAG_MOVE)
+	{
+		double nx = start.x + dx;
+		double ny = start.y + dy;
+		// Snap whichever of the two opposing edges landed on a candidate,
+		// preferring the smaller correction when both did.
+		bool hitLeft = false, hitRight = false;
+		const double leftSnap = snap(nx, edgesX, snapX, hitLeft);
+		const double rightSnap = snap(nx + start.width, edgesX, snapX,
+			hitRight) - start.width;
+		if (hitLeft && hitRight)
+			nx = std::abs(leftSnap - nx) <= std::abs(rightSnap - nx) ?
+				leftSnap : rightSnap;
+		else if (hitLeft) nx = leftSnap;
+		else if (hitRight) nx = rightSnap;
+		bool hitTop = false, hitBottom = false;
+		const double topSnap = snap(ny, edgesY, snapY, hitTop);
+		const double bottomSnap = snap(ny + start.height, edgesY, snapY,
+			hitBottom) - start.height;
+		if (hitTop && hitBottom)
+			ny = std::abs(topSnap - ny) <= std::abs(bottomSnap - ny) ?
+				topSnap : bottomSnap;
+		else if (hitTop) ny = topSnap;
+		else if (hitBottom) ny = bottomSnap;
+		config.cropX = ofClamp(quantX(nx), 0.0, 1.0 - start.width);
+		config.cropY = ofClamp(quantY(ny), 0.0, 1.0 - start.height);
+	}
+	else
+	{
+		// The opposite corner stays put and the mouse applies one uniform scale,
+		// preserving the tile's source-pixel aspect ratio throughout the drag.
+		const bool right = wallDragCorner == 1 || wallDragCorner == 3;
+		const bool bottom = wallDragCorner == 2 || wallDragCorner == 3;
+		const double anchorX = right ? start.x : start.x + start.width;
+		const double anchorY = bottom ? start.y : start.y + start.height;
+		double movingX = (right ? start.x + start.width : start.x) + dx;
+		double movingY = (bottom ? start.y + start.height : start.y) + dy;
+		bool snappedX = false, snappedY = false;
+		movingX = snap(movingX, edgesX, snapX, snappedX);
+		movingY = snap(movingY, edgesY, snapY, snappedY);
+		movingX = ofClamp(quantX(movingX), 0.0, 1.0);
+		movingY = ofClamp(quantY(movingY), 0.0, 1.0);
+
+		const double startPixelW = std::max(
+			1.0, (double)start.width * canvas.x);
+		const double startPixelH = std::max(
+			1.0, (double)start.height * canvas.y);
+		const double rawPixelW = std::abs(movingX - anchorX) * canvas.x;
+		const double rawPixelH = std::abs(movingY - anchorY) * canvas.y;
+		const double scaleX = rawPixelW / startPixelW;
+		const double scaleY = rawPixelH / startPixelH;
+		double requestedScale =
+			std::abs(scaleX - 1.0) >= std::abs(scaleY - 1.0) ?
+				scaleX : scaleY;
+		if (snappedX != snappedY)
+			requestedScale = snappedX ? scaleX : scaleY;
+		const double maxPixelW = (right ? 1.0 - anchorX : anchorX) * canvas.x;
+		const double maxPixelH = (bottom ? 1.0 - anchorY : anchorY) * canvas.y;
+		const double minimumScale = std::max(
+			1.0 / startPixelW, 1.0 / startPixelH);
+		const double maximumScale = std::max(minimumScale, std::min(
+			maxPixelW / startPixelW, maxPixelH / startPixelH));
+		const double uniformScale = ofClamp(
+			requestedScale, minimumScale, maximumScale);
+		const double targetW = std::min(maxPixelW, std::max(1.0,
+			(double)std::lround(startPixelW * uniformScale))) / canvas.x;
+		const double targetH = std::min(maxPixelH, std::max(1.0,
+			(double)std::lround(startPixelH * uniformScale))) / canvas.y;
+		config.cropX = right ? anchorX : anchorX - targetW;
+		config.cropY = bottom ? anchorY : anchorY - targetH;
+		config.cropW = targetW;
+		config.cropH = targetH;
+	}
+	// Keep the numbers in the fields tracking the drag.
+	if (selectedLiveOutput == wallDragOutput && focusedLiveOutputField < 0 &&
+		focusedSplitField < 0)
+	{
+		initLiveOutputFields();
+	}
+	return true;
+}
+
+bool ofApp::handleLiveOutputSettingsRelease(int x, int y, int button)
+{
+	(void)x; (void)y;
+	if (button != OF_MOUSE_BUTTON_LEFT) return false;
+	if (wallDragMode == WALL_DRAG_NONE) return false;
+	wallDragMode = WALL_DRAG_NONE;
+	wallDragOutput = -1;
+	wallDragCorner = -1;
+	// Saved once here rather than on every drag frame: saveSettings rewrites
+	// the whole settings file.
+	initLiveOutputFields();
+	saveSettings();
+	return true;
+}
+
+void ofApp::drawLiveOutputWallTab(const LiveOutputSettingsLayout &layout,
+	float editorX)
+{
+	LiveOutputRuntime &output = liveOutputs[selectedLiveOutput];
+	LiveOutputConfig &config = output.config;
+	const ofVec2f canvas = getLiveOutputCanvasSize(config);
+	const ofVec2f targetSize = getLiveOutputTargetSize(output);
+
+	// Same control renderer the outputs tab uses.
+	auto drawControl = [&](const ofRectangle &bounds, const string &label,
+		bool active, bool disabled = false) {
+		const bool hovered = !disabled &&
+			bounds.inside(ofGetMouseX(), ofGetMouseY());
+		ofSetColor(disabled ? COL_BG_DARK :
+			(active ? COL_ACCENT_CYAN_DIM :
+				(hovered ? COL_BG_HOVER : COL_BG_INPUT)));
+		ofDrawRectRounded(bounds, 4.0f);
+		ofNoFill();
+		ofSetColor(active ? COL_ACCENT_CYAN :
+			(disabled ? COL_TEXT_MUTED : COL_MAPPED_OFF));
+		ofDrawRectRounded(bounds, 4.0f);
+		ofFill();
+		ofSetColor(disabled ? COL_TEXT_MUTED : COL_TEXT_PRIMARY);
+		string visible = label;
+		if (bounds.width < 76.0f && label == "MATCH AR") visible = "AR";
+		if (bounds.width < 76.0f && label == "MATCH RES") visible = "RES";
+		const float textX = bounds.width < 40.0f ?
+			bounds.getCenter().x - font_p.stringWidth(visible) * 0.5f :
+			bounds.x + 7.0f;
+		font_p.drawString(visible, textX, bounds.getBottom() - 8.0f);
+	};
+
+	ofSetColor(COL_TEXT_PRIMARY);
+	font_p.drawString(getLiveOutputDisplayName(selectedLiveOutput),
+		editorX, layout.panel.y + 59.0f);
+
+	// Labels, each aligned to the control it belongs to.
+	struct WallLabel { const char *text; const ofRectangle *bounds; };
+	const bool spatial = wallMode == WALL_MODE_SPATIAL;
+	const WallLabel wallLabels[] = {
+		{"Tiled",    &layout.tiledToggle},
+		{spatial ? "Position mm" : "Position X/Y",
+			&layout.fieldRects[LO_FIELD_CROP_X]},
+		{spatial ? "Size mm" : "Size W/H",
+			&layout.fieldRects[LO_FIELD_CROP_W]},
+		{"Overscan", &layout.fieldRects[LO_FIELD_BEZEL]},
+		{"Split",    &layout.splitColsField},
+		{"Preview",  &layout.viewToggle}
+	};
+	for (const WallLabel &label : wallLabels)
+	{
+		ofSetColor(COL_TEXT_SECONDARY);
+		font_p.drawString(label.text, editorX,
+			label.bounds->getBottom() - 7.0f);
+	}
+
+	drawControl(layout.tiledToggle,
+		config.cropEnabled ? "ON" : "OFF", config.cropEnabled);
+	drawControl(layout.modeToggle,
+		spatial ? "SPATIAL (measured mm)" : "FREEFORM (canvas px)", spatial);
+	drawControl(layout.viewToggle, wallRoomView ? "ROOM" : "CANVAS",
+		wallRoomView);
+	drawControl(layout.patternToggle,
+		config.testPattern ? "PATTERN ON" : "PATTERN OFF", config.testPattern);
+
+	// Crop and bezel stay editable while fullscreen, unlike the window size
+	// fields: a wall is normally run fullscreen.
+	const int cropFields[] = {LO_FIELD_CROP_X, LO_FIELD_CROP_Y,
+		LO_FIELD_CROP_W, LO_FIELD_CROP_H, LO_FIELD_BEZEL};
+	for (int field : cropFields)
+	{
+		const ofRectangle &bounds = layout.fieldRects[field];
+		drawControl(bounds, liveOutputFieldText[field],
+			focusedLiveOutputField == field, !config.cropEnabled);
+		if (focusedLiveOutputField == field)
+		{
+			if (liveOutputFieldSelectAll)
+				jp_textfield::drawSelection(font_p, liveOutputFieldText[field],
+					bounds.x + 7.0f, bounds.getBottom() - 8.0f,
+					bounds.height - 8.0f);
+			else
+				jp_textfield::drawCaret(font_p, liveOutputFieldText[field],
+					liveOutputFieldCursor, bounds.x + 7.0f,
+					bounds.getCenter().y, bounds.height - 8.0f);
+		}
+	}
+	// The text field takes digits only, so the sign lives on its own button.
+	// Minus samples WIDER, which is how CRT overscan is compensated.
+	drawControl(layout.bezelSignButton, config.bezelPx < 0 ? "-" : "+",
+		config.bezelPx < 0, !config.cropEnabled);
+	drawControl(layout.matchAspectButton, "MATCH AR", false,
+		!config.cropEnabled || spatial);
+	drawControl(layout.matchResolutionButton, "MATCH RES", false,
+		!config.cropEnabled || spatial);
+
+	drawControl(layout.splitColsField, splitFieldText[0],
+		focusedSplitField == 0);
+	drawControl(layout.splitRowsField, splitFieldText[1],
+		focusedSplitField == 1);
+	if (focusedSplitField >= 0)
+	{
+		const ofRectangle &bounds = focusedSplitField == 0 ?
+			layout.splitColsField : layout.splitRowsField;
+		if (splitFieldSelectAll)
+			jp_textfield::drawSelection(font_p, splitFieldText[focusedSplitField],
+				bounds.x + 7.0f, bounds.getBottom() - 8.0f,
+				bounds.height - 8.0f);
+		else
+			jp_textfield::drawCaret(font_p, splitFieldText[focusedSplitField],
+				splitFieldCursor, bounds.x + 7.0f,
+				bounds.getCenter().y, bounds.height - 8.0f);
+	}
+	drawControl(layout.splitButton, "SPLIT", false);
+
+	if (wallRoomView)
+	{
+		drawWallRoomView(layout);
+		ofSetColor(COL_TEXT_MUTED);
+		font_p.drawString(spatial ?
+			"Room view - screens at their measured positions" :
+			"Room view needs measured positions (switch to SPATIAL)",
+			editorX, layout.preview.getBottom() + 15.0f);
+		jp_tooltip::draw("Drag a tile to move it, drag a corner to resize. "
+			"Edges snap to the canvas and to other tiles.",
+			layout.viewToggle.x, layout.viewToggle.y,
+			layout.viewToggle.width, layout.viewToggle.height);
+		jp_tooltip::draw("Replace the content with an alignment pattern: "
+			"labelled rings at 2/4/6/8% and the screen number",
+			layout.patternToggle.x, layout.patternToggle.y,
+			layout.patternToggle.width, layout.patternToggle.height);
+		return;
+	}
+
+	// Preview: every tile of every output that shares this source, over a box
+	// in canvas aspect. This is how gaps and overlaps become visible at all.
+	ofSetColor(COL_BG_DARK);
+	ofDrawRectRounded(layout.preview, 4.0f);
+	ofNoFill();
+	ofSetColor(ofColor(COL_BORDER_MUTED, 200));
+	ofDrawRectRounded(layout.preview, 4.0f);
+	ofFill();
+
+	float coverage = 0.0f;
+	bool overlaps = false;
+	vector<int> peers;
+	for (int i = 0; i < (int)liveOutputs.size(); i++)
+	{
+		const LiveOutputConfig &other = liveOutputs[i].config;
+		// Only outputs sharing a source are comparable; tiles of different
+		// sources say nothing about each other.
+		if (!other.cropEnabled) continue;
+		if (other.sourceMode != config.sourceMode) continue;
+		if (other.sourceMode == LIVE_OUTPUT_FIXED_BOX &&
+			other.sourceBox != config.sourceBox) continue;
+		peers.push_back(i);
+	}
+	for (size_t a = 0; a < peers.size(); a++)
+	{
+		const LiveOutputConfig &ca = liveOutputs[peers[a]].config;
+		coverage += (float)(ca.cropW * ca.cropH);
+		for (size_t b = a + 1; b < peers.size(); b++)
+		{
+			const LiveOutputConfig &cb = liveOutputs[peers[b]].config;
+			const bool apart =
+				ca.cropX + ca.cropW <= cb.cropX + 0.0001 ||
+				cb.cropX + cb.cropW <= ca.cropX + 0.0001 ||
+				ca.cropY + ca.cropH <= cb.cropY + 0.0001 ||
+				cb.cropY + cb.cropH <= ca.cropY + 0.0001;
+			if (!apart) overlaps = true;
+		}
+	}
+	for (int index : peers)
+	{
+		const ofRectangle tile = getWallTileRect(layout, index);
+		const bool isSelected = index == selectedLiveOutput;
+		ofSetColor(isSelected ? ofColor(COL_ACCENT_CYAN, 70) :
+			ofColor(COL_TEXT_MUTED, 45));
+		ofDrawRectangle(tile);
+		ofNoFill();
+		ofSetLineWidth(isSelected ? 2.0f : 1.0f);
+		ofSetColor(isSelected ? COL_ACCENT_CYAN : COL_TEXT_MUTED);
+		ofDrawRectangle(tile);
+		ofFill();
+		ofSetLineWidth(1.0f);
+		if (tile.width > 26.0f && tile.height > 14.0f)
+		{
+			ofSetColor(isSelected ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
+			font_p.drawString(ofToString(index + 1),
+				tile.x + 4.0f, tile.getBottom() - 4.0f);
+		}
+		if (isSelected)
+		{
+			// Grab handles, so drag to resize is visible rather than guessed.
+			const ofVec2f corners[4] = {
+				ofVec2f(tile.x, tile.y),
+				ofVec2f(tile.getRight(), tile.y),
+				ofVec2f(tile.x, tile.getBottom()),
+				ofVec2f(tile.getRight(), tile.getBottom())};
+			for (const ofVec2f &corner : corners)
+			{
+				ofSetColor(COL_BG_DARK);
+				ofDrawRectangle(corner.x - 4.0f, corner.y - 4.0f, 8.0f, 8.0f);
+				ofSetColor(COL_ACCENT_CYAN);
+				ofDrawRectangle(corner.x - 3.0f, corner.y - 3.0f, 6.0f, 6.0f);
+			}
+		}
+	}
+
+	// Advisory only: deliberate overlap is a legitimate edge blend setup.
+	string status;
+	ofColor statusColor = COL_TEXT_MUTED;
+	if (!config.cropEnabled)
+	{
+		status = "Not tiled - this output shows the whole canvas";
+	}
+	else if (overlaps)
+	{
+		status = "Tiles overlap";
+		statusColor = COL_ACCENT_GOLD;
+	}
+	else if (coverage < 0.999f && !spatial)
+	{
+		// Only a complaint in FREEFORM. In SPATIAL the gaps are the wall
+		// between scattered screens, which is exactly what was measured.
+		status = "Coverage has gaps (" +
+			ofToString((int)std::lround(coverage * 100.0f)) + "%)";
+		statusColor = COL_ACCENT_GOLD;
+	}
+	else if (spatial)
+	{
+		status = "Tiled from measured layout (" +
+			ofToString((int)std::lround(coverage * 100.0f)) + "% of canvas seen)";
+		statusColor = COL_ACCENT_GREEN;
+		// The canvas is stretched onto the installation's bounding box, so if
+		// their aspects differ the content is distorted everywhere. Silent
+		// otherwise, and a 33% stretch is very visible, so give the number and
+		// the render size that fixes it.
+		const ofRectangle bounds = getInstallationBounds();
+		if (bounds.width > 0.0f && bounds.height > 0.0f)
+		{
+			const float installAspect = bounds.width / bounds.height;
+			const float canvasAspect = canvas.y > 0.0f ?
+				canvas.x / canvas.y : 1.0f;
+			const float stretch = installAspect / std::max(0.0001f, canvasAspect);
+			if (std::abs(stretch - 1.0f) > 0.01f)
+			{
+				status = "Content stretched " +
+					ofToString(stretch, 2) + " : 1  |  set render to " +
+					ofToString((int)std::lround(canvas.y * installAspect)) +
+					"x" + ofToString((int)std::lround(canvas.y));
+				statusColor = COL_ACCENT_GOLD;
+			}
+		}
+	}
+	else
+	{
+		status = "Tiled";
+		statusColor = COL_ACCENT_GREEN;
+	}
+	// Aspect advisory: the tile is stretched to the window, so a mismatch is a
+	// silent geometry error otherwise.
+	// Suppressed while the canvas-stretch note is showing: they have the same
+	// single cause, and fixing the render size clears both.
+	const bool stretchNoteShown = spatial &&
+		status.rfind("Content stretched", 0) == 0;
+	if (config.cropEnabled && targetSize.y > 0.0f && !stretchNoteShown)
+	{
+		const ofRectangle src = getLiveOutputSourceRect(config);
+		if (src.height > 0.0f)
+		{
+			const float cropAspect = src.width / src.height;
+			const float windowAspect = targetSize.x / targetSize.y;
+			if (std::abs(cropAspect - windowAspect) / windowAspect > 0.01f)
+			{
+				status += "  |  aspect off " + ofToString(
+					(int)std::lround((cropAspect / windowAspect - 1.0f) *
+						100.0f)) + "%";
+				statusColor = COL_ACCENT_GOLD;
+			}
+		}
+	}
+	ofSetColor(statusColor);
+	font_p.drawString(status, editorX, layout.preview.getBottom() + 15.0f);
+
+	jp_tooltip::draw("Show only a sub-rectangle of the source on this output",
+		layout.tiledToggle.x, layout.tiledToggle.y,
+		layout.tiledToggle.width, layout.tiledToggle.height);
+	jp_tooltip::draw("Canvas pixels hidden by this monitor's frame, inset on "
+		"all four sides",
+		layout.fieldRects[LO_FIELD_BEZEL].x,
+		layout.fieldRects[LO_FIELD_BEZEL].y,
+		layout.fieldRects[LO_FIELD_BEZEL].width,
+		layout.fieldRects[LO_FIELD_BEZEL].height);
+	jp_tooltip::draw("Solve height from width so the tile matches this "
+		"output's window aspect",
+		layout.matchAspectButton.x, layout.matchAspectButton.y,
+		layout.matchAspectButton.width, layout.matchAspectButton.height);
+	jp_tooltip::draw("Set the tile's canvas-pixel size from this output's "
+		"window resolution",
+		layout.matchResolutionButton.x, layout.matchResolutionButton.y,
+		layout.matchResolutionButton.width,
+		layout.matchResolutionButton.height);
+	jp_tooltip::draw("Fill every enabled output from a columns x rows grid",
+		layout.splitButton.x, layout.splitButton.y,
+		layout.splitButton.width, layout.splitButton.height);
+	jp_tooltip::draw("SPATIAL derives every crop from measured mm positions, "
+		"so gaps between scattered screens are handled for you. FREEFORM keeps "
+		"hand authored crops.",
+		layout.modeToggle.x, layout.modeToggle.y,
+		layout.modeToggle.width, layout.modeToggle.height);
+	jp_tooltip::draw("Switch the preview between the canvas and the room",
+		layout.viewToggle.x, layout.viewToggle.y,
+		layout.viewToggle.width, layout.viewToggle.height);
+	jp_tooltip::draw("Replace the content with an alignment pattern: labelled "
+		"rings at 2/4/6/8% and the screen number",
+		layout.patternToggle.x, layout.patternToggle.y,
+		layout.patternToggle.width, layout.patternToggle.height);
+	jp_tooltip::draw("Drag a tile to move it, drag a corner to resize. Edges "
+		"snap to the canvas and to other tiles; corner resizing keeps aspect.",
+		layout.preview.x, layout.preview.y,
+		layout.preview.width, layout.preview.height);
+	(void)canvas;
 }
 
 void ofApp::drawLiveOutputSettings()
@@ -904,6 +1708,38 @@ void ofApp::drawLiveOutputSettings()
 	drawControl(layout.addButton, "+", false);
 	drawControl(layout.deleteButton, "x", false, liveOutputs.empty());
 
+	// Tab strip, following the house pattern used by JPboxgroup::drawTabs.
+	const char *tabLabels[LO_TAB_COUNT] = {"OUTPUTS", "WALL"};
+	for (int i = 0; i < (int)layout.tabs.size(); i++)
+	{
+		const ofRectangle &bounds = layout.tabs[i];
+		const bool active = liveOutputTab == (LiveOutputSettingsTab)i;
+		const bool hovered = bounds.inside(ofGetMouseX(), ofGetMouseY());
+		ofSetColor(active ? ofColor(COL_ACCENT_GREEN, 235) :
+			(hovered ? ofColor(COL_BG_HOVER, 235) :
+				ofColor(COL_TAB_INACTIVE_BG, 225)));
+		ofDrawRectRounded(bounds, 3.0f);
+		ofNoFill();
+		ofSetColor(active ? COL_ACCENT_GREEN_BR :
+			ofColor(COL_BORDER_MUTED, 200));
+		ofDrawRectRounded(bounds, 3.0f);
+		ofFill();
+		ofSetColor(active ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
+		font_p.drawString(tabLabels[i],
+			bounds.getCenter().x - font_p.stringWidth(tabLabels[i]) * 0.5f,
+			bounds.getBottom() - 7.0f);
+		if (active)
+		{
+			ofSetColor(COL_ACCENT_GREEN_BR);
+			ofDrawRectangle(bounds.x + 6.0f, bounds.getBottom() - 3.0f,
+				bounds.width - 12.0f, 2.0f);
+		}
+		jp_tooltip::draw(i == LO_TAB_WALL ?
+			"Tile outputs into one big canvas" :
+			"Per output source, monitor and window",
+			bounds.x, bounds.y, bounds.width, bounds.height);
+	}
+
 	ofSetColor(COL_BG_INPUT);
 	ofDrawRectRounded(layout.list, 5.0f);
 	if (liveOutputs.empty())
@@ -949,6 +1785,12 @@ void ofApp::drawLiveOutputSettings()
 		font_p.drawString(getLiveOutputDisplayName(selectedLiveOutput),
 			editorX, layout.panel.y + 59.0f);
 
+		if (liveOutputTab == LO_TAB_WALL)
+		{
+			drawLiveOutputWallTab(layout, editorX);
+			return;
+		}
+
 		const float labelYs[] = {
 			layout.enabledToggle.getBottom() - 7.0f,
 			layout.sourceButton.getBottom() - 7.0f,
@@ -974,8 +1816,9 @@ void ofApp::drawLiveOutputSettings()
 			sourceLabel + "  v", false);
 
 		const int monitorIndex = resolveLiveOutputMonitor(config);
-		string monitorLabel = config.monitorName.empty() ?
-			"Select monitor" : config.monitorName;
+		string monitorLabel = config.virtualMonitor ? "(virtual screen)" :
+			(config.monitorName.empty() ? "Select monitor" :
+				config.monitorName);
 		if (monitorIndex >= 0)
 		{
 			const LiveOutputMonitor &monitor =
@@ -999,14 +1842,20 @@ void ofApp::drawLiveOutputSettings()
 		drawControl(layout.heightField,
 			liveOutputFieldText[1],
 			focusedLiveOutputField == 1, config.fullscreen);
-		if (focusedLiveOutputField >= 0 && !config.fullscreen)
-		{
-			const ofRectangle &field = focusedLiveOutputField == 0 ?
-				layout.widthField : layout.heightField;
-			jp_textfield::drawCaret(font_p,
-				liveOutputFieldText[focusedLiveOutputField],
-				liveOutputFieldCursor, field.x + 7.0f,
-				field.getCenter().y, field.height - 8.0f);
+			if (focusedLiveOutputField >= 0 && !config.fullscreen)
+			{
+				const ofRectangle &field = focusedLiveOutputField == 0 ?
+					layout.widthField : layout.heightField;
+				if (liveOutputFieldSelectAll)
+					jp_textfield::drawSelection(font_p,
+						liveOutputFieldText[focusedLiveOutputField],
+						field.x + 7.0f, field.getBottom() - 8.0f,
+						field.height - 8.0f);
+				else
+					jp_textfield::drawCaret(font_p,
+						liveOutputFieldText[focusedLiveOutputField],
+						liveOutputFieldCursor, field.x + 7.0f,
+						field.getCenter().y, field.height - 8.0f);
 		}
 
 		const bool sourceMissing =
@@ -1014,7 +1863,7 @@ void ofApp::drawLiveOutputSettings()
 			!boxes.hasBoxName(config.sourceBox);
 		string status = "Disabled";
 		ofColor statusColor = COL_TEXT_MUTED;
-		if (config.enabled && monitorIndex < 0)
+		if (config.enabled && monitorIndex < 0 && !config.virtualMonitor)
 		{
 			status = "Monitor disconnected";
 			statusColor = COL_ACCENT_RED;
@@ -1034,6 +1883,9 @@ void ofApp::drawLiveOutputSettings()
 			status = "Opening...";
 			statusColor = COL_ACCENT_GOLD;
 		}
+		// Surfaced here because openRenderWindow force-enables output 0, and a
+		// cropped window would otherwise read as a bug.
+		if (config.cropEnabled) status += "  |  Tiled";
 		ofSetColor(statusColor);
 		font_p.drawString(status, layout.sourceButton.x,
 			layout.heightField.getBottom() + 31.0f);
@@ -1099,10 +1951,14 @@ void ofApp::drawLiveOutputSettings()
 			{
 				label = sourceOptions[optionIndex];
 			}
+			else if (optionIndex == 0)
+			{
+				label = "(virtual screen)";
+			}
 			else
 			{
 				const LiveOutputMonitor &monitor =
-					liveOutputMonitors[optionIndex];
+					liveOutputMonitors[optionIndex - 1];
 				label = monitor.name + " | " +
 					ofToString(monitor.width) + "x" +
 					ofToString(monitor.height);
@@ -1119,13 +1975,140 @@ void ofApp::drawLiveOutputSettings()
 	}
 }
 
+void ofApp::clearLiveOutputInteractionState()
+{
+	focusedLiveOutputField = -1;
+	liveOutputFieldSelectAll = false;
+	focusedSplitField = -1;
+	splitFieldSelectAll = false;
+	lastLiveOutputInputClick = -1;
+	lastLiveOutputInputClickMs = 0;
+	liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+	liveOutputMenuScroll = 0;
+	wallDragMode = WALL_DRAG_NONE;
+	wallDragOutput = -1;
+	wallDragCorner = -1;
+}
+
+void ofApp::focusAdjacentLiveOutputField(bool backwards)
+{
+	vector<int> order;
+	if (liveOutputTab == LO_TAB_OUTPUTS)
+	{
+		if (selectedLiveOutput < 0 ||
+			selectedLiveOutput >= (int)liveOutputs.size() ||
+			liveOutputs[selectedLiveOutput].config.fullscreen)
+			return;
+		order = {LO_FIELD_WIDTH, LO_FIELD_HEIGHT};
+	}
+	else
+	{
+		order = {LO_FIELD_CROP_X, LO_FIELD_CROP_Y, LO_FIELD_CROP_W,
+			LO_FIELD_CROP_H, LO_FIELD_BEZEL, LO_FIELD_COUNT,
+			LO_FIELD_COUNT + 1};
+	}
+
+	const int current = focusedSplitField >= 0 ?
+		LO_FIELD_COUNT + focusedSplitField : focusedLiveOutputField;
+	auto it = std::find(order.begin(), order.end(), current);
+	if (it == order.end()) return;
+	const int currentIndex = (int)std::distance(order.begin(), it);
+	const int direction = backwards ? -1 : 1;
+	const int count = (int)order.size();
+	const int next = order[(currentIndex + direction + count) % count];
+
+	if (focusedLiveOutputField >= 0) applyLiveOutputField();
+	else if (focusedSplitField >= 0) applySplitField();
+
+	if (next < LO_FIELD_COUNT)
+	{
+		focusedLiveOutputField = next;
+		focusedSplitField = -1;
+		liveOutputFieldCursor = (int)liveOutputFieldText[next].size();
+		liveOutputFieldSelectAll = true;
+		splitFieldSelectAll = false;
+	}
+	else
+	{
+		focusedSplitField = next - LO_FIELD_COUNT;
+		focusedLiveOutputField = -1;
+		splitFieldCursor = (int)splitFieldText[focusedSplitField].size();
+		splitFieldSelectAll = true;
+		liveOutputFieldSelectAll = false;
+	}
+}
+
 void ofApp::setSelectedLiveOutput(int index)
 {
 	selectedLiveOutput = liveOutputs.empty() ? -1 :
 		ofClamp(index, 0, (int)liveOutputs.size() - 1);
-	focusedLiveOutputField = -1;
-	liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+	clearLiveOutputInteractionState();
 	initLiveOutputFields();
+}
+
+ofVec2f ofApp::getLiveOutputCanvasSize(const LiveOutputConfig &config) const
+{
+	// Measured against the texture actually sampled, not jp_constants: nothing
+	// reallocates render FBOs at runtime, so after a render resize the real
+	// canvas and jp_constants disagree.
+	if (config.sourceMode == LIVE_OUTPUT_FIXED_BOX)
+	{
+		const ofVec2f size = boxes.getBoxFboSize(config.sourceBox);
+		if (size.x >= 1.0f && size.y >= 1.0f) return size;
+	}
+	else
+	{
+		const ofVec2f size = boxes.getMasterCanvasSize();
+		if (size.x >= 1.0f && size.y >= 1.0f) return size;
+	}
+	return ofVec2f(std::max(1, jp_constants::renderWidth),
+		std::max(1, jp_constants::renderHeight));
+}
+
+ofVec2f ofApp::getLiveOutputTargetSize(
+	const LiveOutputRuntime &output) const
+{
+	if (output.window)
+	{
+		const float width = output.window->getWidth();
+		const float height = output.window->getHeight();
+		if (width >= 1.0f && height >= 1.0f)
+		{
+			return ofVec2f(width, height);
+		}
+	}
+
+	if (output.config.fullscreen && !output.config.virtualMonitor)
+	{
+		const int monitorIndex = resolveLiveOutputMonitor(output.config);
+		if (monitorIndex >= 0 && monitorIndex < (int)liveOutputMonitors.size())
+		{
+			const LiveOutputMonitor &monitor = liveOutputMonitors[monitorIndex];
+			return ofVec2f(std::max(1, monitor.width),
+				std::max(1, monitor.height));
+		}
+	}
+
+	return ofVec2f(std::max(1, output.config.width),
+		std::max(1, output.config.height));
+}
+
+ofRectangle ofApp::getLiveOutputSourceRect(const LiveOutputConfig &config) const
+{
+	const ofVec2f canvas = getLiveOutputCanvasSize(config);
+	ofRectangle rect(config.cropX * canvas.x, config.cropY * canvas.y,
+		config.cropW * canvas.x, config.cropH * canvas.y);
+	const float bezel = (float)config.bezelPx;
+	const float left = ofClamp(rect.x + bezel, 0.0f,
+		std::max(0.0f, canvas.x - 1.0f));
+	const float top = ofClamp(rect.y + bezel, 0.0f,
+		std::max(0.0f, canvas.y - 1.0f));
+	const float right = ofClamp(rect.getRight() - bezel, left + 1.0f,
+		canvas.x);
+	const float bottom = ofClamp(rect.getBottom() - bezel, top + 1.0f,
+		canvas.y);
+	rect.set(left, top, right - left, bottom - top);
+	return rect;
 }
 
 void ofApp::initLiveOutputFields()
@@ -1133,15 +2116,44 @@ void ofApp::initLiveOutputFields()
 	if (selectedLiveOutput < 0 ||
 		selectedLiveOutput >= (int)liveOutputs.size())
 	{
-		liveOutputFieldText[0].clear();
-		liveOutputFieldText[1].clear();
+		for (int i = 0; i < LO_FIELD_COUNT; i++)
+			liveOutputFieldText[i].clear();
 		focusedLiveOutputField = -1;
 		return;
 	}
-	liveOutputFieldText[0] = ofToString(
-		liveOutputs[selectedLiveOutput].config.width);
-	liveOutputFieldText[1] = ofToString(
-		liveOutputs[selectedLiveOutput].config.height);
+	const LiveOutputConfig &config =
+		liveOutputs[selectedLiveOutput].config;
+	const ofVec2f canvas = getLiveOutputCanvasSize(config);
+	liveOutputFieldText[LO_FIELD_WIDTH] = ofToString(config.width);
+	liveOutputFieldText[LO_FIELD_HEIGHT] = ofToString(config.height);
+	// Crop is stored normalized but edited in canvas pixels: the numeric text
+	// field only accepts digits, so a decimal could not be typed.
+	if (wallMode == WALL_MODE_SPATIAL)
+	{
+		// The four fields become the measured glass rect, in mm.
+		liveOutputFieldText[LO_FIELD_CROP_X] =
+			ofToString((int)std::lround(config.physX));
+		liveOutputFieldText[LO_FIELD_CROP_Y] =
+			ofToString((int)std::lround(config.physY));
+		liveOutputFieldText[LO_FIELD_CROP_W] =
+			ofToString((int)std::lround(config.physW));
+		liveOutputFieldText[LO_FIELD_CROP_H] =
+			ofToString((int)std::lround(config.physH));
+	}
+	else
+	{
+		liveOutputFieldText[LO_FIELD_CROP_X] =
+			ofToString((int)std::lround(config.cropX * canvas.x));
+		liveOutputFieldText[LO_FIELD_CROP_Y] =
+			ofToString((int)std::lround(config.cropY * canvas.y));
+		liveOutputFieldText[LO_FIELD_CROP_W] =
+			ofToString((int)std::lround(config.cropW * canvas.x));
+		liveOutputFieldText[LO_FIELD_CROP_H] =
+			ofToString((int)std::lround(config.cropH * canvas.y));
+	}
+	liveOutputFieldText[LO_FIELD_BEZEL] = ofToString(std::abs(config.bezelPx));
+	if (splitFieldText[0].empty()) splitFieldText[0] = "2";
+	if (splitFieldText[1].empty()) splitFieldText[1] = "1";
 }
 
 void ofApp::applyLiveOutputField()
@@ -1151,27 +2163,145 @@ void ofApp::applyLiveOutputField()
 		selectedLiveOutput >= (int)liveOutputs.size())
 	{
 		focusedLiveOutputField = -1;
+		liveOutputFieldSelectAll = false;
 		return;
 	}
 	LiveOutputRuntime &output = liveOutputs[selectedLiveOutput];
-	const int value = ofClamp(ofToInt(
-		liveOutputFieldText[focusedLiveOutputField]), 64, 16384);
-	if (focusedLiveOutputField == 0)
+	LiveOutputConfig &config = output.config;
+	const int field = focusedLiveOutputField;
+	const int raw = ofToInt(liveOutputFieldText[field]);
+	const ofVec2f canvas = getLiveOutputCanvasSize(config);
+	// Per field clamps. The single 64..16384 clamp this used to apply to every
+	// field would have turned a crop of 0 into 64.
+	switch (field)
 	{
-		output.config.width = value;
+	case LO_FIELD_WIDTH:
+		config.width = ofClamp(raw, 64, 16384);
+		break;
+	case LO_FIELD_HEIGHT:
+		config.height = ofClamp(raw, 64, 16384);
+		break;
+	case LO_FIELD_CROP_W:
+		if (wallMode == WALL_MODE_SPATIAL)
+		{
+			config.physW = std::max(0, raw);
+			applySpatialLayout();
+			break;
+		}
+		config.cropW = ofClamp(raw, 1, (int)canvas.x) / (double)canvas.x;
+		config.cropX = std::min(config.cropX, 1.0 - config.cropW);
+		break;
+	case LO_FIELD_CROP_H:
+		if (wallMode == WALL_MODE_SPATIAL)
+		{
+			config.physH = std::max(0, raw);
+			applySpatialLayout();
+			break;
+		}
+		config.cropH = ofClamp(raw, 1, (int)canvas.y) / (double)canvas.y;
+		config.cropY = std::min(config.cropY, 1.0 - config.cropH);
+		break;
+	case LO_FIELD_CROP_X:
+		if (wallMode == WALL_MODE_SPATIAL)
+		{
+			// Positions may be negative: the origin is wherever you started
+			// measuring from, not necessarily the leftmost screen.
+			config.physX = raw;
+			applySpatialLayout();
+			break;
+		}
+		config.cropX = ofClamp(raw, 0,
+			std::max(0, (int)std::lround(canvas.x * (1.0 - config.cropW)))) /
+			(double)canvas.x;
+		break;
+	case LO_FIELD_CROP_Y:
+		if (wallMode == WALL_MODE_SPATIAL)
+		{
+			config.physY = raw;
+			applySpatialLayout();
+			break;
+		}
+		config.cropY = ofClamp(raw, 0,
+			std::max(0, (int)std::lround(canvas.y * (1.0 - config.cropH)))) /
+			(double)canvas.y;
+		break;
+	case LO_FIELD_BEZEL:
+	{
+		// Clamped against the crop, so the number shown is the number applied.
+		const int limit = std::max(0, (int)(std::min(
+			config.cropW * canvas.x, config.cropH * canvas.y) / 2.0) - 1);
+		// The field holds the magnitude; the sign button owns the direction.
+		const int magnitude = ofClamp(std::abs(raw), 0, limit);
+		config.bezelPx = config.bezelPx < 0 ? -magnitude : magnitude;
+		break;
 	}
-	else
-	{
-		output.config.height = value;
+	default:
+		break;
 	}
 	focusedLiveOutputField = -1;
+	liveOutputFieldSelectAll = false;
 	initLiveOutputFields();
-	if (output.window && !output.config.fullscreen)
+	// Only the window size fields touch the window.
+	if ((field == LO_FIELD_WIDTH || field == LO_FIELD_HEIGHT) &&
+		output.window && !config.fullscreen)
 	{
-		output.window->setWindowShape(
-			output.config.width, output.config.height);
+		output.window->setWindowShape(config.width, config.height);
 	}
 	saveSettings();
+}
+
+void ofApp::applySplitField()
+{
+	if (focusedSplitField < 0)
+	{
+		focusedSplitField = -1;
+		splitFieldSelectAll = false;
+		return;
+	}
+	splitFieldText[focusedSplitField] = ofToString(
+		ofClamp(ofToInt(splitFieldText[focusedSplitField]), 1, 16));
+	focusedSplitField = -1;
+	splitFieldSelectAll = false;
+}
+
+void ofApp::applyWallSplit()
+{
+	const int cols = ofClamp(ofToInt(splitFieldText[0]), 1, 16);
+	const int rows = ofClamp(ofToInt(splitFieldText[1]), 1, 16);
+	// Fills every ENABLED output in reading order, left to right then top to
+	// bottom, and leaves disabled ones alone.
+	int cell = 0;
+	for (LiveOutputRuntime &output : liveOutputs)
+	{
+		if (!output.config.enabled) continue;
+		if (cell >= cols * rows) break;
+		const int col = cell % cols;
+		const int row = cell / cols;
+		output.config.cropEnabled = true;
+		output.config.cropW = 1.0 / cols;
+		output.config.cropH = 1.0 / rows;
+		output.config.cropX = col / (double)cols;
+		output.config.cropY = row / (double)rows;
+		cell++;
+	}
+	initLiveOutputFields();
+	saveSettings();
+}
+
+void ofApp::setLiveOutputTab(LiveOutputSettingsTab tab)
+{
+	if (liveOutputTab == tab) return;
+	// Commit rather than discard: losing a typed value on a tab click is the
+	// surprising behaviour.
+	if (focusedLiveOutputField >= 0) applyLiveOutputField();
+	if (focusedSplitField >= 0) applySplitField();
+	// Mandatory. The popup rects are anchored to the source/monitor buttons,
+	// which do not exist on the wall tab, and the popup hit test runs first in
+	// the click handler - a stale popup would swallow the next click.
+	clearLiveOutputInteractionState();
+	liveOutputTab = tab;
+	settingsScroll = 0.0f;
+	clampSettingsScroll();
 }
 
 bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
@@ -1181,6 +2311,14 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 		return false;
 	}
 	LiveOutputSettingsLayout layout = getLiveOutputSettingsLayout();
+	auto inputWasDoubleClicked = [&](int inputId) {
+		const uint64_t now = ofGetElapsedTimeMillis();
+		const bool doubleClicked = inputId == lastLiveOutputInputClick &&
+			now - lastLiveOutputInputClickMs <= 350;
+		lastLiveOutputInputClick = inputId;
+		lastLiveOutputInputClickMs = now;
+		return doubleClicked;
+	};
 
 	if (liveOutputMenu != LIVE_OUTPUT_MENU_NONE)
 	{
@@ -1193,7 +2331,7 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 			if (selectedLiveOutput < 0 ||
 				selectedLiveOutput >= (int)liveOutputs.size())
 			{
-				liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+				clearLiveOutputInteractionState();
 				return true;
 			}
 			const int optionIndex =
@@ -1217,19 +2355,29 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 						options[optionIndex];
 				}
 			}
-			else if (optionIndex >= 0 &&
-				optionIndex < (int)liveOutputMonitors.size())
+			else if (optionIndex == 0)
+			{
+				// Stand-in for hardware that is not attached. monitorName is
+				// kept so switching back to the real screen is one click.
+				output.config.virtualMonitor = true;
+				output.config.hasPosition = false;
+				requestLiveOutputRecreate(selectedLiveOutput);
+				updateLiveOutputs();
+			}
+			else if (optionIndex >= 1 &&
+				optionIndex <= (int)liveOutputMonitors.size())
 			{
 				const LiveOutputMonitor &monitor =
-					liveOutputMonitors[optionIndex];
+					liveOutputMonitors[optionIndex - 1];
+				output.config.virtualMonitor = false;
 				output.config.monitorName = monitor.name;
-					output.config.monitorIndex = monitor.index;
-					output.config.hasPosition = false;
-					requestLiveOutputRecreate(selectedLiveOutput);
-					updateLiveOutputs();
-				}
-			liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
-			liveOutputMenuScroll = 0;
+				output.config.monitorIndex = monitor.index;
+				output.config.hasPosition = false;
+				requestLiveOutputRecreate(selectedLiveOutput);
+				updateLiveOutputs();
+			}
+			clearLiveOutputInteractionState();
+			initLiveOutputFields();
 			saveSettings();
 			return true;
 		}
@@ -1237,14 +2385,38 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 		{
 			return true;
 		}
-		liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
-		liveOutputMenuScroll = 0;
+		clearLiveOutputInteractionState();
 		layout = getLiveOutputSettingsLayout();
 	}
 
-	if (focusedLiveOutputField >= 0 &&
-		!layout.widthField.inside(x, y) &&
-		!layout.heightField.inside(x, y))
+	for (int i = 0; i < (int)layout.tabs.size(); i++)
+	{
+		if (!layout.tabs[i].inside(x, y)) continue;
+		setLiveOutputTab((LiveOutputSettingsTab)i);
+		return true;
+	}
+
+	// Commit when leaving the active field, including when moving directly to
+	// another input in the same row.
+	const bool clickedFocusedSplit = focusedSplitField == 0 ?
+		layout.splitColsField.inside(x, y) :
+		(focusedSplitField == 1 && layout.splitRowsField.inside(x, y));
+	if (focusedSplitField >= 0 && !clickedFocusedSplit)
+	{
+		applySplitField();
+	}
+	bool clickedFocusedLive = false;
+	if (focusedLiveOutputField >= 0)
+	{
+		if (liveOutputTab == LO_TAB_OUTPUTS)
+			clickedFocusedLive = focusedLiveOutputField == LO_FIELD_WIDTH ?
+				layout.widthField.inside(x, y) :
+				layout.heightField.inside(x, y);
+		else
+			clickedFocusedLive =
+				layout.fieldRects[focusedLiveOutputField].inside(x, y);
+	}
+	if (focusedLiveOutputField >= 0 && !clickedFocusedLive)
 	{
 		applyLiveOutputField();
 		layout = getLiveOutputSettingsLayout();
@@ -1276,6 +2448,211 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 		return layout.panel.inside(x, y);
 	}
 	LiveOutputRuntime &output = liveOutputs[selectedLiveOutput];
+	if (liveOutputTab == LO_TAB_WALL)
+	{
+		LiveOutputConfig &config = output.config;
+		if (layout.tiledToggle.inside(x, y))
+		{
+			config.cropEnabled = !config.cropEnabled;
+			focusedLiveOutputField = -1;
+			applySpatialLayout();
+			initLiveOutputFields();
+			saveSettings();
+			return true;
+		}
+		if (layout.modeToggle.inside(x, y))
+		{
+			wallMode = wallMode == WALL_MODE_SPATIAL ?
+				WALL_MODE_FREEFORM : WALL_MODE_SPATIAL;
+			// Entering SPATIAL seeds unmeasured screens from their current crop
+			// so the switch is not destructive: 1 canvas px becomes 1 mm, which
+			// you then correct with the real tape measurements.
+			if (wallMode == WALL_MODE_SPATIAL)
+			{
+				for (LiveOutputRuntime &other : liveOutputs)
+				{
+					LiveOutputConfig &oc = other.config;
+					if (!oc.cropEnabled) continue;
+					if (oc.physW > 0.0 && oc.physH > 0.0) continue;
+					const ofVec2f oCanvas = getLiveOutputCanvasSize(oc);
+					oc.physX = oc.cropX * oCanvas.x;
+					oc.physY = oc.cropY * oCanvas.y;
+					oc.physW = oc.cropW * oCanvas.x;
+					oc.physH = oc.cropH * oCanvas.y;
+				}
+				applySpatialLayout();
+			}
+			focusedLiveOutputField = -1;
+			initLiveOutputFields();
+			saveSettings();
+			return true;
+		}
+		if (layout.viewToggle.inside(x, y))
+		{
+			wallRoomView = !wallRoomView;
+			return true;
+		}
+		if (layout.patternToggle.inside(x, y))
+		{
+			config.testPattern = !config.testPattern;
+			saveSettings();
+			return true;
+		}
+		if (config.cropEnabled && layout.bezelSignButton.inside(x, y))
+		{
+			config.bezelPx = -config.bezelPx;
+			initLiveOutputFields();
+			saveSettings();
+			return true;
+		}
+		if (layout.splitColsField.inside(x, y) ||
+			layout.splitRowsField.inside(x, y))
+		{
+			focusedSplitField = layout.splitColsField.inside(x, y) ? 0 : 1;
+			splitFieldCursor = (int)splitFieldText[focusedSplitField].size();
+			splitFieldSelectAll = inputWasDoubleClicked(
+				LO_FIELD_COUNT + focusedSplitField);
+			focusedLiveOutputField = -1;
+			liveOutputFieldSelectAll = false;
+			return true;
+		}
+		if (layout.splitButton.inside(x, y))
+		{
+			if (focusedSplitField >= 0) applySplitField();
+			applyWallSplit();
+			return true;
+		}
+		if (config.cropEnabled && wallMode == WALL_MODE_FREEFORM &&
+			layout.matchAspectButton.inside(x, y))
+		{
+			// Solve crop height from crop width against the window aspect, so
+			// the tile stops being stretched.
+			const ofVec2f canvas = getLiveOutputCanvasSize(config);
+			const ofVec2f targetSize = getLiveOutputTargetSize(output);
+			const float windowAspect = targetSize.x / targetSize.y;
+			const double wantH = (config.cropW * canvas.x) /
+				std::max(0.0001f, windowAspect) / canvas.y;
+			config.cropH = ofClamp(wantH, 1.0 / canvas.y, 1.0);
+			config.cropY = std::min(config.cropY, 1.0 - config.cropH);
+			initLiveOutputFields();
+			saveSettings();
+			return true;
+		}
+		if (config.cropEnabled && wallMode == WALL_MODE_FREEFORM &&
+			layout.matchResolutionButton.inside(x, y))
+		{
+			const ofVec2f canvas = getLiveOutputCanvasSize(config);
+			const ofVec2f targetSize = getLiveOutputTargetSize(output);
+			// Use an exact 1:1 tile when it fits. If the output resolution is
+			// larger than the source canvas, scale both dimensions together.
+			const double fitScale = std::min(1.0, std::min(
+				(double)canvas.x / targetSize.x,
+				(double)canvas.y / targetSize.y));
+			const double pixelW = std::max(1.0,
+				(double)std::lround(targetSize.x * fitScale));
+			const double pixelH = std::max(1.0,
+				(double)std::lround(targetSize.y * fitScale));
+			config.cropW = pixelW / canvas.x;
+			config.cropH = pixelH / canvas.y;
+			config.cropX = std::min(config.cropX, 1.0 - config.cropW);
+			config.cropY = std::min(config.cropY, 1.0 - config.cropH);
+			initLiveOutputFields();
+			saveSettings();
+			return true;
+		}
+		if (layout.preview.inside(x, y))
+		{
+			// In SPATIAL the crops are derived from the measured layout, so a
+			// drag would be overwritten on the next recompute. Selecting still
+			// works; editing is via the mm fields.
+			if (wallMode == WALL_MODE_SPATIAL || wallRoomView)
+			{
+				for (int i = (int)liveOutputs.size() - 1; i >= 0; i--)
+				{
+					if (!liveOutputs[i].config.cropEnabled) continue;
+					const ofRectangle hitRect = wallRoomView ?
+						getRoomScreenRect(layout, i) :
+						getWallTileRect(layout, i);
+					if (!hitRect.inside(x, y)) continue;
+					if (i != selectedLiveOutput) setSelectedLiveOutput(i);
+					break;
+				}
+				return true;
+			}
+			// Corner handles of the SELECTED tile win, so a handle sitting on
+			// top of a neighbouring tile is still grabbable.
+			if (config.cropEnabled)
+			{
+				const ofRectangle tile =
+					getWallTileRect(layout, selectedLiveOutput);
+				const ofVec2f corners[4] = {
+					ofVec2f(tile.x, tile.y),
+					ofVec2f(tile.getRight(), tile.y),
+					ofVec2f(tile.x, tile.getBottom()),
+					ofVec2f(tile.getRight(), tile.getBottom())};
+				for (int i = 0; i < 4; i++)
+				{
+					if (corners[i].distance(ofVec2f(x, y)) > 9.0f) continue;
+					wallDragMode = WALL_DRAG_RESIZE;
+					wallDragOutput = selectedLiveOutput;
+					wallDragCorner = i;
+					wallDragStartMouse.set(x, y);
+					wallDragStartCrop.set(config.cropX, config.cropY,
+						config.cropW, config.cropH);
+					return true;
+				}
+			}
+			// Then tile interiors. Backwards so the last drawn wins, except the
+			// selected one always gets first refusal.
+			int hit = -1;
+			if (config.cropEnabled &&
+				getWallTileRect(layout, selectedLiveOutput).inside(x, y))
+			{
+				hit = selectedLiveOutput;
+			}
+			for (int i = (int)liveOutputs.size() - 1; i >= 0 && hit < 0; i--)
+			{
+				if (!liveOutputs[i].config.cropEnabled) continue;
+				if (getWallTileRect(layout, i).inside(x, y)) hit = i;
+			}
+			if (hit >= 0)
+			{
+				// Dragging a tile also selects its output, so the preview is a
+				// picker too.
+				if (hit != selectedLiveOutput) setSelectedLiveOutput(hit);
+				const LiveOutputConfig &hitConfig = liveOutputs[hit].config;
+				wallDragMode = WALL_DRAG_MOVE;
+				wallDragOutput = hit;
+				wallDragCorner = -1;
+				wallDragStartMouse.set(x, y);
+				wallDragStartCrop.set(hitConfig.cropX, hitConfig.cropY,
+					hitConfig.cropW, hitConfig.cropH);
+				return true;
+			}
+			return true;
+		}
+		if (config.cropEnabled)
+		{
+			// Deliberately not gated on fullscreen, unlike the window size
+			// fields: a wall is normally run fullscreen.
+			const int wallFields[] = {LO_FIELD_CROP_X, LO_FIELD_CROP_Y,
+				LO_FIELD_CROP_W, LO_FIELD_CROP_H, LO_FIELD_BEZEL};
+			for (int field : wallFields)
+			{
+				if (!layout.fieldRects[field].inside(x, y)) continue;
+				focusedLiveOutputField = field;
+				liveOutputFieldCursor =
+					(int)liveOutputFieldText[field].size();
+				liveOutputFieldSelectAll = inputWasDoubleClicked(field);
+				focusedSplitField = -1;
+				splitFieldSelectAll = false;
+				focusedOptionsField = -1;
+				return true;
+			}
+		}
+		return layout.panel.inside(x, y);
+	}
+
 	if (layout.enabledToggle.inside(x, y))
 	{
 		output.config.enabled = !output.config.enabled;
@@ -1294,17 +2671,15 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 	}
 	if (layout.sourceButton.inside(x, y))
 	{
+		clearLiveOutputInteractionState();
 		liveOutputMenu = LIVE_OUTPUT_MENU_SOURCE;
-		liveOutputMenuScroll = 0;
-		focusedLiveOutputField = -1;
 		return true;
 	}
 	if (layout.monitorButton.inside(x, y))
 	{
 		refreshLiveOutputMonitors();
+		clearLiveOutputInteractionState();
 		liveOutputMenu = LIVE_OUTPUT_MENU_MONITOR;
-		liveOutputMenuScroll = 0;
-		focusedLiveOutputField = -1;
 		return true;
 	}
 	if (layout.windowModeButton.inside(x, y))
@@ -1337,25 +2712,46 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 			layout.widthField.inside(x, y) ? 0 : 1;
 		liveOutputFieldCursor =
 			liveOutputFieldText[focusedLiveOutputField].size();
+		liveOutputFieldSelectAll =
+			inputWasDoubleClicked(focusedLiveOutputField);
+		focusedSplitField = -1;
+		splitFieldSelectAll = false;
 		focusedOptionsField = -1;
 		return true;
 	}
 	return layout.panel.inside(x, y);
 }
 
-void ofApp::clampSettingsScroll()
+float ofApp::getLiveOutputPanelHeight(LiveOutputSettingsTab tab) const
 {
+	// The general settings panel's height, which the outputs tab matches.
+	const float generalPanelH =
+		55.0f + (FIELD_OSC_IP_OUT + 6) * 40.0f + 25.0f;
+	if (tab != LO_TAB_WALL) return generalPanelH;
+	// The wall tab carries a room/canvas preview under its fields.
+	return std::max(generalPanelH, 560.0f);
+}
+
+float ofApp::getSettingsContentHeight() const
+{
+	const float generalPanelH = getLiveOutputPanelHeight(LO_TAB_OUTPUTS);
+	const float outputPanelH = getLiveOutputPanelHeight(liveOutputTab);
 	if (ofGetWidth() >= 1080)
 	{
-		settingsScroll = 0.0f;
-		return;
+		// Side by side: the taller of the two panels sets the content height.
+		return 44.0f + std::max(generalPanelH, outputPanelH) + 30.0f;
 	}
-	const float panelH =
-		55.0f + (FIELD_OSC_IP_OUT + 6) * 40.0f + 25.0f;
-	const float contentHeight =
-		44.0f + panelH + 16.0f + panelH + 30.0f;
-	settingsScroll = ofClamp(settingsScroll, 0.0f,
-		std::max(0.0f, contentHeight - ofGetHeight()));
+	return 44.0f + generalPanelH + 16.0f + outputPanelH + 30.0f;
+}
+
+void ofApp::clampSettingsScroll()
+{
+	// Gated on whether the content actually overflows, not on the column count:
+	// the wall tab is taller than the general panel, so two column mode can
+	// overflow too and used to have scrolling hard disabled.
+	const float maxScroll = std::max(0.0f,
+		getSettingsContentHeight() - ofGetHeight());
+	settingsScroll = ofClamp(settingsScroll, 0.0f, maxScroll);
 }
 
 void ofApp::initOptionsFields() {
@@ -1373,14 +2769,16 @@ void ofApp::initOptionsFields() {
 		optionsFieldText[FIELD_DEFAULT_COMPO] = "savefiles/data.xml";
 	}
 	focusedOptionsField = -1;
-	focusedLiveOutputField = -1;
-	liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+	clearLiveOutputInteractionState();
 	refreshLiveOutputMonitors();
 	bool reopenConnectedOutput = false;
 	for (LiveOutputRuntime &output : liveOutputs)
 	{
+		// A virtual screen needs no monitor to resolve, so it must be allowed
+		// to retry here too or it never reopens after a failed attempt.
 		if (output.config.enabled && !output.window &&
-			resolveLiveOutputMonitor(output.config) >= 0)
+			(output.config.virtualMonitor ||
+				resolveLiveOutputMonitor(output.config) >= 0))
 		{
 			output.createAttempted = false;
 			reopenConnectedOutput = true;
@@ -1433,6 +2831,9 @@ void ofApp::applyOptionsField() {
 			cout << "Default compo set to: " << path << endl;
 		}
 	}
+	// Render size may have changed and the wall crop fields are displayed in
+	// canvas pixels, so they have to be recomputed.
+	initLiveOutputFields();
 	saveSettings();
 	focusedOptionsField = -1;
 }
@@ -2445,6 +3846,17 @@ void ofApp::keyPressed(int key) {
 	}
 	if (focusedLiveOutputField >= 0)
 	{
+		if (key == OF_KEY_TAB)
+		{
+			focusAdjacentLiveOutputField(ofGetKeyPressed(OF_KEY_SHIFT));
+			return;
+		}
+		if (key == 1 || ((key == 'a' || key == 'A') &&
+			ofGetKeyPressed(OF_KEY_CONTROL)))
+		{
+			liveOutputFieldSelectAll = true;
+			return;
+		}
 		if (key == OF_KEY_RETURN || key == '\r')
 		{
 			applyLiveOutputField();
@@ -2453,12 +3865,45 @@ void ofApp::keyPressed(int key) {
 		if (key == OF_KEY_ESC)
 		{
 			focusedLiveOutputField = -1;
+			liveOutputFieldSelectAll = false;
 			initLiveOutputFields();
 			return;
 		}
+		const bool signedPosition = wallMode == WALL_MODE_SPATIAL &&
+			(focusedLiveOutputField == LO_FIELD_CROP_X ||
+			 focusedLiveOutputField == LO_FIELD_CROP_Y);
 		jp_textfield::handleKey(
 			liveOutputFieldText[focusedLiveOutputField],
-			liveOutputFieldCursor, key, true);
+			liveOutputFieldCursor, key, true, signedPosition,
+			&liveOutputFieldSelectAll);
+		return;
+	}
+	if (focusedSplitField >= 0)
+	{
+		if (key == OF_KEY_TAB)
+		{
+			focusAdjacentLiveOutputField(ofGetKeyPressed(OF_KEY_SHIFT));
+			return;
+		}
+		if (key == 1 || ((key == 'a' || key == 'A') &&
+			ofGetKeyPressed(OF_KEY_CONTROL)))
+		{
+			splitFieldSelectAll = true;
+			return;
+		}
+		if (key == OF_KEY_RETURN || key == '\r')
+		{
+			applySplitField();
+			return;
+		}
+		if (key == OF_KEY_ESC)
+		{
+			focusedSplitField = -1;
+			splitFieldSelectAll = false;
+			return;
+		}
+		jp_textfield::handleKey(splitFieldText[focusedSplitField],
+			splitFieldCursor, key, true, false, &splitFieldSelectAll);
 		return;
 	}
 	if (pantallaActiva == OPCIONES &&
@@ -2499,8 +3944,7 @@ void ofApp::keyPressed(int key) {
 	if (key == '1') {
 		pantallaActiva = NODOS;
 		focusedOptionsField = -1;
-		focusedLiveOutputField = -1;
-		liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+		clearLiveOutputInteractionState();
 		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
 	}
 
@@ -2520,16 +3964,14 @@ void ofApp::keyPressed(int key) {
 	if (key == '3') {
 		pantallaActiva = TUTORIAL;
 		focusedOptionsField = -1;
-		focusedLiveOutputField = -1;
-		liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+		clearLiveOutputInteractionState();
 		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
 	}
 
 	if (key == '4') {
 		pantallaActiva = SHADER_INDEX;
 		focusedOptionsField = -1;
-		focusedLiveOutputField = -1;
-		liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+		clearLiveOutputInteractionState();
 		shaderSearchFocused = true;
 		shaderSearchCursor = ofClamp(shaderSearchCursor, 0, (int)shaderSearchText.size());
 		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
@@ -2541,8 +3983,7 @@ void ofApp::keyPressed(int key) {
 	if (key == '5') {
 		pantallaActiva = EDITOR;
 		focusedOptionsField = -1;
-		focusedLiveOutputField = -1;
-		liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+		clearLiveOutputInteractionState();
 		shaderEditor.setVisible(true);
 	}
 
@@ -2804,6 +4245,12 @@ void ofApp::mouseDragged(int x, int y, int button) {
 		shaderEditor.mouseDragged(x, y, button);
 	}
 
+	if (pantallaActiva == OPCIONES) {
+		if (handleLiveOutputSettingsDrag(x, y, button)) {
+			return;
+		}
+	}
+
 	if (pantallaActiva == NODOS) {
 		if (boxes.update_mappingMouseDragged(button)) {
 			return;
@@ -2871,12 +4318,11 @@ void ofApp::mousePressed(int x, int y, int button) {
 	// Screen tab click handling
 	{
 		int tabScreen = getScreenTabAtPos(x, y);
-		if (tabScreen >= 0) {
-			if (pantallaActiva != tabScreen) {
-				pantallaActiva = tabScreen;
-				focusedOptionsField = -1;
-				focusedLiveOutputField = -1;
-				liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+			if (tabScreen >= 0) {
+				if (pantallaActiva != tabScreen) {
+					pantallaActiva = tabScreen;
+					focusedOptionsField = -1;
+					clearLiveOutputInteractionState();
 
 				// Hide editor when leaving EDITOR screen
 				if (pantallaActiva != EDITOR) shaderEditor.setVisible(false);
@@ -3182,6 +4628,9 @@ void ofApp::mouseMoved(int x, int y) {
 }
 void ofApp::mouseReleased(int x, int y, int button) {
 	midiKeymap.mouseReleased(x, y, button);
+	if (handleLiveOutputSettingsRelease(x, y, button)) {
+		return;
+	}
 	if (boxes.update_mappingMouseReleased(button)) {
 		saveSettings();
 		return;
@@ -3224,7 +4673,7 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 			const int optionCount =
 				liveOutputMenu == LIVE_OUTPUT_MENU_SOURCE ?
 					(int)getLiveOutputSourceOptions().size() :
-					(int)liveOutputMonitors.size();
+					(int)liveOutputMonitors.size() + 1;
 			liveOutputMenuScroll = ofClamp(
 				liveOutputMenuScroll - (int)scrollY,
 				0, std::max(0, optionCount - 8));
@@ -3428,6 +4877,10 @@ void ofApp::initializeDefaultLiveOutput()
 void ofApp::addLiveOutput()
 {
 	initializeDefaultLiveOutput();
+	// Before the save, not after: the bounding box just changed, so every
+	// derived crop has too and the file must hold the new ones.
+	applySpatialLayout();
+	initLiveOutputFields();
 	saveSettings();
 }
 
@@ -3442,7 +4895,8 @@ void ofApp::removeSelectedLiveOutput()
 	liveOutputs.erase(liveOutputs.begin() + selectedLiveOutput);
 	selectedLiveOutput = liveOutputs.empty() ? -1 :
 		ofClamp(selectedLiveOutput, 0, (int)liveOutputs.size() - 1);
-	liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+	clearLiveOutputInteractionState();
+	applySpatialLayout();
 	initLiveOutputFields();
 	saveSettings();
 }
@@ -3532,21 +4986,40 @@ void ofApp::createLiveOutputWindow(int index)
 
 	output.createAttempted = true;
 	refreshLiveOutputMonitors();
-	const int resolvedMonitor = resolveLiveOutputMonitor(output.config);
-	if (resolvedMonitor < 0)
+	// A virtual screen stands in for hardware that is not here: it opens as an
+	// ordinary window at its configured resolution so a whole installation can
+	// be built and rehearsed on one machine, then deployed.
+	const bool virtualScreen = output.config.virtualMonitor;
+	int resolvedMonitor = virtualScreen ? -1 :
+		resolveLiveOutputMonitor(output.config);
+	if (!virtualScreen && resolvedMonitor < 0)
 	{
 		return;
 	}
+	if (virtualScreen)
+	{
+		// Land it on the primary display, or on whatever exists.
+		for (int i = 0; i < (int)liveOutputMonitors.size(); i++)
+		{
+			if (liveOutputMonitors[i].primary) { resolvedMonitor = i; break; }
+		}
+		if (resolvedMonitor < 0 && !liveOutputMonitors.empty())
+			resolvedMonitor = 0;
+		if (resolvedMonitor < 0) return;
+	}
 	const LiveOutputMonitor &monitor = liveOutputMonitors[resolvedMonitor];
-	output.config.monitorIndex = monitor.index;
+	if (!virtualScreen) output.config.monitorIndex = monitor.index;
+	// Never fullscreen a virtual screen: it would swallow a real display.
+	const bool wantFullscreen = output.config.fullscreen && !virtualScreen;
 
 	ofGLFWWindowSettings settings;
 	settings.setGLVersion(3, 2);
 	settings.shareContextWith = mainWindow;
 	settings.monitor = monitor.index;
-	settings.resizable = !output.config.fullscreen;
-	settings.title = "Guipper - " + getLiveOutputDisplayName(index);
-	if (output.config.fullscreen)
+	settings.resizable = !wantFullscreen;
+	settings.title = "Guipper - " + getLiveOutputDisplayName(index) +
+		(virtualScreen ? " (virtual)" : "");
+	if (wantFullscreen)
 	{
 		settings.windowMode = OF_FULLSCREEN;
 		settings.setSize(monitor.width, monitor.height);
@@ -3706,6 +5179,15 @@ void ofApp::loadSettings() {
 		auto child = parent.getChild(name);
 		return child ? child.getValue() : fallback;
 	};
+	auto floatValue = [](const ofXml &parent, const string &name,
+		double fallback) {
+		auto child = parent.getChild(name);
+		if (!child) return fallback;
+		const double value = child.getDoubleValue();
+		// A hand edited or truncated file must not hand a NaN to the crop
+		// maths, where it would reach a division and emit NaN vertices.
+		return std::isfinite(value) ? value : fallback;
+	};
 
 	auto renderwidthaux = settings.getChild("renderwidth");
 	auto renderheightaux = settings.getChild("renderheight");
@@ -3734,6 +5216,9 @@ void ofApp::loadSettings() {
 	auto mappingPanelW = settings.getChild("mapping_panel_w");
 	auto mappingPanelH = settings.getChild("mapping_panel_h");
 	auto favoritesDisplayModeChild = settings.getChild("favorites_display_mode");
+	auto wallModeChild = settings.getChild("wall_mode");
+	wallMode = (wallModeChild && wallModeChild.getValue() == "spatial") ?
+		WALL_MODE_SPATIAL : WALL_MODE_FREEFORM;
 
 	const int graphWidth = renderwidthaux ?
 		renderwidthaux.getIntValue() : jp_constants::renderWidth;
@@ -3823,6 +5308,33 @@ void ofApp::loadSettings() {
 				outputNode, "has_position", true);
 			output.config.fullscreen = boolValue(
 				outputNode, "fullscreen", false);
+			// Absent in every settings.xml written before the wall existed,
+			// which is exactly when untiled is the right answer.
+			output.config.cropEnabled = boolValue(
+				outputNode, "crop_enabled", false);
+			output.config.cropW = ofClamp(
+				floatValue(outputNode, "crop_w", 1.0), 0.0001, 1.0);
+			output.config.cropH = ofClamp(
+				floatValue(outputNode, "crop_h", 1.0), 0.0001, 1.0);
+			output.config.cropX = ofClamp(
+				floatValue(outputNode, "crop_x", 0.0), 0.0,
+				1.0 - output.config.cropW);
+			output.config.cropY = ofClamp(
+				floatValue(outputNode, "crop_y", 0.0), 0.0,
+				1.0 - output.config.cropH);
+			// Deliberately not floored at zero: negative samples wider, which
+			// is how CRT overscan is compensated.
+			output.config.bezelPx = intValue(outputNode, "bezel_px", 0);
+			output.config.physX = floatValue(outputNode, "phys_x", 0.0);
+			output.config.physY = floatValue(outputNode, "phys_y", 0.0);
+			output.config.physW = std::max(0.0,
+				floatValue(outputNode, "phys_w", 0.0));
+			output.config.physH = std::max(0.0,
+				floatValue(outputNode, "phys_h", 0.0));
+			output.config.testPattern = boolValue(
+				outputNode, "test_pattern", false);
+			output.config.virtualMonitor = boolValue(
+				outputNode, "virtual_monitor", false);
 			liveOutputs.push_back(output);
 		}
 	}
@@ -3869,6 +5381,9 @@ void ofApp::loadSettings() {
 		liveOutputs.push_back(output);
 	}
 	selectedLiveOutput = liveOutputs.empty() ? -1 : 0;
+	// Crops are derived state in SPATIAL mode, so recompute them from the
+	// measured layout before anything is drawn or a window is opened.
+	applySpatialLayout();
 	initLiveOutputFields();
 	updateLiveOutputs();
 }
@@ -3947,6 +5462,8 @@ void ofApp::saveSettings() {
 	settings.appendChild("bpm").set((int)jp_constants::bpm);
 	settings.appendChild("favorites_display_mode").set((int)favoritesDisplayMode);
 
+	settings.appendChild("wall_mode").set(
+		wallMode == WALL_MODE_SPATIAL ? "spatial" : "freeform");
 	auto liveOutputsNode = settings.appendChild("live_outputs");
 	for (const LiveOutputRuntime &output : liveOutputs)
 	{
@@ -3969,6 +5486,23 @@ void ofApp::saveSettings() {
 			toXmlString(config.hasPosition));
 		outputNode.appendChild("fullscreen").set(
 			toXmlString(config.fullscreen));
+		outputNode.appendChild("crop_enabled").set(
+			toXmlString(config.cropEnabled));
+		// Explicit precision: the default would round a normalized edge to
+		// roughly four thousandths of a pixel at 8K.
+		outputNode.appendChild("crop_x").set(ofToString(config.cropX, 9));
+		outputNode.appendChild("crop_y").set(ofToString(config.cropY, 9));
+		outputNode.appendChild("crop_w").set(ofToString(config.cropW, 9));
+		outputNode.appendChild("crop_h").set(ofToString(config.cropH, 9));
+		outputNode.appendChild("bezel_px").set(config.bezelPx);
+		outputNode.appendChild("phys_x").set(ofToString(config.physX, 4));
+		outputNode.appendChild("phys_y").set(ofToString(config.physY, 4));
+		outputNode.appendChild("phys_w").set(ofToString(config.physW, 4));
+		outputNode.appendChild("phys_h").set(ofToString(config.physH, 4));
+		outputNode.appendChild("test_pattern").set(
+			toXmlString(config.testPattern));
+		outputNode.appendChild("virtual_monitor").set(
+			toXmlString(config.virtualMonitor));
 	}
 
 	xml.save(settingsPath);
@@ -4071,14 +5605,40 @@ void ofApp::window_drawRender(ofEventArgs & args) {
 	const float height = liveOutputs[index].window->getHeight();
 	ofClear(0, 0, 0, 255);
 	ofSetColor(255);
+	if (config.testPattern)
+	{
+		// Alignment mode: the pattern replaces the content entirely, so what
+		// you measure is not confused by whatever the composition is doing.
+		drawLiveOutputTestPattern(ofRectangle(0.0f, 0.0f, width, height),
+			index);
+		return;
+	}
 	const bool followMain =
 		config.sourceMode == LIVE_OUTPUT_MAIN_ACTIVE;
+	const ofRectangle crop = config.cropEnabled ?
+		ofRectangle(config.cropX, config.cropY, config.cropW, config.cropH) :
+		ofRectangle(0.0f, 0.0f, 1.0f, 1.0f);
+	const float bezel = config.cropEnabled ? (float)config.bezelPx : 0.0f;
+	ofRectangle effective(0.0f, 0.0f, 1.0f, 1.0f);
 	const bool sourceAvailable = boxes.drawLiveOutputSource(
-		followMain, config.sourceBox, width, height);
+		followMain, config.sourceBox, width, height, crop, bezel, &effective);
 	if (sourceAvailable)
 	{
-		boxes.drawMappingOverlayForSource(
-			followMain, config.sourceBox, width, height);
+		// The overlay is authored across the whole canvas, so hand it a virtual
+		// rect big enough that the visible tile lands on this window. Derived
+		// from the effective rect, not the raw crop: otherwise the bezel inset
+		// shows up as a constant misalignment.
+		float overlayX = 0.0f, overlayY = 0.0f;
+		float overlayW = width, overlayH = height;
+		if (effective.width > 0.0f && effective.height > 0.0f)
+		{
+			overlayW = width / effective.width;
+			overlayH = height / effective.height;
+			overlayX = -effective.x / effective.width * width;
+			overlayY = -effective.y / effective.height * height;
+		}
+		boxes.drawMappingOverlayForSource(followMain, config.sourceBox,
+			overlayX, overlayY, overlayW, overlayH);
 	}
 	else
 	{
@@ -4122,7 +5682,10 @@ void ofApp::window_resized(ofResizeEventArgs & args) {
 	}
 	liveOutputs[index].config.width = std::max(64, args.width);
 	liveOutputs[index].config.height = std::max(64, args.height);
-	if (selectedLiveOutput == index && focusedLiveOutputField < 0)
+	// The split fields live outside the per output array, but
+	// initLiveOutputFields seeds them, so guard on both focus variables.
+	if (selectedLiveOutput == index && focusedLiveOutputField < 0 &&
+		focusedSplitField < 0)
 	{
 		initLiveOutputFields();
 	}
