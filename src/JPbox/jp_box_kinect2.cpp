@@ -78,25 +78,41 @@ public:
 		return statusText;
 	}
 
-	bool copyColorFrame(vector<unsigned char> &color, int &format,
+	// The frame buffers are never mutated once published, so consumers get a
+	// refcounted handle instead of their own copy. Null means "nothing new".
+	JPbox_kinect2::ColorFrame acquireColorFrame(int &format,
 		uint64_t &version) const
 	{
 		lock_guard<mutex> lock(dataMutex);
-		if (frameVersion == 0 || frameVersion == version) return false;
-		color = colorFrame;
+		if (frameVersion == 0 || frameVersion == version) return nullptr;
 		format = colorFrameFormat;
 		version = frameVersion;
-		return true;
+		return colorFrame;
 	}
 
-	bool copyMonoFrame(bool infrared, vector<float> &pixels,
+	JPbox_kinect2::MonoFrame acquireMonoFrame(bool infrared,
 		uint64_t &version) const
 	{
 		lock_guard<mutex> lock(dataMutex);
-		if (frameVersion == 0 || frameVersion == version) return false;
-		pixels = infrared ? infraredFrame : depthFrame;
+		if (frameVersion == 0 || frameVersion == version) return nullptr;
 		version = frameVersion;
-		return true;
+		return infrared ? infraredFrame : depthFrame;
+	}
+
+	// Same contract, but always the depth buffer and never the infrared one -
+	// consumers of this want metric millimetres.
+	JPbox_kinect2::MonoFrame acquireDepthFrame(uint64_t &version) const
+	{
+		lock_guard<mutex> lock(dataMutex);
+		if (frameVersion == 0 || frameVersion == version) return nullptr;
+		version = frameVersion;
+		return depthFrame;
+	}
+
+	JPbox_kinect2::DepthIntrinsics intrinsics() const
+	{
+		lock_guard<mutex> lock(dataMutex);
+		return irParams;
 	}
 
 private:
@@ -112,6 +128,12 @@ private:
 		while (!stopRequested)
 		{
 			setStatus("CONNECTING");
+			{
+				// A different device may come back on reconnect, so the old
+				// intrinsics must not be handed out in the meantime.
+				lock_guard<mutex> lock(dataMutex);
+				irParams = JPbox_kinect2::DepthIntrinsics();
+			}
 			libfreenect2::Freenect2 context;
 			if (context.enumerateDevices() == 0)
 			{
@@ -146,6 +168,19 @@ private:
 				continue;
 			}
 
+			{
+				// Pinhole parameters of the IR camera, needed by anything that
+				// wants to unproject the depth buffer into camera-space XYZ.
+				const libfreenect2::Freenect2Device::IrCameraParams ir =
+					device->getIrCameraParams();
+				lock_guard<mutex> lock(dataMutex);
+				irParams.fx = ir.fx;
+				irParams.fy = ir.fy;
+				irParams.cx = ir.cx;
+				irParams.cy = ir.cy;
+				irParams.valid = ir.fx > 0.0f && ir.fy > 0.0f;
+			}
+
 			setStatus("STREAMING");
 			reconnectRequested = false;
 			int consecutiveTimeouts = 0;
@@ -167,22 +202,23 @@ private:
 				libfreenect2::Frame *infrared = frames[libfreenect2::Frame::Ir];
 				if (color != nullptr && depth != nullptr && infrared != nullptr)
 				{
-					vector<unsigned char> nextColor(
-						color->data,
-						color->data + color->width * color->height * 4);
 					const float *depthData =
 						reinterpret_cast<const float *>(depth->data);
 					const float *irData =
 						reinterpret_cast<const float *>(infrared->data);
-					vector<float> nextDepth(depthData,
+					// Built outside the lock, then published by pointer swap.
+					auto nextColor = std::make_shared<vector<unsigned char>>(
+						color->data,
+						color->data + color->width * color->height * 4);
+					auto nextDepth = std::make_shared<vector<float>>(depthData,
 						depthData + depth->width * depth->height);
-					vector<float> nextInfrared(irData,
+					auto nextInfrared = std::make_shared<vector<float>>(irData,
 						irData + infrared->width * infrared->height);
 					{
 						lock_guard<mutex> lock(dataMutex);
-						colorFrame.swap(nextColor);
-						depthFrame.swap(nextDepth);
-						infraredFrame.swap(nextInfrared);
+						colorFrame = std::move(nextColor);
+						depthFrame = std::move(nextDepth);
+						infraredFrame = std::move(nextInfrared);
 						colorFrameFormat = (int)color->format;
 						++frameVersion;
 						statusText = "STREAMING";
@@ -214,9 +250,11 @@ private:
 	atomic<bool> stopRequested{false};
 	atomic<bool> reconnectRequested{false};
 	string statusText = "STARTING";
-	vector<unsigned char> colorFrame;
-	vector<float> depthFrame;
-	vector<float> infraredFrame;
+	// shared_ptr, not vector: published once, then read by refcount.
+	std::shared_ptr<const vector<unsigned char>> colorFrame;
+	std::shared_ptr<const vector<float>> depthFrame;
+	std::shared_ptr<const vector<float>> infraredFrame;
+	JPbox_kinect2::DepthIntrinsics irParams;
 	int colorFrameFormat = 0;
 	uint64_t frameVersion = 0;
 };
@@ -272,84 +310,142 @@ void JPbox_kinect2::update()
 	parameters.setFloatLerpValue(irGain, 5);
 	parameters.setFloatValue(gamma, 8);
 	parameters.setFloatLerpValue(gamma, 8);
+
+	// Anything the grey mapping reads. A change here has to repaint even if
+	// the device never sends another frame.
+	const uint64_t settingsHash =
+		(uint64_t)(nearMm) * 1000003u +
+		(uint64_t)(farMm) * 10007u +
+		(uint64_t)(irGain * 1000.0f) * 101u +
+		(uint64_t)(gamma * 1000.0f) * 13u +
+		(parameters.getBoolValue(1) ? 2u : 0u) +
+		(parameters.getBoolValue(6) ? 4u : 0u);
+	if (settingsHash != settingsVersion) settingsVersion = settingsHash;
+
 	updateSourceTexture();
 	updateFBO();
+}
+
+void JPbox_kinect2::refreshToneCurve()
+{
+	const float gamma = ofClamp(parameters.getFloatValue(8), 0.1f, 4.0f);
+	const bool invert = parameters.getBoolValue(1);
+	if (gamma == toneCurveGamma && invert == toneCurveInvert) return;
+	toneCurveGamma = gamma;
+	toneCurveInvert = invert;
+
+	const float exponent = 1.0f / gamma;
+	for (int i = 0; i < kToneCurveSize; ++i)
+	{
+		float value = (float)i / (float)(kToneCurveSize - 1);
+		if (invert) value = 1.0f - value;
+		toneCurve[i] = (unsigned char)std::lround(
+			std::pow(value, exponent) * 255.0f);
+	}
 }
 
 void JPbox_kinect2::updateSourceTexture()
 {
 	if (!capture) return;
-	const bool newFrame = stream == COLOR ?
-		capture->copyColorFrame(rawColor, colorFormat, lastFrameVersion) :
-		capture->copyMonoFrame(stream == INFRARED, rawMono, lastFrameVersion);
-	if (!newFrame) return;
+	refreshToneCurve();
 
 	if (stream == COLOR)
 	{
-		if (rawColor.size() != (size_t)kColorWidth * kColorHeight * 4) return;
-		colorPixels.allocate(kColorWidth, kColorHeight, OF_PIXELS_RGBA);
-		for (size_t i = 0; i < (size_t)kColorWidth * kColorHeight; ++i)
+		if (auto frame = capture->acquireColorFrame(colorFormat,
+			lastFrameVersion))
 		{
-			const size_t p = i * 4;
-#ifdef KINECT2
-			if (colorFormat == (int)libfreenect2::Frame::BGRX)
-			{
-				colorPixels[p] = rawColor[p + 2];
-				colorPixels[p + 1] = rawColor[p + 1];
-				colorPixels[p + 2] = rawColor[p];
-			}
-			else
-#endif
-			{
-				colorPixels[p] = rawColor[p];
-				colorPixels[p + 1] = rawColor[p + 1];
-				colorPixels[p + 2] = rawColor[p + 2];
-			}
-			colorPixels[p + 3] = 255;
+			rawColor = std::move(frame);
 		}
-		sourceTexture.loadData(colorPixels);
+		if (!rawColor ||
+			rawColor->size() != (size_t)kColorWidth * kColorHeight * 4)
+		{
+			return;
+		}
+		if (lastFrameVersion == builtFrameVersion) return;
+		builtFrameVersion = lastFrameVersion;
+
+		// The device hands over BGRX or RGBX. Swizzling that on the CPU was
+		// two million iterations a frame; GL does it for free on upload, and
+		// an RGB internal format drops the undefined X byte.
+		if (textureStream != (int)COLOR)
+		{
+			sourceTexture.clear();
+			textureStream = (int)COLOR;
+		}
+		if (!sourceTexture.isAllocated())
+		{
+			sourceTexture.allocate(kColorWidth, kColorHeight, GL_RGB);
+		}
+		int glFormat = GL_RGBA;
+#ifdef KINECT2
+		if (colorFormat == (int)libfreenect2::Frame::BGRX) glFormat = GL_BGRA;
+#endif
+		sourceTexture.loadData(rawColor->data(), kColorWidth, kColorHeight,
+			glFormat);
 		return;
 	}
 
-	const vector<float> &source = rawMono;
-	if (source.size() != (size_t)kDepthWidth * kDepthHeight) return;
+	if (auto frame = capture->acquireMonoFrame(stream == INFRARED,
+		lastFrameVersion))
+	{
+		rawMono = std::move(frame);
+	}
+	if (!rawMono || rawMono->size() != (size_t)kDepthWidth * kDepthHeight)
+	{
+		return;
+	}
+	// Rebuild on a new frame OR on a settings change, so dragging near/far or
+	// gamma repaints immediately instead of waiting on the next device frame -
+	// which never arrives at all once the sensor drops out.
+	if (lastFrameVersion == builtFrameVersion &&
+		settingsVersion == builtSettingsVersion)
+	{
+		return;
+	}
+	builtFrameVersion = lastFrameVersion;
+	builtSettingsVersion = settingsVersion;
+
+	const vector<float> &source = *rawMono;
 	monoPixels.allocate(kDepthWidth, kDepthHeight, OF_PIXELS_GRAY);
-	const bool invert = parameters.getBoolValue(1);
-	const float gamma = parameters.getFloatValue(8);
+	// loadData only reallocates when the incoming image is LARGER, so coming
+	// back from the 1920x1080 colour texture it would happily blit 512x424 of
+	// grey into a corner of the old RGB one. Drop it and let loadData rebuild.
+	if (textureStream == (int)COLOR)
+	{
+		sourceTexture.clear();
+	}
+	textureStream = (int)stream;
+	constexpr float lastEntry = (float)(kToneCurveSize - 1);
 	if (stream == DEPTH)
 	{
 		const float nearMm = parameters.getFloatValue(3);
 		const float farMm = std::max(nearMm + 1.0f,
 			parameters.getFloatValue(4));
 		const bool clipDepth = parameters.getBoolValue(6);
+		const float scale = 1.0f / (farMm - nearMm);
 		for (size_t i = 0; i < source.size(); ++i)
 		{
 			const float mm = source[i];
-			if (!std::isfinite(mm) || mm <= 0.0f)
+			if (!std::isfinite(mm) || mm <= 0.0f ||
+				(clipDepth && (mm < nearMm || mm > farMm)))
 			{
 				monoPixels[i] = 0;
 				continue;
 			}
-			if (clipDepth && (mm < nearMm || mm > farMm))
-			{
-				monoPixels[i] = 0;
-				continue;
-			}
-			float value = 1.0f - ofClamp((mm - nearMm) / (farMm - nearMm), 0.0f, 1.0f);
-			if (invert) value = 1.0f - value;
-			value = std::pow(value, 1.0f / gamma);
-			monoPixels[i] = (unsigned char)std::lround(value * 255.0f);
+			const float value =
+				1.0f - ofClamp((mm - nearMm) * scale, 0.0f, 1.0f);
+			monoPixels[i] = toneCurve[(int)(value * lastEntry + 0.5f)];
 		}
 	}
 	else
 	{
-		const float gain = parameters.getFloatValue(5);
+		const float gain = parameters.getFloatValue(5) / 65535.0f;
 		for (size_t i = 0; i < source.size(); ++i)
 		{
-			float value = ofClamp(source[i] / 65535.0f * gain, 0.0f, 1.0f);
-			if (invert) value = 1.0f - value;
-			value = std::pow(value, 1.0f / gamma);
-			monoPixels[i] = (unsigned char)std::lround(value * 255.0f);
+			const float ir = source[i];
+			const float value = std::isfinite(ir) ?
+				ofClamp(ir * gain, 0.0f, 1.0f) : 0.0f;
+			monoPixels[i] = toneCurve[(int)(value * lastEntry + 0.5f)];
 		}
 	}
 	sourceTexture.loadData(monoPixels);
@@ -417,6 +513,9 @@ void JPbox_kinect2::draw()
 		visible.pop_back();
 	}
 	if (visible != badge) visible += "..";
+	// Push/pop: the rect mode is global GL-ish state that every later drawer
+	// inherits, and leaving it on CORNER moved anything that draws centred.
+	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
 	ofSetColor(COL_BG_INPUT, 220);
 	ofDrawRectangle(x - fbowidth / 2.0f,
@@ -427,6 +526,7 @@ void JPbox_kinect2::draw()
 	jp_constants::p_font.drawString(visible,
 		x - fbowidth / 2.0f + 3.0f,
 		y + padding_top / 2.0f - 3.0f + fboheight - 4.0f);
+	ofPopStyle();
 }
 
 void JPbox_kinect2::clear()
@@ -435,10 +535,9 @@ void JPbox_kinect2::clear()
 	cleared = true;
 	capture.reset();
 	sourceTexture.clear();
-	colorPixels.clear();
 	monoPixels.clear();
-	rawColor.clear();
-	rawMono.clear();
+	rawColor.reset();
+	rawMono.reset();
 	JPbox::clear();
 }
 
@@ -471,7 +570,12 @@ JPbox_kinect2::Stream JPbox_kinect2::getStream() const
 void JPbox_kinect2::setStream(Stream value)
 {
 	stream = (Stream)ofClamp((int)value, 0, 2);
+	// Force a refetch and a rebuild: the cached picture belongs to the stream
+	// we are leaving.
 	lastFrameVersion = 0;
+	builtFrameVersion = 0;
+	rawColor.reset();
+	rawMono.reset();
 }
 
 string JPbox_kinect2::getStreamLabel() const
@@ -498,4 +602,43 @@ bool JPbox_kinect2::isDriverAvailable()
 #else
 	return false;
 #endif
+}
+
+// --- Raw depth tap ---------------------------------------------------------
+// KinectV2CaptureSource is file local, so boxes that are not a JPbox_kinect2
+// reach the device through these instead of constructing their own.
+
+shared_ptr<KinectV2CaptureSource> JPbox_kinect2::acquireSharedCapture()
+{
+	return KinectV2CaptureSource::acquire();
+}
+
+JPbox_kinect2::MonoFrame JPbox_kinect2::acquireRawDepth(
+	const shared_ptr<KinectV2CaptureSource> &source, uint64_t &version)
+{
+	if (!source) return nullptr;
+	return source->acquireDepthFrame(version);
+}
+
+JPbox_kinect2::DepthIntrinsics JPbox_kinect2::depthIntrinsics(
+	const shared_ptr<KinectV2CaptureSource> &source)
+{
+	if (!source) return DepthIntrinsics();
+	return source->intrinsics();
+}
+
+string JPbox_kinect2::captureStatus(
+	const shared_ptr<KinectV2CaptureSource> &source)
+{
+	return source ? source->status() : "NOT AVAILABLE";
+}
+
+int JPbox_kinect2::depthWidth()
+{
+	return kDepthWidth;
+}
+
+int JPbox_kinect2::depthHeight()
+{
+	return kDepthHeight;
 }

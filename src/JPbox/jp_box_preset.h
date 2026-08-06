@@ -5,6 +5,7 @@
 #include "jp_box.h"
 #include "jp_box_cam.h"
 #include "jp_box_kinect2.h"
+#include "jp_box_pointercloud.h"
 #include "jp_box_image.h"
 #include "jp_box_shader.h"
 #ifdef SPOUT

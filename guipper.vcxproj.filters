@@ -43,6 +43,24 @@
     <ClCompile Include="src\JPbox\jp_box_framedifference.cpp">
       <Filter>src\JPbox</Filter>
     </ClCompile>
+    <ClCompile Include="src\fix_line.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPbox\jp_box_pointercloud.cpp">
+      <Filter>src\JPbox</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPbox\JPboxgroup_mapping_advanced.cpp">
+      <Filter>src\JPbox</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPbox\jp_box_kinect2.cpp">
+      <Filter>src\JPbox</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPbox\jp_box_sequencer.cpp">
+      <Filter>src\JPbox</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPbox\jp_box_shader_mapping.cpp">
+      <Filter>src\JPbox</Filter>
+    </ClCompile>
     <ClCompile Include="src\JPbox\jp_box_image.cpp">
       <Filter>src\JPbox</Filter>
     </ClCompile>
@@ -319,6 +337,21 @@
     </ClInclude>
     <ClInclude Include="src\JPbox\jp_box_framedifference.h">
       <Filter>src\JPbox</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPbox\jp_box_pointercloud.h">
+      <Filter>src\JPbox</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPbox\jp_box_kinect2.h">
+      <Filter>src\JPbox</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPbox\jp_box_sequencer.h">
+      <Filter>src\JPbox</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_textfield.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_tooltip.h">
+      <Filter>src\JPutils</Filter>
     </ClInclude>
     <ClInclude Include="src\JPbox\jp_box_cam.h">
       <Filter>src\JPbox</Filter>

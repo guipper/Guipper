@@ -120,6 +120,10 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	{
 		nombre = "KINECT2";
 	}
+	else if (directory.find("pointercloud") != std::string::npos)
+	{
+		nombre = "PointerCloud";
+	}
 #ifdef SPOUT
 	else if (directory.find("spoutReceiver") != std::string::npos)
 	{
@@ -168,6 +172,10 @@ JPbox *JPboxgroup::createBoxForDirectory(const string &directory, string &name) 
 	else if (directory.find("kinect2") != std::string::npos)
 	{
 		bx = new JPbox_kinect2();
+	}
+	else if (directory.find("pointercloud") != std::string::npos)
+	{
+		bx = new JPbox_pointercloud();
 	}
 	else if (directory.find("cam") != std::string::npos)
 	{
@@ -4174,6 +4182,9 @@ void JPboxgroup::load(string _dirinput)
 	xml.load(_dirinput);
 	// Carga inicial de las cajitas :
 	auto boxloader = xml.find("/box");
+	// Kept in lockstep with `boxes`, so the link pass below can pair a box
+	// with the node it came from even when some nodes produce no box.
+	vector<ofXml> loadedBoxNodes;
 
 	cout << "******************************************************************" << endl;
 	for (auto &box : boxloader)
@@ -4190,7 +4201,7 @@ void JPboxgroup::load(string _dirinput)
 		// cout << "x : " << y.getValue() << endl;
 		// cout << "Directory : " << directory.getValue() << endl;
 
-		JPbox *bx;
+		JPbox *bx = nullptr;
 		if (directory.getValue().find(".frag") != std::string::npos)
 		{
 			bx = new JPbox_shader();
@@ -4213,6 +4224,10 @@ void JPboxgroup::load(string _dirinput)
 		else if (directory.getValue().find("kinect2") != std::string::npos)
 		{
 			bx = new JPbox_kinect2();
+		}
+		else if (directory.getValue().find("pointercloud") != std::string::npos)
+		{
+			bx = new JPbox_pointercloud();
 		}
 		else if (directory.getValue().find("cam") != std::string::npos)
 		{
@@ -4239,39 +4254,52 @@ void JPboxgroup::load(string _dirinput)
 			bx = new JPbox_framedifference();
 		}
 
+		if (bx == nullptr)
+		{
+			// Nothing matched: a build without NDI/Spout, or a save that
+			// references a box type this binary does not know about.
+			ofLogWarning("JPboxgroup")
+				<< "skipping box '" << nombre.getValue()
+				<< "' with unsupported directory '"
+				<< directory.getValue() << "'";
+			continue;
+		}
+
 		bx->setup(jp_normalizePath(directory.getValue()), nombre.getValue());
 		bx->setPos(x.getIntValue(), y.getIntValue());
 		bx->setonoff(onoff ? onoff.getBoolValue() : true);
 		bx->setBypass(bypass ? bypass.getBoolValue() : false);
 
-		int index = 0;
+		int destinationIndex = 0;
 		auto parameters = box.getChild("parameters").getChildren();
+		int parameterLoadLimit = bx->parameters.getSize();
 		// cout << "PARAMETER SIZE SB " << sb->parameters.getSize() << endl;
 
 		for (auto &param : parameters) 
 		{
+			if (destinationIndex >= parameterLoadLimit) break;
 
-			if (bx->parameters.getType(index) == bx->parameters.FLOAT)
+			if (bx->parameters.getType(destinationIndex) == bx->parameters.FLOAT)
 			{
 				bx->parameters.setName(param.getChild("name").getValue());
-				bx->parameters.setMin(param.getChild("min").getFloatValue(), index);
-				bx->parameters.setMax(param.getChild("max").getFloatValue(), index);
-				bx->parameters.setFloatLerpValue(param.getChild("value").getFloatValue(), index);
-				bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), index);
-				bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), index);
-				bx->parameters.setSpeed(param.getChild("speed").getFloatValue(), index);
+				bx->parameters.setMin(param.getChild("min").getFloatValue(), destinationIndex);
+				bx->parameters.setMax(param.getChild("max").getFloatValue(), destinationIndex);
+				bx->parameters.setFloatLerpValue(param.getChild("value").getFloatValue(), destinationIndex);
+				bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), destinationIndex);
+				bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), destinationIndex);
+				bx->parameters.setSpeed(param.getChild("speed").getFloatValue(), destinationIndex);
 				auto bpmRate = param.getChild("bpmrate");
 				if (bpmRate)
 				{
-					bx->parameters.setBpmRate(bpmRate.getIntValue(), index);
+					bx->parameters.setBpmRate(bpmRate.getIntValue(), destinationIndex);
 				}
 			}
-			else if (bx->parameters.getType(index) == bx->parameters.BOOL)
+			else if (bx->parameters.getType(destinationIndex) == bx->parameters.BOOL)
 			{
 				bx->parameters.setName(param.getChild("name").getValue());
-				bx->parameters.setBoolValue(param.getChild("value").getBoolValue(), index);
+				bx->parameters.setBoolValue(param.getChild("value").getBoolValue(), destinationIndex);
 			}
-			index++;
+			destinationIndex++;
 		}
 		bx->loadCustomState(box);
 
@@ -4284,6 +4312,7 @@ void JPboxgroup::load(string _dirinput)
 #endif
 
 		boxes.push_back(bx);
+		loadedBoxNodes.push_back(box);
 
 		// Load exposedParams for preset boxes from the main XML
 		if (bx->getTipo() == bx->PRESETBOX)
@@ -4314,9 +4343,13 @@ void JPboxgroup::load(string _dirinput)
 	}
 	// Una vez que cargo todas las cajitas les cargamos los links :
 	// Mira lo que esta este algoritmo para levantar los links entre cajitas papa !!!
+	// Walk the nodes that actually produced a box, not every node in the file.
+	// Iterating boxloader here assumed the two ran in lockstep, so a single
+	// skipped box shifted every later node onto the wrong box and silently
+	// rewired the rest of the patch.
 	int index1 = 0;
 	cout << "COMIENZA LINKS DE LOS FBO " << endl;
-	for (auto &box : boxloader)
+	for (auto &box : loadedBoxNodes)
 	{
 		if (index1 >= (int)boxes.size())
 		{
@@ -7355,6 +7388,11 @@ JPParameter *JPboxgroup::getOpenParameterAtIndex(
 }
 bool JPboxgroup::setOpenBoxParameterAtIndex(int parameterIndex, float value)
 {
+	if (parameterIndex < 0 ||
+		parameterIndex >= maxBindableParameters)
+	{
+		return false;
+	}
 	JPParameter *parameter =
 		getOpenParameterAtIndex(parameterIndex);
 	if (parameter == nullptr)

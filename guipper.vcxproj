@@ -201,6 +201,12 @@
     <ClCompile Include="src\JPbox\jp_box_shader.cpp" />
     <ClCompile Include="src\JPbox\jp_box.cpp" />
     <ClCompile Include="src\JPbox\jp_box_framedifference.cpp" />
+    <ClCompile Include="src\fix_line.cpp" />
+    <ClCompile Include="src\JPbox\jp_box_pointercloud.cpp" />
+    <ClCompile Include="src\JPbox\JPboxgroup_mapping_advanced.cpp" />
+    <ClCompile Include="src\JPbox\jp_box_kinect2.cpp" />
+    <ClCompile Include="src\JPbox\jp_box_sequencer.cpp" />
+    <ClCompile Include="src\JPbox\jp_box_shader_mapping.cpp" />
     <ClCompile Include="src\JPbox\jp_box_image.cpp" />
     <ClCompile Include="src\JPbox\jp_box_cam.cpp" />
     <ClCompile Include="src\JPbox\JPboxgroup.cpp" />
@@ -275,6 +281,11 @@
     <ClInclude Include="src\JPbox\jp_box_shader.h" />
     <ClInclude Include="src\JPbox\jp_box_ndi.h" />
     <ClInclude Include="src\JPbox\jp_box_framedifference.h" />
+    <ClInclude Include="src\JPbox\jp_box_pointercloud.h" />
+    <ClInclude Include="src\JPbox\jp_box_kinect2.h" />
+    <ClInclude Include="src\JPbox\jp_box_sequencer.h" />
+    <ClInclude Include="src\JPutils\jp_textfield.h" />
+    <ClInclude Include="src\JPutils\jp_tooltip.h" />
     <ClInclude Include="src\JPbox\jp_box_cam.h" />
     <ClInclude Include="src\JPbox\jp_box_video.h" />
     <ClInclude Include="src\JPbox\jp_box.h" />

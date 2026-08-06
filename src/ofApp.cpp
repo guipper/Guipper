@@ -307,7 +307,7 @@ void ofApp::draw_instrucciones() {
 
 	// Count lines for both languages (take the larger one)
 	int esLines = 0, enLines = 0;
-	string es[50], en[50];
+	string es[64], en[64];
 
 	// SPANISH
 	es[esLines++] = "INSTRUCCIONES";
@@ -335,6 +335,7 @@ void ofApp::draw_instrucciones() {
 	es[esLines++] = "c : Agregar caja camara";
 	es[esLines++] = "n : Agregar caja NDI RECEIVER";
 	es[esLines++] = "Shift+C : Agregar caja KINECT V2";
+	es[esLines++] = "Shift+P : Agregar PointerCloud (nube de puntos Kinect)";
 	es[esLines++] = "i : Agregar caja Frame Difference";
 	es[esLines++] = "k : Abrir/cerrar panel MIDI Keymap";
 	es[esLines++] = "m : Exportar imagen (captura de pantalla)";
@@ -388,6 +389,7 @@ void ofApp::draw_instrucciones() {
 	en[enLines++] = "c : Add Camera box";
 	en[enLines++] = "n : Add NDI RECEIVER box";
 	en[enLines++] = "Shift+C : Add KINECT V2 box";
+	en[enLines++] = "Shift+P : Add PointerCloud (Kinect point cloud)";
 	en[enLines++] = "i : Add Frame Difference box";
 	en[enLines++] = "k : Open/close MIDI Keymap panel";
 	en[enLines++] = "m : Export screenshot to exportimgs/";
@@ -4041,6 +4043,9 @@ void ofApp::keyPressed(int key) {
 		}
 		if (key == 'C') {
 			boxes.addBox("kinect2");
+		}
+		if (key == 'P') {
+			boxes.addBox("pointercloud");
 		}
 		if (key == 'n') {
 #ifdef NDI

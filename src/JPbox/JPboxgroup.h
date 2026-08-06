@@ -11,6 +11,7 @@
 #include "jp_box_video.h"
 #include "jp_box_cam.h"
 #include "jp_box_kinect2.h"
+#include "jp_box_pointercloud.h"
 
 class JPShaderEditor; // forward declaration
 
@@ -36,6 +37,11 @@ class JPboxgroup
 {
 
 public:
+	// How many parameter slots the MIDI keymap exposes per box. Bindings are
+	// stored by index, so this has to stay fixed: growing it with the largest
+	// box on screen silently remapped saved bindings.
+	static constexpr int maxBindableParameters = 16;
+
 	JPboxgroup();
 	~JPboxgroup();
 	string test;

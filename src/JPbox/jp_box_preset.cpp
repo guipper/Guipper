@@ -38,7 +38,7 @@ void JPbox_preset::setup(string _directory, string _name)
 		// cout << "x : " << y.getValue() << endl;
 		// cout << "Directory : " << directory.getValue() << endl;
 
-		JPbox *bx;
+		JPbox *bx = nullptr;
 		if (directory.getValue().find(".frag") != std::string::npos)
 		{
 			bx = new JPbox_shader();
@@ -61,6 +61,10 @@ void JPbox_preset::setup(string _directory, string _name)
 		else if (directory.getValue().find("kinect2") != std::string::npos)
 		{
 			bx = new JPbox_kinect2();
+		}
+		else if (directory.getValue().find("pointercloud") != std::string::npos)
+		{
+			bx = new JPbox_pointercloud();
 		}
 		else if (directory.getValue().find("cam") != std::string::npos)
 		{
@@ -85,6 +89,17 @@ void JPbox_preset::setup(string _directory, string _name)
 		{
 			bx = new JPbox_framedifference();
 		}
+		if (bx == nullptr)
+		{
+			// Nothing matched: a build without NDI/Spout, or a save that
+			// references a box type this binary does not know about.
+			ofLogWarning("JPbox_preset")
+				<< "skipping box '" << nombre.getValue()
+				<< "' with unsupported directory '"
+				<< directory.getValue() << "'";
+			continue;
+		}
+
 		bx->setup(jp_normalizePath(directory.getValue()), nombre.getValue());
 		bx->setPos(x.getIntValue(), y.getIntValue());
 
@@ -105,11 +120,13 @@ void JPbox_preset::setup(string _directory, string _name)
 			bx->setBypass(bypassChild.getBoolValue());
 		}
 
-		int index = 0;
+		int destinationIndex = 0;
 		auto parameters = box.getChild("parameters").getChildren();
+		int parameterLoadLimit = bx->parameters.getSize();
 		// cout << "PARAMETER SIZE SB " << sb->parameters.getSize() << endl;
 		for (auto &param : parameters)
 		{
+			if (destinationIndex >= parameterLoadLimit) break;
 			/*cout << "............" << endl;
 			cout << "nombre parametro:" << param.getChild("name").getValue() << endl;
 			cout << "min parametro:" << param.getChild("min").getFloatValue() << endl;
@@ -120,28 +137,28 @@ void JPbox_preset::setup(string _directory, string _name)
 			parametro:" << param.getChild("movtype").getIntValue() << endl;
 			cout << "speed parametro:" << param.getChild("speed").getFloatValue() << endl;*/
 
-			if (bx->parameters.getType(index) == bx->parameters.FLOAT)
+			if (bx->parameters.getType(destinationIndex) == bx->parameters.FLOAT)
 			{
 
 				bx->parameters.setName(param.getChild("name").getValue());
-				bx->parameters.setMin(param.getChild("min").getFloatValue(), index);
-				bx->parameters.setMax(param.getChild("max").getFloatValue(), index);
-				bx->parameters.setFloatLerpValue(param.getChild("value").getFloatValue(), index);
-				bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), index);
-				bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), index);
-				bx->parameters.setSpeed(param.getChild("speed").getFloatValue(), index);
+				bx->parameters.setMin(param.getChild("min").getFloatValue(), destinationIndex);
+				bx->parameters.setMax(param.getChild("max").getFloatValue(), destinationIndex);
+				bx->parameters.setFloatLerpValue(param.getChild("value").getFloatValue(), destinationIndex);
+				bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), destinationIndex);
+				bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), destinationIndex);
+				bx->parameters.setSpeed(param.getChild("speed").getFloatValue(), destinationIndex);
 				auto bpmRate = param.getChild("bpmrate");
 				if (bpmRate)
 				{
-					bx->parameters.setBpmRate(bpmRate.getIntValue(), index);
+					bx->parameters.setBpmRate(bpmRate.getIntValue(), destinationIndex);
 				}
 			}
-			else if (bx->parameters.getType(index) == bx->parameters.BOOL)
+			else if (bx->parameters.getType(destinationIndex) == bx->parameters.BOOL)
 			{
 				bx->parameters.setName(param.getChild("name").getValue());
-				bx->parameters.setBoolValue(param.getChild("value").getBoolValue(), index);
+				bx->parameters.setBoolValue(param.getChild("value").getBoolValue(), destinationIndex);
 			}
-			index++;
+			destinationIndex++;
 		}
 		bx->loadCustomState(box);
 		boxes.push_back(bx);

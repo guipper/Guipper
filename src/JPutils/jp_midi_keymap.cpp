@@ -21,7 +21,6 @@ namespace
 	const float SELECT_FIELD_Y_OFFSET = 15.0f;
 	const float DROPDOWN_GAP = 4.0f;
 	const float SELECT_DROPDOWN_MAX_H = 420.0f;
-	const int DEFAULT_GLOBAL_PARAMETER_INDEX_COUNT = 16;
 
 	bool mouseInRect(float x, float y, float w, float h)
 	{
@@ -506,7 +505,8 @@ bool JPMidiKeymap::isBindingLoadable(const Binding &binding) const
 	}
 	if (binding.action == PARAMETER)
 	{
-		return binding.parameterIndex >= 0;
+		return binding.parameterIndex >= 0 &&
+			binding.parameterIndex < JPboxgroup::maxBindableParameters;
 	}
 	if (binding.action == ADD_SHADER_BOX)
 	{
@@ -1023,13 +1023,7 @@ JPbox *JPMidiKeymap::getSelectedParameterBox() const
 
 int JPMidiKeymap::getGlobalParameterIndexCount() const
 {
-	int maxCount = boxes != nullptr ? boxes->getMaxParameterCount() : 0;
-	if (boxes != nullptr)
-	{
-		maxCount = std::max(
-			maxCount, boxes->getOpenParameterCount());
-	}
-	return std::max(DEFAULT_GLOBAL_PARAMETER_INDEX_COUNT, maxCount);
+	return JPboxgroup::maxBindableParameters;
 }
 
 int JPMidiKeymap::getNonParameterBindingCount() const

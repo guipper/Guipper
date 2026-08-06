@@ -34,18 +34,66 @@ public:
 	void requestReconnect();
 	static bool isDriverAvailable();
 
+	// --- Raw depth tap -------------------------------------------------
+	// The box itself only ever publishes an 8-bit grey visualisation of the
+	// depth stream. These give other boxes the untouched libfreenect2 data so
+	// they can do real metric geometry instead of guessing from luminance.
+
+	// Pinhole parameters of the IR/depth camera, straight from the device.
+	struct DepthIntrinsics
+	{
+		float fx = 0.0f;
+		float fy = 0.0f;
+		float cx = 0.0f;
+		float cy = 0.0f;
+		bool valid = false;
+	};
+
+	// Frames are published as immutable snapshots and handed out by refcount.
+	// Copying them per consumer per frame meant an 8 MB memcpy for colour
+	// alone, multiplied by every box reading the device.
+	using ColorFrame = shared_ptr<const vector<unsigned char>>;
+	using MonoFrame = shared_ptr<const vector<float>>;
+
+	// Opens the shared device if nobody has yet, and keeps it alive for as
+	// long as the returned handle is held. Consumers must store it.
+	static shared_ptr<KinectV2CaptureSource> acquireSharedCapture();
+
+	// Raw depth in millimetres, depthWidth() x depthHeight(), exactly as
+	// captured. Null when the frame version is unchanged or nothing streams.
+	static MonoFrame acquireRawDepth(
+		const shared_ptr<KinectV2CaptureSource> &source, uint64_t &version);
+	static DepthIntrinsics depthIntrinsics(
+		const shared_ptr<KinectV2CaptureSource> &source);
+	static string captureStatus(
+		const shared_ptr<KinectV2CaptureSource> &source);
+	static int depthWidth();
+	static int depthHeight();
+
 private:
 	void updateSourceTexture();
 	void drawSourceTexture();
+	// The tone curve folds invert and gamma into a table so the per pixel
+	// std::pow disappears from the conversion loop.
+	void refreshToneCurve();
+	static constexpr int kToneCurveSize = 1024;
 
 	Stream stream = COLOR;
 	shared_ptr<KinectV2CaptureSource> capture;
 	ofTexture sourceTexture;
-	ofPixels colorPixels;
 	ofPixels monoPixels;
-	vector<unsigned char> rawColor;
-	vector<float> rawMono;
+	ColorFrame rawColor;
+	MonoFrame rawMono;
+	unsigned char toneCurve[kToneCurveSize] = {0};
+	float toneCurveGamma = -1.0f;
+	bool toneCurveInvert = false;
+	// Bumped whenever a setting that affects the grey mapping changes, so the
+	// picture also refreshes between device frames instead of looking stuck.
+	uint64_t settingsVersion = 1;
+	uint64_t builtSettingsVersion = 0;
 	uint64_t lastFrameVersion = 0;
+	uint64_t builtFrameVersion = 0;
 	int colorFormat = 0;
+	int textureStream = -1;
 	bool cleared = false;
 };
