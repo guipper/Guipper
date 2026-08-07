@@ -397,8 +397,9 @@ void JPbox::clear()
 	// fbo = nullptr;
 }
 bool JPbox::mouseOverOutlet()
-{	
-
+{
+	// Does not go through mouseOver(), so it needs the same occlusion guard.
+	if (!jp_pointer::available()) return false;
 
 	float auxoutletsize = outlet_size ;
 

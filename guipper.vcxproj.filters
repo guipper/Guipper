@@ -299,6 +299,15 @@
     <ClInclude Include="src\JPgui\jp_knob.h">
       <Filter>src\JPgui</Filter>
     </ClInclude>
+    <ClInclude Include="src\JPgui\jp_button.h">
+      <Filter>src\JPgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPgui\jp_screen.h">
+      <Filter>src\JPgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPgui\jp_surfacestack.h">
+      <Filter>src\JPgui</Filter>
+    </ClInclude>
     <ClInclude Include="src\JPgui\jp_complexslider.h">
       <Filter>src\JPgui</Filter>
     </ClInclude>
@@ -366,6 +375,9 @@
       <Filter>src\JPutils</Filter>
     </ClInclude>
     <ClInclude Include="src\JPutils\jp_constants.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_pointer.h">
       <Filter>src\JPutils</Filter>
     </ClInclude>
     <ClInclude Include="src\JPutils\jp_fbohandler.h">

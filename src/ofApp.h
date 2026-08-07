@@ -14,6 +14,9 @@
 #include "JPbox/jp_box.h"
 #include "JPbox/jp_box_shader.h"
 #include "JPbox/JPboxgroup.h"
+#include "JPutils/jp_pointer.h"
+#include "JPgui/jp_surfacestack.h"
+#include "JPgui/jp_screen.h"
 //#include "JPbox/Shaderrender.h"
 #include "JPutils/jp_fileloader.h"
 #include "JPutils/jp_constants.h"
@@ -285,9 +288,60 @@ public:
 		OPCIONES,    // SETTINGS
 		TUTORIAL,    // HELP
 		SHADER_INDEX,// IMPORT
-		EDITOR       // SHADER EDITOR
+		EDITOR,      // SHADER EDITOR
+		MIDI_KEYMAP  // MIDI keymap. Appended: the ordinals are not persisted,
+		             // but keeping them stable keeps '1'-'5' meaning what they
+		             // always meant.
 	};
 	int pantallaActiva;
+	// HELP and MIDI never scrolled; both now have a full-height frame to fill.
+	float helpScroll = 0.0f;
+	float helpContentH = 0.0f;
+	float helpViewH = 0.0f;
+	float midiScroll = 0.0f;
+
+	// Every floating thing is a surface with a declared z-order, so "who is on
+	// top", "what does ESC close" and "what blocks the click" are answered in
+	// one place instead of by the order of early returns in the input handlers.
+	// Values are the z-order; ids are the same numbers.
+	enum SurfaceId
+	{
+		SURFACE_INSPECTOR = jp_pointer::kInspector,
+		SURFACE_CUE_PANEL = jp_pointer::kCuePanel,
+		SURFACE_MAPPING_PANEL = jp_pointer::kMappingPanel,
+		SURFACE_SHADER_EDITOR = jp_pointer::kShaderEditor,
+		SURFACE_FIELD_EDIT = jp_pointer::kFieldEdit,
+		SURFACE_DROPDOWN = jp_pointer::kDropdown,
+		SURFACE_MIDI_CONFLICT = jp_pointer::kPrompt,
+		SURFACE_SAVE_MODAL = jp_pointer::kModal
+	};
+	JPSurfaceStack surfaces;
+	void registerSurfaces();
+	// Drops focus from whichever text field currently has it.
+	void clearFieldFocus();
+	bool anyFieldFocused() const;
+
+	// Top bar buttons. Most switch screen and carry their MENUACTIVO id;
+	// kMidiPanelBarItem toggles the MIDI panel instead, so it is negative and
+	// callers testing `>= 0` keep ignoring it.
+	static constexpr int kMidiPanelBarItem = -2;
+	static constexpr int kCuePanelBarItem = -3;
+	static constexpr int kMappingPanelBarItem = -4;
+	struct ScreenBarItem
+	{
+		string label;
+		int action = -1;
+		string tooltip;
+		ofRectangle rect;
+		// Panel toggles read as a separate group: cyan when open rather than
+		// green, and greyed out when the panel cannot apply right now.
+		bool isPanelToggle = false;
+		bool lit = false;
+		bool enabled = true;
+	};
+	// Single source of the bar layout - drawing and hit testing used to keep
+	// their own copies of the list and the geometry.
+	vector<ScreenBarItem> buildScreenBar() const;
 	void drawScreenTabs();
 	int getScreenTabAtPos(int x, int y);
 	void closeShaderEditorToMain();
@@ -390,6 +444,25 @@ public:
 
 	// Options screen text fields
 	enum { FIELD_OSC_PORT_IN = 0, FIELD_OSC_PORT_OUT, FIELD_RENDER_WIDTH, FIELD_RENDER_HEIGHT, FIELD_BPM, FIELD_OSC_IP_OUT, FIELD_DEFAULT_COMPO, OPTIONS_FIELD_COUNT };
+
+	// One layout for the settings screen, computed once and read by both the
+	// draw pass and the click handler. They used to keep private copies of the
+	// same constants under a comment saying they had to match by hand, which is
+	// how a control ends up painted somewhere other than where it is clickable.
+	struct SettingsLayout
+	{
+		ofRectangle panel;
+		ofRectangle fields[OPTIONS_FIELD_COUNT];
+		ofRectangle autoTapButton;
+		ofRectangle spoutToggle;   // empty when built without SPOUT
+		ofRectangle ndiToggle;     // empty when built without NDI
+		ofRectangle browseButton;
+		ofRectangle saveButton;
+		ofRectangle activeCompoRow;
+		float labelX = 0.0f;
+		float rowH = 28.0f;
+	};
+	SettingsLayout getSettingsLayout() const;
 	string optionsFieldText[OPTIONS_FIELD_COUNT];
 	int focusedOptionsField = -1;
 	int optionsFieldCursor = 0;
@@ -432,6 +505,9 @@ public:
 		ofRectangle list;
 		vector<ofRectangle> rows;
 		vector<int> rowIndices;
+		// Y of the divider that separates this output's own settings from the
+		// ones that apply to the whole installation.
+		float globalSectionY = 0.0f;
 		ofRectangle addButton;
 		ofRectangle deleteButton;
 		ofRectangle enabledToggle;

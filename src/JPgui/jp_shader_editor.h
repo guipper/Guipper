@@ -2,6 +2,7 @@
 
 #include "defines.h"
 #include "ofMain.h"
+#include "jp_screen.h"
 #include "../JPutils/jp_tooltip.h"
 #include <vector>
 #include <string>
@@ -82,7 +83,9 @@ public:
 	bool saveCurrentTab();
 
 	// ---- Layout constants ----
-	static constexpr float MARGIN = 40.0f;
+	// Standard screen geometry: the editor used to sit on its own 40/40 grid,
+	// out of line with every other screen.
+	static constexpr float MARGIN = jp_screen::kMarginX;
 	static constexpr float TOP_BAR_H = 32.0f;
 	static constexpr float TAB_BAR_H = 28.0f;
 	static constexpr float STATUS_BAR_H = 22.0f;

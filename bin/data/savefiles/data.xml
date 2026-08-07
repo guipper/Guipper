@@ -1,197 +1,225 @@
 <?xml version="1.0"?>
 <activerender>3</activerender>
 <box>
-	<nombre>worms</nombre>
-	<x>100</x>
-	<y>111</y>
-	<directory>data\shaders\contrib\worms.frag</directory>
+	<nombre>gusanos</nombre>
+	<x>92</x>
+	<y>208</y>
+	<directory>data/groups/group_2026-07-27-18-30-48-181.xml</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
+	<exposedParams>
+		<box>2<param>0</param>
+		</box>
+		<box>2<param>1</param>
+		</box>
+		<box>2<param>2</param>
+		</box>
+	</exposedParams>
 </box>
 <box>
-	<nombre>edges</nombre>
-	<x>282</x>
-	<y>127</y>
-	<directory>data\shaders\imageprocessing\edges.frag</directory>
+	<nombre>huerotate</nombre>
+	<x>258</x>
+	<y>209</y>
+	<directory>/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/data/shaders/imageprocessing/huerotate.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
-			<name>effect_mix</name>
+			<name>hue</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.123997</value>
+			<movtype>1</movtype>
+			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
+		</param>
+	</parameters>
+	<fboslinks>
+		<textura1>gusanos</textura1>
+	</fboslinks>
+</box>
+<box>
+	<nombre>rotatecolor</nombre>
+	<x>257</x>
+	<y>405</y>
+	<directory>shaders/imageprocessing/rotatecolor.frag</directory>
+	<onoff>1</onoff>
+	<bypass>0</bypass>
+	<parameters>
+		<param>
+			<name>rd1</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.401575</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
+		</param>
+		<param>
+			<name>rd2</name>
 			<min>0</min>
 			<max>1</max>
 			<value>1</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
 		</param>
 		<param>
-			<name>effect_exp</name>
+			<name>rd3</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.277778</value>
+			<value>0.440945</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>color_mix</name>
-			<min>0</min>
-			<max>1</max>
-			<value>1</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>sample_size</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.168148</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>brightness</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.224444</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
 		</param>
 	</parameters>
 	<fboslinks>
-		<input_texture>worms</input_texture>
+		<tx>redbullstarnestv3</tx>
 	</fboslinks>
 </box>
 <box>
-	<nombre>lighting3D</nombre>
-	<x>494</x>
-	<y>125</y>
-	<directory>data\shaders\imageprocessing\lighting3D.frag</directory>
+	<nombre>redbullstarnestv3</nombre>
+	<x>94</x>
+	<y>402</y>
+	<directory>shaders/generative/redbullstarnestv3.frag</directory>
 	<onoff>1</onoff>
+	<bypass>0</bypass>
 	<parameters>
 		<param>
-			<name>height</name>
+			<name>speedx</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.165185</value>
+			<value>0.456693</value>
 			<movtype>0</movtype>
-			<speed>0.2</speed>
+			<speed>0.496063</speed>
+			<bpmrate>2</bpmrate>
 		</param>
 		<param>
-			<name>light_dir_x</name>
+			<name>speedy</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.188889</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
+			<value>0.944254</value>
+			<movtype>1</movtype>
+			<speed>0.015748</speed>
+			<bpmrate>2</bpmrate>
 		</param>
 		<param>
-			<name>light_dir_y</name>
+			<name>animationspeed1</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.203704</value>
+			<value>0.915002</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
 		</param>
 		<param>
-			<name>light_dir_z</name>
+			<name>iterations</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.177007</value>
+			<value>0.507</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
 		</param>
 		<param>
-			<name>ambient</name>
+			<name>formuparam</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.526667</value>
+			<value>0.662955</value>
 			<movtype>0</movtype>
-			<speed>0.2</speed>
+			<speed>0</speed>
+			<bpmrate>2</bpmrate>
 		</param>
 		<param>
-			<name>diffuse</name>
+			<name>volsteps</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.407971</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>specular_red</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.331767</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>specular_green</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.379009</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>specular_blue</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.624714</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-		<param>
-			<name>specular_size</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.223945</value>
-			<movtype>0</movtype>
-			<speed>0.2</speed>
-		</param>
-	</parameters>
-	<fboslinks>
-		<texture1>edges</texture1>
-	</fboslinks>
-</box>
-<box>
-	<nombre>mirrorquad</nombre>
-	<x>626</x>
-	<y>85</y>
-	<directory>data\shaders\imageprocessing\mirrorquad.frag</directory>
-	<onoff>1</onoff>
-	<parameters>
-		<param>
-			<name>flipx</name>
 			<value>0</value>
-		</param>
-		<param>
-			<name>mirrorx</name>
-			<value>1</value>
-		</param>
-		<param>
-			<name>suavizadox</name>
-			<min>0</min>
-			<max>1</max>
-			<value>0.839839</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
 		</param>
 		<param>
-			<name>flipy</name>
-			<value>1</value>
-		</param>
-		<param>
-			<name>mirrory</name>
-			<value>1</value>
-		</param>
-		<param>
-			<name>suavizadoy</name>
+			<name>stepsize</name>
 			<min>0</min>
 			<max>1</max>
-			<value>0.397778</value>
+			<value>0.0354449</value>
 			<movtype>0</movtype>
 			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
+		</param>
+		<param>
+			<name>zoom</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.756285</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
+		</param>
+		<param>
+			<name>tile</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.522224</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
+		</param>
+		<param>
+			<name>darkmatter</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.731364</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
+		</param>
+		<param>
+			<name>saturation</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.928149</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
+		</param>
+		<param>
+			<name>displacey</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.997738</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
+		</param>
+		<param>
+			<name>fbmsc</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.702542</value>
+			<movtype>0</movtype>
+			<speed>0</speed>
+			<bpmrate>2</bpmrate>
+		</param>
+		<param>
+			<name>fbmseed</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.616912</value>
+			<movtype>0</movtype>
+			<speed>0.59605</speed>
+			<bpmrate>2</bpmrate>
+		</param>
+		<param>
+			<name>rxrsc</name>
+			<min>0</min>
+			<max>1</max>
+			<value>0.35822</value>
+			<movtype>0</movtype>
+			<speed>0.2</speed>
+			<bpmrate>2</bpmrate>
 		</param>
 	</parameters>
-	<fboslinks>
-		<textura1>lighting3D</textura1>
-	</fboslinks>
 </box>

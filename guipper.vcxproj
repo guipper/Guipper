@@ -266,6 +266,9 @@
     <ClInclude Include="src\JPutils\jp_midi_keymap.h" />
     <ClInclude Include="src\ofApp.h" />
     <ClInclude Include="src\JPgui\jp_knob.h" />
+    <ClInclude Include="src\JPgui\jp_button.h" />
+    <ClInclude Include="src\JPgui\jp_screen.h" />
+    <ClInclude Include="src\JPgui\jp_surfacestack.h" />
     <ClInclude Include="src\JPgui\jp_complexslider.h" />
     <ClInclude Include="src\JPgui\jp_tooglelist.h" />
     <ClInclude Include="src\JPgui\jp_slider.h" />
@@ -291,6 +294,7 @@
     <ClInclude Include="src\JPbox\jp_box.h" />
     <ClInclude Include="src\JPutils\jp_fileloader.h" />
     <ClInclude Include="src\JPutils\jp_constants.h" />
+    <ClInclude Include="src\JPutils\jp_pointer.h" />
     <ClInclude Include="src\JPutils\jp_fbohandler.h" />
     <ClInclude Include="src\JPutils\jp_dragobject.h" />
     <ClInclude Include="src\JPutils\jp_parametergroup.h" />

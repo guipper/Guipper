@@ -1,4 +1,5 @@
 #include "JPboxgroup.h"
+#include "../JPutils/jp_pointer.h"
 #include "../JPgui/jp_shader_editor.h"
 #include "../JPutils/jp_textfield.h"
 #include "../JPutils/jp_tooltip.h"
@@ -327,7 +328,6 @@ void JPboxgroup::draw()
 {
 	// boxesdrawing.draw(0, 0, ofGetWidth(), ofGetHeight());
 	// boxesdrawing.draw(offsetx, offsety, ofGetWidth(), ofGetHeight());
-	drawCuePreview();
 
 	// Determine active box vector, render index, and inspector index
 	vector<JPbox *> *activeBoxesPtr = &boxes;
@@ -558,6 +558,10 @@ void JPboxgroup::draw()
 	drawTabs();
 	draw_paramswindow();
 	drawGalleryDurationSlider();
+	// The cue panel is hit-tested before the canvas, so it has to be painted
+	// over the canvas too. It used to be drawn first, which meant boxes covered
+	// a panel that still swallowed their clicks.
+	drawCuePreview();
 	drawMappingPanel();
 
 }
@@ -2471,6 +2475,7 @@ bool JPboxgroup::handleInspectorAutomationClick()
 
 void JPboxgroup::draw_paramswindow()
 {
+	jp_pointer::Scope pointerScope(jp_pointer::kInspector);
 
 	JPbox *inspectorBox = getInspectorBox();
 	if (inspectorBox != nullptr)
@@ -3057,6 +3062,7 @@ void JPboxgroup::setActiveOnlyBox(int _val) {
 
 void JPboxgroup::update_paramswindow()
 {
+	jp_pointer::Scope pointerScope(jp_pointer::kInspector);
 
 	int index = 0; // INDICE PARA LOS BOTONES :
 
@@ -3478,7 +3484,15 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 
 	// SI EL MOUSE ESTA DENTRO DEL INSPECTOR WINDOW PAPA.
 	JPbox *inspectorBox = getInspectorBox();
-	if (mouseOverGui() && inspectorBox != nullptr)
+	// The canvas must yield to any overlay, not only to the inspector. This was
+	// `mouseOverGui() && inspectorBox != nullptr`, so with the cue panel or the
+	// mapping panel open and NO box selected the condition was false and the
+	// else-branch hit-tested the boxes straight through the panel.
+	if (mouseOverGui() && inspectorBox == nullptr)
+	{
+		arafue = true;
+	}
+	else if (mouseOverGui() && inspectorBox != nullptr)
 	{
 		arafue = true;
 		if (mappingbutton.mouseGrab() && isMappingShaderBox(inspectorBox))
@@ -7386,10 +7400,73 @@ JPParameter *JPboxgroup::getOpenParameterAtIndex(
 	}
 	return controllers[parameterIndex]->parameters;
 }
+// Writing a MIDI 0..1 value onto one parameter, plus the inspector row that
+// mirrors it when there is one.
+//
+// floatValue lives in the parameter's OWN [min,max] domain: the drag path
+// ofMaps the mouse into min..max (JPboxgroup.cpp:3288, :3622) and the slider
+// draws ofMap(floatValue, min, max, 0, width) (jp_slider.cpp:106). MIDI stored
+// the raw 0..1 instead, so any parameter whose range was not 0..1 moved its
+// slider at the wrong rate - rotatecolor p0 has min 0.645, so the bottom two
+// thirds of the knob's travel sat pinned at the left end of the bar.
+static bool applyMidiParameterValue(JPParameter *parameter,
+	JPcontroller *controller, float value)
+{
+	if (parameter == nullptr)
+	{
+		return false;
+	}
+	const float normalized = ofClamp(value, 0.0f, 1.0f);
+	if (parameter->variabletype == JPParameter::FLOAT)
+	{
+		if (parameter->movtype != JPParameter::STANDART)
+		{
+			// Automation speed is its own 0..1 control and is NOT in [min,max].
+			parameter->speed = normalized;
+			JPComplexSlider *slider =
+				dynamic_cast<JPComplexSlider *>(controller);
+			if (slider != nullptr)
+			{
+				slider->speed = normalized;
+				slider->slider_speed.value = normalized;
+			}
+			return true;
+		}
+		const float mapped = ofMap(normalized, 0.0f, 1.0f,
+			parameter->min, parameter->max, true);
+		parameter->floatValue = mapped;
+		parameter->floatLerpValue = mapped;
+		if (controller != nullptr)
+		{
+			controller->value = mapped;
+		}
+		return true;
+	}
+	if (parameter->variabletype == JPParameter::BOOL)
+	{
+		const bool boolValue = normalized > 0.5f;
+		parameter->boolValue = boolValue;
+		if (controller != nullptr)
+		{
+			controller->boolValue = boolValue;
+			controller->activeFlag = false;
+		}
+		return true;
+	}
+	return false;
+}
+
 bool JPboxgroup::setOpenBoxParameterAtIndex(int parameterIndex, float value)
 {
 	if (parameterIndex < 0 ||
 		parameterIndex >= maxBindableParameters)
+	{
+		return false;
+	}
+	// No box open means nothing to drive. `controllers` is only rebuilt by
+	// setControllers(), so without this a MIDI knob kept moving the parameters
+	// of the last box whose inspector had been up.
+	if (getInspectorBox() == nullptr)
 	{
 		return false;
 	}
@@ -7399,48 +7476,44 @@ bool JPboxgroup::setOpenBoxParameterAtIndex(int parameterIndex, float value)
 	{
 		return false;
 	}
-
-	const float normalizedValue =
-		ofClamp(value, 0.0f, 1.0f);
-	JPcontroller *controller = controllers[parameterIndex];
-	if (parameter->variabletype == JPParameter::FLOAT)
+	// Only indexed after getOpenParameterAtIndex has vouched for the range.
+	if (!applyMidiParameterValue(parameter, controllers[parameterIndex], value))
 	{
-		if (parameter->movtype != JPParameter::STANDART)
-		{
-			parameter->speed = normalizedValue;
-			markCueDraftDirty(cueSelectedIndex());
-			JPComplexSlider *slider =
-				dynamic_cast<JPComplexSlider *>(controller);
-			if (slider != nullptr)
-			{
-				slider->speed = normalizedValue;
-				slider->slider_speed.value = normalizedValue;
-			}
-			return true;
-		}
+		return false;
+	}
+	markCueDraftDirty(cueSelectedIndex());
+	return true;
+}
 
-		parameter->floatValue = normalizedValue;
-		parameter->floatLerpValue = normalizedValue;
-		markCueDraftDirty(cueSelectedIndex());
-		if (controller != nullptr)
-		{
-			controller->value = normalizedValue;
-		}
-		return true;
-	}
-	if (parameter->variabletype == JPParameter::BOOL)
+bool JPboxgroup::setBoxParameterAtIndex(string boxName, int parameterIndex,
+	float value)
+{
+	// The fallback for "no inspector open": drive the box the binding names.
+	// Main graph only - a box nested inside a group is not reachable by name
+	// here, and a group itself has no parameters of its own to drive.
+	if (parameterIndex < 0 || parameterIndex >= maxBindableParameters)
 	{
-		const bool boolValue = normalizedValue > 0.5f;
-		parameter->boolValue = boolValue;
-		markCueDraftDirty(cueSelectedIndex());
-		if (controller != nullptr)
-		{
-			controller->boolValue = boolValue;
-			controller->activeFlag = false;
-		}
-		return true;
+		return false;
 	}
-	return false;
+	const int index = findBoxIndexByName(boxName);
+	JPbox *box = getEditableBoxForRealIndex(index);
+	if (box == nullptr || parameterIndex >= box->parameters.getSize())
+	{
+		return false;
+	}
+	// If that box is the one on screen, go through the open path so the
+	// slider's cached copy stays in step instead of being overwritten later.
+	if (getInspectorBox() == box && parameterIndex < (int)controllers.size())
+	{
+		return setOpenBoxParameterAtIndex(parameterIndex, value);
+	}
+	if (!applyMidiParameterValue(
+			box->parameters.getJParameter(parameterIndex), nullptr, value))
+	{
+		return false;
+	}
+	markCueDraftDirty(index);
+	return true;
 }
 bool JPboxgroup::setLastBoxOnOff(bool value)
 {
@@ -7451,22 +7524,54 @@ bool JPboxgroup::setLastBoxOnOff(bool value)
 	boxes.back()->setonoff(value);
 	return true;
 }
+void JPboxgroup::setExternalGuiHitTest(std::function<bool(float, float)> fn)
+{
+	externalGuiHitTest = std::move(fn);
+}
+
+void JPboxgroup::closeInspector()
+{
+	openguinumber = -1;
+	groupInspectorIndex = -1;
+	setControllers();
+}
+
+ofRectangle JPboxgroup::getInspectorBounds() const
+{
+	// Drawn with RECTMODE_CENTER, so the stored values are a centre point.
+	if (inspectorwindow_height <= 0.0f) return ofRectangle();
+	return ofRectangle(inspectorwindow_x - inspectorwindow_width / 2.0f,
+		inspectorwindow_y - inspectorwindow_height / 2.0f,
+		inspectorwindow_width, inspectorwindow_height);
+}
+
+ofRectangle JPboxgroup::getCuePanelBounds()
+{
+	// Same predicate JPboxgroup::draw() uses to decide whether to paint it.
+	if (getCuePreviewBox() == nullptr) return ofRectangle();
+	return ofRectangle(cuePanelX, cuePanelY, cuePanelW, cuePanelH);
+}
+
+ofRectangle JPboxgroup::getMappingPanelBounds() const
+{
+	if (!mappingEditActive) return ofRectangle();
+	return ofRectangle(mappingPanelX, mappingPanelY,
+		mappingPanelW, mappingPanelH);
+}
+
 bool JPboxgroup::mouseOverGui()
 {
-	if (mouseOverMappingPanel())
-	{
-		return true;
-	}
-
-	if (ofGetMouseX() > inspectorwindow_x - inspectorwindow_width / 2 && ofGetMouseX() < inspectorwindow_x + inspectorwindow_width / 2 && ofGetMouseY() > inspectorwindow_y - inspectorwindow_height / 2 && ofGetMouseY() < inspectorwindow_y + inspectorwindow_height / 2)
-	{
-
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+	const float mx = ofGetMouseX();
+	const float my = ofGetMouseY();
+	// Surfaces this class owns...
+	if (getMappingPanelBounds().inside(mx, my)) return true;
+	if (getInspectorBounds().inside(mx, my)) return true;
+	if (getCuePanelBounds().inside(mx, my)) return true;
+	// ...plus everything stacked above the canvas that it does not own. This
+	// used to know about exactly two rects, so the canvas happily panned and
+	// zoomed underneath the MIDI panel and the save modal.
+	if (externalGuiHitTest && externalGuiHitTest(mx, my)) return true;
+	return false;
 }
 void JPboxgroup::addBox(string directory, float _x, float _y)
 {
@@ -9090,7 +9195,10 @@ int JPboxgroup::getTabAtScreenPos(int screenX, int screenY) const
 	const float pad = 8;
 	const float gap = 2;
 
-	if (totalTabs <= 1 || screenY < tabBarOffsetY || screenY > tabBarOffsetY + tabHeight + pad * 2 + tabBarOffsetY)
+	// tabBarOffsetY was added twice, so the strip claimed clicks ~48px below
+	// where it is actually drawn - a dead band across the top of the canvas.
+	if (totalTabs <= 1 || screenY < tabBarOffsetY ||
+		screenY > tabBarOffsetY + tabHeight + pad * 2)
 	{
 		return -1;
 	}
@@ -9480,6 +9588,13 @@ void JPboxgroup::ensureTabStateSize()
 	}
 }
 
+void JPboxgroup::cancelTabRename()
+{
+	tabRenaming = false;
+	tabRenameTabIndex = -1;
+	tabRenameBuffer.clear();
+}
+
 void JPboxgroup::keyPressed(int key)
 {
 	if (!tabRenaming)
@@ -9488,14 +9603,30 @@ void JPboxgroup::keyPressed(int key)
 	// Cancel on Escape
 	if (key == OF_KEY_ESC)
 	{
-		tabRenaming = false;
-		tabRenameTabIndex = -1;
-		tabRenameBuffer.clear();
+		cancelTabRename();
 		return;
 	}
 
 	// Commit on Enter
 	if (key == OF_KEY_RETURN || key == '\r')
+	{
+		commitTabRename();
+		return;
+	}
+
+	// Cursor navigation + edit at cursor (LEFT/RIGHT/HOME/END/BACKSPACE/DEL/insert).
+	if (tabRenameBuffer.size() < 64 || key < 32)
+	{
+		jp_textfield::handleKey(tabRenameBuffer, tabRenameCursor, key);
+	}
+}
+
+// Extracted from keyPressed so clicking away can commit the rename too - the
+// only exits used to be ENTER and ESC, so a click elsewhere left the field
+// open and swallowing every keystroke.
+void JPboxgroup::commitTabRename()
+{
+	if (!tabRenaming) return;
 	{
 		if (!tabRenameBuffer.empty())
 		{
@@ -9591,10 +9722,5 @@ void JPboxgroup::keyPressed(int key)
 		tabRenameBuffer.clear();
 		return;
 	}
-
-	// Cursor navigation + edit at cursor (LEFT/RIGHT/HOME/END/BACKSPACE/DEL/insert).
-	if (tabRenameBuffer.size() < 64 || key < 32)
-	{
-		jp_textfield::handleKey(tabRenameBuffer, tabRenameCursor, key);
-	}
+	cancelTabRename();
 }

@@ -69,6 +69,53 @@ namespace jp_textfield
 		return false;
 	}
 
+	// The visible slice of `text` when it is wider than the field: start is
+	// pushed forward until the caret is inside the window, then end is pulled
+	// back until what remains fits. Extracted because the shader-index screen
+	// had this loop written out twice - once to draw and once to hit-test - and
+	// the MIDI keymap was about to become a third and fourth copy.
+	struct Window
+	{
+		int start = 0;
+		int end = 0;
+	};
+
+	inline Window visibleWindow(ofTrueTypeFont &font, const std::string &text,
+		int cursor, float maxW)
+	{
+		Window w;
+		w.end = (int)text.size();
+		cursor = std::max(0, std::min(cursor, (int)text.size()));
+		while (w.start < cursor &&
+			font.stringWidth(text.substr(w.start, cursor - w.start)) > maxW)
+		{
+			w.start++;
+		}
+		while (w.end > w.start &&
+			font.stringWidth(text.substr(w.start, w.end - w.start)) > maxW)
+		{
+			w.end--;
+		}
+		return w;
+	}
+
+	// Cursor index within `shown` for a click at mouseX, snapping to the
+	// nearest glyph boundary rather than the glyph you happened to land on.
+	inline int cursorFromX(ofTrueTypeFont &font, const std::string &shown,
+		float textX, float mouseX)
+	{
+		int cursor = 0;
+		const float relativeX = std::max(0.0f, mouseX - textX);
+		for (int i = 1; i <= (int)shown.size(); i++)
+		{
+			const float before = font.stringWidth(shown.substr(0, i - 1));
+			const float after = font.stringWidth(shown.substr(0, i));
+			if (relativeX < (before + after) * 0.5f) break;
+			cursor = i;
+		}
+		return cursor;
+	}
+
 	inline void drawSelection(ofTrueTypeFont &font, const std::string &text,
 		float textX, float baselineY, float glyphH)
 	{

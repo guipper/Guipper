@@ -1,21 +1,31 @@
 #include "jp_midi_keymap.h"
 #include "jp_tooltip.h"
+#include "../JPgui/jp_screen.h"
+#include "../JPgui/jp_button.h"
+#include "jp_pointer.h"
 #include <algorithm>
 #include <cctype>
 
 namespace
 {
 	const int MIDI_CC_THRESHOLD = 64;
-	const float PANEL_X = 40;
-	const float PANEL_Y = 40;
-	const float PANEL_W = 560;
-	const float ROW_H = 22;
+	// Geometry comes from the shared screen chrome now that MIDI is a screen
+	// rather than a floating panel. The frame spans the window; the content
+	// stays in a readable column so a wide monitor does not stretch the rows.
+	ofRectangle panelFrame()
+	{
+		return jp_screen::frame();
+	}
+	const float ROW_H = 24;
 	const float PAD = 12;
-	const float PARAM_Y_OFFSET = 82;
 	const float PARAM_HEADER_H = 28;
-	const float SECTION_GAP = 34;
-	const float SECTION_VERTICAL_SPACING = 20;
-	const float PANEL_MIN_H = 340.0f;
+	// Measured from the previous section's last row bottom to the next
+	// heading's baseline. It must clear SELECT_FIELD_Y_OFFSET, because the
+	// heading's Show/Hide button straddles the baseline by that much.
+	const float SECTION_VERTICAL_SPACING = 42;
+	// The right column is single rows with no straddling Show/Hide button, so
+	// it does not need the left column's clearance.
+	const float RIGHT_ROW_SPACING = 20;
 	const float PANEL_BOTTOM_PAD = 54.0f;
 	const float SELECT_LABEL_W = 100.0f;
 	const float SELECT_FIELD_Y_OFFSET = 15.0f;
@@ -33,30 +43,21 @@ namespace
 		return px >= x && px <= x + w && py >= y && py <= y + h;
 	}
 
+	// Thin wrapper over the shared renderer. The old body drew its own chrome
+	// and left-aligned the label at x+8, which put the glyph hard against the
+	// edge of a 32px "X" and nearly overflowed a 48px "Learn". jp_button
+	// centres on both axes and has hover and disabled states; only the tooltip
+	// table below is local to this screen.
 	void drawButton(float x, float y, float w, float h, const string &label, bool selected)
-		{
-			ofSetRectMode(OF_RECTMODE_CORNER);
-			ofSetColor(selected ? ofColor(COL_ACCENT_CYAN_DIM, 220) : ofColor(COL_BG_BUTTON, 230));
-			ofDrawRectRounded(x, y, w, h, 4.0f);
-			ofNoFill();
-			if (mouseInRect(x, y, w, h)) {
-				ofSetColor(COL_TEXT_PRIMARY);
-				ofSetLineWidth(1.5f);
-			} else {
-				ofSetColor(selected ? ofColor(COL_ACCENT_CYAN, 200) : ofColor(COL_BORDER_DEFAULT, 150));
-				ofSetLineWidth(1.0f);
-			}
-			ofDrawRectRounded(x, y, w, h, 4.0f);
-			ofFill();
-			ofSetLineWidth(1.0f);
-		ofSetColor(COL_TEXT_PRIMARY);
-		jp_constants::p_font.drawString(label, x + 8, y + h - 7);
+	{
+		jp_button::draw(ofRectangle(x, y, w, h), label, selected);
 		string tooltip;
+		// Learn and X are on every row of both lists, so their tooltips fired
+		// constantly while reading down a column and said nothing the label did
+		// not already say.
 		if (label == "Map On" || label == "Map Off") tooltip = "Toggle MIDI mapping mode";
 		else if (label == "Rescan") tooltip = "Rescan connected MIDI devices";
-		else if (label == "Learn" || label == "Learning") tooltip = "Listen for the next MIDI control";
 		else if (label == "Find") tooltip = "Search for this shader";
-		else if (label == "X") tooltip = "Remove this MIDI binding";
 		jp_tooltip::draw(tooltip, x, y, w, h);
 	}
 
@@ -82,12 +83,22 @@ namespace
 		jp_constants::p_font.drawString(open ? "^" : "v", x + w - 18, y + h - 7);
 	}
 
-	void drawMapOnIndicator()
+	// Right-hand end of the top tab bar, so the badge can sit clear of it.
+	void drawMapOnIndicator(float chromeRightEdge)
 	{
-		const float x = 12.0f;
-		const float y = 12.0f;
 		const float w = 132.0f;
 		const float h = 24.0f;
+		// This used to be pinned at 12,12 - directly on top of the NODES tab,
+		// which is drawn after it and therefore hid it almost completely.
+		// Right-align it in the same row instead, and drop below the group tab
+		// bar on a window too narrow for the row to hold both.
+		float x = ofGetWidth() - 12.0f - w;
+		float y = 12.0f;
+		if (x < chromeRightEdge + 12.0f)
+		{
+			y = 84.0f;
+		}
+		x = std::max(x, 12.0f);
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		ofSetColor(245, 215, 70, 245);
 		ofDrawRectRounded(x, y, w, h, 4.0f);
@@ -188,7 +199,6 @@ void JPMidiKeymap::openInputs()
 		midiIn->setVerbose(false);
 		midiInputs.push_back(midiIn);
 	}
-	ensureActiveMapDevice();
 }
 
 void JPMidiKeymap::closeInputs()
@@ -214,16 +224,22 @@ void JPMidiKeymap::closeInputs()
 void JPMidiKeymap::setActiveMapDevice(string deviceName)
 {
 	activeMapDeviceName = deviceName;
+	refreshActiveDeviceCache();
 	mapDeviceSelectOpen = false;
 	cancelLearning();
 	rebindIndex = -1;
 	syncAddShaderRowsFromBindings();
 }
 
-bool JPMidiKeymap::isActiveMapDevice(string deviceName) const
+bool JPMidiKeymap::isActiveMapDevice(const string &deviceName) const
 {
-	return activeMapDeviceName.empty() ||
-		   normalizeDeviceName(deviceName) == normalizeDeviceName(activeMapDeviceName);
+	if (activeMapDeviceName.empty()) return true;
+	return normalizeDeviceName(deviceName) == activeMapDeviceNormalized;
+}
+
+void JPMidiKeymap::refreshActiveDeviceCache()
+{
+	activeMapDeviceNormalized = normalizeDeviceName(activeMapDeviceName);
 }
 
 // Strip a trailing ALSA "client:port" id so a controller keeps the same profile
@@ -297,15 +313,19 @@ void JPMidiKeymap::ensureActiveMapDevice()
 	if (!availableDeviceNames.empty())
 	{
 		activeMapDeviceName = availableDeviceNames[0];
+		refreshActiveDeviceCache();
 	}
 	else
 	{
 		activeMapDeviceName = names.empty() ? "" : names[0];
+		refreshActiveDeviceCache();
 	}
 }
 
 void JPMidiKeymap::update()
 {
+	invalidateBindingCache();
+	ensureActiveMapDevice();
 	processPendingShaderAdds();
 
 	vector<MidiKey> keys;
@@ -342,11 +362,19 @@ void JPMidiKeymap::newMidiMessage(ofxMidiMessage &msg)
 		key.number = msg.control;
 		key.value = ofClamp(msg.value / 127.0f, 0.0f, 1.0f);
 		string ccId = getKeyId(key);
-		int existingIndex = findBindingForKey(key);
-		bool isContinuousBinding = !learning && existingIndex >= 0 &&
-								   (bindings[existingIndex].action == PARAMETER ||
-								    bindings[existingIndex].action == BYPASS ||
-								    bindings[existingIndex].action == PAUSE);
+		// Any continuous binding on this key makes the whole key continuous,
+		// otherwise a keep-both pair would edge-trigger its knob.
+		bool isContinuousBinding = false;
+		if (!learning)
+		{
+			for (int i = 0; i < (int)bindings.size() && !isContinuousBinding; i++)
+			{
+				if (getKeyId(bindings[i].key) != ccId) continue;
+				isContinuousBinding = bindings[i].action == PARAMETER ||
+					bindings[i].action == BYPASS ||
+					bindings[i].action == PAUSE;
+			}
+		}
 		if (!isContinuousBinding)
 		{
 			bool isHigh = msg.value >= MIDI_CC_THRESHOLD;
@@ -381,10 +409,15 @@ void JPMidiKeymap::processKey(const MidiKey &key)
 	// All connected devices are live simultaneously: apply the binding for the
 	// device that actually sent this message, regardless of which profile the
 	// panel is currently editing (activeMapDeviceName).
-	int index = findBindingForKey(key);
-	if (index >= 0)
+	// Every binding on this key fires, not just the first. One pad can drive
+	// two actions - which is what the "keep both" answer to a conflict means.
+	const string keyId = getKeyId(key);
+	for (int i = 0; i < (int)bindings.size(); i++)
 	{
-		applyBinding(bindings[index], key.value);
+		if (getKeyId(bindings[i].key) == keyId)
+		{
+			applyBinding(bindings[i], key.value);
+		}
 	}
 }
 
@@ -397,8 +430,8 @@ void JPMidiKeymap::learnKey(const MidiKey &key)
 	}
 
 	activeMapDeviceName = key.deviceName;
+	refreshActiveDeviceCache();
 	mapDeviceSelectOpen = false;
-	removeBindingForKey(key, false);
 
 	Binding binding;
 	binding.key = key;
@@ -412,7 +445,32 @@ void JPMidiKeymap::learnKey(const MidiKey &key)
 		binding.shaderPath = resolveShaderQuery(addShaderQuery);
 	}
 
-	if (rebindIndex >= 0 && rebindIndex < bindings.size())
+	// Rebinding an existing row is not a conflict - that row IS the target.
+	const int clash = findBindingForKey(key);
+	if (rebindIndex < 0 && clash >= 0)
+	{
+		pendingBinding = binding;
+		conflictCount = 0;
+		const string keyId = getKeyId(key);
+		for (int i = 0; i < (int)bindings.size(); i++)
+			if (getKeyId(bindings[i].key) == keyId) conflictCount++;
+		conflictExistingLabel = describeBinding(bindings[clash]);
+		conflictPromptOpen = true;
+		learning = false;
+		return;
+	}
+
+	commitLearnedBinding(binding, true);
+}
+
+void JPMidiKeymap::commitLearnedBinding(const Binding &binding,
+	bool replaceExisting)
+{
+	if (replaceExisting && rebindIndex < 0)
+	{
+		removeBindingForKey(binding.key, false);
+	}
+	if (rebindIndex >= 0 && rebindIndex < (int)bindings.size())
 	{
 		bindings[rebindIndex] = binding;
 	}
@@ -420,11 +478,43 @@ void JPMidiKeymap::learnKey(const MidiKey &key)
 	{
 		bindings.push_back(binding);
 	}
-
+	invalidateBindingCache();
 	learning = false;
 	rebindIndex = -1;
 	ensureAddShaderDraftRow();
 	saveGlobal();
+}
+
+ofRectangle JPMidiKeymap::conflictPromptRect() const
+{
+	const ofRectangle f = panelFrame();
+	const float bw = 460.0f, bh = 150.0f;
+	return ofRectangle(f.getCenter().x - bw * 0.5f,
+		f.getCenter().y - bh * 0.5f, bw, bh);
+}
+
+ofRectangle JPMidiKeymap::conflictButtonRect(int index) const
+{
+	const ofRectangle box = conflictPromptRect();
+	const float h = 26.0f;
+	const float y = box.getMaxY() - h - 14.0f;
+	if (index == 2) return ofRectangle(box.getMaxX() - 16.0f - 90.0f, y, 90.0f, h);
+	const float w = 130.0f;
+	return ofRectangle(box.x + 16.0f + (float)index * (w + 8.0f), y, w, h);
+}
+
+void JPMidiKeymap::resolveConflict(bool keepBoth)
+{
+	if (!conflictPromptOpen) return;
+	conflictPromptOpen = false;
+	commitLearnedBinding(pendingBinding, !keepBoth);
+}
+
+void JPMidiKeymap::cancelConflict()
+{
+	conflictPromptOpen = false;
+	learning = false;
+	rebindIndex = -1;
 }
 
 void JPMidiKeymap::beginAddShaderLearn(const string &shaderQuery)
@@ -453,8 +543,22 @@ void JPMidiKeymap::armLearn(const Binding &binding, int existingIndex)
 	}
 	rebindIndex = existingIndex;
 	learning = true;
-	panelOpen = true;
-	editMode = true;
+	// Deliberately does NOT turn editMode on. Map mode paints overlays on every
+	// box and inspector slider across the whole app, so arming a Learn button
+	// used to switch the entire UI into a mode nobody asked for. Only the
+	// "Key bind map on/off" button owns that mode now. The canvas capture paths
+	// come through here too, but they already require editMode to be on.
+	// Ask the app to bring this screen up. Setting panelOpen here desynced
+	// from pantallaActiva, and setPanelVisible(false) then cancelled the learn
+	// on the very next frame.
+	showRequested = true;
+}
+
+bool JPMidiKeymap::consumeShowRequest()
+{
+	const bool requested = showRequested;
+	showRequested = false;
+	return requested;
 }
 
 void JPMidiKeymap::cancelLearning()
@@ -554,7 +658,14 @@ void JPMidiKeymap::applyBinding(const Binding &binding, float midiValue)
 	}
 	else if (binding.action == PARAMETER)
 	{
-		boxes->setOpenBoxParameterAtIndex(binding.parameterIndex, midiValue);
+		// Follows the open inspector, as before. With nothing open it falls
+		// back to the box the binding was made against, so a bind still does
+		// what its row says instead of nothing at all.
+		if (!boxes->setOpenBoxParameterAtIndex(binding.parameterIndex, midiValue))
+		{
+			boxes->setBoxParameterAtIndex(binding.boxName,
+				binding.parameterIndex, midiValue);
+		}
 	}
 	else if (binding.action == NEXT_SHADER)
 	{
@@ -628,23 +739,19 @@ void JPMidiKeymap::queueShaderAdd(string shaderPath)
 
 void JPMidiKeymap::removeBindingForKey(const MidiKey &key, bool saveChange)
 {
-	int index = findBindingForKey(key);
-	if (index >= 0)
+	// Loop: duplicates on one key are now legal, so removing "the" binding has
+	// to mean all of them or Replace would leave strays behind.
+	bool removedAny = false;
+	for (int index = findBindingForKey(key); index >= 0;
+		index = findBindingForKey(key))
 	{
 		bindings.erase(bindings.begin() + index);
-		if (rebindIndex == index)
-		{
-			rebindIndex = -1;
-		}
-		else if (rebindIndex > index)
-		{
-			rebindIndex--;
-		}
-		if (saveChange)
-		{
-			saveGlobal();
-		}
+		invalidateBindingCache();
+		removedAny = true;
+		if (rebindIndex == index) rebindIndex = -1;
+		else if (rebindIndex > index) rebindIndex--;
 	}
+	if (removedAny && saveChange) saveGlobal();
 }
 
 int JPMidiKeymap::findBindingForKey(const MidiKey &key) const
@@ -751,7 +858,7 @@ int JPMidiKeymap::findAddShaderBinding(string query) const
 
 bool JPMidiKeymap::isGlobalAction(Action action) const
 {
-	vector<Action> actions = getGlobalActions();
+	const vector<Action> &actions = globalActionList();
 	return std::find(actions.begin(), actions.end(), action) != actions.end();
 }
 
@@ -870,6 +977,10 @@ void JPMidiKeymap::ensureAddShaderDraftRow()
 	{
 		addShaderSearched.push_back(false);
 	}
+	while (addShaderCursors.size() < addShaderRows.size())
+	{
+		addShaderCursors.push_back(0);
+	}
 	while (addShaderResolvedPaths.size() > addShaderRows.size())
 	{
 		addShaderResolvedPaths.pop_back();
@@ -878,6 +989,10 @@ void JPMidiKeymap::ensureAddShaderDraftRow()
 	{
 		addShaderSearched.pop_back();
 	}
+	while (addShaderCursors.size() > addShaderRows.size())
+	{
+		addShaderCursors.pop_back();
+	}
 	while (addShaderRows.size() > 1 &&
 		   addShaderRows[addShaderRows.size() - 1].empty() &&
 		   addShaderRows[addShaderRows.size() - 2].empty())
@@ -885,11 +1000,38 @@ void JPMidiKeymap::ensureAddShaderDraftRow()
 		addShaderRows.erase(addShaderRows.end() - 1);
 		addShaderResolvedPaths.erase(addShaderResolvedPaths.end() - 1);
 		addShaderSearched.erase(addShaderSearched.end() - 1);
+		addShaderCursors.erase(addShaderCursors.end() - 1);
 	}
 	if (focusedAddShaderRow >= addShaderRows.size())
 	{
 		focusedAddShaderRow = -1;
 	}
+}
+
+string JPMidiKeymap::rawShaderStem(const string &path)
+{
+	if (path.empty()) return "";
+	size_t slash = path.find_last_of("/\\");
+	string name = slash == string::npos ? path : path.substr(slash + 1);
+	size_t dot = name.find_last_of('.');
+	if (dot != string::npos && dot > 0) name = name.substr(0, dot);
+	return name;
+}
+
+void JPMidiKeymap::completeAddShaderRow(int rowIndex)
+{
+	if (rowIndex < 0 || rowIndex >= (int)addShaderRows.size()) return;
+	if (rowIndex >= (int)addShaderResolvedPaths.size()) return;
+	const string name = rawShaderStem(addShaderResolvedPaths[rowIndex]);
+	if (name.empty() || addShaderRows[rowIndex] == name) return;
+	// Only on an explicit Find/Enter, never while typing: rewriting on every
+	// keystroke would make shortening or correcting a query impossible.
+	addShaderRows[rowIndex] = name;
+	if (rowIndex < (int)addShaderCursors.size())
+	{
+		addShaderCursors[rowIndex] = (int)name.size();
+	}
+	addShaderQuery = name;
 }
 
 bool JPMidiKeymap::resolveAddShaderRow(int rowIndex)
@@ -1026,21 +1168,52 @@ int JPMidiKeymap::getGlobalParameterIndexCount() const
 	return JPboxgroup::maxBindableParameters;
 }
 
+bool JPMidiKeymap::isBindingShownInLeftColumn(int index) const
+{
+	if (index < 0 || index >= (int)bindings.size()) return false;
+	const Binding &b = bindings[index];
+	if (b.action == PARAMETER)
+	{
+		return findParameterBindingForIndex(b.parameterIndex) == index;
+	}
+	if (b.action == ADD_SHADER_BOX)
+	{
+		return findAddShaderBinding(b.shaderQuery) == index;
+	}
+	if (isGlobalAction(b.action))
+	{
+		return findGlobalActionBinding(b.action) == index;
+	}
+	// Box actions - BYPASS, PAUSE, SELECT_OPEN_BOX, and legacy
+	// SET_ACTIVE_SHADER - have no left-column home at all. These are the
+	// custom binds made from Target box + Action.
+	return false;
+}
+
+const vector<int> &JPMidiKeymap::getCustomBindingIndices() const
+{
+	if (customBindingCacheValid) return customBindingCache;
+	customBindingCache.clear();
+	for (int i = 0; i < (int)bindings.size(); i++)
+	{
+		if (!isActiveMapDevice(bindings[i].key.deviceName)) continue;
+		if (isBindingShownInLeftColumn(i)) continue;
+		customBindingCache.push_back(i);
+	}
+	customBindingCacheValid = true;
+	return customBindingCache;
+}
+
+void JPMidiKeymap::invalidateBindingCache()
+{
+	customBindingCacheValid = false;
+}
+
 int JPMidiKeymap::getNonParameterBindingCount() const
 {
-	int count = 0;
-	for (int i = 0; i < bindings.size(); i++)
-	{
-		if (!isActiveMapDevice(bindings[i].key.deviceName))
-		{
-			continue;
-		}
-		if (bindings[i].action != PARAMETER)
-		{
-			count++;
-		}
-	}
-	return count;
+	// Kept as the name every caller already uses; it now means "rows in the
+	// custom binds list", which is what the right column actually renders.
+	return (int)getCustomBindingIndices().size();
 }
 
 int JPMidiKeymap::getParameterRowCount() const
@@ -1058,30 +1231,84 @@ int JPMidiKeymap::getAddShaderRowCount() const
 	return addShaderSectionCollapsed ? 0 : std::max(1, int(addShaderRows.size()));
 }
 
+JPMidiKeymap::RowRects JPMidiKeymap::rowRects(float x, float y, float w,
+	bool withFind)
+{
+	RowRects r;
+	const float btnH = ROW_H - 4.0f;
+	const float btnY = y + 2.0f;
+	r.body.set(x, y, w, ROW_H);
+	r.remove.set(x + w - 38.0f, btnY, 32.0f, btnH);
+	r.learn.set(x + w - 92.0f, btnY, 48.0f, btnH);
+	if (withFind) r.find.set(x + w - 146.0f, btnY, 48.0f, btnH);
+
+	// A fixed label gutter with the binding column right-anchored before the
+	// buttons. The old split was a w*0.34 fraction, which reads fine at 620px
+	// and leaves a 600px hole at full width.
+	const float buttonsLeft = withFind ? r.find.x : r.learn.x;
+	r.labelX = x + 8.0f;
+	r.bindingX = x + std::min(220.0f, w * 0.34f);
+	r.labelMaxW = std::max(40.0f, r.bindingX - r.labelX - 10.0f);
+	r.bindingMaxW = std::max(40.0f, buttonsLeft - 8.0f - r.bindingX);
+	return r;
+}
+
 JPMidiKeymap::PanelLayout JPMidiKeymap::getPanelLayout() const
 {
 	PanelLayout layout;
-	layout.innerX = PANEL_X + PAD;
-	layout.innerW = PANEL_W - PAD * 2;
-	layout.headerY = PANEL_Y + PAD;
-	layout.paramY = PANEL_Y + PARAM_Y_OFFSET + 24.0f;
-	layout.globalY = layout.paramY + PARAM_HEADER_H + getParameterRowCount() * (ROW_H + 4) + SECTION_VERTICAL_SPACING;
-	layout.addShaderY = layout.globalY + PARAM_HEADER_H + getGlobalActionRowCount() * (ROW_H + 4) + SECTION_VERTICAL_SPACING;
-	layout.targetBoxY = layout.addShaderY + PARAM_HEADER_H + getAddShaderRowCount() * (ROW_H + 4) + SECTION_VERTICAL_SPACING;
-	layout.actionY = layout.targetBoxY + ROW_H + SECTION_VERTICAL_SPACING;
-	layout.bindingsY = layout.actionY + ROW_H + SECTION_VERTICAL_SPACING + 4;
+	const ofRectangle f = panelFrame();
+	const ofRectangle body = jp_screen::body(f);
+	layout.headerY = f.y + PAD;
+	layout.panelH = f.height;
 
-	float contentBottom = layout.bindingsY + 16 + getNonParameterBindingCount() * (ROW_H + 4) + PANEL_BOTTOM_PAD;
-	layout.panelH = ofClamp(contentBottom - PANEL_Y, PANEL_MIN_H, ofGetHeight() - PANEL_Y * 2);
+	// Two columns. Left: the three lists you bind FROM. Right: the context
+	// that applies, then the live bindings - which used to be stacked below
+	// everything else and off the bottom of the window.
+	const float gutter = 24.0f;
+	const float leftW = std::max(360.0f, (body.width - gutter) * 0.58f);
+	const float rightW = std::max(280.0f, body.width - gutter - leftW);
+	layout.leftCol.set(body.x, body.y, leftW, body.height);
+	layout.rightCol.set(body.x + leftW + gutter, body.y, rightW, body.height);
+	layout.innerX = layout.leftCol.x;
+	layout.innerW = layout.leftCol.width;
+	layout.rightX = layout.rightCol.x;
+	layout.rightW = layout.rightCol.width;
+
+	// Left column, scrolled.
+	const float leftTop = layout.leftCol.y - leftScroll;
+	layout.paramY = leftTop + PARAM_HEADER_H;
+	layout.globalY = layout.paramY + PARAM_HEADER_H +
+		getParameterRowCount() * (ROW_H + 4) + SECTION_VERTICAL_SPACING;
+	layout.addShaderY = layout.globalY + PARAM_HEADER_H +
+		getGlobalActionRowCount() * (ROW_H + 4) + SECTION_VERTICAL_SPACING;
+	layout.leftContentH = (layout.addShaderY + PARAM_HEADER_H +
+		getAddShaderRowCount() * (ROW_H + 4) + SECTION_VERTICAL_SPACING) -
+		leftTop;
+
+	// Right column: device / target / action pinned, bindings scrolled.
+	layout.mapDeviceY = layout.rightCol.y + ROW_H;
+	layout.targetBoxY = layout.mapDeviceY + ROW_H + RIGHT_ROW_SPACING;
+	layout.actionY = layout.targetBoxY + ROW_H + RIGHT_ROW_SPACING;
+	// Parameter row appears only for Action = Parameter, then the Learn button
+	// that arms exactly these fields, then the list.
+	layout.paramPickY = layout.actionY + ROW_H + RIGHT_ROW_SPACING;
+	const bool showsParamPick = selectedAction == PARAMETER;
+	layout.learnY = (showsParamPick ? layout.paramPickY : layout.actionY) +
+		ROW_H + RIGHT_ROW_SPACING;
+	layout.bindingsY = layout.learnY + ROW_H + RIGHT_ROW_SPACING + 8 -
+		rightScroll;
+	layout.rightContentH = 16.0f +
+		getNonParameterBindingCount() * (ROW_H + 4) + PANEL_BOTTOM_PAD;
+	layout.contentH = std::max(layout.leftContentH, layout.rightContentH);
 	return layout;
 }
 
 JPMidiKeymap::DropdownLayout JPMidiKeymap::getTargetBoxDropdownLayout(const PanelLayout &layout) const
 {
 	DropdownLayout dropdown;
-	dropdown.x = layout.innerX + SELECT_LABEL_W;
+	dropdown.x = layout.rightX + SELECT_LABEL_W;
 	dropdown.y = layout.targetBoxY - SELECT_FIELD_Y_OFFSET + ROW_H + DROPDOWN_GAP;
-	dropdown.w = layout.innerW - SELECT_LABEL_W;
+	dropdown.w = layout.rightW - SELECT_LABEL_W;
 	int boxCount = boxes != nullptr ? boxes->boxes.size() : 0;
 	dropdown.contentH = boxCount * (ROW_H + 2) + 2;
 	dropdown.h = std::min(SELECT_DROPDOWN_MAX_H, dropdown.contentH);
@@ -1093,7 +1320,7 @@ JPMidiKeymap::DropdownLayout JPMidiKeymap::getTargetBoxDropdownLayout(const Pane
 JPMidiKeymap::DropdownLayout JPMidiKeymap::getActionDropdownLayout(const PanelLayout &layout) const
 {
 	DropdownLayout dropdown;
-	dropdown.x = layout.innerX + SELECT_LABEL_W;
+	dropdown.x = layout.rightX + SELECT_LABEL_W;
 	dropdown.y = layout.actionY - SELECT_FIELD_Y_OFFSET + ROW_H + DROPDOWN_GAP;
 	dropdown.w = 200.0f;
 	dropdown.contentH = getBoxActions().size() * (ROW_H + 2) + 4;
@@ -1101,35 +1328,57 @@ JPMidiKeymap::DropdownLayout JPMidiKeymap::getActionDropdownLayout(const PanelLa
 	return dropdown;
 }
 
-JPMidiKeymap::DropdownLayout JPMidiKeymap::getMapDeviceDropdownLayout(const PanelLayout &layout) const
+JPMidiKeymap::DropdownLayout JPMidiKeymap::getParamDropdownLayout(const PanelLayout &layout) const
 {
 	DropdownLayout dropdown;
-	dropdown.x = layout.innerX + 44;
-	dropdown.y = layout.headerY + 58;
-	dropdown.w = layout.innerW - 44;
-	vector<string> names = getMapDeviceNames();
-	dropdown.contentH = names.size() * (ROW_H + 2) + 2;
-	dropdown.h = std::min(SELECT_DROPDOWN_MAX_H, dropdown.contentH);
+	dropdown.x = layout.rightX + SELECT_LABEL_W;
+	dropdown.y = layout.paramPickY - SELECT_FIELD_Y_OFFSET + ROW_H + DROPDOWN_GAP;
+	dropdown.w = 200.0f;
+	dropdown.contentH = getGlobalParameterIndexCount() * (ROW_H + 2) + 4;
+	const float roomBelow = panelFrame().getMaxY() - dropdown.y - 8.0f;
+	dropdown.h = std::min(std::min(SELECT_DROPDOWN_MAX_H, roomBelow),
+		dropdown.contentH);
 	dropdown.showScrollbar = false;
 	dropdown.maxScrollY = 0.0f;
 	return dropdown;
 }
 
+JPMidiKeymap::DropdownLayout JPMidiKeymap::getMapDeviceDropdownLayout(const PanelLayout &layout) const
+{
+	DropdownLayout dropdown;
+	dropdown.x = layout.rightX + SELECT_LABEL_W;
+	dropdown.y = layout.mapDeviceY - SELECT_FIELD_Y_OFFSET + ROW_H + DROPDOWN_GAP;
+	dropdown.w = layout.rightW - SELECT_LABEL_W;
+	vector<string> names = getMapDeviceNames();
+	dropdown.contentH = names.size() * (ROW_H + 2) + 2;
+	// Clamp to the frame, not just to a constant, and allow scrolling: this
+	// was pinned to showScrollbar=false, so beyond ~17 devices the rest of the
+	// list was drawn past the clip and could never be picked.
+	const float roomBelow = panelFrame().getMaxY() - dropdown.y - 8.0f;
+	dropdown.h = std::min(std::min(SELECT_DROPDOWN_MAX_H, roomBelow),
+		dropdown.contentH);
+	dropdown.showScrollbar = dropdown.contentH > dropdown.h;
+	dropdown.maxScrollY = std::max(0.0f, dropdown.contentH - dropdown.h);
+	return dropdown;
+}
+
+const vector<JPMidiKeymap::Action> &JPMidiKeymap::globalActionList()
+{
+	// One source of truth, built once. This used to be rebuilt on the heap by
+	// every isGlobalAction() call, which runs inside the binding loops.
+	// SET_ACTIVE_SHADER is folded into SET_ACTIVE_RENDER (they did the same
+	// thing); only offer one action. Legacy set_active_shader bindings still
+	// load and behave identically (handled in applyBinding /
+	// setSelectedBoxActive).
+	static const vector<Action> actions = {
+		NEXT_SHADER, PREV_SHADER, SET_CUE_SHADER, SET_ACTIVE_RENDER,
+		NEXT_SHADER_GALLERY, PREV_SHADER_GALLERY, TOGGLE_GALLERY, BPM_TAP};
+	return actions;
+}
+
 vector<JPMidiKeymap::Action> JPMidiKeymap::getGlobalActions() const
 {
-	vector<Action> actions;
-	actions.push_back(NEXT_SHADER);
-	actions.push_back(PREV_SHADER);
-	actions.push_back(SET_CUE_SHADER);
-	// SET_ACTIVE_SHADER is folded into SET_ACTIVE_RENDER (they did the same thing);
-	// only offer one action. Legacy set_active_shader bindings still load and behave
-	// identically (handled in applyBinding / setSelectedBoxActive).
-	actions.push_back(SET_ACTIVE_RENDER);
-	actions.push_back(NEXT_SHADER_GALLERY);
-	actions.push_back(PREV_SHADER_GALLERY);
-	actions.push_back(TOGGLE_GALLERY);
-	actions.push_back(BPM_TAP);
-	return actions;
+	return globalActionList();
 }
 
 vector<JPMidiKeymap::Action> JPMidiKeymap::getBoxActions() const
@@ -1201,6 +1450,18 @@ string JPMidiKeymap::getAddShaderBindingLabel(
 	return firstLabel;
 }
 
+string JPMidiKeymap::describeBinding(const Binding &binding) const
+{
+	string target = isGlobalAction(binding.action) ? "Global" : binding.boxName;
+	if (binding.action == ADD_SHADER_BOX) target = binding.shaderQuery;
+	if (binding.action == PARAMETER)
+	{
+		target = "p" + ofToString(binding.parameterIndex);
+	}
+	if (target.empty()) target = "Global";
+	return target + " / " + getActionName(binding.action);
+}
+
 string JPMidiKeymap::getActionName(Action action) const
 {
 	if (action == BYPASS) return "Bypass";
@@ -1257,47 +1518,149 @@ JPMidiKeymap::Action JPMidiKeymap::actionFromXml(string value) const
 	return BYPASS;
 }
 
+void JPMidiKeymap::beginColumnClip(const ofRectangle &r)
+{
+	// Same primitive the target-box dropdown already uses. Window coords, so
+	// it assumes points == pixels, which holds everywhere this app runs.
+	glEnable(GL_SCISSOR_TEST);
+	glScissor((int)r.x, (int)(ofGetHeight() - (r.y + r.height)),
+		(int)r.width, (int)r.height);
+}
+
+void JPMidiKeymap::endColumnClip()
+{
+	glDisable(GL_SCISSOR_TEST);
+}
+
 void JPMidiKeymap::draw()
 {
+	jp_pointer::Scope pointerScope(jp_pointer::kMidiBody);
 	if (!panelOpen)
 	{
 		return;
 	}
-	if (boxes != nullptr && !boxes->boxes.empty() &&
-		(selectedBoxName.empty() || !boxes->hasBoxName(selectedBoxName)))
+	// Never pick a box on the user's behalf. This defaulted to boxes[0] every
+	// frame that nothing was chosen, so the Target box field always named some
+	// box, and a Learn pressed without choosing one silently bound whichever
+	// box happened to be first in the graph. An empty selection now stays
+	// empty - it reads "None", and hasLearnTarget() keeps Learn disabled until
+	// a box is actually picked. Only a name whose box is gone gets cleared.
+	if (boxes != nullptr && !selectedBoxName.empty() &&
+		!boxes->hasBoxName(selectedBoxName))
 	{
-		selectedBoxName = boxes->boxes[0]->name;
+		selectedBoxName = "";
 	}
 	selectedParameterIndex = ofClamp(selectedParameterIndex, 0, getGlobalParameterIndexCount() - 1);
 
 	PanelLayout layout = getPanelLayout();
 	ofSetRectMode(OF_RECTMODE_CORNER);
-	
-	// Glassmorphism background panel
-	ofSetColor(ofColor(COL_BG_DARK, 235));
-	ofDrawRectRounded(PANEL_X, PANEL_Y, PANEL_W, layout.panelH, 12.0f);
-	
-	// Neon cyan border
-	ofNoFill();
-	ofSetColor(ofColor(COL_ACCENT_CYAN, 255));
-	ofSetLineWidth(2.0f);
-	ofDrawRectRounded(PANEL_X, PANEL_Y, PANEL_W, layout.panelH, 12.0f);
-	ofFill();
-	ofSetLineWidth(1.0f);
+
+	// Shared screen chrome: same margins, radius, border and title style as
+	// SETTINGS, HELP, IMPORT and EDITOR.
+	const string subtitle = "Inputs: " + ofToString(midiInputs.size()) +
+		"   Last MIDI: " + (hasLastKey ? getKeyLabel(lastKey) : "none");
+	jp_screen::drawFrame(panelFrame(), "MIDI KEYMAP", subtitle);
 
 	drawPanelHeader(layout.innerX, layout.headerY, layout.innerW);
+
+	// LEFT COLUMN - the lists you bind from. Clipped so a scrolled row cannot
+	// paint over the header or spill past the frame.
+	beginColumnClip(layout.leftCol);
 	drawParameterIndexSelector(layout.innerX, layout.paramY, layout.innerW);
 	drawGlobalFunctionsSelector(layout.innerX, layout.globalY, layout.innerW);
 	drawAddShaderSelector(layout.innerX, layout.addShaderY, layout.innerW);
-	drawBoxSelector(layout.innerX, layout.targetBoxY, layout.innerW);
-	drawActionSelector(layout.innerX, layout.actionY, layout.innerW);
-	drawBindings(layout.innerX, layout.bindingsY, layout.innerW);
+	endColumnClip();
 
-	if (editMode)
+	// RIGHT COLUMN - context stays pinned, the bindings list scrolls.
+	ofSetColor(COL_TEXT_PRIMARY);
+	jp_constants::p_font.drawString("Device", layout.rightX, layout.mapDeviceY);
+	{
+		string mapLabel = activeMapDeviceName.empty() ?
+			"No MIDI device" : activeMapDeviceName;
+		mapLabel = fitLabel(mapLabel, layout.rightW - SELECT_LABEL_W - 20.0f);
+		drawSelectField(layout.rightX + SELECT_LABEL_W,
+			layout.mapDeviceY - SELECT_FIELD_Y_OFFSET,
+			layout.rightW - SELECT_LABEL_W, ROW_H, mapLabel, mapDeviceSelectOpen);
+	}
+	drawBoxSelector(layout.rightX, layout.targetBoxY, layout.rightW);
+	drawActionSelector(layout.rightX, layout.actionY, layout.rightW);
+	if (selectedAction == PARAMETER)
+	{
+		// Picking Action = Parameter used to leave the index unchooseable from
+		// here, so it silently bound p0 or whatever the left column last set.
+		ofSetColor(COL_TEXT_PRIMARY);
+		jp_constants::p_font.drawString("Parameter",
+			layout.rightX, layout.paramPickY);
+		drawSelectField(layout.rightX + SELECT_LABEL_W,
+			layout.paramPickY - SELECT_FIELD_Y_OFFSET, 200.0f, ROW_H,
+			"p" + ofToString(selectedParameterIndex), paramSelectOpen);
+	}
+	{
+		const string learnLabel = learning ? "Listening..." : "Learn";
+		jp_button::draw(ofRectangle(layout.rightX + SELECT_LABEL_W,
+			layout.learnY - SELECT_FIELD_Y_OFFSET, 200.0f, ROW_H),
+			learnLabel, learning, hasLearnTarget(), COL_ACCENT_GOLD);
+		ofSetColor(COL_TEXT_PRIMARY);
+		jp_constants::p_font.drawString("Bind", layout.rightX, layout.learnY);
+		jp_tooltip::draw("Arm the fields above, then move a MIDI control",
+			layout.rightX + SELECT_LABEL_W,
+			layout.learnY - SELECT_FIELD_Y_OFFSET, 200.0f, ROW_H);
+	}
+	beginColumnClip(ofRectangle(layout.rightCol.x,
+		layout.actionY + ROW_H + 8.0f, layout.rightCol.width,
+		layout.rightCol.getMaxY() - (layout.actionY + ROW_H + 8.0f)));
+	drawBindings(layout.rightX, layout.bindingsY, layout.rightW);
+	endColumnClip();
+
+	if (conflictPromptOpen)
+	{
+		// The prompt owns the pointer while it is up. Without this its own
+		// buttons are drawn at the panel body's layer, and the modal rule -
+		// "a modal blocks the whole window for everything below it" - then
+		// blocks the prompt's own Replace/Keep both/Cancel, so they never
+		// highlighted and read as dead.
+		jp_pointer::Scope promptScope(jp_pointer::kPrompt);
+		// Centred over the frame. The previous behaviour stole the key
+		// silently, so the old binding vanished from wherever it was shown.
+		const ofRectangle box = conflictPromptRect();
+		ofSetColor(0, 0, 0, 150);
+		ofDrawRectangle(panelFrame());
+		ofSetColor(ofColor(COL_BG_PANEL, 250));
+		ofDrawRectRounded(box, 6.0f);
+		ofNoFill();
+		ofSetColor(COL_ACCENT_GOLD);
+		ofSetLineWidth(2.0f);
+		ofDrawRectRounded(box, 6.0f);
+		ofFill();
+		ofSetLineWidth(1.0f);
+		ofSetColor(COL_ACCENT_GOLD);
+		jp_constants::p_font.drawString(
+			getCompactKeyLabel(pendingBinding.key) + " is already bound",
+			box.x + 16.0f, box.y + 28.0f);
+		ofSetColor(COL_TEXT_SECONDARY);
+		jp_constants::p_font.drawString("Existing:  " + conflictExistingLabel,
+			box.x + 16.0f, box.y + 54.0f);
+		jp_constants::p_font.drawString("New:       " +
+			describeBinding(pendingBinding), box.x + 16.0f, box.y + 74.0f);
+		ofSetColor(COL_TEXT_MUTED);
+		jp_constants::p_font.drawString(
+			"Keep both fires every binding on this key.",
+			box.x + 16.0f, box.y + 96.0f);
+		jp_button::draw(conflictButtonRect(0), "Replace", false, true,
+			COL_ACCENT_RED);
+		jp_button::draw(conflictButtonRect(1), "Keep both", false, true,
+			COL_ACCENT_GREEN);
+		jp_button::draw(conflictButtonRect(2), "Cancel", false);
+	}
+
+	// Learning no longer implies map mode, so the "listening" hint has to be
+	// driven by `learning` itself or a plain Learn would arm with no feedback.
+	if (editMode || learning)
 	{
 		ofSetColor(ofColor(COL_ACCENT_CYAN, 255));
 		string hint = learning ? "Press a MIDI key/control..." : "MIDI map edit: click a box button or inspector slider, then press MIDI";
-		jp_constants::p_font.drawString(hint, layout.innerX, PANEL_Y + layout.panelH - 16);
+		jp_constants::p_font.drawString(hint, layout.innerX,
+			panelFrame().getMaxY() - 16);
 	}
 
 	// DRAW OVERLAYS FOR DROPDOWNS
@@ -1416,6 +1779,24 @@ void JPMidiKeymap::draw()
 		}
 	}
 	
+	if (paramSelectOpen)
+	{
+		const DropdownLayout dropdown = getParamDropdownLayout(layout);
+		ofSetColor(ofColor(COL_BG_PANEL, 245));
+		ofDrawRectRounded(dropdown.x, dropdown.y, dropdown.w, dropdown.h, 4.0f);
+		ofNoFill();
+		ofSetColor(ofColor(COL_ACCENT_CYAN, 200));
+		ofDrawRectRounded(dropdown.x, dropdown.y, dropdown.w, dropdown.h, 4.0f);
+		ofFill();
+		for (int i = 0; i < getGlobalParameterIndexCount(); i++)
+		{
+			const float optionY = dropdown.y + 2 + i * (ROW_H + 2);
+			if (optionY + ROW_H > dropdown.y + dropdown.h) break;
+			drawButton(dropdown.x + 2, optionY, dropdown.w - 4, ROW_H,
+				"p" + ofToString(i), selectedParameterIndex == i);
+		}
+	}
+
 	if (actionSelectOpen)
 	{
 		DropdownLayout dropdown = getActionDropdownLayout(layout);
@@ -1456,7 +1837,7 @@ void JPMidiKeymap::drawMappingTargets()
 	{
 		return;
 	}
-	drawMapOnIndicator();
+	drawMapOnIndicator(chromeRightEdge);
 	if (boxes == nullptr)
 	{
 		return;
@@ -1568,25 +1949,24 @@ void JPMidiKeymap::drawInspectorMappingTargets()
 	}
 }
 
+// Header slot widths, right to left: Rescan devices, Key bind map on/off.
+// Learn is no longer here - it moved next to the fields it actually arms.
+const vector<float> &JPMidiKeymap::headerSlotWidths()
+{
+	static const vector<float> widths = {132.0f, 148.0f};
+	return widths;
+}
+
 void JPMidiKeymap::drawPanelHeader(float x, float y, float w)
 {
-	ofSetColor(COL_TEXT_PRIMARY);
-	jp_constants::h_font.drawString("MIDI Keymap", x, y + 18);
-	drawButton(x + w - 264, y + 4, 82, 24, editMode ? "Map On" : "Map Off", editMode);
-	drawButton(x + w - 174, y + 4, 82, 24, "Rescan", false);
-	drawButton(x + w - 84, y + 4, 84, 24, learning ? "Learning" : "Learn", learning);
-
-	jp_constants::p_font.drawString("Inputs: " + ofToString(midiInputs.size()), x, y + 46);
-	string last = hasLastKey ? getKeyLabel(lastKey) : "none";
-	last = fitLabel("Last MIDI: " + last, w - 126);
-	jp_constants::p_font.drawString(last, x + 110, y + 46);
-
-	ensureActiveMapDevice();
-	ofSetColor(COL_TEXT_PRIMARY);
-	jp_constants::p_font.drawString("Map", x, y + 72);
-	string mapLabel = activeMapDeviceName.empty() ? "No MIDI device" : activeMapDeviceName;
-	mapLabel = fitLabel(mapLabel, w - 66);
-	drawSelectField(x + 44, y + 54, w - 44, ROW_H, mapLabel, mapDeviceSelectOpen);
+	// Title and subtitle belong to the shared frame; this only lays out the
+	// header actions. "Map Off" read as if it disabled the MAP top-bar button,
+	// which is the projection mapping editor - hence the longer labels.
+	const ofRectangle f = panelFrame();
+	jp_button::draw(jp_screen::actionSlotRun(f, headerSlotWidths(), 1),
+		editMode ? "Key bind map on" : "Key bind map off", editMode);
+	jp_button::draw(jp_screen::actionSlotRun(f, headerSlotWidths(), 0),
+		"Rescan devices", false);
 }
 
 void JPMidiKeymap::drawBoxSelector(float x, float y, float w)
@@ -1623,11 +2003,14 @@ void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 	}
 
 	ofSetColor(COL_TEXT_DIM);
-	jp_constants::p_font.drawString("MIDI binding", x + w * 0.34, y);
+	jp_constants::p_font.drawString("MIDI binding",
+		rowRects(x, y, w, false).bindingX, y);
 
 	float rowY = y + PARAM_HEADER_H;
 	for (int i = 0; i < getGlobalParameterIndexCount(); i++)
 	{
+		const RowRects R = rowRects(x, rowY, w, false);
+		const bool keyFocused = isRowFocused(FOCUS_PARAM, i);
 		bool selected = selectedAction == PARAMETER && selectedParameterIndex == i;
 		int bindingIndex = findParameterBindingForIndex(i);
 		bool mapped = bindingIndex >= 0;
@@ -1667,6 +2050,16 @@ void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 		}
 		ofDrawRectRounded(x, rowY, w, ROW_H, 4.0f);
 		ofFill();
+		if (keyFocused)
+		{
+			ofNoFill();
+			ofSetColor(COL_ACCENT_GOLD);
+			ofSetLineWidth(2.0f);
+			ofDrawRectRounded(R.body.x - 2.0f, R.body.y - 2.0f,
+				R.body.width + 4.0f, R.body.height + 4.0f, 5.0f);
+			ofSetLineWidth(1.0f);
+			ofFill();
+		}
 
 		ofColor textColor = boolValue ? COL_TEXT_DARK : COL_TEXT_PRIMARY;
 		ofSetColor(textColor);
@@ -1683,21 +2076,32 @@ void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 			ofSetColor(mapped ? COL_MAPPED_ON : COL_TEXT_DIM);
 		}
 		string keyLabel = mapped ? getCompactKeyLabel(bindings[bindingIndex].key) : "Unmapped";
-		float keyMaxW = w - w * 0.34 - 116;
-		keyLabel = fitLabel(keyLabel, keyMaxW);
-		jp_constants::p_font.drawString(keyLabel, x + w * 0.34, rowY + ROW_H - 7);
+		keyLabel = fitLabel(keyLabel, R.bindingMaxW);
+		jp_constants::p_font.drawString(keyLabel, R.bindingX, rowY + ROW_H - 7);
 
 		bool learningThisRow = learning &&
 							   selectedAction == PARAMETER &&
 							   selectedParameterIndex == i;
-		drawButton(x + w - 92, rowY + 2, 48, ROW_H - 4, "Learn", learningThisRow);
-		drawButton(x + w - 38, rowY + 2, 32, ROW_H - 4, "X", false);
+		drawButton(R.learn.x, R.learn.y, R.learn.width, R.learn.height,
+			"Learn", learningThisRow);
+		drawButton(R.remove.x, R.remove.y, R.remove.width, R.remove.height,
+			"X", false);
 		rowY += ROW_H + 4;
 	}
 }
 
 void JPMidiKeymap::drawGlobalFunctionsSelector(float x, float y, float w)
 {
+	ofSetColor(COL_TEXT_PRIMARY);
+	{
+		// Section divider, same hairline the wall panel uses.
+		ofPushStyle();
+		ofSetColor(ofColor(COL_BORDER_MUTED, 150));
+		ofSetLineWidth(1.0f);
+		const float ruleY = y - SELECT_FIELD_Y_OFFSET - 12.0f;
+		ofDrawLine(x, ruleY, x + w, ruleY);
+		ofPopStyle();
+	}
 	ofSetColor(COL_TEXT_PRIMARY);
 	jp_constants::p_font.drawString("Global functions", x, y);
 	drawButton(x + w - 78, y - SELECT_FIELD_Y_OFFSET, 78, ROW_H,
@@ -1714,13 +2118,16 @@ void JPMidiKeymap::drawGlobalFunctionsSelector(float x, float y, float w)
 	}
 
 	ofSetColor(COL_TEXT_DIM);
-	jp_constants::p_font.drawString("MIDI binding", x + w * 0.34, y);
+	jp_constants::p_font.drawString("MIDI binding",
+		rowRects(x, y, w, false).bindingX, y);
 
 	vector<Action> globalActions = getGlobalActions();
 
 	float rowY = y + PARAM_HEADER_H;
 	for (int i = 0; i < globalActions.size(); i++)
 	{
+		const RowRects R = rowRects(x, rowY, w, false);
+		const bool keyFocused = isRowFocused(FOCUS_GLOBAL, i);
 		bool selected = selectedAction == globalActions[i];
 		int bindingIndex = findGlobalActionBinding(globalActions[i]);
 		bool mapped = bindingIndex >= 0;
@@ -1736,18 +2143,27 @@ void JPMidiKeymap::drawGlobalFunctionsSelector(float x, float y, float w)
 							(over ? COL_TEXT_PRIMARY : ofColor(COL_TEXT_MUTED, 150)));
 		ofDrawRectRounded(x, rowY, w, ROW_H, 4.0f);
 		ofFill();
+		if (keyFocused)
+		{
+			ofNoFill();
+			ofSetColor(COL_ACCENT_GOLD);
+			ofSetLineWidth(2.0f);
+			ofDrawRectRounded(R.body.x - 2.0f, R.body.y - 2.0f,
+				R.body.width + 4.0f, R.body.height + 4.0f, 5.0f);
+			ofSetLineWidth(1.0f);
+			ofFill();
+		}
 
 		ofSetColor(COL_TEXT_PRIMARY);
 		jp_constants::p_font.drawString(getActionName(globalActions[i]), x + 8, rowY + ROW_H - 7);
 		ofSetColor(mapped ? COL_MAPPED_ON : COL_TEXT_DIM);
 		string keyLabel = mapped ? getCompactKeyLabel(bindings[bindingIndex].key) : "Unmapped";
-		float keyMaxW = w - w * 0.34 - 116;
-		keyLabel = fitLabel(keyLabel, keyMaxW);
-		jp_constants::p_font.drawString(keyLabel, x + w * 0.34, rowY + ROW_H - 7);
+		keyLabel = fitLabel(keyLabel, R.bindingMaxW);
+		jp_constants::p_font.drawString(keyLabel, R.bindingX, rowY + ROW_H - 7);
 
 		bool learningThisRow = learning && selectedAction == globalActions[i];
-		drawButton(x + w - 92, rowY + 2, 48, ROW_H - 4, "Learn", learningThisRow);
-		drawButton(x + w - 38, rowY + 2, 32, ROW_H - 4, "X", false);
+		drawButton(R.learn.x, R.learn.y, R.learn.width, R.learn.height, "Learn", learningThisRow);
+		drawButton(R.remove.x, R.remove.y, R.remove.width, R.remove.height, "X", false);
 		rowY += ROW_H + 4;
 	}
 }
@@ -1756,7 +2172,23 @@ void JPMidiKeymap::drawAddShaderSelector(float x, float y, float w)
 {
 	ensureAddShaderDraftRow();
 	ofSetColor(COL_TEXT_PRIMARY);
+	{
+		// Section divider, same hairline the wall panel uses.
+		ofPushStyle();
+		ofSetColor(ofColor(COL_BORDER_MUTED, 150));
+		ofSetLineWidth(1.0f);
+		const float ruleY = y - SELECT_FIELD_Y_OFFSET - 12.0f;
+		ofDrawLine(x, ruleY, x + w, ruleY);
+		ofPopStyle();
+	}
+	ofSetColor(COL_TEXT_PRIMARY);
 	jp_constants::p_font.drawString("Add shader box", x, y);
+	if (!addShaderSectionCollapsed)
+	{
+		ofSetColor(COL_TEXT_DIM);
+		jp_constants::p_font.drawString("MIDI binding",
+			rowRects(x, y, w, true).bindingX, y);
+	}
 	drawButton(x + w - 78, y - SELECT_FIELD_Y_OFFSET, 78, ROW_H,
 			   addShaderSectionCollapsed ? "Show" : "Hide",
 			   !addShaderSectionCollapsed);
@@ -1769,6 +2201,8 @@ void JPMidiKeymap::drawAddShaderSelector(float x, float y, float w)
 	float rowY = y + PARAM_HEADER_H;
 	for (int i = 0; i < addShaderRows.size(); i++)
 	{
+		const RowRects R = rowRects(x, rowY, w, true);
+		const bool keyFocused = isRowFocused(FOCUS_ADDSHADER, i);
 		string query = addShaderRows[i];
 		int bindingIndex = findAddShaderBinding(query);
 		bool mapped = bindingIndex >= 0;
@@ -1787,24 +2221,59 @@ void JPMidiKeymap::drawAddShaderSelector(float x, float y, float w)
 							  (focused ? ofColor(COL_ACCENT_CYAN, 255) : ofColor(COL_TEXT_MUTED, 150))));
 		ofDrawRectRounded(x, rowY, w, ROW_H, 4.0f);
 		ofFill();
+		if (keyFocused)
+		{
+			ofNoFill();
+			ofSetColor(COL_ACCENT_GOLD);
+			ofSetLineWidth(2.0f);
+			ofDrawRectRounded(R.body.x - 2.0f, R.body.y - 2.0f,
+				R.body.width + 4.0f, R.body.height + 4.0f, 5.0f);
+			ofSetLineWidth(1.0f);
+			ofFill();
+		}
 
-		string queryLabel = query.empty() ? "type shader name" : query;
-		queryLabel = fitLabel(queryLabel, w * 0.34 - 16);
-		ofSetColor(query.empty() ? COL_TEXT_DIM : COL_TEXT_PRIMARY);
-		jp_constants::p_font.drawString(queryLabel, x + 8, rowY + ROW_H - 7);
+		// Same windowing and caret as the IMPORT search box: the visible slice
+		// follows the cursor instead of the text being truncated at the end.
+		if (query.empty())
+		{
+			ofSetColor(COL_TEXT_DIM);
+			jp_constants::p_font.drawString("type shader name",
+				R.labelX, rowY + ROW_H - 7);
+		}
+		else
+		{
+			const int cursor = i < (int)addShaderCursors.size() ?
+				addShaderCursors[i] : (int)query.size();
+			const jp_textfield::Window win = jp_textfield::visibleWindow(
+				jp_constants::p_font, query, cursor, R.labelMaxW);
+			const string shown = query.substr(win.start, win.end - win.start);
+			ofSetColor(COL_TEXT_PRIMARY);
+			jp_constants::p_font.drawString(shown, R.labelX, rowY + ROW_H - 7);
+			if (focused)
+			{
+				jp_textfield::drawCaret(jp_constants::p_font, shown,
+					cursor - win.start, R.labelX,
+					rowY + ROW_H * 0.5f, ROW_H - 8.0f);
+			}
+		}
+		if (focused && query.empty())
+		{
+			jp_textfield::drawCaret(jp_constants::p_font, "", 0, R.labelX,
+				rowY + ROW_H * 0.5f, ROW_H - 8.0f);
+		}
 
 		string keyLabel = mapped ? getCompactKeyLabel(bindings[bindingIndex].key) :
 						  (!query.empty() && searched && !resolved ? "Not found" :
 						   (!query.empty() && resolved ? "Found" : "Unmapped"));
-		keyLabel = fitLabel(keyLabel, w - w * 0.34 - 166);
+		keyLabel = fitLabel(keyLabel, R.bindingMaxW);
 		ofSetColor(mapped ? COL_MAPPED_ON :
 					(!query.empty() && !resolved ? COL_ACCENT_RED_DIM : COL_TEXT_DIM));
-		jp_constants::p_font.drawString(keyLabel, x + w * 0.34, rowY + ROW_H - 7);
+		jp_constants::p_font.drawString(keyLabel, R.bindingX, rowY + ROW_H - 7);
 
 		bool learningThisRow = learning && selectedAction == ADD_SHADER_BOX && addShaderQuery == query;
-		drawButton(x + w - 146, rowY + 2, 48, ROW_H - 4, "Find", resolved);
-		drawButton(x + w - 92, rowY + 2, 48, ROW_H - 4, "Learn", learningThisRow);
-		drawButton(x + w - 38, rowY + 2, 32, ROW_H - 4, "X", false);
+		drawButton(R.find.x, R.find.y, R.find.width, R.find.height, "Find", resolved);
+		drawButton(R.learn.x, R.learn.y, R.learn.width, R.learn.height, "Learn", learningThisRow);
+		drawButton(R.remove.x, R.remove.y, R.remove.width, R.remove.height, "X", false);
 		rowY += ROW_H + 4;
 	}
 }
@@ -1818,19 +2287,27 @@ void JPMidiKeymap::drawActionSelector(float x, float y, float w)
 
 void JPMidiKeymap::drawBindings(float x, float y, float w)
 {
-	ofSetColor(COL_TEXT_PRIMARY);
-	jp_constants::p_font.drawString("Bindings", x, y);
-	int rowIndex = 0;
-	for (int i = 0; i < bindings.size(); i++)
+	ofSetColor(COL_ACCENT_CYAN);
+	jp_constants::p_font.drawString("CUSTOM BINDS", x, y);
+	ofSetColor(COL_TEXT_MUTED);
+	jp_constants::p_font.drawString("made with Target box + Action",
+		x + jp_constants::p_font.stringWidth("CUSTOM BINDS") + 10.0f, y);
+	const vector<int> customIndices = getCustomBindingIndices();
+	if (customIndices.empty())
 	{
-		if (!isActiveMapDevice(bindings[i].key.deviceName))
-		{
-			continue;
-		}
-		if (bindings[i].action == PARAMETER)
-		{
-			continue;
-		}
+		// Otherwise an empty column reads as a bug rather than as "you have
+		// not made one yet".
+		ofSetColor(COL_TEXT_MUTED);
+		jp_constants::p_font.drawString(
+			"No custom binds yet.", x, y + 28.0f);
+		jp_constants::p_font.drawString(
+			"Pick a Target box and an Action above, then Learn.",
+			x, y + 46.0f);
+	}
+	int rowIndex = 0;
+	for (int listPos = 0; listPos < (int)customIndices.size(); listPos++)
+	{
+		const int i = customIndices[listPos];
 
 		float rowY = y + 16 + rowIndex * (ROW_H + 4);
 		bool unresolved = boxes != nullptr &&
@@ -1842,30 +2319,48 @@ void JPMidiKeymap::drawBindings(float x, float y, float w)
 		{
 			unresolved = bindings[i].shaderPath.empty();
 		}
+		const RowRects R = rowRects(x, rowY, w, false);
+		const bool keyFocused = isRowFocused(FOCUS_BINDING, rowIndex);
 		ofSetColor(unresolved ? ofColor(COL_ERROR_BG, 190) : ofColor(COL_BG_BUTTON, 210));
 		ofDrawRectRounded(x, rowY, w, ROW_H, 4.0f);
-		
+
 		ofNoFill();
 		ofSetColor(unresolved ? ofColor(COL_ERROR_TEXT, 200) : ofColor(COL_ACCENT_CYAN, 80));
 		ofDrawRectRounded(x, rowY, w, ROW_H, 4.0f);
 		ofFill();
+		if (keyFocused)
+		{
+			ofNoFill();
+			ofSetColor(COL_ACCENT_GOLD);
+			ofSetLineWidth(2.0f);
+			ofDrawRectRounded(R.body.x - 2.0f, R.body.y - 2.0f,
+				R.body.width + 4.0f, R.body.height + 4.0f, 5.0f);
+			ofSetLineWidth(1.0f);
+			ofFill();
+		}
 
-		ofSetColor(COL_TEXT_PRIMARY);
+		// Key in one column, target/action in the other. This was a single
+		// concatenated string truncated to w-112, so a wider panel bought
+		// nothing: the middle of every binding stayed hidden behind "..".
 		string targetLabel = isGlobalAction(bindings[i].action) ? "Global" : bindings[i].boxName;
 		if (bindings[i].action == ADD_SHADER_BOX)
 		{
 			targetLabel = bindings[i].shaderQuery;
 		}
-		string label = getCompactKeyLabel(bindings[i].key) + " -> " +
-			targetLabel + " / " + getActionName(bindings[i].action);
+		targetLabel += "  /  " + getActionName(bindings[i].action);
 		if (unresolved)
 		{
-			label += " (missing)";
+			targetLabel += " (missing)";
 		}
-		label = fitLabel(label, w - 112);
-		jp_constants::p_font.drawString(label, x + 8, rowY + ROW_H - 7);
-		drawButton(x + w - 92, rowY + 2, 48, ROW_H - 4, "Learn", rebindIndex == i && learning);
-		drawButton(x + w - 38, rowY + 2, 32, ROW_H - 4, "X", false);
+		ofSetColor(unresolved ? COL_ERROR_TEXT : COL_MAPPED_ON);
+		jp_constants::p_font.drawString(
+			fitLabel(getCompactKeyLabel(bindings[i].key), R.labelMaxW),
+			R.labelX, rowY + ROW_H - 7);
+		ofSetColor(COL_TEXT_PRIMARY);
+		jp_constants::p_font.drawString(fitLabel(targetLabel, R.bindingMaxW),
+			R.bindingX, rowY + ROW_H - 7);
+		drawButton(R.learn.x, R.learn.y, R.learn.width, R.learn.height, "Learn", rebindIndex == i && learning);
+		drawButton(R.remove.x, R.remove.y, R.remove.width, R.remove.height, "X", false);
 		rowIndex++;
 	}
 }
@@ -1878,13 +2373,50 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 	}
 
 	PanelLayout layout = getPanelLayout();
-	if (!pointInRect(x, y, PANEL_X, PANEL_Y, PANEL_W, layout.panelH))
+	if (conflictPromptOpen)
+	{
+		if (conflictButtonRect(0).inside((float)x, (float)y))
+		{
+			resolveConflict(false);
+			return true;
+		}
+		if (conflictButtonRect(1).inside((float)x, (float)y))
+		{
+			resolveConflict(true);
+			return true;
+		}
+		if (conflictButtonRect(2).inside((float)x, (float)y))
+		{
+			cancelConflict();
+			return true;
+		}
+		return true;   // modal: swallow everything else while it is up
+	}
+	if (!panelFrame().inside((float)x, (float)y))
 	{
 		return false;
 	}
 
 	if (button != OF_MOUSE_BUTTON_LEFT)
 	{
+		return true;
+	}
+
+	// One guard for the whole function: a point inside an open dropdown belongs
+	// to the dropdown. The dropdowns are drawn LAST (on top) but three of their
+	// four hit tests sat AFTER the Learn button and the select fields, so
+	// clicking a list row that covered Learn armed a learn instead of picking.
+	const ofRectangle openDropdown = getOpenDropdownBounds();
+	const bool overDropdown = openDropdown.getWidth() > 0.0f &&
+		openDropdown.inside((float)x, (float)y);
+
+	// A click anywhere outside an open dropdown just dismisses it. This has to
+	// run before every other test: the header buttons are not covered by the
+	// list, so a per-test guard would still let them fire on the same press
+	// that closes it.
+	if (hasOpenDropdown() && !overDropdown)
+	{
+		closeDropdowns();
 		return true;
 	}
 
@@ -1907,7 +2439,8 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 	}
 
 	// Check header buttons
-	if (pointInRect(x, y, layout.innerX + layout.innerW - 264, layout.headerY + 4, 82, 24))
+	const ofRectangle headerFrame = panelFrame();
+	if (!overDropdown && jp_screen::actionSlotRun(headerFrame, headerSlotWidths(), 1).inside((float)x, (float)y))
 	{
 		editMode = !editMode;
 		cancelLearning();
@@ -1916,7 +2449,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		mapDeviceSelectOpen = false;
 		return true;
 	}
-	if (pointInRect(x, y, layout.innerX + layout.innerW - 174, layout.headerY + 4, 82, 24))
+	if (!overDropdown && jp_screen::actionSlotRun(headerFrame, headerSlotWidths(), 0).inside((float)x, (float)y))
 	{
 		openInputs();
 		cancelLearning();
@@ -1925,7 +2458,11 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		mapDeviceSelectOpen = false;
 		return true;
 	}
-	if (pointInRect(x, y, layout.innerX + layout.innerW - 84, layout.headerY + 4, 84, 24))
+	// Learn now sits under the fields it arms, not in the header where it
+	// silently bound "Bypass on the first box" from a stale selection.
+	if (!overDropdown && ofRectangle(layout.rightX + SELECT_LABEL_W,
+			layout.learnY - SELECT_FIELD_Y_OFFSET,
+			200.0f, ROW_H).inside((float)x, (float)y))
 	{
 		if (learning || !hasLearnTarget())
 		{
@@ -1941,7 +2478,9 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		mapDeviceSelectOpen = false;
 		return true;
 	}
-	if (pointInRect(x, y, layout.innerX + 44, layout.headerY + 54, layout.innerW - 44, ROW_H))
+	if (!overDropdown && pointInRect(x, y, layout.rightX + SELECT_LABEL_W,
+		layout.mapDeviceY - SELECT_FIELD_Y_OFFSET,
+		layout.rightW - SELECT_LABEL_W, ROW_H))
 	{
 		mapDeviceSelectOpen = !mapDeviceSelectOpen;
 		targetBoxSelectOpen = false;
@@ -1950,7 +2489,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		return true;
 	}
 
-	if (pointInRect(x, y, layout.innerX + layout.innerW - 78, layout.paramY - SELECT_FIELD_Y_OFFSET, 78, ROW_H))
+	if (!overDropdown && pointInRect(x, y, layout.innerX + layout.innerW - 78, layout.paramY - SELECT_FIELD_Y_OFFSET, 78, ROW_H))
 	{
 		parameterSectionCollapsed = !parameterSectionCollapsed;
 		targetBoxSelectOpen = false;
@@ -1959,7 +2498,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		return true;
 	}
 
-	if (pointInRect(x, y, layout.innerX + layout.innerW - 78, layout.globalY - SELECT_FIELD_Y_OFFSET, 78, ROW_H))
+	if (!overDropdown && pointInRect(x, y, layout.innerX + layout.innerW - 78, layout.globalY - SELECT_FIELD_Y_OFFSET, 78, ROW_H))
 	{
 		globalFunctionsCollapsed = !globalFunctionsCollapsed;
 		focusedAddShaderRow = -1;
@@ -1969,7 +2508,7 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		return true;
 	}
 
-	if (pointInRect(x, y, layout.innerX + layout.innerW - 78, layout.addShaderY - SELECT_FIELD_Y_OFFSET, 78, ROW_H))
+	if (!overDropdown && pointInRect(x, y, layout.innerX + layout.innerW - 78, layout.addShaderY - SELECT_FIELD_Y_OFFSET, 78, ROW_H))
 	{
 		addShaderSectionCollapsed = !addShaderSectionCollapsed;
 		focusedAddShaderRow = -1;
@@ -2025,8 +2564,8 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		}
 		else
 		{
-			// Clicked outside dropdown
 			targetBoxSelectOpen = false;
+			return true;   // dismiss only
 		}
 	}
 
@@ -2049,15 +2588,15 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		}
 		else
 		{
-			// Clicked outside dropdown
 			actionSelectOpen = false;
+			return true;   // dismiss only, do not also actuate underneath
 		}
 	}
 
 	// Check Target Box select field box click
 	if (boxes != nullptr)
 	{
-		if (pointInRect(x, y, layout.innerX + SELECT_LABEL_W, layout.targetBoxY - SELECT_FIELD_Y_OFFSET, layout.innerW - SELECT_LABEL_W, ROW_H))
+		if (!overDropdown && pointInRect(x, y, layout.rightX + SELECT_LABEL_W, layout.targetBoxY - SELECT_FIELD_Y_OFFSET, layout.rightW - SELECT_LABEL_W, ROW_H))
 		{
 			focusedAddShaderRow = -1;
 			targetBoxSelectOpen = !targetBoxSelectOpen;
@@ -2068,7 +2607,37 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 	}
 
 	// Check Action select field box click
-	if (pointInRect(x, y, layout.innerX + SELECT_LABEL_W, layout.actionY - SELECT_FIELD_Y_OFFSET, 200, ROW_H))
+	if (paramSelectOpen)
+	{
+		const DropdownLayout dropdown = getParamDropdownLayout(layout);
+		if (pointInRect(x, y, dropdown.x, dropdown.y, dropdown.w, dropdown.h))
+		{
+			const int picked = (int)((y - dropdown.y - 2) / (ROW_H + 2));
+			if (picked >= 0 && picked < getGlobalParameterIndexCount())
+			{
+				// Same field the left column's Parameter-index rows write, so
+				// the two stay in sync and the left row highlight follows.
+				selectedParameterIndex = picked;
+				selectedAction = PARAMETER;
+			}
+			paramSelectOpen = false;
+			return true;
+		}
+		paramSelectOpen = false;
+		return true;   // dismiss only
+	}
+	if (!overDropdown && selectedAction == PARAMETER &&
+		pointInRect(x, y, layout.rightX + SELECT_LABEL_W,
+			layout.paramPickY - SELECT_FIELD_Y_OFFSET, 200.0f, ROW_H))
+	{
+		paramSelectOpen = !paramSelectOpen;
+		targetBoxSelectOpen = false;
+		actionSelectOpen = false;
+		mapDeviceSelectOpen = false;
+		return true;
+	}
+	if (!overDropdown && pointInRect(x, y, layout.rightX + SELECT_LABEL_W,
+		layout.actionY - SELECT_FIELD_Y_OFFSET, 200.0f, ROW_H))
 	{
 		focusedAddShaderRow = -1;
 		actionSelectOpen = !actionSelectOpen;
@@ -2077,14 +2646,22 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		return true;
 	}
 
+	// Rows scrolled out of a column are invisible; they must not answer clicks
+	// either. Drawing is clipped by beginColumnClip, hit-testing was not, so a
+	// scrolled-away row still fired from wherever it used to be.
+	const bool inLeftCol = !overDropdown &&
+		layout.leftCol.inside((float)x, (float)y);
+	const bool inRightCol = !overDropdown &&
+		layout.rightCol.inside((float)x, (float)y);
+
 	// Check parameter list clicks
-	if (boxes != nullptr && !parameterSectionCollapsed)
+	if (boxes != nullptr && !parameterSectionCollapsed && inLeftCol)
 	{
 		float rowY = layout.paramY + PARAM_HEADER_H;
 		float rowW = layout.innerW;
 		for (int i = 0; i < getGlobalParameterIndexCount(); i++)
 		{
-			if (pointInRect(x, y, layout.innerX + rowW - 92, rowY + 2, 48, ROW_H - 4))
+			if (rowRects(layout.innerX, rowY, rowW, false).learn.inside((float)x, (float)y))
 			{
 				Binding binding;
 				binding.action = PARAMETER;
@@ -2093,12 +2670,13 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 				armLearn(binding, findParameterBindingForIndex(i));
 				return true;
 			}
-			if (pointInRect(x, y, layout.innerX + rowW - 38, rowY + 2, 32, ROW_H - 4))
+			if (rowRects(layout.innerX, rowY, rowW, false).remove.inside((float)x, (float)y))
 			{
 				int bindingIndex = findParameterBindingForIndex(i);
 				if (bindingIndex >= 0)
 				{
 					bindings.erase(bindings.begin() + bindingIndex);
+					invalidateBindingCache();
 					saveGlobal();
 				}
 				learning = false;
@@ -2116,13 +2694,13 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		}
 	}
 
-	if (boxes != nullptr && !globalFunctionsCollapsed)
+	if (boxes != nullptr && !globalFunctionsCollapsed && inLeftCol)
 	{
 		vector<Action> globalActions = getGlobalActions();
 		float rowY = layout.globalY + PARAM_HEADER_H;
 		for (int i = 0; i < globalActions.size(); i++)
 		{
-			if (pointInRect(x, y, layout.innerX + layout.innerW - 92, rowY + 2, 48, ROW_H - 4))
+			if (rowRects(layout.innerX, rowY, layout.innerW, false).learn.inside((float)x, (float)y))
 			{
 				Binding binding;
 				binding.action = globalActions[i];
@@ -2130,12 +2708,13 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 				armLearn(binding, findGlobalActionBinding(globalActions[i]));
 				return true;
 			}
-			if (pointInRect(x, y, layout.innerX + layout.innerW - 38, rowY + 2, 32, ROW_H - 4))
+			if (rowRects(layout.innerX, rowY, layout.innerW, false).remove.inside((float)x, (float)y))
 			{
 				int bindingIndex = findGlobalActionBinding(globalActions[i]);
 				if (bindingIndex >= 0)
 				{
 					bindings.erase(bindings.begin() + bindingIndex);
+					invalidateBindingCache();
 					saveGlobal();
 				}
 				learning = false;
@@ -2152,24 +2731,26 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 		}
 	}
 
-	if (!addShaderSectionCollapsed)
+	if (!addShaderSectionCollapsed && inLeftCol)
 	{
 		float rowY = layout.addShaderY + PARAM_HEADER_H;
 		ensureAddShaderDraftRow();
 		for (int i = 0; i < addShaderRows.size(); i++)
 		{
-			if (pointInRect(x, y, layout.innerX + layout.innerW - 146, rowY + 2, 48, ROW_H - 4))
+			if (rowRects(layout.innerX, rowY, layout.innerW, true).find.inside((float)x, (float)y))
 			{
 				resolveAddShaderRow(i);
+				completeAddShaderRow(i);
 				return true;
 			}
-			if (pointInRect(x, y, layout.innerX + layout.innerW - 92, rowY + 2, 48, ROW_H - 4))
+			if (rowRects(layout.innerX, rowY, layout.innerW, true).learn.inside((float)x, (float)y))
 			{
 				if (!addShaderRows[i].empty())
 				{
 					if (i >= addShaderResolvedPaths.size() || addShaderResolvedPaths[i].empty())
 					{
 						resolveAddShaderRow(i);
+						completeAddShaderRow(i);
 					}
 					Binding binding;
 					binding.action = ADD_SHADER_BOX;
@@ -2181,15 +2762,22 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 				}
 				return true;
 			}
-			if (pointInRect(x, y, layout.innerX + layout.innerW - 38, rowY + 2, 32, ROW_H - 4))
+			if (rowRects(layout.innerX, rowY, layout.innerW, true).remove.inside((float)x, (float)y))
 			{
 				int bindingIndex = findAddShaderBinding(addShaderRows[i]);
 				if (bindingIndex >= 0)
 				{
 					bindings.erase(bindings.begin() + bindingIndex);
+					invalidateBindingCache();
 					saveGlobal();
 				}
 				addShaderRows.erase(addShaderRows.begin() + i);
+				// The cursor vector is parallel to the rows; leaving it alone
+				// shifted every later row's caret by one.
+				if (i < (int)addShaderCursors.size())
+				{
+					addShaderCursors.erase(addShaderCursors.begin() + i);
+				}
 				if (i < addShaderResolvedPaths.size())
 				{
 					addShaderResolvedPaths.erase(addShaderResolvedPaths.begin() + i);
@@ -2204,14 +2792,38 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 				rebindIndex = -1;
 				return true;
 			}
-			if (pointInRect(x, y, layout.innerX, rowY, layout.innerW - 98, ROW_H))
 			{
-				focusedAddShaderRow = i;
-				addShaderQuery = addShaderRows[i];
-				selectedAction = ADD_SHADER_BOX;
-				targetBoxSelectOpen = false;
-				actionSelectOpen = false;
-				return true;
+				// Body is everything left of the buttons. This was
+				// `innerW - 98` while Find starts at `w - 146`, so a 48px band
+				// answered to neither the body nor any button.
+				const RowRects RR = rowRects(layout.innerX, rowY,
+					layout.innerW, true);
+				const ofRectangle bodyRect(RR.body.x, RR.body.y,
+					RR.find.x - RR.body.x - 6.0f, RR.body.height);
+				if (bodyRect.inside((float)x, (float)y))
+				{
+					focusedAddShaderRow = i;
+					addShaderQuery = addShaderRows[i];
+					selectedAction = ADD_SHADER_BOX;
+					targetBoxSelectOpen = false;
+					actionSelectOpen = false;
+					// Place the caret where it was clicked, like every other
+					// text field in the app.
+					if (i < (int)addShaderCursors.size())
+					{
+						const string &text = addShaderRows[i];
+						const jp_textfield::Window win =
+							jp_textfield::visibleWindow(jp_constants::p_font,
+								text, addShaderCursors[i], RR.labelMaxW);
+						const string shown =
+							text.substr(win.start, win.end - win.start);
+						addShaderCursors[i] = ofClamp(win.start +
+							jp_textfield::cursorFromX(jp_constants::p_font,
+								shown, RR.labelX, (float)x),
+							0, (int)text.size());
+					}
+					return true;
+				}
 			}
 			rowY += ROW_H + 4;
 		}
@@ -2219,20 +2831,17 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 	}
 
 	// Check Bindings list clicks
+	// Only below the pinned context fields, and only inside the column.
+	const vector<int> customHitIndices =
+		(inRightCol && (float)y > layout.learnY + ROW_H) ?
+		getCustomBindingIndices() : vector<int>();
 	int bindingRow = 0;
-	for (int i = 0; i < bindings.size(); i++)
+	for (int hitPos = 0; hitPos < (int)customHitIndices.size(); hitPos++)
 	{
-		if (!isActiveMapDevice(bindings[i].key.deviceName))
-		{
-			continue;
-		}
-		if (bindings[i].action == PARAMETER)
-		{
-			continue;
-		}
+		const int i = customHitIndices[hitPos];
 
 		float rowY = layout.bindingsY + 16 + bindingRow * (ROW_H + 4);
-		if (pointInRect(x, y, layout.innerX + layout.innerW - 92, rowY + 2, 48, ROW_H - 4))
+		if (rowRects(layout.rightX, rowY, layout.rightW, false).learn.inside((float)x, (float)y))
 		{
 			selectedBoxName = bindings[i].boxName;
 			selectedAction = bindings[i].action;
@@ -2245,9 +2854,10 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 			rebindIndex = i;
 			return true;
 		}
-		if (pointInRect(x, y, layout.innerX + layout.innerW - 38, rowY + 2, 32, ROW_H - 4))
+		if (rowRects(layout.rightX, rowY, layout.rightW, false).remove.inside((float)x, (float)y))
 		{
 			bindings.erase(bindings.begin() + i);
+			invalidateBindingCache();
 			saveGlobal();
 			learning = false;
 			rebindIndex = -1;
@@ -2259,11 +2869,207 @@ bool JPMidiKeymap::mousePressed(int x, int y, int button)
 	return true;
 }
 
+int JPMidiKeymap::focusSectionRowCount(FocusSection section) const
+{
+	switch (section)
+	{
+	case FOCUS_PARAM:     return getParameterRowCount();
+	case FOCUS_GLOBAL:    return getGlobalActionRowCount();
+	case FOCUS_ADDSHADER: return getAddShaderRowCount();
+	case FOCUS_BINDING:   return getNonParameterBindingCount();
+	default:              return 0;
+	}
+}
+
+bool JPMidiKeymap::isRowFocused(FocusSection section, int row) const
+{
+	return focusSection == section && focusRow == row;
+}
+
+void JPMidiKeymap::cycleFocusSection(bool backwards)
+{
+	// Skip collapsed or empty sections so Tab never lands nowhere.
+	const FocusSection order[] = {FOCUS_PARAM, FOCUS_GLOBAL, FOCUS_ADDSHADER,
+		FOCUS_BINDING};
+	int start = 0;
+	for (int i = 0; i < 4; i++) if (order[i] == focusSection) start = i;
+	for (int step = 1; step <= 4; step++)
+	{
+		const int i = ((start + (backwards ? -step : step)) % 4 + 4) % 4;
+		if (focusSectionRowCount(order[i]) > 0)
+		{
+			focusSection = order[i];
+			focusRow = 0;
+			ensureFocusVisible();
+			return;
+		}
+	}
+}
+
+void JPMidiKeymap::moveFocus(int delta)
+{
+	if (focusSection == FOCUS_NONE)
+	{
+		focusSection = FOCUS_PARAM;
+		focusRow = 0;
+		if (focusSectionRowCount(focusSection) == 0) cycleFocusSection(false);
+		ensureFocusVisible();
+		return;
+	}
+	const int count = focusSectionRowCount(focusSection);
+	if (count <= 0) { cycleFocusSection(delta < 0); return; }
+	const int next = focusRow + delta;
+	if (next < 0 || next >= count)
+	{
+		// Roll into the neighbouring section rather than stopping dead.
+		cycleFocusSection(delta < 0);
+		if (delta < 0)
+		{
+			focusRow = std::max(0, focusSectionRowCount(focusSection) - 1);
+		}
+	}
+	else
+	{
+		focusRow = next;
+	}
+	ensureFocusVisible();
+}
+
+void JPMidiKeymap::ensureFocusVisible()
+{
+	if (focusSection == FOCUS_NONE || focusRow < 0) return;
+	const PanelLayout L = getPanelLayout();
+	float rowY = 0.0f;
+	bool right = false;
+	switch (focusSection)
+	{
+	case FOCUS_PARAM:     rowY = L.paramY + PARAM_HEADER_H; break;
+	case FOCUS_GLOBAL:    rowY = L.globalY + PARAM_HEADER_H; break;
+	case FOCUS_ADDSHADER: rowY = L.addShaderY + PARAM_HEADER_H; break;
+	case FOCUS_BINDING:   rowY = L.bindingsY + 16.0f; right = true; break;
+	default: return;
+	}
+	rowY += focusRow * (ROW_H + 4);
+	const ofRectangle &col = right ? L.rightCol : L.leftCol;
+	float &scroll = right ? rightScroll : leftScroll;
+	const float contentH = right ? L.rightContentH : L.leftContentH;
+	const float maxScroll = std::max(0.0f, contentH - col.height);
+	if (rowY < col.y) scroll = ofClamp(scroll - (col.y - rowY), 0.0f, maxScroll);
+	else if (rowY + ROW_H > col.getMaxY())
+		scroll = ofClamp(scroll + (rowY + ROW_H - col.getMaxY()), 0.0f, maxScroll);
+}
+
+void JPMidiKeymap::activateFocusedRow()
+{
+	if (focusSection == FOCUS_NONE || focusRow < 0) return;
+	Binding binding;
+	binding.key = MidiKey();
+	switch (focusSection)
+	{
+	case FOCUS_PARAM:
+		binding.boxName = selectedBoxName;
+		binding.action = PARAMETER;
+		binding.parameterIndex = focusRow;
+		selectedAction = PARAMETER;
+		selectedParameterIndex = focusRow;
+		armLearn(binding, findParameterBindingForIndex(focusRow));
+		return;
+	case FOCUS_GLOBAL:
+	{
+		const vector<Action> actions = getGlobalActions();
+		if (focusRow >= (int)actions.size()) return;
+		binding.action = actions[focusRow];
+		selectedAction = actions[focusRow];
+		armLearn(binding, findGlobalActionBinding(actions[focusRow]));
+		return;
+	}
+	case FOCUS_ADDSHADER:
+		focusedAddShaderRow = focusRow;   // hand over to text entry
+		return;
+	case FOCUS_BINDING:
+	{
+		// Same list the right column renders, so keyboard focus and the drawn
+		// rows can never address different bindings.
+		const vector<int> custom = getCustomBindingIndices();
+		if (focusRow < (int)custom.size())
+		{
+			const int i = custom[focusRow];
+			selectedBoxName = bindings[i].boxName;
+			selectedAction = bindings[i].action;
+			selectedParameterIndex = bindings[i].parameterIndex;
+			learning = true;
+			rebindIndex = i;
+			return;
+		}
+		return;
+	}
+	default: return;
+	}
+}
+
+void JPMidiKeymap::unbindFocusedRow()
+{
+	if (focusSection == FOCUS_NONE || focusRow < 0) return;
+	int index = -1;
+	if (focusSection == FOCUS_PARAM)
+	{
+		index = findParameterBindingForIndex(focusRow);
+	}
+	else if (focusSection == FOCUS_GLOBAL)
+	{
+		const vector<Action> actions = getGlobalActions();
+		if (focusRow < (int)actions.size())
+			index = findGlobalActionBinding(actions[focusRow]);
+	}
+	else if (focusSection == FOCUS_BINDING)
+	{
+		const vector<int> custom = getCustomBindingIndices();
+		if (focusRow < (int)custom.size()) index = custom[focusRow];
+	}
+	if (index < 0) return;
+	bindings.erase(bindings.begin() + index);
+	invalidateBindingCache();
+	saveGlobal();
+	learning = false;
+	rebindIndex = -1;
+	focusRow = std::min(focusRow,
+		std::max(0, focusSectionRowCount(focusSection) - 1));
+}
+
 bool JPMidiKeymap::keyPressed(int key)
 {
-	if (!panelOpen || focusedAddShaderRow < 0 || focusedAddShaderRow >= addShaderRows.size())
+	if (!panelOpen) return false;
+
+	// Row navigation, when a text row is NOT being typed into. Anything not
+	// handled here falls through, so the global 1-6 and ESC keep working -
+	// this function used to swallow every key while a row had focus.
+	if (focusedAddShaderRow < 0 || focusedAddShaderRow >= (int)addShaderRows.size())
 	{
-		return false;
+		switch (key)
+		{
+		case OF_KEY_UP:    moveFocus(-1); return true;
+		case OF_KEY_DOWN:  moveFocus(1);  return true;
+		case OF_KEY_TAB:
+			cycleFocusSection(ofGetKeyPressed(OF_KEY_SHIFT));
+			return true;
+		case OF_KEY_RETURN:   // == '\r' in openFrameworks
+			if (focusSection == FOCUS_NONE) return false;
+			activateFocusedRow();
+			return true;
+		case OF_KEY_DEL: case OF_KEY_BACKSPACE:
+			if (focusSection == FOCUS_NONE) return false;
+			unbindFocusedRow();
+			return true;
+		case OF_KEY_ESC:
+			// Clear row focus first; a second press falls through to the
+			// app-wide "close the topmost surface" rule.
+			if (focusSection == FOCUS_NONE) return false;
+			focusSection = FOCUS_NONE;
+			focusRow = -1;
+			return true;
+		default:
+			return false;
+		}
 	}
 
 	if (key == OF_KEY_ESC || key == 27)
@@ -2271,18 +3077,7 @@ bool JPMidiKeymap::keyPressed(int key)
 		focusedAddShaderRow = -1;
 		return true;
 	}
-	if (key == OF_KEY_BACKSPACE || key == 8 || key == 127)
-	{
-		if (!addShaderRows[focusedAddShaderRow].empty())
-		{
-			addShaderRows[focusedAddShaderRow].erase(addShaderRows[focusedAddShaderRow].size() - 1);
-			addShaderQuery = addShaderRows[focusedAddShaderRow];
-			addShaderResolvedPaths[focusedAddShaderRow] = "";
-			addShaderSearched[focusedAddShaderRow] = false;
-		}
-		return true;
-	}
-	if (key == OF_KEY_RETURN || key == '\r' || key == '\n')
+	if (key == OF_KEY_RETURN)
 	{
 		if (!addShaderRows[focusedAddShaderRow].empty())
 		{
@@ -2290,6 +3085,7 @@ bool JPMidiKeymap::keyPressed(int key)
 			{
 				resolveAddShaderRow(focusedAddShaderRow);
 			}
+			completeAddShaderRow(focusedAddShaderRow);
 			Binding binding;
 			binding.action = ADD_SHADER_BOX;
 			binding.shaderQuery = addShaderRows[focusedAddShaderRow];
@@ -2300,16 +3096,30 @@ bool JPMidiKeymap::keyPressed(int key)
 		}
 		return true;
 	}
-	if (key >= 32 && key <= 126)
+
+	// Full editing - arrows, HOME/END, DEL, insert at the cursor. This used to
+	// be append-plus-backspace-at-end with no cursor at all.
+	if (focusedAddShaderRow >= (int)addShaderCursors.size())
 	{
-		addShaderRows[focusedAddShaderRow] += char(key);
-		addShaderQuery = addShaderRows[focusedAddShaderRow];
-		addShaderResolvedPaths[focusedAddShaderRow] = "";
-		addShaderSearched[focusedAddShaderRow] = false;
 		ensureAddShaderDraftRow();
+	}
+	int &cursor = addShaderCursors[focusedAddShaderRow];
+	string &text = addShaderRows[focusedAddShaderRow];
+	const string before = text;
+	if (jp_textfield::handleKey(text, cursor, key))
+	{
+		if (text != before)
+		{
+			addShaderQuery = text;
+			addShaderResolvedPaths[focusedAddShaderRow] = "";
+			addShaderSearched[focusedAddShaderRow] = false;
+			ensureAddShaderDraftRow();
+		}
 		return true;
 	}
-	return true;
+	// Anything the field did not consume falls through, so the global
+	// shortcuts keep working while a row is focused.
+	return false;
 }
 
 bool JPMidiKeymap::mouseScrolled(int x, int y, float scrollX, float scrollY)
@@ -2317,6 +3127,28 @@ bool JPMidiKeymap::mouseScrolled(int x, int y, float scrollX, float scrollY)
 	if (!panelOpen)
 	{
 		return false;
+	}
+
+	if (!targetBoxSelectOpen)
+	{
+		// The body had no scrolling at all, so the wheel fell through to the
+		// node canvas behind the screen and panned it instead.
+		const PanelLayout L = getPanelLayout();
+		const float step = scrollY * 40.0f;
+		if (L.rightCol.inside((float)x, (float)y))
+		{
+			rightScroll = ofClamp(rightScroll - step, 0.0f,
+				std::max(0.0f, L.rightContentH - L.rightCol.height));
+			return true;
+		}
+		if (L.leftCol.inside((float)x, (float)y))
+		{
+			leftScroll = ofClamp(leftScroll - step, 0.0f,
+				std::max(0.0f, L.leftContentH - L.leftCol.height));
+			return true;
+		}
+		// Consume anywhere on the screen so nothing leaks to the canvas.
+		return panelFrame().inside((float)x, (float)y);
 	}
 
 	if (targetBoxSelectOpen && boxes != nullptr && !boxes->boxes.empty())
@@ -2443,6 +3275,66 @@ bool JPMidiKeymap::isPanelOpen() const
 	return panelOpen;
 }
 
+void JPMidiKeymap::setPanelVisible(bool visible)
+{
+	if (panelOpen == visible) return;
+	panelOpen = visible;
+	// Leaving the screen must not strand a dropdown or a half-armed learn.
+	if (!visible)
+	{
+		closeDropdowns();
+		if (learning) cancelLearning();
+		// Nor a conflict prompt: draw() stops rendering it off-screen, but the
+		// surface stays open and modal, so every click in the whole app was
+		// blocked by a prompt nothing was drawing.
+		cancelConflict();
+		focusedAddShaderRow = -1;
+	}
+}
+
+void JPMidiKeymap::closePanel()
+{
+	// Leaving a dropdown or a half-finished learn armed behind a closed panel
+	// would keep swallowing clicks with nothing on screen to explain why.
+	closeDropdowns();
+	if (learning) cancelLearning();
+	focusedAddShaderRow = -1;
+	panelOpen = false;
+}
+
+bool JPMidiKeymap::hasOpenDropdown() const
+{
+	return targetBoxSelectOpen || actionSelectOpen || mapDeviceSelectOpen ||
+		paramSelectOpen;
+}
+
+void JPMidiKeymap::closeDropdowns()
+{
+	targetBoxSelectOpen = false;
+	actionSelectOpen = false;
+	mapDeviceSelectOpen = false;
+	paramSelectOpen = false;
+}
+
+ofRectangle JPMidiKeymap::getOpenDropdownBounds() const
+{
+	if (!panelOpen) return ofRectangle();
+	const PanelLayout layout = getPanelLayout();
+	DropdownLayout d;
+	if (mapDeviceSelectOpen) d = getMapDeviceDropdownLayout(layout);
+	else if (targetBoxSelectOpen) d = getTargetBoxDropdownLayout(layout);
+	else if (actionSelectOpen) d = getActionDropdownLayout(layout);
+	else if (paramSelectOpen) d = getParamDropdownLayout(layout);
+	else return ofRectangle();
+	return ofRectangle(d.x, d.y, d.w, d.h);
+}
+
+ofRectangle JPMidiKeymap::getPanelBounds() const
+{
+	if (!panelOpen) return ofRectangle();
+	return panelFrame();
+}
+
 void JPMidiKeymap::save(string path)
 {
 	ofXml xml;
@@ -2472,6 +3364,7 @@ void JPMidiKeymap::save(string path)
 void JPMidiKeymap::load(string path)
 {
 	bindings.clear();
+	invalidateBindingCache();
 	addShaderRows.clear();
 	addShaderResolvedPaths.clear();
 	addShaderSearched.clear();
@@ -2496,6 +3389,7 @@ void JPMidiKeymap::load(string path)
 	if (activeDevice)
 	{
 		activeMapDeviceName = normalizeDeviceName(activeDevice.getValue());
+		refreshActiveDeviceCache();
 	}
 
 	for (auto &bindingNode : keymap.getChildren("binding"))
@@ -2519,6 +3413,8 @@ void JPMidiKeymap::load(string path)
 		if (isBindingLoadable(binding))
 		{
 			bindings.push_back(binding);
+			invalidateBindingCache();
+		invalidateBindingCache();
 		}
 	}
 	ensureActiveMapDevice();

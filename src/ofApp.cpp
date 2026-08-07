@@ -145,8 +145,140 @@ void ofApp::setup() {
 	}
 	loadSession(savedirectory);
 	midiKeymap.load(ofToDataPath("midi_keymap.xml"));
+	registerSurfaces();
+}
+
+bool ofApp::anyFieldFocused() const
+{
+	return focusedOptionsField >= 0 || focusedLiveOutputField >= 0 ||
+		focusedSplitField >= 0 || boxes.tabRenaming ||
+		(pantallaActiva == SHADER_INDEX && shaderSearchFocused);
+}
+
+void ofApp::clearFieldFocus()
+{
+	// Reverting, not just unfocusing: re-initialising a field group re-reads
+	// the committed values, so an abandoned edit is discarded. The settings
+	// screen already promised this on screen ("Click outside to cancel") while
+	// actually leaving the typed text in the buffer.
+	if (focusedOptionsField >= 0)
+	{
+		focusedOptionsField = -1;
+		initOptionsFields();
+	}
+	if (focusedLiveOutputField >= 0)
+	{
+		focusedLiveOutputField = -1;
+		liveOutputFieldSelectAll = false;
+		initLiveOutputFields();
+	}
+	if (focusedSplitField >= 0)
+	{
+		focusedSplitField = -1;
+		splitFieldSelectAll = false;
+	}
+	if (boxes.tabRenaming) boxes.cancelTabRename();
+	shaderSearchFocused = false;
+}
+
+// Declared once, here, so ESC / modality / click blocking all derive from the
+// same table instead of from the order of early returns in the input handlers.
+// These are adapters over the flags that already exist - no panel had to change
+// how it stores its own state.
+void ofApp::registerSurfaces()
+{
+	JPSurface s;
+
+	s = JPSurface();
+	s.id = s.order = SURFACE_INSPECTOR;
+	s.isOpen = [this]() { return boxes.getInspectorBox() != nullptr; };
+	s.close = [this]() { boxes.closeInspector(); };
+	s.bounds = [this]() { return boxes.getInspectorBounds(); };
+	surfaces.add(s);
+
+	s = JPSurface();
+	s.id = s.order = SURFACE_CUE_PANEL;
+	s.isOpen = [this]() { return boxes.getCuePreviewBox() != nullptr; };
+	s.close = [this]() { boxes.setCueBoxByIndex(-1); };
+	s.bounds = [this]() { return boxes.getCuePanelBounds(); };
+	surfaces.add(s);
+
+	s = JPSurface();
+	s.id = s.order = SURFACE_MAPPING_PANEL;
+	s.isOpen = [this]() { return boxes.isMappingEditActive(); };
+	s.close = [this]() { boxes.endMappingEdit(); };
+	s.bounds = [this]() { return boxes.getMappingPanelBounds(); };
+	surfaces.add(s);
+
+	s = JPSurface();
+	s.id = s.order = SURFACE_SHADER_EDITOR;
+	s.isOpen = [this]() {
+		return pantallaActiva == EDITOR && shaderEditor.isVisible();
+	};
+	s.close = [this]() { closeShaderEditorToMain(); };
+	s.bounds = [this]() { return ofRectangle(); };
+	surfaces.add(s);
+
+	// No bounds: an editing field stacks and answers to ESC, but it must not
+	// swallow clicks by position - clicking away from a field commits it.
+	s = JPSurface();
+	s.id = s.order = SURFACE_FIELD_EDIT;
+	s.isOpen = [this]() { return anyFieldFocused(); };
+	s.close = [this]() { clearFieldFocus(); };
+	s.bounds = [this]() { return ofRectangle(); };
+	surfaces.add(s);
+
+	// The MIDI conflict prompt is modal within its screen; register it so the
+	// app-wide ESC rule cancels it like any other modal. Its order comes from
+	// jp_pointer so the prompt can scope its own drawing to the same number -
+	// it used to be SURFACE_SAVE_MODAL - 1, a value nothing else could name.
+	s = JPSurface();
+	s.id = s.order = SURFACE_MIDI_CONFLICT;
+	s.modal = true;
+	s.isOpen = [this]() { return midiKeymap.hasConflictPrompt(); };
+	s.close = [this]() { midiKeymap.cancelConflict(); };
+	s.bounds = [this]() { return midiKeymap.conflictPromptRect(); };
+	surfaces.add(s);
+
+	s = JPSurface();
+	s.id = s.order = SURFACE_DROPDOWN;
+	// Real bounds: this was an empty rect, so an open dropdown never blocked
+	// the controls it visually covers.
+	s.bounds = [this]() { return midiKeymap.getOpenDropdownBounds(); };
+	s.isOpen = [this]() {
+		return midiKeymap.hasOpenDropdown() ||
+			liveOutputMenu != LIVE_OUTPUT_MENU_NONE;
+	};
+	s.close = [this]() {
+		midiKeymap.closeDropdowns();
+		liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
+	};
+	surfaces.add(s);
+
+	s = JPSurface();
+	s.id = s.order = SURFACE_SAVE_MODAL;
+	s.modal = true;
+	s.isOpen = [this]() { return saveModalActive; };
+	s.close = [this]() { cancelSaveModal(); };
+	s.bounds = [this]() { return ofRectangle(); };
+	surfaces.add(s);
+
+	// The node canvas must yield to anything stacked above it, not just to the
+	// inspector and the mapping panel it happens to own.
+	boxes.setExternalGuiHitTest([this](float x, float y) {
+		return surfaces.blockedAt(x, y, SURFACE_MAPPING_PANEL);
+	});
+
+	// One pointer-owner rule for every control that opts into a layer.
+	jp_pointer::setOcclusionTest([this](float x, float y, int order) {
+		return surfaces.blockedAt(x, y, order);
+	});
 }
 void ofApp::update() {
+	// Arming a learn from the canvas (Map mode) brings its screen up, so the
+	// binding you just armed is visible and is not cancelled by the sync below.
+	if (midiKeymap.consumeShowRequest()) pantallaActiva = MIDI_KEYMAP;
+	midiKeymap.setPanelVisible(pantallaActiva == MIDI_KEYMAP);
 	boxes.update();
 	updateRetiredLiveOutputWindows();
 	const float now = ofGetElapsedTimef();
@@ -278,7 +410,9 @@ void ofApp::draw() {
 		draw_opciones();
 	}
 	midiKeymap.drawMappingTargets();
-	midiKeymap.draw();
+	if (pantallaActiva == MIDI_KEYMAP) {
+		midiKeymap.draw();
+	}
 
 	drawScreenTabs();
 
@@ -312,6 +446,14 @@ void ofApp::draw_instrucciones() {
 	// SPANISH
 	es[esLines++] = "INSTRUCCIONES";
 	es[esLines++] = "";
+	es[esLines++] = "NAVEGACION";
+	es[esLines++] = "ESC : Cierra lo que este mas arriba (campo, lista,";
+	es[esLines++] = "      panel, modal). Nunca cambia de pantalla.";
+	es[esLines++] = "1-6 : Cambiar de pantalla (6 = MIDI)";
+	es[esLines++] = "Barra superior : pantallas | paneles CUE MAP";
+	es[esLines++] = "Enter aplica un campo, ESC lo descarta";
+	es[esLines++] = "";
+	es[esLines++] = "";
 	es[esLines++] = "Cargar archivo: Arrastrar a la ventana";
 	es[esLines++] = "";
 	es[esLines++] = "TECLAS:";
@@ -337,7 +479,6 @@ void ofApp::draw_instrucciones() {
 	es[esLines++] = "Shift+C : Agregar caja KINECT V2";
 	es[esLines++] = "Shift+P : Agregar PointerCloud (nube de puntos Kinect)";
 	es[esLines++] = "i : Agregar caja Frame Difference";
-	es[esLines++] = "k : Abrir/cerrar panel MIDI Keymap";
 	es[esLines++] = "m : Exportar imagen (captura de pantalla)";
 	es[esLines++] = "e : Activar/desactivar modo secuencia";
 	es[esLines++] = "DEL : Eliminar shader seleccionado";
@@ -366,6 +507,14 @@ void ofApp::draw_instrucciones() {
 	// ENGLISH
 	en[enLines++] = "INSTRUCTIONS";
 	en[enLines++] = "";
+	en[enLines++] = "NAVIGATION";
+	en[enLines++] = "ESC : Closes the topmost thing (field, dropdown,";
+	en[enLines++] = "      panel, modal). Never changes screen.";
+	en[enLines++] = "1-6 : Switch screen (6 = MIDI)";
+	en[enLines++] = "Top bar : screens | panel toggles CUE MAP";
+	en[enLines++] = "Enter applies a field, ESC discards it";
+	en[enLines++] = "";
+	en[enLines++] = "";
 	en[enLines++] = "Drag any file to this window to load it";
 	en[enLines++] = "";
 	en[enLines++] = "KEYS:";
@@ -391,7 +540,6 @@ void ofApp::draw_instrucciones() {
 	en[enLines++] = "Shift+C : Add KINECT V2 box";
 	en[enLines++] = "Shift+P : Add PointerCloud (Kinect point cloud)";
 	en[enLines++] = "i : Add Frame Difference box";
-	en[enLines++] = "k : Open/close MIDI Keymap panel";
 	en[enLines++] = "m : Export screenshot to exportimgs/";
 	en[enLines++] = "e : Toggle sequence mode";
 	en[enLines++] = "DEL : Delete selected shader";
@@ -427,41 +575,31 @@ void ofApp::draw_instrucciones() {
 	if (panelH < 300) panelH = 300;
 
 	// Glassmorphism panel background
-	ofSetColor(ofColor(COL_BG_DARK, 235));
-	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
-	ofNoFill();
-	ofSetColor(ofColor(COL_ACCENT_CYAN, 80));
-	ofSetLineWidth(1.5f);
-	ofDrawRectRounded(panelX, panelY, panelW, panelH, 12);
-	ofFill();
-	ofSetLineWidth(1.0f);
+	jp_screen::drawFrame(ofRectangle(panelX, panelY, panelW, panelH),
+		language == 0 ? "HELP" : "AYUDA",
+		language == 0 ? "keyboard and workflow" : "teclado y flujo de trabajo");
 
-	// Title
-	ofSetColor(COL_ACCENT_CYAN);
-	font_p.drawString(lines[0], panelX + 15, panelY + 30);
-
-	// Language toggle button (top-right of panel)
-	float langBtnW = 52;
-	float langBtnH = 22;
-	float langBtnX = panelX + panelW - langBtnW - 15;
-	float langBtnY = panelY + 13;
+	// Language toggle, in the standard right-aligned action slot.
+	const ofRectangle langBtn = jp_screen::actionSlot(
+		ofRectangle(panelX, panelY, panelW, panelH), 0, 52.0f);
+	const float langBtnX = langBtn.x, langBtnY = langBtn.y;
+	const float langBtnW = langBtn.width, langBtnH = langBtn.height;
 	string langLabel = (language == 0) ? "EN" : "ES";
-	ofSetColor(language == 0 ? COL_ACCENT_CYAN : COL_ACCENT_GOLD);
-	ofDrawRectRounded(langBtnX, langBtnY, langBtnW, langBtnH, 4.0f);
-	ofNoFill();
-	ofSetColor(COL_ACCENT_CYAN);
-	ofSetLineWidth(1.5f);
-	ofDrawRectRounded(langBtnX, langBtnY, langBtnW, langBtnH, 4.0f);
-	ofFill();
-	ofSetLineWidth(1.0f);
-	ofSetColor(COL_TEXT_PRIMARY);
-	float lw = font_p.stringWidth(langLabel);
-	font_p.drawString(langLabel, langBtnX + langBtnW / 2 - lw / 2, langBtnY + 16);
+	jp_button::draw(langBtn, langLabel, true, true,
+		language == 0 ? COL_ACCENT_CYAN : COL_ACCENT_GOLD);
 	jp_tooltip::draw("Switch help language", langBtnX, langBtnY, langBtnW, langBtnH);
 
-	float drawY = panelY + 55;
+	// Body starts below the shared header rule, and scrolls: the help text used
+	// to be silently truncated at the panel bottom with no way to reach the end.
+	const ofRectangle helpBody = jp_screen::body(
+		ofRectangle(panelX, panelY, panelW, panelH));
+	float drawY = helpBody.y + 12.0f - helpScroll;
 	for (int i = 0; i < maxLines; i++) {
-		if (drawY > panelY + panelH - 15) break;
+		if (drawY > helpBody.getMaxY()) break;
+		if (drawY < helpBody.y - sepy) {
+			drawY += lines[i].empty() ? sepy * 0.5f : sepy;
+			continue;
+		}
 
 		string line = lines[i];
 		if (line.empty()) {
@@ -499,52 +637,75 @@ void ofApp::draw_instrucciones() {
 
 		drawY += sepy;
 	}
+	helpContentH = (drawY + helpScroll) - (helpBody.y + 12.0f);
+	helpViewH = helpBody.height;
+	helpScroll = ofClamp(helpScroll, 0.0f,
+		std::max(0.0f, helpContentH - helpViewH));
 }
-void ofApp::draw_opciones() {
-	float panelW = 500;
-	float panelX = 30;           // left-aligned, consistent across pages
-	float panelY = 44 - settingsScroll; // below the top screen-tab bar
-	float fieldX = panelX + 175; // room for graph-render labels
-	float fieldW = 200;
-	float rowH = 28;
-	float sepy = 40;
-	int totalRows = FIELD_OSC_IP_OUT + 6; // fields + spout + ndi + osc ip + compo + activecompo + save
-	float panelH = 55 + totalRows * sepy + 25;
-	const float actionBtnW = 100;
-	auto drawSettingsButton = [&](const ofRectangle &bounds,
-		const string &label, const ofColor &accent, bool active) {
-		const bool hovered = bounds.inside(
-			ofGetMouseX(), ofGetMouseY());
-		ofColor fillColor = active ?
-			ofColor(accent, 215) :
-			(hovered ? COL_BG_HOVER : COL_BG_BUTTON);
-		ofSetColor(fillColor);
-		ofDrawRectRounded(bounds, 4.0f);
-		ofNoFill();
-		ofSetColor(active || hovered ? accent : COL_BORDER_DEFAULT);
-		ofSetLineWidth(1.0f);
-		ofDrawRectRounded(bounds, 4.0f);
-		ofFill();
-		ofSetColor(active ? COL_TEXT_PRIMARY :
-			(hovered ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY));
-		font_p.drawString(label,
-			bounds.getCenter().x - font_p.stringWidth(label) * 0.5f,
-			bounds.getBottom() - 7.0f);
+ofApp::SettingsLayout ofApp::getSettingsLayout() const
+{
+	SettingsLayout l;
+	const float panelW = 500.0f;
+	const float sepy = 40.0f;
+	const int totalRows = FIELD_OSC_IP_OUT + 6;
+	l.rowH = 28.0f;
+	l.panel.set(jp_screen::kMarginX, jp_screen::kTop - settingsScroll, panelW,
+		jp_screen::kHeaderH + totalRows * sepy + 25.0f);
+	l.labelX = l.panel.x + 15.0f;
+
+	const float fieldX = l.panel.x + 175.0f;
+	const float fieldW = 200.0f;
+	const float actionBtnW = 100.0f;
+	// Row 0 sits one header-gap below the header rule, like every screen.
+	auto row = [&](int index) {
+		return l.panel.y + jp_screen::kHeaderH + (float)index * sepy;
 	};
 
-	// Glassmorphism panel background
-	ofSetColor(ofColor(COL_BG_DARK, 235));
-	ofDrawRectRounded(panelX, panelY, panelW, panelH, 8);
-	ofNoFill();
-	ofSetColor(ofColor(COL_ACCENT_CYAN, 80));
-	ofSetLineWidth(1.5f);
-	ofDrawRectRounded(panelX, panelY, panelW, panelH, 8);
-	ofFill();
-	ofSetLineWidth(1.0f);
+	for (int i = 0; i < FIELD_OSC_IP_OUT; i++)
+	{
+		l.fields[i].set(fieldX, row(i), fieldW, l.rowH);
+	}
+	l.autoTapButton.set(fieldX + fieldW + 10.0f, row(FIELD_BPM),
+		actionBtnW, l.rowH);
 
-	// Title
-	ofSetColor(COL_ACCENT_CYAN);
-	font_p.drawString("SETTINGS.XML Configuration", panelX + 15, panelY + 30);
+	int r = FIELD_OSC_IP_OUT;
+#ifdef SPOUT
+	l.spoutToggle.set(fieldX, row(r), actionBtnW, l.rowH);
+	r++;
+#endif
+#ifdef NDI
+	l.ndiToggle.set(fieldX, row(r), actionBtnW, l.rowH);
+	r++;
+#endif
+	l.fields[FIELD_OSC_IP_OUT].set(fieldX, row(r), fieldW, l.rowH);
+	r++;
+	l.fields[FIELD_DEFAULT_COMPO].set(fieldX, row(r), fieldW, l.rowH);
+	l.browseButton.set(fieldX + fieldW + 10.0f, row(r), actionBtnW, l.rowH);
+	r++;
+	l.activeCompoRow.set(fieldX, row(r), fieldW, l.rowH);
+	r++;
+	l.saveButton.set(fieldX, row(r), fieldW, l.rowH);
+	return l;
+}
+
+void ofApp::draw_opciones() {
+	const SettingsLayout L = getSettingsLayout();
+	const float panelX = L.panel.x;
+	const float panelY = L.panel.y;
+	const float panelW = L.panel.width;
+	const float panelH = L.panel.height;
+	const float fieldX = L.fields[0].x;
+	const float fieldW = L.fields[0].width;
+	const float rowH = L.rowH;
+	const float actionBtnW = L.autoTapButton.width;
+	// Layout stays here; the look comes from the shared renderer.
+	auto drawSettingsButton = [&](const ofRectangle &bounds,
+		const string &label, const ofColor &accent, bool active) {
+		jp_button::draw(bounds, label, active, true, accent);
+	};
+
+	jp_screen::drawFrame(ofRectangle(panelX, panelY, panelW, panelH),
+		"SETTINGS", "settings.xml");
 
 	// Field labels & inputs
 	string labels[FIELD_OSC_IP_OUT] = {
@@ -556,7 +717,7 @@ void ofApp::draw_opciones() {
 	};
 
 	for (int i = 0; i < FIELD_OSC_IP_OUT; i++) {
-		float rowY = panelY + 55 + i * sepy;
+		const float rowY = L.fields[i].y;
 
 		// Label
 		ofSetColor(COL_TEXT_SECONDARY);
@@ -608,7 +769,7 @@ void ofApp::draw_opciones() {
 	int toggleRow = FIELD_OSC_IP_OUT;
 #ifdef SPOUT
 	{
-		float rowY = panelY + 55 + toggleRow * sepy;
+		const float rowY = L.spoutToggle.y;
 		ofSetColor(COL_TEXT_SECONDARY);
 		font_p.drawString("Spout Output", panelX + 15, rowY + rowH - 7);
 
@@ -626,7 +787,7 @@ void ofApp::draw_opciones() {
 	// --- Toggle: NDI ---
 #ifdef NDI
 	{
-		float rowY = panelY + 55 + toggleRow * sepy;
+		const float rowY = L.ndiToggle.y;
 		ofSetColor(COL_TEXT_SECONDARY);
 		font_p.drawString("NDI Output", panelX + 15, rowY + rowH - 7);
 
@@ -643,7 +804,7 @@ void ofApp::draw_opciones() {
 
 	// --- OSC IP Out (editable text field) ---
 	{
-		float rowY = panelY + 55 + toggleRow * sepy;
+		const float rowY = L.fields[FIELD_OSC_IP_OUT].y;
 		ofSetColor(COL_TEXT_SECONDARY);
 		font_p.drawString("OSC IP Out:", panelX + 15, rowY + rowH - 7);
 
@@ -676,7 +837,7 @@ void ofApp::draw_opciones() {
 
 	// --- Default Compo (editable text field + browse button) ---
 	{
-		float rowY = panelY + 55 + toggleRow * sepy;
+		const float rowY = L.fields[FIELD_DEFAULT_COMPO].y;
 		ofSetColor(COL_TEXT_SECONDARY);
 		font_p.drawString("Default Compo:", panelX + 15, rowY + rowH - 7);
 
@@ -715,7 +876,7 @@ void ofApp::draw_opciones() {
 
 	// --- Active Compo (read-only display) ---
 	{
-		float rowY = panelY + 55 + toggleRow * sepy;
+		const float rowY = L.activeCompoRow.y;
 		ofSetColor(COL_ACCENT_CYAN);
 		font_p.drawString("Active Compo:", panelX + 15, rowY + rowH - 7);
 
@@ -729,7 +890,7 @@ void ofApp::draw_opciones() {
 
 	// --- Save button ---
 	{
-		float rowY = panelY + 55 + toggleRow * sepy;
+		const float rowY = L.saveButton.y;
 		float saveW = fieldW;
 		float saveX = fieldX;
 		drawSettingsButton(
@@ -783,13 +944,10 @@ ofApp::getLiveOutputSettingsLayout() const
 		std::max(500.0f, ofGetWidth() - margin * 2.0f);
 	layout.panel.height = getLiveOutputPanelHeight(liveOutputTab);
 
-	layout.addButton.set(
-		layout.panel.getRight() - 58.0f,
-		layout.panel.y + 13.0f, 22.0f, 22.0f);
-	layout.deleteButton.set(
-		layout.panel.getRight() - 30.0f,
-		layout.panel.y + 13.0f, 22.0f, 22.0f);
 
+	// Content starts below the shared header, not at a hand-picked offset that
+	// assumed a shorter one - the tab strip used to be drawn over the subtitle.
+	const float contentTop = layout.panel.y + jp_screen::kHeaderH;
 	// Tab strip sits between the title and everything else, so every rect below
 	// shifts by tabStripH rather than overlapping the first control row.
 	const float tabH = 22.0f;
@@ -801,14 +959,23 @@ ofApp::getLiveOutputSettingsLayout() const
 		const float tabW = std::max(70.0f,
 			font_p.stringWidth(tabLabels[i]) + 24.0f);
 		layout.tabs.push_back(ofRectangle(
-			tabX, layout.panel.y + 38.0f, tabW, tabH));
+			tabX, contentTop, tabW, tabH));
 		tabX += tabW + 2.0f;
 	}
 
 	const float listW = std::min(184.0f, layout.panel.width * 0.34f);
+	// Add/remove sit directly under the list they act on, instead of in the
+	// panel header where nothing said which thing they added to.
+	const float listButtonH = 26.0f;
 	layout.list.set(layout.panel.x + 14.0f,
-		layout.panel.y + 50.0f + tabStripH,
-		listW, layout.panel.height - 64.0f - tabStripH);
+		contentTop + 12.0f + tabStripH,
+		listW, layout.panel.height - jp_screen::kHeaderH - 26.0f - tabStripH
+			- (listButtonH + 8.0f));
+	const float halfListW = (listW - 6.0f) * 0.5f;
+	layout.addButton.set(layout.list.x, layout.list.getBottom() + 8.0f,
+		halfListW, listButtonH);
+	layout.deleteButton.set(layout.list.x + halfListW + 6.0f,
+		layout.list.getBottom() + 8.0f, halfListW, listButtonH);
 	const int visibleRows = std::max(1, (int)(layout.list.height / 31.0f));
 	const int maxListScroll = std::max(
 		0, (int)liveOutputs.size() - visibleRows);
@@ -829,7 +996,7 @@ ofApp::getLiveOutputSettingsLayout() const
 		layout.panel.getRight() - 14.0f - editorX;
 	const float controlX = editorX + 94.0f;
 	const float controlW = std::max(120.0f, editorW - 94.0f);
-	float rowY = layout.panel.y + 78.0f + tabStripH;
+	float rowY = contentTop + 40.0f + tabStripH;
 	if (liveOutputTab == LO_TAB_OUTPUTS)
 	{
 		layout.enabledToggle.set(controlX, rowY, 70.0f, 28.0f);
@@ -854,8 +1021,10 @@ ofApp::getLiveOutputSettingsLayout() const
 	{
 		const float halfW = controlW * 0.5f - 3.0f;
 		const float rightX = controlX + controlW * 0.5f + 3.0f;
+
+		// --- This output only ---
 		layout.tiledToggle.set(controlX, rowY, 70.0f, 28.0f);
-		layout.modeToggle.set(controlX + 78.0f, rowY,
+		layout.patternToggle.set(controlX + 78.0f, rowY,
 			std::max(110.0f, controlW - 78.0f), 28.0f);
 		rowY += 43.0f;
 		// X / Y then W / H, two per row.
@@ -872,7 +1041,20 @@ ofApp::getLiveOutputSettingsLayout() const
 		layout.matchAspectButton.set(rightX, rowY, matchW, 28.0f);
 		layout.matchResolutionButton.set(
 			rightX + matchW + 6.0f, rowY, matchW, 28.0f);
-		rowY += 47.0f;
+		rowY += 44.0f;
+
+		// --- Everything below applies to the whole installation ---
+		// The wall mode, the split grid and the preview are not per output:
+		// mode reinterprets every crop, SPLIT rewrites every enabled output's
+		// rect, and the preview shows all of them at once. Sitting in the same
+		// column as this output's own fields, they read as if they belonged to
+		// the selected output.
+		layout.globalSectionY = rowY;
+		// Divider at +8, caption baseline at +28, then a full row gap. The
+		// caption used to land on the Mode control a pixel below it.
+		rowY += 42.0f;
+		layout.modeToggle.set(controlX, rowY, controlW, 28.0f);
+		rowY += 43.0f;
 		// SPLIT fills every enabled output's rect from a cols x rows grid.
 		const float thirdW = std::max(44.0f, (controlW - 12.0f) / 3.0f);
 		layout.splitColsField.set(controlX, rowY, thirdW, 28.0f);
@@ -882,11 +1064,13 @@ ofApp::getLiveOutputSettingsLayout() const
 			controlW - (thirdW + 6.0f) * 2.0f, 28.0f);
 		rowY += 43.0f;
 		layout.viewToggle.set(controlX, rowY, halfW, 28.0f);
-		layout.patternToggle.set(rightX, rowY, halfW, 28.0f);
 		rowY += 40.0f;
 		// Preview of every tile, in canvas aspect, filling what is left.
+		// Reserve the status line that is drawn under the preview; it used to
+		// be painted past the panel's bottom edge, over the list buttons.
+		const float statusH = 26.0f;
 		const float previewH = std::max(60.0f,
-			layout.panel.getBottom() - 14.0f - rowY);
+			layout.panel.getBottom() - 14.0f - statusH - rowY);
 		const float canvasAspect = jp_constants::renderHeight > 0 ?
 			(float)jp_constants::renderWidth /
 				(float)jp_constants::renderHeight : 1.7778f;
@@ -1368,9 +1552,14 @@ void ofApp::drawLiveOutputWallTab(const LiveOutputSettingsLayout &layout,
 		font_p.drawString(visible, textX, bounds.getBottom() - 8.0f);
 	};
 
-	ofSetColor(COL_TEXT_PRIMARY);
+	ofSetColor(COL_ACCENT_CYAN);
 	font_p.drawString(getLiveOutputDisplayName(selectedLiveOutput),
-		editorX, layout.panel.y + 59.0f);
+		editorX, layout.panel.y + jp_screen::kHeaderH + 21.0f);
+	ofSetColor(COL_TEXT_MUTED);
+	font_p.drawString("this output only",
+		editorX + font_p.stringWidth(
+			getLiveOutputDisplayName(selectedLiveOutput)) + 10.0f,
+		layout.panel.y + jp_screen::kHeaderH + 21.0f);
 
 	// Labels, each aligned to the control it belongs to.
 	struct WallLabel { const char *text; const ofRectangle *bounds; };
@@ -1382,6 +1571,7 @@ void ofApp::drawLiveOutputWallTab(const LiveOutputSettingsLayout &layout,
 		{spatial ? "Size mm" : "Size W/H",
 			&layout.fieldRects[LO_FIELD_CROP_W]},
 		{"Overscan", &layout.fieldRects[LO_FIELD_BEZEL]},
+		{"Mode",     &layout.modeToggle},
 		{"Split",    &layout.splitColsField},
 		{"Preview",  &layout.viewToggle}
 	};
@@ -1390,6 +1580,22 @@ void ofApp::drawLiveOutputWallTab(const LiveOutputSettingsLayout &layout,
 		ofSetColor(COL_TEXT_SECONDARY);
 		font_p.drawString(label.text, editorX,
 			label.bounds->getBottom() - 7.0f);
+	}
+
+	// Divider and caption marking where per-output settings end.
+	{
+		const float lineY = layout.globalSectionY + 8.0f;
+		const float captionBaseline = lineY + 20.0f;
+		ofSetColor(ofColor(COL_BORDER_MUTED, 150));
+		ofSetLineWidth(1.0f);
+		ofDrawLine(editorX, lineY, layout.panel.getRight() - 14.0f, lineY);
+		ofSetColor(COL_ACCENT_CYAN);
+		font_p.drawString("ALL OUTPUTS", editorX, captionBaseline);
+		ofSetColor(COL_TEXT_MUTED);
+		const string caption = "applies to the whole installation";
+		font_p.drawString(caption,
+			editorX + font_p.stringWidth("ALL OUTPUTS") + 10.0f,
+			captionBaseline);
 	}
 
 	drawControl(layout.tiledToggle,
@@ -1679,38 +1885,13 @@ void ofApp::drawLiveOutputSettings()
 	};
 	auto drawControl = [&](const ofRectangle &bounds,
 		const string &label, bool active, bool disabled = false) {
-		ofSetColor(disabled ? COL_BG_DARK :
-			(active ? COL_ACCENT_CYAN_DIM : COL_BG_INPUT));
-		ofDrawRectRounded(bounds, 4.0f);
-		ofNoFill();
-		ofSetColor(active ? COL_ACCENT_CYAN :
-			(disabled ? COL_TEXT_MUTED : COL_MAPPED_OFF));
-		ofDrawRectRounded(bounds, 4.0f);
-		ofFill();
-		ofSetColor(disabled ? COL_TEXT_MUTED : COL_TEXT_PRIMARY);
-		const string visible = bounds.width < 40.0f ?
-			label : clippedText(label, bounds.width - 14.0f);
-		const float textX = bounds.width < 40.0f ?
-			bounds.getCenter().x - font_p.stringWidth(visible) * 0.5f :
-			bounds.x + 7.0f;
-		font_p.drawString(visible, textX,
-			bounds.getBottom() - 7.0f);
+		jp_button::draw(bounds, label, active, !disabled);
 	};
 
-	ofSetColor(ofColor(COL_BG_DARK, 242));
-	ofDrawRectRounded(layout.panel, 8.0f);
-	ofNoFill();
-	ofSetColor(ofColor(COL_ACCENT_CYAN, 80));
-	ofSetLineWidth(1.5f);
-	ofDrawRectRounded(layout.panel, 8.0f);
-	ofFill();
-	ofSetLineWidth(1.0f);
-
-	ofSetColor(COL_ACCENT_CYAN);
-	font_p.drawString("LIVE OUTPUTS", layout.panel.x + 15.0f,
-		layout.panel.y + 30.0f);
-	drawControl(layout.addButton, "+", false);
-	drawControl(layout.deleteButton, "x", false, liveOutputs.empty());
+	jp_screen::drawFrame(layout.panel, "LIVE OUTPUTS",
+		"windows, monitors and wall");
+	drawControl(layout.addButton, "+ ADD", false);
+	drawControl(layout.deleteButton, "REMOVE", false, liveOutputs.empty());
 
 	// Tab strip, following the house pattern used by JPboxgroup::drawTabs.
 	const char *tabLabels[LO_TAB_COUNT] = {"OUTPUTS", "WALL"};
@@ -1785,9 +1966,14 @@ void ofApp::drawLiveOutputSettings()
 		const LiveOutputConfig &config = output.config;
 		const float editorX = layout.list.getRight() + 18.0f;
 		const float labelX = editorX;
-		ofSetColor(COL_TEXT_PRIMARY);
+		ofSetColor(COL_ACCENT_CYAN);
 		font_p.drawString(getLiveOutputDisplayName(selectedLiveOutput),
-			editorX, layout.panel.y + 59.0f);
+			editorX, layout.panel.y + jp_screen::kHeaderH + 21.0f);
+		ofSetColor(COL_TEXT_MUTED);
+		font_p.drawString("this output only",
+			editorX + font_p.stringWidth(
+				getLiveOutputDisplayName(selectedLiveOutput)) + 10.0f,
+			layout.panel.y + jp_screen::kHeaderH + 21.0f);
 
 		if (liveOutputTab == LO_TAB_WALL)
 		{
@@ -1918,7 +2104,7 @@ void ofApp::drawLiveOutputSettings()
 		ofSetColor(COL_TEXT_MUTED);
 		font_p.drawString("Add an output to configure it",
 			layout.list.getRight() + 18.0f,
-			layout.panel.y + 82.0f);
+			layout.panel.y + jp_screen::kHeaderH + 44.0f);
 	}
 
 	jp_tooltip::draw("Add live output",
@@ -2730,10 +2916,10 @@ float ofApp::getLiveOutputPanelHeight(LiveOutputSettingsTab tab) const
 {
 	// The general settings panel's height, which the outputs tab matches.
 	const float generalPanelH =
-		55.0f + (FIELD_OSC_IP_OUT + 6) * 40.0f + 25.0f;
+		jp_screen::kHeaderH + (FIELD_OSC_IP_OUT + 6) * 40.0f + 25.0f;
 	if (tab != LO_TAB_WALL) return generalPanelH;
 	// The wall tab carries a room/canvas preview under its fields.
-	return std::max(generalPanelH, 560.0f);
+	return std::max(generalPanelH, 640.0f);
 }
 
 float ofApp::getSettingsContentHeight() const
@@ -3086,14 +3272,14 @@ ofApp::ShaderBrowserLayout ofApp::getShaderBrowserLayout() const {
 	const float footerY = panelY + panelH - footerH - 10.0f;
 	const float previewH = 170.0f;
 	const float previewY = footerY - previewH - 10.0f;
-	const float searchY = panelY + 64.0f;
+	const float searchY = panelY + jp_screen::kHeaderH;
 	const float searchH = 26.0f;
 	const float buttonGap = 8.0f;
 	const float footerW = (contentW - buttonGap * 2.0f) / 3.0f;
 
 	layout.panel.set(panelX, panelY, panelW, panelH);
-	layout.titleBaseline = panelY + 26.0f;
-	layout.hintBaseline = panelY + 47.0f;
+	layout.titleBaseline = panelY + jp_screen::kTitleBaseline;
+	layout.hintBaseline = panelY + jp_screen::kSubtitleBaseline;
 	layout.favoritesModeButton.set(panelX + panelW - inset - 52.0f, panelY + 10.0f, 52.0f, 24.0f);
 	layout.search.set(contentX, searchY, contentW, searchH);
 	layout.searchClear.set(contentX + contentW - searchH, searchY, searchH, searchH);
@@ -3413,7 +3599,6 @@ static void drawStarGlyph(float cx, float cy, float r, bool filled) {
 }
 void ofApp::draw_shaderindex() {
 	ofSetRectMode(OF_RECTMODE_CORNER);
-	shaderSearchFocused = true;
 
 	const ShaderBrowserLayout layout = getShaderBrowserLayout();
 	clampShaderScroll(layout);
@@ -3429,14 +3614,6 @@ void ofApp::draw_shaderindex() {
 		return result.empty() ? suffix : result + suffix;
 	};
 
-	ofSetColor(COL_BG_DARK);
-	ofDrawRectRounded(layout.panel, 8.0f);
-	ofNoFill();
-	ofSetColor(ofColor(COL_BORDER_MUTED, 210));
-	ofSetLineWidth(1.0f);
-	ofDrawRectRounded(layout.panel, 8.0f);
-	ofFill();
-
 	int totalShaders = 0;
 	for (const ShaderFolder &folder : shaderFolders) {
 		if (!folder.isFavorites) totalShaders += (int)folder.shaders.size();
@@ -3444,8 +3621,11 @@ void ofApp::draw_shaderindex() {
 	const string title = language == 0 ?
 		"IMPORT  |  " + ofToString(totalShaders) + " shaders" :
 		"IMPORTAR  |  " + ofToString(totalShaders) + " shaders";
-	ofSetColor(COL_ACCENT_CYAN);
-	font_p.drawString(title, layout.panel.x + 16.0f, layout.titleBaseline);
+	// Half width so the node canvas stays visible behind it, but otherwise the
+	// same frame, border, title and subtitle as every other screen.
+	jp_screen::drawFrame(layout.panel, title, language == 0 ?
+		"Up/Down navigate | double click/Enter to load" :
+		"Arriba/Abajo navegar | doble clic/Enter para cargar");
 
 	const bool modeHovered = layout.favoritesModeButton.inside(ofGetMouseX(), ofGetMouseY());
 	ofSetColor(ofColor(COL_BG_BUTTON, 235));
@@ -3499,16 +3679,6 @@ void ofApp::draw_shaderindex() {
 		layout.favoritesModeButton.width,
 		layout.favoritesModeButton.height);
 
-	ofSetColor(ofColor(COL_BORDER_MUTED, 150));
-	ofDrawLine(layout.panel.x + 16.0f, layout.titleBaseline + 6.0f,
-		layout.favoritesModeButton.x - 8.0f, layout.titleBaseline + 6.0f);
-
-	ofSetColor(COL_TEXT_MUTED);
-	const string hint = language == 0 ?
-		"Up/Down navigate | double click/Enter to load" :
-		"Arriba/Abajo navegar | doble clic/Enter para cargar";
-	font_p.drawString(hint, layout.panel.x + 16.0f, layout.hintBaseline);
-
 	const bool clearVisible = !shaderSearchText.empty();
 	const bool clearHovered = clearVisible &&
 		layout.searchClear.inside(ofGetMouseX(), ofGetMouseY());
@@ -3531,19 +3701,11 @@ void ofApp::draw_shaderindex() {
 	const float textMaxW = std::max(1.0f, textRight - textX);
 	shaderSearchCursor = ofClamp(shaderSearchCursor, 0, (int)shaderSearchText.size());
 
-	int displayStart = 0;
-	int displayEnd = (int)shaderSearchText.size();
-	while (displayStart < shaderSearchCursor &&
-		font_p.stringWidth(shaderSearchText.substr(displayStart,
-			shaderSearchCursor - displayStart)) > textMaxW) {
-		displayStart++;
-	}
-	while (displayEnd > displayStart &&
-		font_p.stringWidth(shaderSearchText.substr(displayStart,
-			displayEnd - displayStart)) > textMaxW) {
-		displayEnd--;
-	}
-	const string displayText = shaderSearchText.substr(displayStart, displayEnd - displayStart);
+	const jp_textfield::Window window = jp_textfield::visibleWindow(
+		font_p, shaderSearchText, shaderSearchCursor, textMaxW);
+	const int displayStart = window.start;
+	const string displayText =
+		shaderSearchText.substr(window.start, window.end - window.start);
 	if (shaderSearchText.empty()) {
 		ofSetColor(ofColor(COL_TEXT_MUTED, 150));
 		const string placeholder = language == 0 ? "type shader name..." : "escribe nombre...";
@@ -3706,6 +3868,8 @@ void ofApp::draw_shaderindex() {
 	const bool hasSelection = !getSelectedShaderPath().empty();
 	auto drawFooterButton = [&](const ofRectangle &button, ofColor fill,
 		ofColor border, const string &label, bool enabled) {
+		jp_button::draw(button, label, false, enabled, border);
+		return;
 		const bool hovered = enabled && button.inside(ofGetMouseX(), ofGetMouseY());
 		ofSetColor(enabled ? (hovered ? fill.getLerped(COL_TEXT_PRIMARY, 0.08f) : fill) :
 			ofColor(fill, 55));
@@ -3793,6 +3957,16 @@ void ofApp::keyPressed(int key) {
 		return;
 	}
 
+	// ONE ESC RULE FOR THE WHOLE PROGRAM: dismiss the topmost surface, one
+	// layer per press - field edit, then dropdown, then panel, then modal.
+	// When nothing is open it does nothing. It never changes screen and never
+	// quits, so ESC is always safe. This replaces eight separate handlers whose
+	// meaning depended on where they happened to sit in this function.
+	if (key == OF_KEY_ESC) {
+		surfaces.closeTopmost();
+		return;
+	}
+
 	// Shader Editor key capture (when visible, consumes all keys)
 	if (shaderEditor.wantsKeyCapture()) {
 		shaderEditor.keyPressed(key);
@@ -3812,10 +3986,6 @@ void ofApp::keyPressed(int key) {
 	if (saveModalActive) {
 		if (key == OF_KEY_RETURN || key == '\r') {
 			confirmSaveModal();
-			return;
-		}
-		if (key == OF_KEY_ESC) {
-			cancelSaveModal();
 			return;
 		}
 		// Cursor navigation + backspace/del/insert at cursor.
@@ -3866,13 +4036,6 @@ void ofApp::keyPressed(int key) {
 			applyLiveOutputField();
 			return;
 		}
-		if (key == OF_KEY_ESC)
-		{
-			focusedLiveOutputField = -1;
-			liveOutputFieldSelectAll = false;
-			initLiveOutputFields();
-			return;
-		}
 		const bool signedPosition = wallMode == WALL_MODE_SPATIAL &&
 			(focusedLiveOutputField == LO_FIELD_CROP_X ||
 			 focusedLiveOutputField == LO_FIELD_CROP_Y);
@@ -3900,36 +4063,15 @@ void ofApp::keyPressed(int key) {
 			applySplitField();
 			return;
 		}
-		if (key == OF_KEY_ESC)
-		{
-			focusedSplitField = -1;
-			splitFieldSelectAll = false;
-			return;
-		}
 		jp_textfield::handleKey(splitFieldText[focusedSplitField],
 			splitFieldCursor, key, true, false, &splitFieldSelectAll);
 		return;
 	}
-	if (pantallaActiva == OPCIONES &&
-		liveOutputMenu != LIVE_OUTPUT_MENU_NONE &&
-		key == OF_KEY_ESC)
-	{
-		liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
-		liveOutputMenuScroll = 0;
-		return;
-	}
-
+	// IMPORT used to swallow every key unconditionally, so 1-5 and every other
+	// shortcut were dead on this screen and ESC was the only way out. Typing
+	// only wins while the search field actually has focus; ESC releases it and
+	// the global keymap comes back.
 	if (pantallaActiva == SHADER_INDEX) {
-		if (key == OF_KEY_ESC) {
-			if (!shaderSearchText.empty()) {
-				clearShaderSearch();
-			} else {
-				pantallaActiva = NODOS;
-				shaderSearchFocused = false;
-				focusedOptionsField = -1;
-			}
-			return;
-		}
 		if (key == OF_KEY_UP || key == OF_KEY_DOWN) {
 			moveShaderSelection(key == OF_KEY_DOWN ? 1 : -1);
 			return;
@@ -3938,11 +4080,19 @@ void ofApp::keyPressed(int key) {
 			loadSelectedShaderBox();
 			return;
 		}
-		if (jp_textfield::handleKey(shaderSearchText, shaderSearchCursor, key)) {
+		if (shaderSearchFocused &&
+			jp_textfield::handleKey(shaderSearchText, shaderSearchCursor, key)) {
 			shaderScroll = 0;
 			clampShaderScroll(getShaderBrowserLayout());
+			return;
 		}
-		return;
+	}
+
+	if (key == '6') {
+		pantallaActiva = MIDI_KEYMAP;
+		focusedOptionsField = -1;
+		clearLiveOutputInteractionState();
+		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
 	}
 
 	if (key == '1') {
@@ -3991,25 +4141,10 @@ void ofApp::keyPressed(int key) {
 		shaderEditor.setVisible(true);
 	}
 
-	// ESC from editor goes back to NODOS
-	if (key == OF_KEY_ESC && pantallaActiva == EDITOR) {
-		closeShaderEditorToMain();
-		return;
-	}
-
-	if (key == OF_KEY_ESC && boxes.isMappingEditActive()) {
-		boxes.endMappingEdit();
-		return;
-	}
-
 	// H toggles hit-box visualization in shader index
 	if (key == 'h' && pantallaActiva == SHADER_INDEX) {
 		showShaderHitBoxes = !showShaderHitBoxes;
 		return;
-	}
-
-	if (key == 'k') {
-		midiKeymap.togglePanel();
 	}
 
 	// The detailed key event handles graph clipboard shortcuts below. Consume
@@ -4250,8 +4385,8 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 void ofApp::mouseDragged(int x, int y, int button) {
 	midiKeymap.mouseDragged(x, y, button);
 
-	// Forward to shader editor for selection dragging
-	if (shaderEditor.isVisible()) {
+	// Forward to shader editor for selection dragging, on its screen only.
+	if (pantallaActiva == EDITOR && shaderEditor.isVisible()) {
 		shaderEditor.mouseDragged(x, y, button);
 	}
 
@@ -4316,9 +4451,23 @@ void ofApp::mousePressed(int x, int y, int button) {
 			cancelSaveModal();
 			return;
 		}
+		// A modal has to swallow everything it does not itself handle. Without
+		// this, a click inside the box but off a button fell through to the
+		// MIDI panel, the top bar and the node canvas - you could drag boxes
+		// and switch screens straight through the "modal".
+		return;
 	}
 
-	if (midiKeymap.mousePressed(x, y, button)) {
+	// Clicking away commits an inline tab rename. It used to have no exit but
+	// ENTER/ESC, so a stray click left it open swallowing every key. Clicks on
+	// the tab being renamed are left alone so the field stays editable.
+	if (boxes.tabRenaming &&
+		boxes.getTabAtScreenPos(x, y) != boxes.tabRenameTabIndex) {
+		boxes.commitTabRename();
+	}
+
+	if (pantallaActiva == MIDI_KEYMAP &&
+		midiKeymap.mousePressed(x, y, button)) {
 		return;
 	}
 	if (midiKeymap.captureFunctionClick(x, y, button)) {
@@ -4328,6 +4477,19 @@ void ofApp::mousePressed(int x, int y, int button) {
 	// Screen tab click handling
 	{
 		int tabScreen = getScreenTabAtPos(x, y);
+			if (tabScreen == kCuePanelBarItem) {
+				if (boxes.getCuePreviewBox() != nullptr) {
+					boxes.setCueBoxByIndex(-1);
+				} else {
+					boxes.setCueBoxByIndex(
+						boxes.getCueEntryIndexForCurrentView());
+				}
+				return;
+			}
+			if (tabScreen == kMappingPanelBarItem) {
+				boxes.toggleMappingEdit();
+				return;
+			}
 			if (tabScreen >= 0) {
 				if (pantallaActiva != tabScreen) {
 					pantallaActiva = tabScreen;
@@ -4389,19 +4551,17 @@ void ofApp::mousePressed(int x, int y, int button) {
 		if (handleLiveOutputSettingsClick(x, y, button)) {
 			return;
 		}
-		// Layout constants matching draw_opciones()
-		float panelX = 30;
-		float panelY = 44 - settingsScroll;
-		float fieldX = panelX + 175;
-		float fieldW = 200;
-		float rowH = 28;
-		float sepy = 40;
-		const float actionBtnW = 100;
+		// Same layout the draw pass used - not a second copy of the numbers.
+		const SettingsLayout L = getSettingsLayout();
+		const float fieldX = L.fields[0].x;
+		const float fieldW = L.fields[0].width;
+		const float rowH = L.rowH;
+		const float actionBtnW = L.autoTapButton.width;
 
 		// Check if clicked inside any text field
 		focusedOptionsField = -1;
 		for (int i = 0; i < FIELD_OSC_IP_OUT; i++) {
-			float rowY = panelY + 55 + i * sepy;
+			const float rowY = L.fields[i].y;
 			if (x >= fieldX && x <= fieldX + fieldW &&
 				y >= rowY && y <= rowY + rowH) {
 				focusedOptionsField = i;
@@ -4424,7 +4584,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 
 #ifdef SPOUT
 		{
-			float rowY = panelY + 55 + toggleRow * sepy;
+			const float rowY = L.spoutToggle.y;
 			if (x >= fieldX && x <= fieldX + actionBtnW &&
 				y >= rowY && y <= rowY + rowH) {
 				spoutActive = !spoutActive;
@@ -4436,7 +4596,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 
 #ifdef NDI
 		{
-			float rowY = panelY + 55 + toggleRow * sepy;
+			const float rowY = L.ndiToggle.y;
 			if (x >= fieldX && x <= fieldX + actionBtnW &&
 				y >= rowY && y <= rowY + rowH) {
 				ndiActive = !ndiActive;
@@ -4448,7 +4608,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 
 		// Check OSC IP Out text field
 		{
-			float rowY = panelY + 55 + toggleRow * sepy;
+			const float rowY = L.fields[FIELD_OSC_IP_OUT].y;
 			// Click on text field area
 			if (x >= fieldX && x <= fieldX + fieldW &&
 				y >= rowY && y <= rowY + rowH) {
@@ -4461,7 +4621,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 
 		// Check Default Compo text field + BROWSE button
 		{
-			float rowY = panelY + 55 + toggleRow * sepy;
+			const float rowY = L.fields[FIELD_DEFAULT_COMPO].y;
 			// Click on text field area
 			if (x >= fieldX && x <= fieldX + fieldW &&
 				y >= rowY && y <= rowY + rowH) {
@@ -4491,7 +4651,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 
 		// Check Save button
 		{
-			float rowY = panelY + 55 + toggleRow * sepy;
+			const float rowY = L.saveButton.y;
 			float saveX = fieldX;
 			if (x >= saveX && x <= saveX + fieldW &&
 				y >= rowY && y <= rowY + rowH) {
@@ -4504,8 +4664,8 @@ void ofApp::mousePressed(int x, int y, int button) {
 	}
 	if (pantallaActiva == SHADER_INDEX && button == 0) {
 		const ShaderBrowserLayout layout = getShaderBrowserLayout();
-		shaderSearchFocused = true;
 		if (!layout.panel.inside(x, y)) return;
+		shaderSearchFocused = layout.search.inside(x, y);
 
 		if (layout.favoritesModeButton.inside(x, y)) {
 			toggleFavoritesDisplayMode();
@@ -4521,29 +4681,12 @@ void ofApp::mousePressed(int x, int y, int button) {
 				font_p.stringWidth(searchLabel) + 5.0f;
 			const float textMaxW = std::max(1.0f, layout.searchClear.x - 5.0f - textX);
 			shaderSearchCursor = ofClamp(shaderSearchCursor, 0, (int)shaderSearchText.size());
-			int displayStart = 0;
-			int displayEnd = (int)shaderSearchText.size();
-			while (displayStart < shaderSearchCursor &&
-				font_p.stringWidth(shaderSearchText.substr(displayStart,
-					shaderSearchCursor - displayStart)) > textMaxW) {
-				displayStart++;
-			}
-			while (displayEnd > displayStart &&
-				font_p.stringWidth(shaderSearchText.substr(displayStart,
-					displayEnd - displayStart)) > textMaxW) {
-				displayEnd--;
-			}
+			const jp_textfield::Window window = jp_textfield::visibleWindow(
+				font_p, shaderSearchText, shaderSearchCursor, textMaxW);
 			const string displayText =
-				shaderSearchText.substr(displayStart, displayEnd - displayStart);
-			int localCursor = 0;
-			const float relativeX = std::max(0.0f, (float)x - textX);
-			for (int i = 1; i <= (int)displayText.size(); i++) {
-				const float previousWidth = font_p.stringWidth(displayText.substr(0, i - 1));
-				const float currentWidth = font_p.stringWidth(displayText.substr(0, i));
-				if (relativeX < (previousWidth + currentWidth) * 0.5f) break;
-				localCursor = i;
-			}
-			shaderSearchCursor = ofClamp(displayStart + localCursor,
+				shaderSearchText.substr(window.start, window.end - window.start);
+			shaderSearchCursor = ofClamp(window.start +
+				jp_textfield::cursorFromX(font_p, displayText, textX, (float)x),
 				0, (int)shaderSearchText.size());
 			return;
 		}
@@ -4638,16 +4781,21 @@ void ofApp::mouseMoved(int x, int y) {
 }
 void ofApp::mouseReleased(int x, int y, int button) {
 	midiKeymap.mouseReleased(x, y, button);
-	if (handleLiveOutputSettingsRelease(x, y, button)) {
+	// Gate on the screen that owns the drag. This ran everywhere, so a drag
+	// started on the node canvas still completed - and still wrote settings -
+	// after the user had switched to HELP or SETTINGS mid-gesture.
+	if (pantallaActiva == OPCIONES && handleLiveOutputSettingsRelease(x, y, button)) {
 		return;
 	}
-	if (boxes.update_mappingMouseReleased(button)) {
-		saveSettings();
-		return;
-	}
-	if (boxes.update_cueMouseReleased(button)) {
-		saveSettings();
-		return;
+	if (pantallaActiva == NODOS) {
+		if (boxes.update_mappingMouseReleased(button)) {
+			saveSettings();
+			return;
+		}
+		if (boxes.update_cueMouseReleased(button)) {
+			saveSettings();
+			return;
+		}
 	}
 	boxes.update_mouseReleased(button);
 	if (button == 0) {
@@ -4658,9 +4806,19 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 	if (midiKeymap.mouseScrolled(x, y, scrollX, scrollY)) {
 		return;
 	}
-	// Forward to shader editor when visible
-	if (shaderEditor.isVisible()) {
+	// Forward to the shader editor only while its screen is actually showing.
+	if (pantallaActiva == EDITOR && shaderEditor.isVisible()) {
 		shaderEditor.mouseScrolled(x, y, scrollX, scrollY);
+		return;
+	}
+	if (pantallaActiva == TUTORIAL) {
+		// Clamp against the same viewport the draw pass measured.
+		helpScroll = ofClamp(helpScroll - scrollY * 34.0f, 0.0f,
+			std::max(0.0f, helpContentH - helpViewH));
+		return;
+	}
+	if (pantallaActiva == MIDI_KEYMAP) {
+		midiKeymap.mouseScrolled(x, y, scrollX, scrollY);
 		return;
 	}
 	if (pantallaActiva == SHADER_INDEX) {
@@ -5924,106 +6082,134 @@ void ofApp::updateSaveModal() {
 	saveModalName = "";
 }
 
-void ofApp::drawScreenTabs() {
-	const float tabX = 0;
-	const float tabY = 0;
+vector<ofApp::ScreenBarItem> ofApp::buildScreenBar() const {
 	const float tabH = 28;
 	const float pad = 8;
 	const float gap = 2;
+	// Panel toggles are a different kind of button from screen switchers, so
+	// they read as their own group behind a separator.
+	const float groupGap = 20;
 
-	struct ScreenTab {
-		string label;
-		int screenId;
-		string tooltip;
-	};
-	vector<ScreenTab> tabs = {
+	vector<ScreenBarItem> items = {
 		{"NODES", NODOS, "Edit the node graph"},
 		{"SETTINGS", OPCIONES, "Configure ports, render size, BPM, and output"},
 		{"HELP", TUTORIAL, "View keyboard and workflow help"},
 		{"IMPORT", SHADER_INDEX, "Browse and preview shader boxes"},
-		{"EDITOR", EDITOR, "Edit the selected shader source"}
+		{"EDITOR", EDITOR, "Edit the selected shader source"},
+		{"MIDI", MIDI_KEYMAP, "Bind MIDI controls to boxes and parameters"},
+		{"CUE", kCuePanelBarItem, "Cue preview panel"},
+		{"MAP", kMappingPanelBarItem, "Projection mapping editor (needs a mapping shader selected)"}
 	};
 
-	float x = tabX + pad;
-	const float y = tabY + pad;
+	// Every floating panel now has one discoverable home. Cue was only on 'z'
+	// and mapping was buried in a button that appeared inside the inspector.
+	ofApp *self = const_cast<ofApp *>(this);
+	for (ScreenBarItem &item : items) {
+		item.isPanelToggle = item.action < 0;
+		switch (item.action) {
+		case kCuePanelBarItem:
+			item.lit = self->boxes.getCuePreviewBox() != nullptr;
+			break;
+		case kMappingPanelBarItem:
+			item.lit = boxes.isMappingEditActive();
+			// Only a mapping shader can be mapped, so say so by greying out
+			// rather than by silently ignoring the click.
+			item.enabled = item.lit ||
+				self->boxes.isMappingShaderBox(self->boxes.getInspectorBox());
+			break;
+		default:
+			item.lit = (pantallaActiva == item.action);
+			break;
+		}
+	}
 
-	for (int i = 0; i < (int)tabs.size(); i++) {
-		const string &label = tabs[i].label;
-		int screenId = tabs[i].screenId;
-		bool active = (pantallaActiva == screenId);
+	float x = pad;
+	bool separatorPlaced = false;
+	for (int i = 0; i < (int)items.size(); i++) {
+		if (items[i].isPanelToggle && !separatorPlaced) {
+			x += groupGap - gap;
+			separatorPlaced = true;
+		}
+		const float textW = jp_constants::p_font.stringWidth(items[i].label);
+		const float tabW = max(items[i].isPanelToggle ? 66.0f : 90.0f, textW + 24);
+		items[i].rect = ofRectangle(x, pad, tabW, tabH);
+		x += tabW + gap;
+	}
+	return items;
+}
 
-		float textW = jp_constants::p_font.stringWidth(label);
-		float tabMinWidth = 90;
-		float tabW = max(tabMinWidth, textW + 24);
+void ofApp::drawScreenTabs() {
+	const vector<ScreenBarItem> items = buildScreenBar();
 
-		// Draw tab background
+	// The bar owns its own width, so the MIDI badge asks rather than guesses.
+	if (!items.empty()) {
+		midiKeymap.setChromeRightEdge(items.back().rect.getMaxX());
+	}
+
+	// Separator between the screen switchers and the panel toggles.
+	for (int i = 1; i < (int)items.size(); i++) {
+		if (!items[i].isPanelToggle || items[i - 1].isPanelToggle) continue;
+		ofPushStyle();
+		ofSetColor(ofColor(COL_BORDER_MUTED, 170));
+		ofSetLineWidth(1);
+		const float sx = (items[i - 1].rect.getMaxX() + items[i].rect.x) * 0.5f;
+		ofDrawLine(sx, items[i].rect.y + 4, sx, items[i].rect.getMaxY() - 4);
+		ofPopStyle();
+	}
+
+	for (int i = 0; i < (int)items.size(); i++) {
+		const ScreenBarItem &item = items[i];
+		const bool active = item.lit;
+		// Cyan, not the tabs' green: an open panel is not "the screen you are
+		// on", and the two should not read as the same kind of state.
+		const ofColor activeFill =
+			item.isPanelToggle ? COL_ACCENT_CYAN : COL_ACCENT_GREEN;
+		const ofColor activeBorder =
+			item.isPanelToggle ? COL_ACCENT_CYAN : COL_ACCENT_GREEN_BR;
+
 		ofPushStyle();
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		if (active) {
-			ofSetColor(ofColor(COL_ACCENT_GREEN, 235));
+			ofSetColor(ofColor(activeFill, 235));
 		} else {
 			ofSetColor(ofColor(COL_TAB_INACTIVE_BG, 225));
 		}
-		ofDrawRectRounded(x, y, tabW, tabH, 3);
+		ofDrawRectRounded(item.rect.x, item.rect.y,
+			item.rect.width, item.rect.height, 3);
 
 		// Border
 		ofNoFill();
 		ofSetLineWidth(1);
 		if (active) {
-			ofSetColor(COL_ACCENT_GREEN_BR);
+			ofSetColor(activeBorder);
 		} else {
 			ofSetColor(ofColor(COL_BORDER_MUTED, 200));
 		}
-		ofDrawRectRounded(x, y, tabW, tabH, 3);
+		ofDrawRectRounded(item.rect.x, item.rect.y,
+			item.rect.width, item.rect.height, 3);
 		ofFill();
 
 		// Text
-		ofSetColor(active ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
-		jp_constants::p_font.drawString(label, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
+		const float textW = jp_constants::p_font.stringWidth(item.label);
+		ofSetColor(!item.enabled ? COL_TEXT_MUTED :
+			(active ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY));
+		jp_constants::p_font.drawString(item.label,
+			item.rect.x + (item.rect.width - textW) * 0.5f,
+			item.rect.y + item.rect.height * 0.5f + 5);
 
 		ofPopStyle();
-		jp_tooltip::draw(tabs[i].tooltip, x, y, tabW, tabH);
-
-		x += tabW + gap;
+		jp_tooltip::draw(item.tooltip, item.rect.x, item.rect.y,
+			item.rect.width, item.rect.height);
 	}
 }
 
 int ofApp::getScreenTabAtPos(int x, int y) {
-	const float tabX = 0;
-	const float tabY = 0;
-	const float tabH = 28;
-	const float pad = 8;
-	const float gap = 2;
-
-	// Check if y is within screen tab bar
-	if (y < tabY || y > tabY + tabH + pad * 2 + gap * 2) {
-		return -1;
-	}
-
-	struct ScreenTab {
-		string label;
-		int screenId;
-	};
-	vector<ScreenTab> tabs = {
-		{"NODES", NODOS},
-		{"SETTINGS", OPCIONES},
-		{"HELP", TUTORIAL},
-		{"IMPORT", SHADER_INDEX},
-		{"EDITOR", EDITOR}
-	};
-
-	float cx = tabX + pad;
-	float cy = tabY + pad;
-
-	for (int i = 0; i < (int)tabs.size(); i++) {
-		float textW = jp_constants::p_font.stringWidth(tabs[i].label);
-		float tabMinWidth = 90;
-		float tabW = max(tabMinWidth, textW + 24);
-
-		if (x >= cx && x <= cx + tabW && y >= cy && y <= cy + tabH) {
-			return tabs[i].screenId;
+	const vector<ScreenBarItem> items = buildScreenBar();
+	for (int i = 0; i < (int)items.size(); i++) {
+		if (!items[i].enabled) continue;
+		if (items[i].rect.inside((float)x, (float)y)) {
+			return items[i].action;
 		}
-		cx += tabW + gap;
 	}
 	return -1;
 }

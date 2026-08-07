@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <midikeymap>
-	<active_device>MPK Mini Mk II 0</active_device>
+	<active_device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</active_device>
 	<binding>
 		<device>MPK Mini Mk II 0</device>
 		<channel>1</channel>
@@ -246,5 +246,342 @@
 		<parameterindex>0</parameterindex>
 		<shaderquery>huerotate</shaderquery>
 		<shaderpath>C:\Users\nicoo\Documents\VJ\_pupper\of_v0.12.1_vs_64_release\apps\myApps\Guipper\bin\data\shaders\imageprocessing\huerotate.frag</shaderpath>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>2</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>1</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>3</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>2</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>4</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>3</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>8</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>4</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>7</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>5</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>6</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>6</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>5</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>7</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>20</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>8</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>21</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>9</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>23</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>11</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>22</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>10</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>19</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>12</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>18</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>13</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>17</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>14</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>16</number>
+		<box>worms</box>
+		<action>parameter</action>
+		<parameterindex>15</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>69</number>
+		<box></box>
+		<action>add_shader_box</action>
+		<parameterindex>0</parameterindex>
+		<shaderquery>edges</shaderquery>
+		<shaderpath>/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/data/shaders/imageprocessing/edges.frag</shaderpath>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>60</number>
+		<box></box>
+		<action>add_shader_box</action>
+		<parameterindex>0</parameterindex>
+		<shaderquery>allblendingmodesinoneshader</shaderquery>
+		<shaderpath>/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/data/shaders/blending/allblendingmodesinoneshader.frag</shaderpath>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>65</number>
+		<box></box>
+		<action>add_shader_box</action>
+		<parameterindex>0</parameterindex>
+		<shaderquery>chromadist</shaderquery>
+		<shaderpath>/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/data/shaders/blending/chromadist.frag</shaderpath>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>71</number>
+		<box></box>
+		<action>add_shader_box</action>
+		<parameterindex>0</parameterindex>
+		<shaderquery>mirrorquad</shaderquery>
+		<shaderpath>/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/data/shaders/imageprocessing/mirrorquad.frag</shaderpath>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>68</number>
+		<box></box>
+		<action>add_shader_box</action>
+		<parameterindex>0</parameterindex>
+		<shaderquery>kaleidoscope</shaderquery>
+		<shaderpath>/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/data/shaders/imageprocessing/kaleidoscope.frag</shaderpath>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>70</number>
+		<box></box>
+		<action>add_shader_box</action>
+		<parameterindex>0</parameterindex>
+		<shaderquery>transform</shaderquery>
+		<shaderpath>/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/data/shaders/imageprocessing/transform.frag</shaderpath>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>66</number>
+		<box></box>
+		<action>add_shader_box</action>
+		<parameterindex>0</parameterindex>
+		<shaderquery>feedback_advance</shaderquery>
+		<shaderpath>/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/data/shaders/imageprocessing/feedback_advance.frag</shaderpath>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>49</number>
+		<box></box>
+		<action>next_shader</action>
+		<parameterindex>0</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>48</number>
+		<box></box>
+		<action>prev_shader</action>
+		<parameterindex>0</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>47</number>
+		<box></box>
+		<action>set_cue_shader</action>
+		<parameterindex>0</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>44</number>
+		<box></box>
+		<action>set_active_render</action>
+		<parameterindex>0</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>57</number>
+		<box></box>
+		<action>add_shader_box</action>
+		<parameterindex>0</parameterindex>
+		<shaderquery>VHStapeeffect2</shaderquery>
+		<shaderpath>/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/data/shaders/imageprocessing/VHStapeeffect2.frag</shaderpath>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>67</number>
+		<box></box>
+		<action>add_shader_box</action>
+		<parameterindex>0</parameterindex>
+		<shaderquery>rotatecolor</shaderquery>
+		<shaderpath>/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/data/shaders/imageprocessing/rotatecolor.frag</shaderpath>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>50</number>
+		<box></box>
+		<action>bpm_tap</action>
+		<parameterindex>0</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>61</number>
+		<box></box>
+		<action>add_shader_box</action>
+		<parameterindex>0</parameterindex>
+		<shaderquery>add</shaderquery>
+		<shaderpath>/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/data/shaders/blending/add.frag</shaderpath>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>62</number>
+		<box></box>
+		<action>add_shader_box</action>
+		<parameterindex>0</parameterindex>
+		<shaderquery>blur</shaderquery>
+		<shaderpath>/home/nico/Documents/Projects/GUIPPER/of_v0.12.1_linux64_gcc6_release/apps/myApps/Guipper/bin/data/shaders/imageprocessing/kindofmotionblur.frag</shaderpath>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>note</type>
+		<number>59</number>
+		<box>gusanos</box>
+		<action>parameter</action>
+		<parameterindex>1</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>1</number>
+		<box>gusanos</box>
+		<action>parameter</action>
+		<parameterindex>0</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>1</number>
+		<box>rotatecolor</box>
+		<action>parameter</action>
+		<parameterindex>0</parameterindex>
+	</binding>
+	<binding>
+		<device>MPK Mini Mk II:MPK Mini Mk II MIDI 1</device>
+		<channel>1</channel>
+		<type>cc</type>
+		<number>4</number>
+		<box>redbullstarnestv3</box>
+		<action>parameter</action>
+		<parameterindex>3</parameterindex>
 	</binding>
 </midikeymap>

@@ -1,4 +1,6 @@
 #include "jp_shader_editor.h"
+#include "jp_screen.h"
+#include "jp_button.h"
 #include "../JPutils/jp_constants.h"
 #include <fstream>
 #include <sstream>
@@ -27,18 +29,20 @@ static const ofColor COL_COMMENT(106, 153, 85);      // Comments
 static const ofColor COL_STRING(206, 145, 120);      // Strings
 static const ofColor COL_PREPROC(155, 155, 155);     // Preprocessor: #ifdef, #define...
 static const ofColor COL_UNIFORM(78, 201, 176);      // Storage: uniform, varying...
-static const ofColor COL_TOP_BAR(50, 50, 55);        // Top bar background
-static const ofColor COL_TAB_ACTIVE(55, 55, 60);     // Active tab (must differ from COL_BG)
-static const ofColor COL_TAB_INACTIVE(37, 37, 42);   // Inactive tab
-static const ofColor COL_TAB_BAR_BG(32, 32, 36);     // Tab bar background
-static const ofColor COL_TAB_BORDER(70, 70, 75);     // Tab border
-static const ofColor COL_TAB_MODIFIED(255, 200, 50); // Modified dot
-static const ofColor COL_TAB_CLOSE_HOVER(200, 60, 60);// Close button hover
-static const ofColor COL_BTN_SAVE(40, 140, 100);     // Save button
-static const ofColor COL_BTN_CLOSE(160, 60, 60);     // Close button
-static const ofColor COL_BTN_TEXT(240, 240, 240);    // Button text
-static const ofColor COL_STATUS_BAR(0, 122, 204);    // Status bar
-static const ofColor COL_STATUS_TEXT(255, 255, 255); // Status bar text
+// Chrome is the app palette, so the editor is part of the same family as the
+// other screens. Only the code area below keeps its own colours.
+static const ofColor COL_TOP_BAR = COL_BG_BUTTON;    // Top bar background
+static const ofColor COL_TAB_ACTIVE = COL_BG_HOVER;  // Active tab
+static const ofColor COL_TAB_INACTIVE = COL_TAB_INACTIVE_BG;
+static const ofColor COL_TAB_BAR_BG = COL_BG_TAB;    // Tab bar background
+static const ofColor COL_TAB_BORDER = COL_BORDER_MUTED;
+static const ofColor COL_TAB_MODIFIED = COL_ACCENT_GOLD;
+static const ofColor COL_TAB_CLOSE_HOVER = COL_ACCENT_RED;
+static const ofColor COL_BTN_SAVE = COL_ACCENT_GREEN;
+static const ofColor COL_BTN_CLOSE = COL_ACCENT_RED;
+static const ofColor COL_BTN_TEXT = COL_TEXT_PRIMARY;
+static const ofColor COL_STATUS_BAR = COL_ACCENT_CYAN_DARK;
+static const ofColor COL_STATUS_TEXT = COL_TEXT_PRIMARY;
 static const ofColor COL_SCROLLBAR_BG(60, 60, 60);   // Scrollbar background
 static const ofColor COL_SCROLLBAR_THUMB(100, 100, 105); // Scrollbar thumb
 
@@ -407,9 +411,9 @@ void JPShaderEditor::draw()
 
 	// Editor panel
 	float ex = MARGIN;
-	float ey = MARGIN;
+	float ey = jp_screen::kTop;
 	float ew = sw - MARGIN * 2;
-	float eh = sh - MARGIN * 2;
+	float eh = sh - jp_screen::kTop - jp_screen::kMarginBottom;
 
 	ofSetColor(COL_BG);
 	ofDrawRectRounded(ex, ey, ew, eh, 6);
@@ -440,7 +444,7 @@ void JPShaderEditor::drawTopBar()
 {
 	float sw = ofGetWidth();
 	float ex = MARGIN;
-	float ey = MARGIN;
+	float ey = jp_screen::kTop;
 	float ew = sw - MARGIN * 2;
 
 	ofSetColor(COL_TOP_BAR);
@@ -460,32 +464,20 @@ void JPShaderEditor::drawTopBar()
 	float closeX = ex + ew - btnW - 12;
 	float closeY = ey + (TOP_BAR_H - btnH) / 2;
 
-	ofSetColor(COL_BTN_CLOSE);
-	ofDrawRectRounded(closeX, closeY, btnW, btnH, 3);
-	ofSetColor(COL_BTN_TEXT);
-	string closeLabel = "CLOSE";
-	float clw = jp_constants::p_font.stringWidth(closeLabel);
-	jp_constants::p_font.drawString(closeLabel,
-		closeX + btnW / 2 - clw / 2,
-		closeY + btnH / 2 + jp_constants::p_font.stringHeight(closeLabel) / 2 - 2);
+	jp_button::draw(ofRectangle(closeX, closeY, btnW, btnH), "CLOSE",
+		true, true, COL_BTN_CLOSE);
 
 	// Save button
 	float saveX = closeX - btnW - 8;
-	ofSetColor(COL_BTN_SAVE);
-	ofDrawRectRounded(saveX, closeY, btnW, btnH, 3);
-	ofSetColor(COL_BTN_TEXT);
-	string saveLabel = "SAVE";
-	float swl = jp_constants::p_font.stringWidth(saveLabel);
-	jp_constants::p_font.drawString(saveLabel,
-		saveX + btnW / 2 - swl / 2,
-		closeY + btnH / 2 + jp_constants::p_font.stringHeight(saveLabel) / 2 - 2);
+	jp_button::draw(ofRectangle(saveX, closeY, btnW, btnH), "SAVE",
+		true, true, COL_BTN_SAVE);
 }
 
 void JPShaderEditor::drawTabBar()
 {
 	float sw = ofGetWidth();
 	float ex = MARGIN;
-	float ey = MARGIN + TOP_BAR_H;
+	float ey = jp_screen::kTop + TOP_BAR_H;
 	float ew = sw - MARGIN * 2;
 
 	ofSetColor(COL_TAB_BAR_BG);
@@ -548,12 +540,12 @@ void JPShaderEditor::drawCodeArea()
 
 	float sw = ofGetWidth();
 	float ex = MARGIN;
-	float ey = MARGIN + TOP_BAR_H + TAB_BAR_H;
+	float ey = jp_screen::kTop + TOP_BAR_H + TAB_BAR_H;
 	float ew = sw - MARGIN * 2;
 	float eh = sw - MARGIN * 2; // full height, will be computed below
 
 	float sh = ofGetHeight();
-	float codeH = sh - MARGIN * 2 - TOP_BAR_H - TAB_BAR_H - STATUS_BAR_H;
+	float codeH = sh - jp_screen::kTop - jp_screen::kMarginBottom - TOP_BAR_H - TAB_BAR_H - STATUS_BAR_H;
 	float codeY = ey;
 	float codeX = ex;
 	float codeW = ew;
@@ -686,7 +678,7 @@ void JPShaderEditor::drawCursor(int tabIndex, float codeX, float codeY)
 	float charW = getCharWidth();
 
 	// Only draw if cursor line is visible
-	int visibleLines = getVisibleLines(ofGetHeight() - MARGIN * 2 - TOP_BAR_H - TAB_BAR_H - STATUS_BAR_H);
+	int visibleLines = getVisibleLines(ofGetHeight() - jp_screen::kTop - jp_screen::kMarginBottom - TOP_BAR_H - TAB_BAR_H - STATUS_BAR_H);
 	if (tab.cursorLine < tab.scrollLine || tab.cursorLine >= tab.scrollLine + visibleLines) return;
 
 	float cursorX = codeX + LINE_NUMBER_W + 8 + (tab.cursorCol - tab.scrollCol) * charW;
@@ -729,7 +721,7 @@ void JPShaderEditor::drawStatusBar()
 	float sw = ofGetWidth();
 	float sh = ofGetHeight();
 	float ex = MARGIN;
-	float ey = sh - MARGIN - STATUS_BAR_H;
+	float ey = sh - jp_screen::kMarginBottom - STATUS_BAR_H;
 	float ew = sw - MARGIN * 2;
 
 	ofSetColor(COL_STATUS_BAR);
@@ -840,9 +832,9 @@ void JPShaderEditor::mousePressed(int x, int y, int button)
 	float sw = ofGetWidth();
 	float sh = ofGetHeight();
 	float ex = MARGIN;
-	float ey = MARGIN;
+	float ey = jp_screen::kTop;
 	float ew = sw - MARGIN * 2;
-	float eh = sh - MARGIN * 2;
+	float eh = sh - jp_screen::kTop - jp_screen::kMarginBottom;
 
 	// Outside editor panel?
 	if (x < ex || x > ex + ew || y < ey || y > ey + eh) {
@@ -1275,8 +1267,8 @@ void JPShaderEditor::mouseDragged(int x, int y, int button)
 	float sw = ofGetWidth();
 	float sh = ofGetHeight();
 	float ex = MARGIN;
-	float ey = MARGIN + TOP_BAR_H + TAB_BAR_H;
-	float eh = sh - MARGIN * 2;
+	float ey = jp_screen::kTop + TOP_BAR_H + TAB_BAR_H;
+	float eh = sh - jp_screen::kTop - jp_screen::kMarginBottom;
 	float codeY = ey;
 	float codeH = eh - TOP_BAR_H - TAB_BAR_H - STATUS_BAR_H;
 	float codeStartX = ex + LINE_NUMBER_W + 8;

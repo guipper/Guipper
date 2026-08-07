@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 
 #include "defines.h"
 #include "ofMain.h"
@@ -110,6 +111,8 @@ public:
 	void triggerCodeOnActiveShader();
 	void deleteSelectedShader();
 	void keyPressed(int key); // For inline tab renaming
+	void commitTabRename();
+	void cancelTabRename();
 
 	// ACA ESTA TODO LO QUE TENGA QUE VER CON EL INSPECTOR PANEL DIGAMOS :
 	// ESTO TE DICE QUE PANEL ESTA ABIERTO. SI EL PANEL QUE ESTA ABIERTO ES -1 ENTONCES EL PANEL NO ESTA ABIERTO
@@ -157,6 +160,17 @@ public:
 	bool applyCueDraftToSource();
 	void setCuePanelLayout(float x, float y, float w, float h);
 	void getCuePanelLayout(float &x, float &y, float &w, float &h) const;
+	// Surface-stack integration. The inspector, the cue panel and the mapping
+	// panel are surfaces like any other, so each needs a rect to block clicks
+	// with and the inspector needs a way to be dismissed from outside.
+	bool isMappingShaderBox(JPbox *box) const;
+	void closeInspector();
+	ofRectangle getInspectorBounds() const;
+	// Set by ofApp so the canvas also yields to surfaces this class does not
+	// own - the MIDI panel, the shader editor, the save modal, dropdowns.
+	void setExternalGuiHitTest(std::function<bool(float, float)> fn);
+	ofRectangle getCuePanelBounds();
+	ofRectangle getMappingPanelBounds() const;
 	void setMappingPanelLayout(float x, float y, float w, float h);
 	void getMappingPanelLayout(float &x, float &y, float &w, float &h) const;
 	// CUE target helpers (main boxes or preset boxes depending on context)
@@ -175,6 +189,9 @@ public:
 	int getOpenParameterCount() const;
 	JPParameter *getOpenParameterAtIndex(int parameterIndex) const;
 	bool setOpenBoxParameterAtIndex(int parameterIndex, float value);
+	// Drive one named box directly. Used as the fallback when no inspector is
+	// open, so a parameter bind still moves the box it was made against.
+	bool setBoxParameterAtIndex(string boxName, int parameterIndex, float value);
 	bool setLastBoxOnOff(bool value);
 
 	bool mouseOverGui();
@@ -438,6 +455,8 @@ private:
 	bool deleteBoxAtIndex(int index);
 	bool deleteSelectedBoxes();
 
+	std::function<bool(float, float)> externalGuiHitTest;
+
 	float inspectorwindow_width;
 	float inspectorwindow_height;
 	float inspectorwindow_x;
@@ -485,7 +504,6 @@ private:
 		ofVec2f bottomLeft;
 	};
 	MappingParameterIndices getMappingParameterIndices(JPbox *box) const;
-	bool isMappingShaderBox(JPbox *box) const;
 	bool isAdvancedMappingShaderBox(JPbox *box) const;
 	bool mappingTargetMatchesCurrentView() const;
 	JPbox *getMappingEditBox();

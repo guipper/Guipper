@@ -8,6 +8,7 @@
 #include "../JPutils/jp_fbohandler.h"
 #include "../JPutils/jp_constants.h"
 #include "../JPutils/jp_dragobject.h"
+#include "../JPutils/jp_pointer.h"
 #include "../JPgui/jp_toogle.h"
 
 // Normalize a stored file path so sessions saved on Windows (which use '\'
