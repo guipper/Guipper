@@ -562,7 +562,9 @@ private:
 		ADVANCED_MAPPING_DRAG_SURFACE_CORNER,
 		ADVANCED_MAPPING_DRAG_SURFACE_HANDLE,
 		ADVANCED_MAPPING_DRAG_MOVE_SHAPE,
-		ADVANCED_MAPPING_DRAG_SCALE_SHAPE
+		ADVANCED_MAPPING_DRAG_SCALE_SHAPE,
+		ADVANCED_MAPPING_DRAG_ROTATE_SHAPES,
+		ADVANCED_MAPPING_DRAG_MASK_MARQUEE
 	};
 	// Toolbar order is the grouping the user sees: pick a layer, pick a tool,
 	// shape what the tool selected, reference image, file in/out. Layers must
@@ -587,6 +589,7 @@ private:
 	};
 	ofRectangle getAdvancedMappingToolbarBounds(
 		AdvancedMappingToolbarAction action) const;
+	ofRectangle getAdvancedMappingHeaderActionBounds(bool newShape) const;
 	bool advancedMappingBezierActive(
 		const JPbox_shader::AdvancedMappingLayer &layer) const;
 	// Bounding box of the move tool's current target, in normalized space, and
@@ -595,6 +598,8 @@ private:
 	bool getAdvancedMappingMoveBox(
 		const JPbox_shader::AdvancedMappingLayer &layer,
 		ofRectangle &box) const;
+	ofVec2f getAdvancedMappingRotationHandle(
+		const ofRectangle &box, const ofRectangle &preview) const;
 	void drawAdvancedMappingPanel();
 	// interactive: only the editor panel passes true. The render window draws
 	// the same overlay in another GL context, where editor chrome (move box,
@@ -605,6 +610,8 @@ private:
 	bool updateAdvancedMappingMousePressed(int mouseButton);
 	bool updateAdvancedMappingMouseDragged(int mouseButton);
 	bool updateAdvancedMappingMouseReleased(int mouseButton);
+	bool updateAdvancedMappingMouseScrolled(int x, int y, float scrollY);
+	void clampAdvancedMappingView();
 	ofVec2f projectAdvancedMappingPoint(
 		const JPbox_shader::AdvancedMappingLayer &layer,
 		const ofVec2f &uv) const;
@@ -632,7 +639,9 @@ private:
 	AdvancedMappingDragKind advancedMappingDragKind =
 		ADVANCED_MAPPING_DRAG_NONE;
 	int advancedMappingDragIndex = -1;
+	int advancedMappingSelectedMaskContour = -1;
 	int advancedMappingSelectedMaskNode = -1;
+	vector<int> advancedMappingSelectedMaskContours;
 	// Bezier edge handles are off until asked for, so a fresh surface is a
 	// plain corner-pin quad. See advancedMappingBezierActive for how a layer
 	// that already carries a curve overrides this.
@@ -648,7 +657,22 @@ private:
 	ofVec2f advancedMappingDragStartUv;
 	ofVec2f advancedMappingScaleAnchor;
 	ofVec2f advancedMappingScaleHandle;
+	ofVec2f advancedMappingRotationPivot;
+	float advancedMappingRotationStartAngle = 0.0f;
+	vector<int> advancedMappingDragContours;
+	ofVec2f advancedMappingMarqueeStart;
+	ofVec2f advancedMappingMarqueeEnd;
+	bool advancedMappingMarqueeAdditive = false;
 	int advancedMappingDragLayer = -1;
+	int advancedMappingDragContour = -1;
+	float advancedMappingViewZoom = 1.0f;
+	ofVec2f advancedMappingViewCenter = ofVec2f(0.5f, 0.5f);
+	bool advancedMappingViewPanning = false;
+	bool advancedMappingRightPanPending = false;
+	int advancedMappingPendingDeleteContour = -1;
+	int advancedMappingPendingDeleteNode = -1;
+	ofVec2f advancedMappingViewPanStartMouse;
+	ofVec2f advancedMappingViewPanStartCenter;
 
 	// ofFbo boxesdrawing;
 

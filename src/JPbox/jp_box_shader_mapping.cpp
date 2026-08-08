@@ -120,14 +120,14 @@ namespace
 		return viewBox;
 	}
 
-	bool parseSvgPath(const std::string &pathData,
+	bool parseSvgPaths(const std::string &pathData,
 		const ofRectangle &viewBox,
-		std::vector<JPbox_shader::AdvancedMappingNode> &nodes,
-		bool &closed, std::string &error)
+		std::vector<JPbox_shader::AdvancedMappingContour> &contours,
+		std::string &error)
 	{
 		const std::vector<SvgPathToken> tokens = tokenizeSvgPath(pathData);
-		nodes.clear();
-		closed = false;
+		contours.clear();
+		JPbox_shader::AdvancedMappingContour contour;
 		char command = 0;
 		size_t index = 0;
 		ofVec2f current(0.0f, 0.0f);
@@ -156,22 +156,22 @@ namespace
 			node.anchor = destination;
 			node.inHandle = destination;
 			node.outHandle = destination;
-			nodes.push_back(node);
+			contour.nodes.push_back(node);
 			current = destination;
 			hasCubicControl = false;
 			hasQuadraticControl = false;
 		};
 		auto addCubic = [&](const ofVec2f &control1,
 			const ofVec2f &control2, const ofVec2f &destination) {
-			if (nodes.empty()) addLine(current);
-			nodes.back().outHandle = control1;
-			nodes.back().smooth = true;
+			if (contour.nodes.empty()) addLine(current);
+			contour.nodes.back().outHandle = control1;
+			contour.nodes.back().smooth = true;
 			JPbox_shader::AdvancedMappingNode node;
 			node.anchor = destination;
 			node.inHandle = control2;
 			node.outHandle = destination;
 			node.smooth = true;
-			nodes.push_back(node);
+			contour.nodes.push_back(node);
 			current = destination;
 			lastCubicControl = control2;
 			hasCubicControl = true;
@@ -193,15 +193,19 @@ namespace
 				static_cast<unsigned char>(command)));
 			if (upper == 'Z')
 			{
-				closed = true;
+				contour.closed = true;
 				current = subpathStart;
 				command = 0;
 				continue;
 			}
 			if (upper == 'M' && hasNumbers(2))
 			{
+				if (!contour.nodes.empty())
+				{
+					contours.push_back(contour);
+					contour = JPbox_shader::AdvancedMappingContour();
+				}
 				const ofVec2f destination = point(relative);
-				if (!nodes.empty()) break;
 				addLine(destination);
 				subpathStart = destination;
 				command = relative ? 'l' : 'L';
@@ -275,43 +279,53 @@ namespace
 			return false;
 		}
 
-		// A closed path's last segment returns to the start point, which leaves
-		// a duplicate node carrying that segment's incoming handle. Fold it
-		// back onto the first node, the way the path is actually drawn. Without
-		// this our own exports come back one node bigger every round trip, and
-		// a four corner surface parses as five nodes and is silently rejected.
-		if (closed && nodes.size() >= 4)
-		{
-			const float tolerance = std::max(viewBox.width,
-				viewBox.height) * 0.0001f;
-			if (nodes.front().anchor.distance(nodes.back().anchor) <=
-				tolerance)
-			{
-				nodes.front().inHandle = nodes.back().inHandle;
-				nodes.front().smooth = nodes.front().smooth ||
-					nodes.back().smooth;
-				nodes.pop_back();
-			}
-		}
-
-		if (nodes.size() < 3)
+		if (!contour.nodes.empty()) contours.push_back(contour);
+		if (contours.empty())
 		{
 			error = "SVG path needs at least three points";
 			return false;
 		}
-		for (auto &node : nodes)
+		const float tolerance = std::max(viewBox.width,
+			viewBox.height) * 0.0001f;
+		for (auto &path : contours)
 		{
-			// Deliberately unclamped: geometry is allowed to sit outside the
-			// canvas, and clamping here would silently collapse an off canvas
-			// shape onto the edge on the way back in from our own export.
-			auto normalize = [&](ofVec2f &value) {
-				value.x = (value.x - viewBox.x) / viewBox.width;
-				value.y = (value.y - viewBox.y) / viewBox.height;
-			};
-			normalize(node.anchor);
-			normalize(node.inHandle);
-			normalize(node.outHandle);
+			if (path.closed && path.nodes.size() >= 4 &&
+				path.nodes.front().anchor.distance(
+					path.nodes.back().anchor) <= tolerance)
+			{
+				path.nodes.front().inHandle = path.nodes.back().inHandle;
+				path.nodes.front().smooth = path.nodes.front().smooth ||
+					path.nodes.back().smooth;
+				path.nodes.pop_back();
+			}
+			if (path.nodes.size() < 3)
+			{
+				error = "SVG path needs at least three points per shape";
+				return false;
+			}
+			for (auto &node : path.nodes)
+			{
+				auto normalize = [&](ofVec2f &value) {
+					value.x = (value.x - viewBox.x) / viewBox.width;
+					value.y = (value.y - viewBox.y) / viewBox.height;
+				};
+				normalize(node.anchor);
+				normalize(node.inHandle);
+				normalize(node.outHandle);
+			}
 		}
+		return true;
+	}
+
+	bool parseSvgPath(const std::string &pathData,
+		const ofRectangle &viewBox,
+		std::vector<JPbox_shader::AdvancedMappingNode> &nodes,
+		bool &closed, std::string &error)
+	{
+		std::vector<JPbox_shader::AdvancedMappingContour> contours;
+		if (!parseSvgPaths(pathData, viewBox, contours, error)) return false;
+		nodes = contours.front().nodes;
+		closed = contours.front().closed;
 		return true;
 	}
 
@@ -434,39 +448,42 @@ void JPbox_shader::rebuildAdvancedMappingMask(int layerIndex)
 	const AdvancedMappingLayer &layer =
 		advancedMappingState.layers[layerIndex];
 	advancedMappingMasks[layerIndex].begin();
-	if (!layer.maskClosed || layer.mask.size() < 3)
+	const bool hasClosedMask = std::any_of(layer.masks.begin(),
+		layer.masks.end(), [](const AdvancedMappingContour &contour) {
+			return contour.closed && contour.nodes.size() >= 3;
+		});
+	if (!hasClosedMask)
 	{
 		ofClear(255, 255, 255, 255);
 	}
 	else
 	{
 		ofClear(0, 0, 0, 255);
-		ofPath path;
-		path.setFilled(true);
-		path.setFillColor(ofColor::white);
-		path.setPolyWindingMode(OF_POLY_WINDING_ODD);
-		path.moveTo(layer.mask[0].anchor.x * width,
-			layer.mask[0].anchor.y * height);
-		for (size_t i = 0; i < layer.mask.size(); i++)
+		// Draw contours independently so overlaps are a union, not XOR holes.
+		for (const AdvancedMappingContour &contour : layer.masks)
 		{
-			const AdvancedMappingNode &from = layer.mask[i];
-			const AdvancedMappingNode &to =
-				layer.mask[(i + 1) % layer.mask.size()];
-			if (from.smooth || to.smooth)
+			if (!contour.closed || contour.nodes.size() < 3) continue;
+			ofPath path;
+			path.setFilled(true);
+			path.setFillColor(ofColor::white);
+			path.moveTo(contour.nodes[0].anchor.x * width,
+				contour.nodes[0].anchor.y * height);
+			for (size_t i = 0; i < contour.nodes.size(); i++)
 			{
-				path.bezierTo(from.outHandle.x * width,
-					from.outHandle.y * height,
-					to.inHandle.x * width,
-					to.inHandle.y * height,
-					to.anchor.x * width, to.anchor.y * height);
+				const AdvancedMappingNode &from = contour.nodes[i];
+				const AdvancedMappingNode &to =
+					contour.nodes[(i + 1) % contour.nodes.size()];
+				if (from.smooth || to.smooth)
+					path.bezierTo(from.outHandle.x * width,
+						from.outHandle.y * height, to.inHandle.x * width,
+						to.inHandle.y * height, to.anchor.x * width,
+						to.anchor.y * height);
+				else
+					path.lineTo(to.anchor.x * width, to.anchor.y * height);
 			}
-			else
-			{
-				path.lineTo(to.anchor.x * width, to.anchor.y * height);
-			}
+			path.close();
+			path.draw();
 		}
-		path.close();
-		path.draw();
 	}
 	advancedMappingMasks[layerIndex].end();
 	advancedMappingMaskDirty[layerIndex] = false;
@@ -577,15 +594,15 @@ bool JPbox_shader::importAdvancedMappingSvg(int layerIndex,
 		error = "SVG has no path";
 		return false;
 	}
-	std::vector<AdvancedMappingNode> mask;
-	bool maskClosed = false;
-	if (!parseSvgPath(maskData, viewBox, mask, maskClosed, error))
+	std::vector<AdvancedMappingContour> masks;
+	if (!parseSvgPaths(maskData, viewBox, masks, error))
 		return false;
 
 	initializeAdvancedMappingState();
 	AdvancedMappingLayer &layer = advancedMappingState.layers[layerIndex];
-	layer.mask = mask;
-	layer.maskClosed = maskClosed || mask.size() >= 3;
+	layer.masks = masks;
+	for (AdvancedMappingContour &contour : layer.masks)
+		contour.closed = contour.closed || contour.nodes.size() >= 3;
 
 	std::string surfaceData;
 	std::vector<AdvancedMappingNode> surface;
@@ -640,14 +657,17 @@ bool JPbox_shader::exportAdvancedMappingSvg(int layerIndex,
 	svg << ' '; writeSvgPoint(svg, layer.corners[0]);
 	svg << " Z\"/>\n";
 	svg << "  <path id=\"mask\" fill=\"#ffffff\" stroke=\"#ffbd4a\" d=\"";
-	if (layer.mask.size() >= 3)
+	bool wroteMask = false;
+	for (const AdvancedMappingContour &contour : layer.masks)
 	{
-		svg << "M "; writeSvgPoint(svg, layer.mask[0].anchor);
-		for (size_t i = 0; i < layer.mask.size(); i++)
+		if (!contour.closed || contour.nodes.size() < 3) continue;
+		if (wroteMask) svg << ' ';
+		svg << "M "; writeSvgPoint(svg, contour.nodes[0].anchor);
+		for (size_t i = 0; i < contour.nodes.size(); i++)
 		{
-			const AdvancedMappingNode &from = layer.mask[i];
+			const AdvancedMappingNode &from = contour.nodes[i];
 			const AdvancedMappingNode &to =
-				layer.mask[(i + 1) % layer.mask.size()];
+				contour.nodes[(i + 1) % contour.nodes.size()];
 			if (from.smooth || to.smooth)
 			{
 				svg << " C "; writeSvgPoint(svg, from.outHandle);
@@ -660,8 +680,9 @@ bool JPbox_shader::exportAdvancedMappingSvg(int layerIndex,
 			}
 		}
 		svg << " Z";
+		wroteMask = true;
 	}
-	else
+	if (!wroteMask)
 	{
 		svg << "M 0,0 L 1000,0 L 1000,1000 L 0,1000 Z";
 	}
@@ -700,14 +721,19 @@ void JPbox_shader::saveCustomState(ofXml &boxNode) const
 		for (int i = 0; i < 8; i++)
 			appendXmlPoint(surface, "handle" + ofToString(i), layer.edgeHandles[i]);
 		auto mask = layerNode.appendChild("mask");
-		mask.appendChild("closed").set(layer.maskClosed);
-		for (const AdvancedMappingNode &point : layer.mask)
+		for (const AdvancedMappingContour &contour : layer.masks)
 		{
-			auto pointNode = mask.appendChild("point");
-			appendXmlPoint(pointNode, "anchor", point.anchor);
-			appendXmlPoint(pointNode, "in", point.inHandle);
-			appendXmlPoint(pointNode, "out", point.outHandle);
-			pointNode.appendChild("smooth").set(point.smooth);
+			if (contour.nodes.empty()) continue;
+			auto pathNode = mask.appendChild("path");
+			pathNode.appendChild("closed").set(contour.closed);
+			for (const AdvancedMappingNode &point : contour.nodes)
+			{
+				auto pointNode = pathNode.appendChild("point");
+				appendXmlPoint(pointNode, "anchor", point.anchor);
+				appendXmlPoint(pointNode, "in", point.inHandle);
+				appendXmlPoint(pointNode, "out", point.outHandle);
+				pointNode.appendChild("smooth").set(point.smooth);
+			}
 		}
 	}
 }
@@ -761,19 +787,31 @@ void JPbox_shader::loadCustomState(const ofXml &boxNode)
 		auto mask = layerNode.getChild("mask");
 		if (mask)
 		{
-			layer.mask.clear();
-			layer.maskClosed = mask.getChild("closed") &&
-				mask.getChild("closed").getBoolValue();
-			for (auto &pointNode : mask.getChildren("point"))
+			layer.masks.clear();
+			auto readContour = [&](const ofXml &pathNode) {
+				AdvancedMappingContour contour;
+				contour.closed = pathNode.getChild("closed") &&
+					pathNode.getChild("closed").getBoolValue();
+				for (auto &pointNode : pathNode.getChildren("point"))
+				{
+					AdvancedMappingNode point;
+					point.anchor = readXmlPoint(pointNode, "anchor", ofVec2f());
+					point.inHandle = readXmlPoint(pointNode, "in", point.anchor);
+					point.outHandle = readXmlPoint(pointNode, "out", point.anchor);
+					point.smooth = pointNode.getChild("smooth") &&
+						pointNode.getChild("smooth").getBoolValue();
+					contour.nodes.push_back(point);
+				}
+				if (!contour.nodes.empty()) layer.masks.push_back(contour);
+			};
+			bool foundPath = false;
+			for (const ofXml &pathNode : mask.getChildren("path"))
 			{
-				AdvancedMappingNode point;
-				point.anchor = readXmlPoint(pointNode, "anchor", ofVec2f());
-				point.inHandle = readXmlPoint(pointNode, "in", point.anchor);
-				point.outHandle = readXmlPoint(pointNode, "out", point.anchor);
-				point.smooth = pointNode.getChild("smooth") &&
-					pointNode.getChild("smooth").getBoolValue();
-				layer.mask.push_back(point);
+				foundPath = true;
+				readContour(pathNode);
 			}
+			if (!foundPath)
+				readContour(mask); // Legacy single-contour save format.
 		}
 	}
 	markAdvancedMappingMaskDirty();

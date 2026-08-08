@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace
 {
@@ -162,15 +163,19 @@ namespace
 	}
 
 	ofPolyline buildMaskOutline(
-		const JPbox_shader::AdvancedMappingLayer &layer)
+		const JPbox_shader::AdvancedMappingContour &contour)
 	{
 		ofPolyline line;
-		if (layer.mask.size() < 3) return line;
-		line.addVertex(layer.mask[0].anchor.x, layer.mask[0].anchor.y, 0.0f);
-		for (size_t i = 0; i < layer.mask.size(); i++)
+		if (contour.nodes.empty()) return line;
+		line.addVertex(contour.nodes[0].anchor.x,
+			contour.nodes[0].anchor.y, 0.0f);
+		if (contour.nodes.size() == 1) return line;
+		const size_t edgeCount = contour.closed ?
+			contour.nodes.size() : contour.nodes.size() - 1;
+		for (size_t i = 0; i < edgeCount; i++)
 		{
-			const auto &from = layer.mask[i];
-			const auto &to = layer.mask[(i + 1) % layer.mask.size()];
+			const auto &from = contour.nodes[i];
+			const auto &to = contour.nodes[(i + 1) % contour.nodes.size()];
 			if (from.smooth || to.smooth)
 				appendCubic(line, from.anchor, from.outHandle,
 					to.inHandle, to.anchor);
@@ -180,9 +185,121 @@ namespace
 		return line;
 	}
 
+	float closestCubicT(const ofVec2f &a, const ofVec2f &b,
+		const ofVec2f &c, const ofVec2f &d, const ofVec2f &point,
+		float width, float height)
+	{
+		auto scaled = [&](const ofVec2f &value) {
+			return ofVec2f(value.x * width, value.y * height);
+		};
+		float bestT = 0.0f;
+		float bestDistance = std::numeric_limits<float>::max();
+		for (int i = 0; i <= 64; i++)
+		{
+			const float t = i / 64.0f;
+			const float distance = scaled(cubicPoint(a, b, c, d, t))
+				.distance(scaled(point));
+			if (distance < bestDistance)
+			{
+				bestDistance = distance;
+				bestT = t;
+			}
+		}
+		float range = 1.0f / 64.0f;
+		for (int pass = 0; pass < 5; pass++)
+		{
+			const float left = std::max(0.0f, bestT - range);
+			const float right = std::min(1.0f, bestT + range);
+			for (int i = 0; i <= 8; i++)
+			{
+				const float t = ofLerp(left, right, i / 8.0f);
+				const float distance = scaled(cubicPoint(a, b, c, d, t))
+					.distance(scaled(point));
+				if (distance < bestDistance)
+				{
+					bestDistance = distance;
+					bestT = t;
+				}
+			}
+			range *= 0.25f;
+		}
+		return bestT;
+	}
+
+	JPbox_shader::AdvancedMappingNode splitContourEdge(
+		JPbox_shader::AdvancedMappingNode &from,
+		JPbox_shader::AdvancedMappingNode &to, float t)
+	{
+		const ofVec2f p01 = from.anchor.getInterpolated(from.outHandle, t);
+		const ofVec2f p12 = from.outHandle.getInterpolated(to.inHandle, t);
+		const ofVec2f p23 = to.inHandle.getInterpolated(to.anchor, t);
+		const ofVec2f p012 = p01.getInterpolated(p12, t);
+		const ofVec2f p123 = p12.getInterpolated(p23, t);
+		const ofVec2f point = p012.getInterpolated(p123, t);
+		from.outHandle = p01;
+		to.inHandle = p23;
+		JPbox_shader::AdvancedMappingNode inserted;
+		inserted.anchor = point;
+		inserted.inHandle = p012;
+		inserted.outHandle = p123;
+		inserted.smooth = true;
+		return inserted;
+	}
+
 	bool outlineContains(const ofPolyline &line, const ofVec2f &point)
 	{
 		return line.size() >= 3 && line.inside(point.x, point.y);
+	}
+
+	float pointSegmentDistance(const ofVec2f &point, const ofVec2f &a,
+		const ofVec2f &b)
+	{
+		const ofVec2f segment = b - a;
+		const float lengthSquared = segment.dot(segment);
+		const float t = lengthSquared > 0.000001f ?
+			ofClamp((point - a).dot(segment) / lengthSquared, 0.0f, 1.0f) : 0.0f;
+		return point.distance(a + segment * t);
+	}
+
+	bool segmentsIntersect(const ofVec2f &a, const ofVec2f &b,
+		const ofVec2f &c, const ofVec2f &d)
+	{
+		auto cross = [](const ofVec2f &u, const ofVec2f &v) {
+			return u.x * v.y - u.y * v.x;
+		};
+		const ofVec2f r = b - a;
+		const ofVec2f s = d - c;
+		const float denominator = cross(r, s);
+		if (std::abs(denominator) < 0.00001f) return false;
+		const float t = cross(c - a, s) / denominator;
+		const float u = cross(c - a, r) / denominator;
+		return t >= 0.0f && t <= 1.0f && u >= 0.0f && u <= 1.0f;
+	}
+
+	bool polylineTouchesRectangle(const ofPolyline &line,
+		const ofRectangle &rectangle, bool closed)
+	{
+		if (line.size() == 0) return false;
+		for (const auto &vertex : line)
+			if (rectangle.inside(vertex.x, vertex.y)) return true;
+		const ofVec2f corners[4] = {
+			{rectangle.x, rectangle.y}, {rectangle.getRight(), rectangle.y},
+			{rectangle.getRight(), rectangle.getBottom()},
+			{rectangle.x, rectangle.getBottom()}};
+		if (closed && line.size() >= 3)
+			for (const ofVec2f &corner : corners)
+				if (line.inside(corner.x, corner.y)) return true;
+		const size_t edgeCount = closed ? line.size() : line.size() - 1;
+		for (size_t i = 0; i < edgeCount; i++)
+		{
+			const ofVec2f a(line[i].x, line[i].y);
+			const ofVec2f b(line[(i + 1) % line.size()].x,
+				line[(i + 1) % line.size()].y);
+			for (int side = 0; side < 4; side++)
+				if (segmentsIntersect(a, b, corners[side], corners[(side + 1) % 4]))
+					return true;
+		}
+		return false;
 	}
 
 	// Corner i pairs with corner 3 - i, its diagonal opposite. A scale drag
@@ -289,6 +406,20 @@ ofRectangle JPboxgroup::getAdvancedMappingToolbarBounds(
 		buttonWidth, buttonHeight);
 }
 
+ofRectangle JPboxgroup::getAdvancedMappingHeaderActionBounds(
+	bool newShape) const
+{
+	const ofRectangle guides =
+		getMappingPanelActionBounds(MAPPING_PANEL_GUIDES);
+	const float width = newShape ? 25.0f : 42.0f;
+	const float gap = 5.0f;
+	const float right = newShape ?
+		guides.x - gap : guides.x - gap - 25.0f - gap;
+	return ofRectangle(right - width,
+		mappingPanelY + (kAdvancedHeaderHeight - 18.0f) * 0.5f,
+		width, 18.0f);
+}
+
 bool JPboxgroup::advancedMappingBezierActive(
 	const JPbox_shader::AdvancedMappingLayer &layer) const
 {
@@ -302,12 +433,54 @@ bool JPboxgroup::advancedMappingBezierActive(
 bool JPboxgroup::getAdvancedMappingMoveBox(
 	const JPbox_shader::AdvancedMappingLayer &layer, ofRectangle &box) const
 {
-	ofPolyline outline =
-		advancedMappingMoveTarget == ADVANCED_MAPPING_TARGET_MASK ?
-		buildMaskOutline(layer) : buildSurfaceOutline(layer);
-	if (outline.size() < 3) return false;
-	box = outline.getBoundingBox();
-	return box.width > 0.0001f && box.height > 0.0001f;
+	if (advancedMappingMoveTarget == ADVANCED_MAPPING_TARGET_SURFACE)
+	{
+		box = buildSurfaceOutline(layer).getBoundingBox();
+		return box.width > 0.0001f && box.height > 0.0001f;
+	}
+	bool found = false;
+	for (int contourIndex : advancedMappingSelectedMaskContours)
+	{
+		if (contourIndex < 0 ||
+			contourIndex >= static_cast<int>(layer.masks.size())) continue;
+		const ofPolyline outline = buildMaskOutline(layer.masks[contourIndex]);
+		if (outline.size() == 0) continue;
+		const ofRectangle contourBox = outline.getBoundingBox();
+		if (!found) box = contourBox;
+		else box.growToInclude(contourBox);
+		found = true;
+	}
+	if (!found) return false;
+	if (box.width <= 0.0001f)
+	{
+		box.x -= 0.005f;
+		box.width = 0.01f;
+	}
+	if (box.height <= 0.0001f)
+	{
+		box.y -= 0.005f;
+		box.height = 0.01f;
+	}
+	return true;
+}
+
+ofVec2f JPboxgroup::getAdvancedMappingRotationHandle(
+	const ofRectangle &box, const ofRectangle &preview) const
+{
+	auto screen = [&](const ofVec2f &point) {
+		return ofVec2f(
+			preview.x + (0.5f + (point.x - advancedMappingViewCenter.x) *
+				advancedMappingViewZoom) * preview.width,
+			preview.y + (0.5f + (point.y - advancedMappingViewCenter.y) *
+				advancedMappingViewZoom) * preview.height);
+	};
+	const ofVec2f corner = screen(ofVec2f(box.getRight(), box.y));
+	const float contentTop = mappingPanelY + kAdvancedPanelTop + 12.0f;
+	const float contentBottom = mappingPanelY + mappingPanelH - 12.0f;
+	const float direction = corner.y - 30.0f >= contentTop ? -1.0f : 1.0f;
+	return ofVec2f(ofClamp(corner.x + 20.0f,
+		mappingPanelX + 13.0f, mappingPanelX + mappingPanelW - 13.0f),
+		ofClamp(corner.y + direction * 24.0f, contentTop, contentBottom));
 }
 
 void JPboxgroup::drawAdvancedMappingParameterHeaders(JPbox *box)
@@ -421,8 +594,16 @@ void JPboxgroup::drawAdvancedMappingOverlay(float x, float y,
 	const int layerIndex = ofClamp(state->selectedLayer, 0,
 		JPbox_shader::ADVANCED_MAPPING_LAYER_COUNT - 1);
 	const auto &layer = state->layers[layerIndex];
+	const float zoom = interactive ? advancedMappingViewZoom : 1.0f;
+	const ofVec2f center = interactive ? advancedMappingViewCenter :
+		ofVec2f(0.5f, 0.5f);
+	const float canvasX = x + width * 0.5f - center.x * width * zoom;
+	const float canvasY = y + height * 0.5f - center.y * height * zoom;
+	const float canvasW = width * zoom;
+	const float canvasH = height * zoom;
 	auto screen = [&](const ofVec2f &point) {
-		return ofVec2f(x + point.x * width, y + point.y * height);
+		return ofVec2f(canvasX + point.x * canvasW,
+			canvasY + point.y * canvasH);
 	};
 
 	ofPushStyle();
@@ -458,27 +639,36 @@ void JPboxgroup::drawAdvancedMappingOverlay(float x, float y,
 		ofSetColor(COL_ACCENT_CYAN);
 		ofSetLineWidth(2.0f);
 		drawCubic(layer.corners[0], layer.edgeHandles[0],
-			layer.edgeHandles[1], layer.corners[1], x, y, width, height);
+			layer.edgeHandles[1], layer.corners[1], canvasX, canvasY, canvasW, canvasH);
 		drawCubic(layer.corners[1], layer.edgeHandles[2],
-			layer.edgeHandles[3], layer.corners[2], x, y, width, height);
+			layer.edgeHandles[3], layer.corners[2], canvasX, canvasY, canvasW, canvasH);
 		drawCubic(layer.corners[3], layer.edgeHandles[4],
-			layer.edgeHandles[5], layer.corners[2], x, y, width, height);
+			layer.edgeHandles[5], layer.corners[2], canvasX, canvasY, canvasW, canvasH);
 		drawCubic(layer.corners[0], layer.edgeHandles[6],
-			layer.edgeHandles[7], layer.corners[3], x, y, width, height);
+			layer.edgeHandles[7], layer.corners[3], canvasX, canvasY, canvasW, canvasH);
 
-		if (layer.mask.size() >= 2)
+		for (int contourIndex = 0;
+			contourIndex < static_cast<int>(layer.masks.size()); contourIndex++)
 		{
-			ofSetColor(COL_ACCENT_GOLD);
-			ofSetLineWidth(1.6f);
-			const size_t edgeCount = layer.maskClosed ?
-				layer.mask.size() : layer.mask.size() - 1;
+			const auto &contour = layer.masks[contourIndex];
+			if (contour.nodes.size() < 2) continue;
+			const bool selected = std::find(
+				advancedMappingSelectedMaskContours.begin(),
+				advancedMappingSelectedMaskContours.end(), contourIndex) !=
+				advancedMappingSelectedMaskContours.end();
+			ofSetColor(selected ? COL_ACCENT_GOLD :
+				ofColor(COL_ACCENT_GOLD, 135));
+			ofSetLineWidth(selected ? 2.0f : 1.3f);
+			const size_t edgeCount = contour.closed ?
+				contour.nodes.size() : contour.nodes.size() - 1;
 			for (size_t i = 0; i < edgeCount; i++)
 			{
-				const auto &from = layer.mask[i];
-				const auto &to = layer.mask[(i + 1) % layer.mask.size()];
+				const auto &from = contour.nodes[i];
+				const auto &to = contour.nodes[(i + 1) % contour.nodes.size()];
 				if (from.smooth || to.smooth)
 					drawCubic(from.anchor, from.outHandle,
-						to.inHandle, to.anchor, x, y, width, height);
+						to.inHandle, to.anchor,
+						canvasX, canvasY, canvasW, canvasH);
 				else
 					ofDrawLine(screen(from.anchor), screen(to.anchor));
 			}
@@ -496,8 +686,9 @@ void JPboxgroup::drawAdvancedMappingOverlay(float x, float y,
 				for (int corner = 0; corner < 4; corner++)
 					ofDrawCircle(screen(layer.corners[corner]), 2.5f);
 				ofSetColor(ofColor(COL_ACCENT_GOLD, 130));
-				for (const auto &node : layer.mask)
-					ofDrawCircle(screen(node.anchor), 2.5f);
+				for (const auto &contour : layer.masks)
+					for (const auto &node : contour.nodes)
+						ofDrawCircle(screen(node.anchor), 2.5f);
 				ofNoFill();
 
 				const bool maskTarget = advancedMappingMoveTarget ==
@@ -505,16 +696,39 @@ void JPboxgroup::drawAdvancedMappingOverlay(float x, float y,
 				ofRectangle box;
 				if (getAdvancedMappingMoveBox(layer, box))
 				{
-					ofPolyline outline = maskTarget ?
-						buildMaskOutline(layer) : buildSurfaceOutline(layer);
-					ofPolyline emphasis;
-					for (const auto &vertex : outline)
-						emphasis.addVertex(
-							x + vertex.x * width, y + vertex.y * height, 0.0f);
-					emphasis.close();
 					ofSetColor(maskTarget ? COL_ACCENT_GOLD : COL_ACCENT_CYAN);
 					ofSetLineWidth(3.0f);
-					emphasis.draw();
+					if (maskTarget)
+					{
+						for (int contourIndex : advancedMappingSelectedMaskContours)
+						{
+							if (contourIndex < 0 || contourIndex >=
+								static_cast<int>(layer.masks.size())) continue;
+							ofPolyline emphasis;
+							const ofPolyline outline = buildMaskOutline(
+								layer.masks[contourIndex]);
+							for (const auto &vertex : outline)
+							{
+								const ofVec2f point = screen(
+									ofVec2f(vertex.x, vertex.y));
+								emphasis.addVertex(point.x, point.y, 0.0f);
+							}
+							if (layer.masks[contourIndex].closed) emphasis.close();
+							emphasis.draw();
+						}
+					}
+					else
+					{
+						ofPolyline emphasis;
+						for (const auto &vertex : buildSurfaceOutline(layer))
+						{
+							const ofVec2f point = screen(
+								ofVec2f(vertex.x, vertex.y));
+							emphasis.addVertex(point.x, point.y, 0.0f);
+						}
+						emphasis.close();
+						emphasis.draw();
+					}
 
 					ofVec2f handles[4];
 					mappingBoxCorners(box, handles);
@@ -536,6 +750,24 @@ void JPboxgroup::drawAdvancedMappingOverlay(float x, float y,
 							COL_ACCENT_GOLD : COL_ACCENT_CYAN);
 						ofDrawRectangle(handles[i].x - 3.0f,
 							handles[i].y - 3.0f, 6.0f, 6.0f);
+					}
+					if (maskTarget)
+					{
+						const ofVec2f topRight = screen(
+							ofVec2f(box.getRight(), box.y));
+						const ofVec2f rotation =
+							getAdvancedMappingRotationHandle(box,
+								getMappingPanelPreviewRect());
+						ofSetColor(ofColor(COL_ACCENT_GOLD, 180));
+						ofSetLineWidth(1.2f);
+						ofDrawLine(topRight, rotation);
+						ofNoFill();
+						ofDrawCircle(rotation, 7.0f);
+						ofFill();
+						ofDrawTriangle(rotation.x + 4.0f, rotation.y - 4.0f,
+							rotation.x + 8.0f, rotation.y - 5.0f,
+							rotation.x + 6.0f, rotation.y - 1.0f);
+						ofNoFill();
 					}
 					ofNoFill();
 				}
@@ -574,39 +806,70 @@ void JPboxgroup::drawAdvancedMappingOverlay(float x, float y,
 
 				// Mask points, smaller than in the pen tool so the surface stays
 				// the focus, but visible because they can be selected here.
-				for (int i = 0; i < static_cast<int>(layer.mask.size()); i++)
+				for (int contourIndex = 0;
+					contourIndex < static_cast<int>(layer.masks.size()); contourIndex++)
 				{
-					ofSetColor(i == advancedMappingSelectedMaskNode ?
-						COL_ACCENT_GOLD : ofColor(COL_ACCENT_GOLD, 150));
-					ofFill();
-					ofDrawCircle(screen(layer.mask[i].anchor),
-						i == advancedMappingSelectedMaskNode ? 5.0f : 3.5f);
-					ofNoFill();
+					const auto &contour = layer.masks[contourIndex];
+					for (int i = 0; i < static_cast<int>(contour.nodes.size()); i++)
+					{
+						const bool selected = contourIndex ==
+							advancedMappingSelectedMaskContour &&
+							i == advancedMappingSelectedMaskNode;
+						ofSetColor(selected ? COL_ACCENT_GOLD :
+							ofColor(COL_ACCENT_GOLD, 150));
+						ofFill();
+						ofDrawCircle(screen(contour.nodes[i].anchor),
+							selected ? 5.0f : 3.5f);
+						ofNoFill();
+					}
 				}
 			}
 			else
 			{
-				for (int i = 0; i < static_cast<int>(layer.mask.size()); i++)
+				for (int contourIndex = 0;
+					contourIndex < static_cast<int>(layer.masks.size()); contourIndex++)
 				{
-					const auto &node = layer.mask[i];
-					if (node.smooth && i == advancedMappingSelectedMaskNode)
+					const auto &contour = layer.masks[contourIndex];
+					for (int i = 0; i < static_cast<int>(contour.nodes.size()); i++)
 					{
-						ofSetColor(ofColor(COL_TEXT_SECONDARY, 150));
-						ofDrawLine(screen(node.anchor), screen(node.inHandle));
-						ofDrawLine(screen(node.anchor), screen(node.outHandle));
-						ofSetColor(COL_TEXT_SECONDARY);
+						const auto &node = contour.nodes[i];
+						const bool selected = contourIndex ==
+							advancedMappingSelectedMaskContour &&
+							i == advancedMappingSelectedMaskNode;
+						if (node.smooth && selected)
+						{
+							ofSetColor(ofColor(COL_TEXT_SECONDARY, 150));
+							ofDrawLine(screen(node.anchor), screen(node.inHandle));
+							ofDrawLine(screen(node.anchor), screen(node.outHandle));
+							ofSetColor(COL_TEXT_SECONDARY);
+							ofFill();
+							ofDrawCircle(screen(node.inHandle), 4.0f);
+							ofDrawCircle(screen(node.outHandle), 4.0f);
+						}
+						ofSetColor(selected ? COL_ACCENT_GOLD :
+							(contourIndex == advancedMappingSelectedMaskContour ?
+							COL_TEXT_PRIMARY : ofColor(COL_TEXT_PRIMARY, 145)));
 						ofFill();
-						ofDrawCircle(screen(node.inHandle), 4.0f);
-						ofDrawCircle(screen(node.outHandle), 4.0f);
+						ofDrawCircle(screen(node.anchor), selected ? 7.0f : 5.0f);
 					}
-					ofSetColor(i == advancedMappingSelectedMaskNode ?
-						COL_ACCENT_GOLD : COL_TEXT_PRIMARY);
-					ofFill();
-					ofDrawCircle(screen(node.anchor),
-						i == advancedMappingSelectedMaskNode ? 7.0f : 5.0f);
 				}
 			}
 		}
+	}
+	if (interactive && advancedMappingDragKind ==
+		ADVANCED_MAPPING_DRAG_MASK_MARQUEE)
+	{
+		ofRectangle marquee(advancedMappingMarqueeStart,
+			advancedMappingMarqueeEnd.x - advancedMappingMarqueeStart.x,
+			advancedMappingMarqueeEnd.y - advancedMappingMarqueeStart.y);
+		marquee.standardize();
+		ofFill();
+		ofSetColor(ofColor(COL_ACCENT_GOLD, 30));
+		ofDrawRectangle(marquee);
+		ofNoFill();
+		ofSetColor(COL_ACCENT_GOLD);
+		ofSetLineWidth(1.2f);
+		ofDrawRectangle(marquee);
 	}
 	ofPopStyle();
 }
@@ -626,6 +889,13 @@ void JPboxgroup::drawAdvancedMappingPanel()
 	const ofRectangle render =
 		getMappingPanelActionBounds(MAPPING_PANEL_RENDER_GUIDES);
 	const ofRectangle close = getMappingPanelActionBounds(MAPPING_PANEL_CLOSE);
+	const ofRectangle newShape = getAdvancedMappingHeaderActionBounds(true);
+	const ofRectangle fitView = getAdvancedMappingHeaderActionBounds(false);
+	const auto &selectedLayer = state->layers[state->selectedLayer];
+	const bool canAddShape = advancedMappingSelectedMaskContour >= 0 &&
+		advancedMappingSelectedMaskContour <
+			static_cast<int>(selectedLayer.masks.size()) &&
+		selectedLayer.masks[advancedMappingSelectedMaskContour].closed;
 	const bool closeHovered = close.inside(ofGetMouseX(), ofGetMouseY());
 
 	ofPushStyle();
@@ -648,7 +918,7 @@ void JPboxgroup::drawAdvancedMappingPanel()
 	ofFill();
 
 	string title = "MAP+ - " + box->name;
-	const float titleMax = guides.x - mappingPanelX - 20.0f;
+	const float titleMax = fitView.x - mappingPanelX - 20.0f;
 	while (title.size() > 1 &&
 		jp_constants::p_font.stringWidth(title) > titleMax)
 		title.pop_back();
@@ -667,6 +937,8 @@ void JPboxgroup::drawAdvancedMappingPanel()
 	actionBackground(guides, mappingGuidesVisible);
 	actionBackground(grid, mappingGridVisible);
 	actionBackground(render, mappingRenderGuidesVisible);
+	actionBackground(fitView, advancedMappingViewZoom > 1.0001f);
+	if (canAddShape) actionBackground(newShape, false);
 	if (closeHovered)
 	{
 		ofSetColor(ofColor(COL_ACCENT_RED, 135));
@@ -692,6 +964,19 @@ void JPboxgroup::drawAdvancedMappingPanel()
 	drawCloseIcon(close, closeHovered);
 	ofFill();
 
+	ofSetColor(canAddShape ? COL_TEXT_SECONDARY : ofColor(COL_TEXT_DIM, 95));
+	ofSetLineWidth(1.4f);
+	ofDrawLine(newShape.getCenter().x - 5.0f, newShape.getCenter().y,
+		newShape.getCenter().x + 5.0f, newShape.getCenter().y);
+	ofDrawLine(newShape.getCenter().x, newShape.getCenter().y - 5.0f,
+		newShape.getCenter().x, newShape.getCenter().y + 5.0f);
+	const string zoomLabel = ofToString(
+		static_cast<int>(std::round(advancedMappingViewZoom * 100.0f))) + "%";
+	ofSetColor(advancedMappingViewZoom > 1.0001f ?
+		COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
+	jp_constants::p_font.drawString(zoomLabel,
+		fitView.getCenter().x - jp_constants::p_font.stringWidth(zoomLabel) * 0.5f,
+		fitView.getCenter().y + 4.0f);
 	for (int actionIndex = 0;
 		 actionIndex < ADVANCED_MAPPING_TOOLBAR_COUNT; actionIndex++)
 	{
@@ -700,9 +985,13 @@ void JPboxgroup::drawAdvancedMappingPanel()
 		bool active = actionIndex == state->selectedLayer;
 		bool disabled = false;
 		if (action == ADVANCED_MAPPING_TOOL_PEN)
-			active = advancedMappingTool == ADVANCED_MAPPING_PEN;
+			active = advancedMappingTool == ADVANCED_MAPPING_PEN ||
+				(advancedMappingTool == ADVANCED_MAPPING_MOVE &&
+				advancedMappingMoveTarget == ADVANCED_MAPPING_TARGET_MASK);
 		else if (action == ADVANCED_MAPPING_TOOL_MESH)
-			active = advancedMappingTool == ADVANCED_MAPPING_MESH;
+			active = advancedMappingTool == ADVANCED_MAPPING_MESH ||
+				(advancedMappingTool == ADVANCED_MAPPING_MOVE &&
+				advancedMappingMoveTarget == ADVANCED_MAPPING_TARGET_SURFACE);
 		else if (action == ADVANCED_MAPPING_TOOL_MOVE)
 			active = advancedMappingTool == ADVANCED_MAPPING_MOVE;
 		else if (action == ADVANCED_MAPPING_BEZIER)
@@ -710,11 +999,17 @@ void JPboxgroup::drawAdvancedMappingPanel()
 				state->layers[state->selectedLayer]);
 		else if (action == ADVANCED_MAPPING_SMOOTH)
 		{
-			const auto &mask = state->layers[state->selectedLayer].mask;
-			const bool hasSelection = advancedMappingSelectedMaskNode >= 0 &&
-				advancedMappingSelectedMaskNode < static_cast<int>(mask.size());
+			const auto &layer = state->layers[state->selectedLayer];
+			const bool validContour = advancedMappingSelectedMaskContour >= 0 &&
+				advancedMappingSelectedMaskContour <
+					static_cast<int>(layer.masks.size());
+			const bool hasSelection = validContour &&
+				advancedMappingSelectedMaskNode >= 0 &&
+				advancedMappingSelectedMaskNode < static_cast<int>(
+					layer.masks[advancedMappingSelectedMaskContour].nodes.size());
 			active = hasSelection &&
-				mask[advancedMappingSelectedMaskNode].smooth;
+				layer.masks[advancedMappingSelectedMaskContour]
+					.nodes[advancedMappingSelectedMaskNode].smooth;
 			// With no point selected there is nothing to smooth, so show that
 			// rather than looking like a button that silently does nothing.
 			disabled = !hasSelection;
@@ -726,14 +1021,20 @@ void JPboxgroup::drawAdvancedMappingPanel()
 			active = state->guideVisible && box->hasAdvancedMappingGuide();
 		const bool hovered = !disabled &&
 			bounds.inside(ofGetMouseX(), ofGetMouseY());
+		const bool maskTargetIndicator = action == ADVANCED_MAPPING_TOOL_PEN &&
+			advancedMappingTool == ADVANCED_MAPPING_MOVE &&
+			advancedMappingMoveTarget == ADVANCED_MAPPING_TARGET_MASK;
 		if (active || hovered)
 		{
-			ofSetColor(active ? ofColor(COL_ACCENT_CYAN_DARK, 225) :
+			ofSetColor(active ? (maskTargetIndicator ?
+				ofColor(COL_ACCENT_GOLD, 70) :
+				ofColor(COL_ACCENT_CYAN_DARK, 225)) :
 				ofColor(COL_BG_HOVER, 220));
 			ofDrawRectRounded(bounds, 3.0f);
 		}
 		ofSetColor(disabled ? ofColor(COL_TEXT_DIM, 110) :
-			(active ? COL_TEXT_PRIMARY :
+			(active ? (maskTargetIndicator ? COL_ACCENT_GOLD :
+				COL_TEXT_PRIMARY) :
 			(hovered ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY)));
 		ofSetLineWidth(1.3f);
 		const ofVec2f center = bounds.getCenter();
@@ -856,19 +1157,13 @@ void JPboxgroup::drawAdvancedMappingPanel()
 
 	ofSetColor(COL_BG_DARK);
 	ofDrawRectangle(preview);
-	if (state->guideVisible && box->hasAdvancedMappingGuide())
-	{
-		ofSetColor(255);
-		box->getAdvancedMappingGuide()->draw(preview);
-		ofSetColor(255, static_cast<int>(255.0f *
-			(1.0f - state->guideOpacity * 0.55f)));
-	}
-	else
-	{
-		ofSetColor(255);
-	}
-	box->fbo.draw(preview);
-
+	const ofRectangle canvas(
+		preview.x + preview.width * 0.5f - advancedMappingViewCenter.x *
+			preview.width * advancedMappingViewZoom,
+		preview.y + preview.height * 0.5f - advancedMappingViewCenter.y *
+			preview.height * advancedMappingViewZoom,
+		preview.width * advancedMappingViewZoom,
+		preview.height * advancedMappingViewZoom);
 	// Geometry is allowed off canvas, so the overlay has to be clipped or it
 	// paints over the toolbar and out past the panel. Scissor here at the call
 	// site, never inside drawAdvancedMappingOverlay - the render window calls
@@ -896,6 +1191,19 @@ void JPboxgroup::drawAdvancedMappingPanel()
 		std::max(0, static_cast<GLint>(std::ceil(clip.width * pixelScale))),
 		std::max(0, static_cast<GLint>(std::ceil(clip.height * pixelScale))));
 
+	if (state->guideVisible && box->hasAdvancedMappingGuide())
+	{
+		ofSetColor(255);
+		box->getAdvancedMappingGuide()->draw(canvas);
+		ofSetColor(255, static_cast<int>(255.0f *
+			(1.0f - state->guideOpacity * 0.55f)));
+	}
+	else
+	{
+		ofSetColor(255);
+	}
+	box->fbo.draw(canvas);
+
 	drawAdvancedMappingOverlay(preview.x, preview.y,
 		preview.width, preview.height, mappingGuidesVisible, true);
 
@@ -919,6 +1227,12 @@ void JPboxgroup::drawAdvancedMappingPanel()
 		render.x, render.y, render.width, render.height);
 	jp_tooltip::draw("Close mapping editor",
 		close.x, close.y, close.width, close.height);
+	jp_tooltip::draw(canAddShape ?
+		"Start another independent mask shape" :
+		"Close the selected mask shape before adding another",
+		newShape.x, newShape.y, newShape.width, newShape.height);
+	jp_tooltip::draw("Fit mapping view to the preview",
+		fitView.x, fitView.y, fitView.width, fitView.height);
 	for (int layer = 0; layer < 4; layer++)
 	{
 		const ofRectangle bounds = getAdvancedMappingToolbarBounds(
@@ -932,18 +1246,31 @@ void JPboxgroup::drawAdvancedMappingPanel()
 		jp_tooltip::draw(text, bounds.x, bounds.y,
 			bounds.width, bounds.height);
 	};
-	tooltip(ADVANCED_MAPPING_TOOL_MESH, "Edit mapping surface corners");
-	tooltip(ADVANCED_MAPPING_TOOL_PEN, "Draw and edit mask path");
+	tooltip(ADVANCED_MAPPING_TOOL_MESH,
+		advancedMappingTool == ADVANCED_MAPPING_MOVE ?
+		"Select the surface as the MOVE target" :
+		"Edit mapping surface corners");
+	tooltip(ADVANCED_MAPPING_TOOL_PEN,
+		advancedMappingTool == ADVANCED_MAPPING_MOVE ?
+		"Select masks as the MOVE target" :
+		"Draw masks; click a closed edge to insert a point");
 	tooltip(ADVANCED_MAPPING_TOOL_MOVE,
-		"Move or resize the whole surface or mask");
+		advancedMappingTool == ADVANCED_MAPPING_MOVE ?
+		"Leave MOVE and return to the highlighted target editor" :
+		"Move the highlighted surface or mask target");
 	tooltip(ADVANCED_MAPPING_BEZIER,
 		advancedMappingBezierActive(state->layers[state->selectedLayer]) ?
 		"Hide bezier handles and straighten the surface edges" :
 		"Show bezier handles to curve the surface edges");
 	{
-		const auto &mask = state->layers[state->selectedLayer].mask;
-		const bool hasSelection = advancedMappingSelectedMaskNode >= 0 &&
-			advancedMappingSelectedMaskNode < static_cast<int>(mask.size());
+		const auto &layer = state->layers[state->selectedLayer];
+		const bool validContour = advancedMappingSelectedMaskContour >= 0 &&
+			advancedMappingSelectedMaskContour <
+				static_cast<int>(layer.masks.size());
+		const bool hasSelection = validContour &&
+			advancedMappingSelectedMaskNode >= 0 &&
+			advancedMappingSelectedMaskNode < static_cast<int>(
+				layer.masks[advancedMappingSelectedMaskContour].nodes.size());
 		tooltip(ADVANCED_MAPPING_SMOOTH, hasSelection ?
 			"Toggle smooth selected mask point" :
 			"Click a mask point first, then smooth it");
@@ -1006,7 +1333,33 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 		toggleMappingRenderGuides();
 		return true;
 	}
-
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
+		getAdvancedMappingHeaderActionBounds(false).inside(mouse))
+	{
+		advancedMappingViewZoom = 1.0f;
+		advancedMappingViewCenter.set(0.5f, 0.5f);
+		return true;
+	}
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
+		getAdvancedMappingHeaderActionBounds(true).inside(mouse))
+	{
+		auto &layer = state->layers[state->selectedLayer];
+		if (advancedMappingSelectedMaskContour >= 0 &&
+			advancedMappingSelectedMaskContour <
+				static_cast<int>(layer.masks.size()) &&
+			layer.masks[advancedMappingSelectedMaskContour].closed)
+		{
+			layer.masks.push_back(JPbox_shader::AdvancedMappingContour());
+			advancedMappingSelectedMaskContour =
+				static_cast<int>(layer.masks.size()) - 1;
+			advancedMappingSelectedMaskContours.assign(1,
+				advancedMappingSelectedMaskContour);
+			advancedMappingSelectedMaskNode = -1;
+			advancedMappingTool = ADVANCED_MAPPING_PEN;
+			mappingGuidesVisible = true;
+		}
+		return true;
+	}
 	for (int actionIndex = 0;
 		 actionIndex < ADVANCED_MAPPING_TOOLBAR_COUNT; actionIndex++)
 	{
@@ -1016,6 +1369,9 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 			mouseButton == OF_MOUSE_BUTTON_LEFT)
 		{
 			state->selectedLayer = actionIndex;
+			advancedMappingSelectedMaskContour =
+				state->layers[actionIndex].masks.empty() ? -1 : 0;
+			advancedMappingSelectedMaskContours.clear();
 			advancedMappingSelectedMaskNode = -1;
 			// The new layer may have no mask at all, and a move target left
 			// pointing at one would leave the tool with nothing to show.
@@ -1025,21 +1381,51 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 		if (action == ADVANCED_MAPPING_TOOL_MESH &&
 			mouseButton == OF_MOUSE_BUTTON_LEFT)
 		{
-			advancedMappingTool = ADVANCED_MAPPING_MESH;
+			if (advancedMappingTool == ADVANCED_MAPPING_MOVE)
+				advancedMappingMoveTarget = ADVANCED_MAPPING_TARGET_SURFACE;
+			else
+				advancedMappingTool = ADVANCED_MAPPING_MESH;
 			mappingGuidesVisible = true;
 			return true;
 		}
 		if (action == ADVANCED_MAPPING_TOOL_PEN &&
 			mouseButton == OF_MOUSE_BUTTON_LEFT)
 		{
-			advancedMappingTool = ADVANCED_MAPPING_PEN;
+			if (advancedMappingTool == ADVANCED_MAPPING_MOVE)
+			{
+				advancedMappingMoveTarget = ADVANCED_MAPPING_TARGET_MASK;
+				if (advancedMappingSelectedMaskContours.empty() &&
+					advancedMappingSelectedMaskContour >= 0)
+					advancedMappingSelectedMaskContours.assign(1,
+						advancedMappingSelectedMaskContour);
+			}
+			else
+				advancedMappingTool = ADVANCED_MAPPING_PEN;
 			mappingGuidesVisible = true;
 			return true;
 		}
 		if (action == ADVANCED_MAPPING_TOOL_MOVE &&
 			mouseButton == OF_MOUSE_BUTTON_LEFT)
 		{
+			const AdvancedMappingTool previousTool = advancedMappingTool;
+			if (previousTool == ADVANCED_MAPPING_MOVE)
+			{
+				advancedMappingTool = advancedMappingMoveTarget ==
+					ADVANCED_MAPPING_TARGET_MASK ? ADVANCED_MAPPING_PEN :
+					ADVANCED_MAPPING_MESH;
+				mappingGuidesVisible = true;
+				return true;
+			}
 			advancedMappingTool = ADVANCED_MAPPING_MOVE;
+			if (previousTool == ADVANCED_MAPPING_PEN)
+			{
+				advancedMappingMoveTarget = ADVANCED_MAPPING_TARGET_MASK;
+				if (advancedMappingSelectedMaskContour >= 0)
+					advancedMappingSelectedMaskContours.assign(1,
+						advancedMappingSelectedMaskContour);
+			}
+			else if (previousTool == ADVANCED_MAPPING_MESH)
+				advancedMappingMoveTarget = ADVANCED_MAPPING_TARGET_SURFACE;
 			// Without this the overlay draws nothing and there is no shape to
 			// aim at, which makes the tool look broken.
 			mappingGuidesVisible = true;
@@ -1076,19 +1462,23 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 			mouseButton == OF_MOUSE_BUTTON_LEFT)
 		{
 			auto &layer = state->layers[state->selectedLayer];
+			if (advancedMappingSelectedMaskContour < 0 ||
+				advancedMappingSelectedMaskContour >=
+					static_cast<int>(layer.masks.size())) return true;
+			auto &contour = layer.masks[advancedMappingSelectedMaskContour];
 			const int selected = advancedMappingSelectedMaskNode;
-			if (selected >= 0 && selected < static_cast<int>(layer.mask.size()))
+			if (selected >= 0 && selected < static_cast<int>(contour.nodes.size()))
 			{
-				auto &node = layer.mask[selected];
+				auto &node = contour.nodes[selected];
 				node.smooth = !node.smooth;
-				if (node.smooth && layer.mask.size() > 1)
+				if (node.smooth && contour.nodes.size() > 1)
 				{
 					const int previous = selected > 0 ? selected - 1 :
-						(layer.maskClosed ? static_cast<int>(layer.mask.size()) - 1 : selected);
-					const int next = selected + 1 < static_cast<int>(layer.mask.size()) ?
-						selected + 1 : (layer.maskClosed ? 0 : selected);
+						(contour.closed ? static_cast<int>(contour.nodes.size()) - 1 : selected);
+					const int next = selected + 1 < static_cast<int>(contour.nodes.size()) ?
+						selected + 1 : (contour.closed ? 0 : selected);
 					const ofVec2f tangent =
-						(layer.mask[next].anchor - layer.mask[previous].anchor) * 0.18f;
+						(contour.nodes[next].anchor - contour.nodes[previous].anchor) * 0.18f;
 					node.inHandle = clampMappingPoint(node.anchor - tangent);
 					node.outHandle = clampMappingPoint(node.anchor + tangent);
 				}
@@ -1141,7 +1531,13 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 				string error;
 				if (box->importAdvancedMappingSvg(state->selectedLayer,
 					result.getPath(), error))
+				{
+					advancedMappingSelectedMaskContour =
+						state->layers[state->selectedLayer].masks.empty() ? -1 : 0;
+					advancedMappingSelectedMaskContours.clear();
+					advancedMappingSelectedMaskNode = -1;
 					markAdvancedMappingChanged(box, state->selectedLayer, true);
+				}
 				else
 					ofLogWarning("mapping_advanced") << error;
 			}
@@ -1187,6 +1583,15 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 	}
 
 	const ofRectangle preview = getMappingPanelPreviewRect();
+	if (preview.inside(mouse) && mouseButton == OF_MOUSE_BUTTON_MIDDLE)
+	{
+		mappingPanelPointerCaptured = true;
+		advancedMappingViewPanning = true;
+		advancedMappingRightPanPending = false;
+		advancedMappingViewPanStartMouse = mouse;
+		advancedMappingViewPanStartCenter = advancedMappingViewCenter;
+		return true;
+	}
 	// The move tool reaches past the preview into the letterbox margin. A
 	// shape can be parked off canvas and there is no undo, so the margin is
 	// the only way back to something that has been dragged out of sight.
@@ -1199,18 +1604,51 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 	if (!inGrabArea) return true;
 	auto &layer = state->layers[state->selectedLayer];
 	auto screen = [&](const ofVec2f &point) {
-		return ofVec2f(preview.x + point.x * preview.width,
-			preview.y + point.y * preview.height);
+		return ofVec2f(
+			preview.x + (0.5f + (point.x - advancedMappingViewCenter.x) *
+				advancedMappingViewZoom) * preview.width,
+			preview.y + (0.5f + (point.y - advancedMappingViewCenter.y) *
+				advancedMappingViewZoom) * preview.height);
 	};
-	const ofVec2f rawUv((mouse.x - preview.x) / preview.width,
-		(mouse.y - preview.y) / preview.height);
+	const ofVec2f rawUv(
+		advancedMappingViewCenter.x +
+			((mouse.x - preview.x) / preview.width - 0.5f) /
+			advancedMappingViewZoom,
+		advancedMappingViewCenter.y +
+			((mouse.y - preview.y) / preview.height - 0.5f) /
+			advancedMappingViewZoom);
 	const ofVec2f uv = clampMappingPoint(rawUv);
+	if (preview.inside(mouse) && mouseButton == OF_MOUSE_BUTTON_RIGHT)
+	{
+		mappingPanelPointerCaptured = true;
+		advancedMappingViewPanning = false;
+		advancedMappingRightPanPending = true;
+		advancedMappingViewPanStartMouse = mouse;
+		advancedMappingViewPanStartCenter = advancedMappingViewCenter;
+		advancedMappingPendingDeleteContour = -1;
+		advancedMappingPendingDeleteNode = -1;
+		if (advancedMappingTool == ADVANCED_MAPPING_PEN)
+		{
+			for (int contourIndex = static_cast<int>(layer.masks.size()) - 1;
+				contourIndex >= 0 && advancedMappingPendingDeleteNode < 0;
+				contourIndex--)
+				for (int nodeIndex = static_cast<int>(
+					layer.masks[contourIndex].nodes.size()) - 1;
+					nodeIndex >= 0; nodeIndex--)
+					if (screen(layer.masks[contourIndex].nodes[nodeIndex].anchor)
+						.distance(mouse) <= 12.0f)
+					{
+						advancedMappingPendingDeleteContour = contourIndex;
+						advancedMappingPendingDeleteNode = nodeIndex;
+						break;
+					}
+		}
+		return true;
+	}
 
 	if (advancedMappingTool == ADVANCED_MAPPING_MOVE)
 	{
 		if (mouseButton != OF_MOUSE_BUTTON_LEFT) return true;
-		// Captured even on a miss: drag and release both bail without it, and
-		// the click would leak downstream.
 		mappingPanelPointerCaptured = true;
 		advancedMappingDragKind = ADVANCED_MAPPING_DRAG_NONE;
 		advancedMappingDragIndex = -1;
@@ -1218,12 +1656,27 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 		advancedMappingDragPreview = preview;
 		advancedMappingDragStartUv = rawUv;
 		advancedMappingDragLayer = state->selectedLayer;
+		advancedMappingDragContours = advancedMappingSelectedMaskContours;
 
-		// Scale handles first, so one sitting outside its shape is still
-		// grabbable, then the mask, then the surface underneath it.
 		ofRectangle box;
 		if (getAdvancedMappingMoveBox(layer, box))
 		{
+			if (advancedMappingMoveTarget == ADVANCED_MAPPING_TARGET_MASK)
+			{
+				const ofVec2f rotation =
+					getAdvancedMappingRotationHandle(box, preview);
+				if (rotation.distance(mouse) <= 12.0f)
+				{
+					advancedMappingDragKind =
+						ADVANCED_MAPPING_DRAG_ROTATE_SHAPES;
+					advancedMappingRotationPivot = box.getCenter();
+					const ofVec2f pivotScreen = screen(
+						advancedMappingRotationPivot);
+					advancedMappingRotationStartAngle = std::atan2(
+						mouse.y - pivotScreen.y, mouse.x - pivotScreen.x);
+					return true;
+				}
+			}
 			ofVec2f handles[4];
 			mappingBoxCorners(box, handles);
 			for (int i = 0; i < 4; i++)
@@ -1235,60 +1688,123 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 				return true;
 			}
 		}
-		if (outlineContains(buildMaskOutline(layer), rawUv))
+
+		if (advancedMappingMoveTarget == ADVANCED_MAPPING_TARGET_SURFACE)
 		{
-			advancedMappingMoveTarget = ADVANCED_MAPPING_TARGET_MASK;
-			advancedMappingDragKind = ADVANCED_MAPPING_DRAG_MOVE_SHAPE;
+			if (outlineContains(buildSurfaceOutline(layer), rawUv))
+				advancedMappingDragKind = ADVANCED_MAPPING_DRAG_MOVE_SHAPE;
+			return true;
 		}
-		else if (outlineContains(buildSurfaceOutline(layer), rawUv))
+
+		int hitMask = -1;
+		for (int contourIndex = static_cast<int>(layer.masks.size()) - 1;
+			contourIndex >= 0 && hitMask < 0; contourIndex--)
 		{
-			advancedMappingMoveTarget = ADVANCED_MAPPING_TARGET_SURFACE;
-			advancedMappingDragKind = ADVANCED_MAPPING_DRAG_MOVE_SHAPE;
+			const auto &contour = layer.masks[contourIndex];
+			const ofPolyline outline = buildMaskOutline(contour);
+			if (contour.closed && outlineContains(outline, rawUv))
+				hitMask = contourIndex;
+			for (size_t i = 0; hitMask < 0 && i < outline.size(); i++)
+				if (screen(ofVec2f(outline[i].x, outline[i].y))
+					.distance(mouse) <= 8.0f)
+					hitMask = contourIndex;
+			for (size_t i = 1; hitMask < 0 && i < outline.size(); i++)
+				if (pointSegmentDistance(mouse,
+					screen(ofVec2f(outline[i - 1].x, outline[i - 1].y)),
+					screen(ofVec2f(outline[i].x, outline[i].y))) <= 8.0f)
+					hitMask = contourIndex;
+			if (hitMask < 0 && contour.closed && outline.size() > 2 &&
+				pointSegmentDistance(mouse,
+					screen(ofVec2f(outline[outline.size() - 1].x,
+						outline[outline.size() - 1].y)),
+					screen(ofVec2f(outline[0].x, outline[0].y))) <= 8.0f)
+				hitMask = contourIndex;
 		}
+		const bool shift = ofGetKeyPressed(OF_KEY_SHIFT);
+		if (hitMask >= 0)
+		{
+			auto selected = std::find(advancedMappingSelectedMaskContours.begin(),
+				advancedMappingSelectedMaskContours.end(), hitMask);
+			if (shift)
+			{
+				if (selected == advancedMappingSelectedMaskContours.end())
+					advancedMappingSelectedMaskContours.push_back(hitMask);
+				else
+					advancedMappingSelectedMaskContours.erase(selected);
+				advancedMappingDragContours = advancedMappingSelectedMaskContours;
+				advancedMappingSelectedMaskContour =
+					advancedMappingSelectedMaskContours.empty() ? -1 :
+					advancedMappingSelectedMaskContours.back();
+				advancedMappingSelectedMaskNode = -1;
+				return true;
+			}
+			if (selected == advancedMappingSelectedMaskContours.end())
+				advancedMappingSelectedMaskContours.assign(1, hitMask);
+			advancedMappingSelectedMaskContour = hitMask;
+			advancedMappingSelectedMaskNode = -1;
+			advancedMappingDragContours = advancedMappingSelectedMaskContours;
+			advancedMappingDragKind = ADVANCED_MAPPING_DRAG_MOVE_SHAPE;
+			return true;
+		}
+
+		advancedMappingDragKind = ADVANCED_MAPPING_DRAG_MASK_MARQUEE;
+		advancedMappingMarqueeStart = mouse;
+		advancedMappingMarqueeEnd = mouse;
+		advancedMappingMarqueeAdditive = shift;
 		return true;
 	}
 
 	if (advancedMappingTool == ADVANCED_MAPPING_PEN)
 	{
+		int hitContour = -1;
 		int hitAnchor = -1;
-		for (int i = 0; i < static_cast<int>(layer.mask.size()); i++)
-			if (screen(layer.mask[i].anchor).distance(mouse) <= 12.0f)
-				hitAnchor = i;
-		if (mouseButton == OF_MOUSE_BUTTON_RIGHT && hitAnchor >= 0)
-		{
-			layer.mask.erase(layer.mask.begin() + hitAnchor);
-			if (layer.mask.size() < 3) layer.maskClosed = false;
-			advancedMappingSelectedMaskNode = -1;
-			markAdvancedMappingChanged(box, state->selectedLayer, true);
-			return true;
-		}
+		for (int contourIndex = static_cast<int>(layer.masks.size()) - 1;
+			contourIndex >= 0 && hitAnchor < 0; contourIndex--)
+			for (int i = static_cast<int>(layer.masks[contourIndex].nodes.size()) - 1;
+				i >= 0; i--)
+				if (screen(layer.masks[contourIndex].nodes[i].anchor)
+					.distance(mouse) <= 12.0f)
+				{
+					hitContour = contourIndex;
+					hitAnchor = i;
+					break;
+				}
 		if (mouseButton != OF_MOUSE_BUTTON_LEFT) return true;
 		mappingPanelPointerCaptured = true;
 		advancedMappingDragKind = ADVANCED_MAPPING_DRAG_NONE;
 		advancedMappingDragIndex = -1;
-		if (advancedMappingSelectedMaskNode >= 0 &&
-			advancedMappingSelectedMaskNode < static_cast<int>(layer.mask.size()) &&
-			layer.mask[advancedMappingSelectedMaskNode].smooth)
+		if (advancedMappingSelectedMaskContour >= 0 &&
+			advancedMappingSelectedMaskContour < static_cast<int>(layer.masks.size()) &&
+			advancedMappingSelectedMaskNode >= 0 &&
+			advancedMappingSelectedMaskNode < static_cast<int>(layer.masks[
+				advancedMappingSelectedMaskContour].nodes.size()) &&
+			layer.masks[advancedMappingSelectedMaskContour]
+				.nodes[advancedMappingSelectedMaskNode].smooth)
 		{
-			auto &selected = layer.mask[advancedMappingSelectedMaskNode];
+			auto &selected = layer.masks[advancedMappingSelectedMaskContour]
+				.nodes[advancedMappingSelectedMaskNode];
 			if (screen(selected.inHandle).distance(mouse) <= 11.0f)
 			{
 				advancedMappingDragKind = ADVANCED_MAPPING_DRAG_MASK_IN;
 				advancedMappingDragIndex = advancedMappingSelectedMaskNode;
+				advancedMappingDragContour = advancedMappingSelectedMaskContour;
 				return true;
 			}
 			if (screen(selected.outHandle).distance(mouse) <= 11.0f)
 			{
 				advancedMappingDragKind = ADVANCED_MAPPING_DRAG_MASK_OUT;
 				advancedMappingDragIndex = advancedMappingSelectedMaskNode;
+				advancedMappingDragContour = advancedMappingSelectedMaskContour;
 				return true;
 			}
 		}
 		if (hitAnchor >= 0)
 		{
-			if (hitAnchor == 0 && !layer.maskClosed && layer.mask.size() >= 3)
+			auto &contour = layer.masks[hitContour];
+			advancedMappingSelectedMaskContour = hitContour;
+			if (hitAnchor == 0 && !contour.closed && contour.nodes.size() >= 3)
 			{
-				layer.maskClosed = true;
+				contour.closed = true;
 				advancedMappingSelectedMaskNode = 0;
 				markAdvancedMappingChanged(box, state->selectedLayer, true);
 				return true;
@@ -1296,17 +1812,95 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 			advancedMappingSelectedMaskNode = hitAnchor;
 			advancedMappingDragKind = ADVANCED_MAPPING_DRAG_MASK_ANCHOR;
 			advancedMappingDragIndex = hitAnchor;
+			advancedMappingDragContour = hitContour;
 			return true;
 		}
-		if (!layer.maskClosed)
+
+		// A click near any closed edge inserts a point without changing its
+		// outline. Curves are split exactly with De Casteljau subdivision.
+		int edgeContour = -1;
+		int edgeIndex = -1;
+		float edgeT = 0.0f;
+		float edgeDistance = 9.0f;
+		for (int contourIndex = 0;
+			contourIndex < static_cast<int>(layer.masks.size()); contourIndex++)
 		{
+			auto &contour = layer.masks[contourIndex];
+			if (!contour.closed || contour.nodes.size() < 3) continue;
+			for (int i = 0; i < static_cast<int>(contour.nodes.size()); i++)
+			{
+				const auto &from = contour.nodes[i];
+				const auto &to = contour.nodes[(i + 1) % contour.nodes.size()];
+				float t = 0.0f;
+				ofVec2f point;
+				if (from.smooth || to.smooth)
+				{
+					t = closestCubicT(from.anchor, from.outHandle,
+						to.inHandle, to.anchor, rawUv,
+						preview.width * advancedMappingViewZoom,
+						preview.height * advancedMappingViewZoom);
+					point = cubicPoint(from.anchor, from.outHandle,
+						to.inHandle, to.anchor, t);
+				}
+				else
+				{
+					const ofVec2f segment = to.anchor - from.anchor;
+					const float lengthSquared = segment.dot(segment);
+					t = lengthSquared > 0.000001f ? ofClamp(
+						(rawUv - from.anchor).dot(segment) / lengthSquared,
+						0.0f, 1.0f) : 0.0f;
+					point = from.anchor + segment * t;
+				}
+				const float distance = screen(point).distance(mouse);
+				if (distance < edgeDistance)
+				{
+					edgeDistance = distance;
+					edgeContour = contourIndex;
+					edgeIndex = i;
+					edgeT = t;
+				}
+			}
+		}
+		if (edgeContour >= 0)
+		{
+			auto &contour = layer.masks[edgeContour];
+			const int next = (edgeIndex + 1) % contour.nodes.size();
+			JPbox_shader::AdvancedMappingNode inserted;
+			if (contour.nodes[edgeIndex].smooth || contour.nodes[next].smooth)
+				inserted = splitContourEdge(contour.nodes[edgeIndex],
+					contour.nodes[next], edgeT);
+			else
+			{
+				inserted.anchor = contour.nodes[edgeIndex].anchor +
+					(contour.nodes[next].anchor - contour.nodes[edgeIndex].anchor) * edgeT;
+				inserted.inHandle = inserted.anchor;
+				inserted.outHandle = inserted.anchor;
+			}
+			const int insertAt = edgeIndex + 1;
+			contour.nodes.insert(contour.nodes.begin() + insertAt, inserted);
+			advancedMappingSelectedMaskContour = edgeContour;
+			advancedMappingSelectedMaskNode = insertAt;
+			markAdvancedMappingChanged(box, state->selectedLayer, true);
+			return true;
+		}
+
+		if (layer.masks.empty())
+		{
+			layer.masks.push_back(JPbox_shader::AdvancedMappingContour());
+			advancedMappingSelectedMaskContour = 0;
+		}
+		if (advancedMappingSelectedMaskContour >= 0 &&
+			advancedMappingSelectedMaskContour < static_cast<int>(layer.masks.size()) &&
+			!layer.masks[advancedMappingSelectedMaskContour].closed)
+		{
+			auto &contour = layer.masks[advancedMappingSelectedMaskContour];
 			JPbox_shader::AdvancedMappingNode node;
 			node.anchor = uv;
 			node.inHandle = uv;
 			node.outHandle = uv;
-			layer.mask.push_back(node);
+			contour.nodes.push_back(node);
 			advancedMappingSelectedMaskNode =
-				static_cast<int>(layer.mask.size()) - 1;
+				static_cast<int>(contour.nodes.size()) - 1;
 			markAdvancedMappingChanged(box, state->selectedLayer, true);
 		}
 		return true;
@@ -1340,14 +1934,22 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 	// Mask points are selectable from the mesh tool too, after the surface has
 	// had first refusal on the click. Selection used to happen only in the pen
 	// tool, which left the smooth button doing nothing at all in mesh mode.
-	for (int i = static_cast<int>(layer.mask.size()) - 1; i >= 0; i--)
+	for (int contourIndex = static_cast<int>(layer.masks.size()) - 1;
+		contourIndex >= 0; contourIndex--)
 	{
-		if (screen(layer.mask[i].anchor).distance(mouse) <= 11.0f)
+		for (int i = static_cast<int>(layer.masks[contourIndex].nodes.size()) - 1;
+			i >= 0; i--)
 		{
-			advancedMappingSelectedMaskNode = i;
-			advancedMappingDragKind = ADVANCED_MAPPING_DRAG_MASK_ANCHOR;
-			advancedMappingDragIndex = i;
-			return true;
+			if (screen(layer.masks[contourIndex].nodes[i].anchor)
+				.distance(mouse) <= 11.0f)
+			{
+				advancedMappingSelectedMaskContour = contourIndex;
+				advancedMappingSelectedMaskNode = i;
+				advancedMappingDragKind = ADVANCED_MAPPING_DRAG_MASK_ANCHOR;
+				advancedMappingDragIndex = i;
+				advancedMappingDragContour = contourIndex;
+				return true;
+			}
 		}
 	}
 	return true;
@@ -1355,9 +1957,34 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 
 bool JPboxgroup::updateAdvancedMappingMouseDragged(int mouseButton)
 {
-	if (mouseButton != OF_MOUSE_BUTTON_LEFT ||
-		!mappingPanelPointerCaptured) return false;
+	if (!mappingPanelPointerCaptured) return false;
 	const ofVec2f mouse(ofGetMouseX(), ofGetMouseY());
+	if (advancedMappingRightPanPending)
+	{
+		if (mouseButton != OF_MOUSE_BUTTON_RIGHT) return false;
+		if (mouse.distance(advancedMappingViewPanStartMouse) > 4.0f)
+		{
+			advancedMappingRightPanPending = false;
+			advancedMappingViewPanning = true;
+			advancedMappingPendingDeleteContour = -1;
+			advancedMappingPendingDeleteNode = -1;
+		}
+		else return true;
+	}
+	if (advancedMappingViewPanning)
+	{
+		if (mouseButton != OF_MOUSE_BUTTON_RIGHT &&
+			mouseButton != OF_MOUSE_BUTTON_MIDDLE) return false;
+		const ofRectangle preview = getMappingPanelPreviewRect();
+		if (preview.width <= 0.0f || preview.height <= 0.0f) return true;
+		const ofVec2f delta = mouse - advancedMappingViewPanStartMouse;
+		advancedMappingViewCenter = advancedMappingViewPanStartCenter -
+			ofVec2f(delta.x / (preview.width * advancedMappingViewZoom),
+				delta.y / (preview.height * advancedMappingViewZoom));
+		clampAdvancedMappingView();
+		return true;
+	}
+	if (mouseButton != OF_MOUSE_BUTTON_LEFT) return false;
 	const ofVec2f delta = mouse - mappingPanelDragStartMouse;
 	if (mappingPanelDragging)
 	{
@@ -1380,66 +2007,125 @@ bool JPboxgroup::updateAdvancedMappingMouseDragged(int mouseButton)
 	const ofRectangle preview = getMappingPanelPreviewRect();
 	if (preview.width <= 0.0f || preview.height <= 0.0f) return true;
 	const ofVec2f uv = clampMappingPoint(ofVec2f(
-		(mouse.x - preview.x) / preview.width,
-		(mouse.y - preview.y) / preview.height));
+		advancedMappingViewCenter.x +
+			((mouse.x - preview.x) / preview.width - 0.5f) /
+			advancedMappingViewZoom,
+		advancedMappingViewCenter.y +
+			((mouse.y - preview.y) / preview.height - 0.5f) /
+			advancedMappingViewZoom));
 	auto &layer = state->layers[state->selectedLayer];
+	if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_MASK_MARQUEE)
+	{
+		advancedMappingMarqueeEnd = mouse;
+		return true;
+	}
 	if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_MOVE_SHAPE ||
-		advancedMappingDragKind == ADVANCED_MAPPING_DRAG_SCALE_SHAPE)
+		advancedMappingDragKind == ADVANCED_MAPPING_DRAG_SCALE_SHAPE ||
+		advancedMappingDragKind == ADVANCED_MAPPING_DRAG_ROTATE_SHAPES)
 	{
 		// Everything is written as snapshot + transform, never accumulated, so
 		// a dropped or replayed mouse frame still lands in the same place. The
 		// mask FBO rebuild and the cue draft graph both run on every drag
 		// frame, and either can hand us a freshly rebuilt layer.
 		if (advancedMappingDragLayer != state->selectedLayer ||
-			advancedMappingDragSnapshot.mask.size() != layer.mask.size())
+			advancedMappingDragSnapshot.masks.size() != layer.masks.size())
 			return true;
 		const ofRectangle &start = advancedMappingDragPreview;
 		if (start.width <= 0.0f || start.height <= 0.0f) return true;
 		// Deliberately unclamped and measured against the press time preview
 		// rect: shapes may leave the canvas, and clampMappingPanelLayout can
 		// resize the panel underneath a drag.
-		const ofVec2f dragUv((mouse.x - start.x) / start.width,
-			(mouse.y - start.y) / start.height);
+		const ofVec2f dragUv(
+			advancedMappingViewCenter.x +
+				((mouse.x - start.x) / start.width - 0.5f) /
+				advancedMappingViewZoom,
+			advancedMappingViewCenter.y +
+				((mouse.y - start.y) / start.height - 0.5f) /
+				advancedMappingViewZoom);
 		const auto &snapshot = advancedMappingDragSnapshot;
 		const bool maskTarget = advancedMappingMoveTarget ==
 			ADVANCED_MAPPING_TARGET_MASK;
 
 		ofVec2f offset(0.0f, 0.0f);
 		float scale = 1.0f;
+		float rotation = 0.0f;
 		if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_SCALE_SHAPE)
 		{
 			// Project the cursor onto the box diagonal. One scalar for both
 			// axes, so the aspect ratio is locked by construction; done in
 			// screen pixels because that is what the cursor is aiming in.
-			const ofVec2f anchor(start.x +
-					advancedMappingScaleAnchor.x * start.width,
-				start.y + advancedMappingScaleAnchor.y * start.height);
-			const ofVec2f grabbed(start.x +
-					advancedMappingScaleHandle.x * start.width,
-				start.y + advancedMappingScaleHandle.y * start.height);
+			const auto screenAtStart = [&](const ofVec2f &point) {
+				return ofVec2f(
+					start.x + (0.5f + (point.x - advancedMappingViewCenter.x) *
+						advancedMappingViewZoom) * start.width,
+					start.y + (0.5f + (point.y - advancedMappingViewCenter.y) *
+						advancedMappingViewZoom) * start.height);
+			};
+			const ofVec2f anchor = screenAtStart(advancedMappingScaleAnchor);
+			const ofVec2f grabbed = screenAtStart(advancedMappingScaleHandle);
 			const ofVec2f diagonal = grabbed - anchor;
 			const float lengthSquared = diagonal.dot(diagonal);
 			if (lengthSquared < 0.0001f) return true;
 			scale = std::max((mouse - anchor).dot(diagonal) / lengthSquared,
 				0.02f);
 		}
-		else
+		else if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_MOVE_SHAPE)
 		{
 			offset = dragUv - advancedMappingDragStartUv;
 		}
+		else
+		{
+			const auto screenAtStart = [&](const ofVec2f &point) {
+				return ofVec2f(
+					start.x + (0.5f + (point.x - advancedMappingViewCenter.x) *
+						advancedMappingViewZoom) * start.width,
+					start.y + (0.5f + (point.y - advancedMappingViewCenter.y) *
+						advancedMappingViewZoom) * start.height);
+			};
+			const ofVec2f pivotScreen = screenAtStart(advancedMappingRotationPivot);
+			rotation = std::atan2(mouse.y - pivotScreen.y,
+				mouse.x - pivotScreen.x) - advancedMappingRotationStartAngle;
+			if (ofGetKeyPressed(OF_KEY_SHIFT))
+			{
+				const float increment = PI / 12.0f;
+				rotation = std::round(rotation / increment) * increment;
+			}
+		}
 		const ofVec2f pivot = advancedMappingScaleAnchor;
 		auto place = [&](const ofVec2f &point) {
-			return advancedMappingDragKind == ADVANCED_MAPPING_DRAG_SCALE_SHAPE ?
-				pivot + (point - pivot) * scale : point + offset;
+			if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_SCALE_SHAPE)
+				return pivot + (point - pivot) * scale;
+			if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_ROTATE_SHAPES)
+			{
+				const ofVec2f relative(
+					(point.x - advancedMappingRotationPivot.x) * start.width,
+					(point.y - advancedMappingRotationPivot.y) * start.height);
+				const float cosine = std::cos(rotation);
+				const float sine = std::sin(rotation);
+				return advancedMappingRotationPivot + ofVec2f(
+					(relative.x * cosine - relative.y * sine) / start.width,
+					(relative.x * sine + relative.y * cosine) / start.height);
+			}
+			return point + offset;
 		};
 
 		if (maskTarget)
 		{
-			for (size_t i = 0; i < layer.mask.size(); i++)
+			for (int contourIndex : advancedMappingDragContours)
 			{
-				layer.mask[i].anchor = place(snapshot.mask[i].anchor);
-				layer.mask[i].inHandle = place(snapshot.mask[i].inHandle);
-				layer.mask[i].outHandle = place(snapshot.mask[i].outHandle);
+				if (contourIndex < 0 || contourIndex >=
+					static_cast<int>(layer.masks.size()) || contourIndex >=
+					static_cast<int>(snapshot.masks.size()) ||
+					layer.masks[contourIndex].nodes.size() !=
+						snapshot.masks[contourIndex].nodes.size()) continue;
+				auto &contour = layer.masks[contourIndex];
+				const auto &source = snapshot.masks[contourIndex];
+				for (size_t i = 0; i < contour.nodes.size(); i++)
+				{
+					contour.nodes[i].anchor = place(source.nodes[i].anchor);
+					contour.nodes[i].inHandle = place(source.nodes[i].inHandle);
+					contour.nodes[i].outHandle = place(source.nodes[i].outHandle);
+				}
 			}
 		}
 		else
@@ -1453,10 +2139,14 @@ bool JPboxgroup::updateAdvancedMappingMouseDragged(int mouseButton)
 		return true;
 	}
 	if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_MASK_ANCHOR &&
+		advancedMappingDragContour >= 0 &&
+		advancedMappingDragContour < static_cast<int>(layer.masks.size()) &&
 		advancedMappingDragIndex >= 0 &&
-		advancedMappingDragIndex < static_cast<int>(layer.mask.size()))
+		advancedMappingDragIndex < static_cast<int>(
+			layer.masks[advancedMappingDragContour].nodes.size()))
 	{
-		auto &node = layer.mask[advancedMappingDragIndex];
+		auto &node = layer.masks[advancedMappingDragContour]
+			.nodes[advancedMappingDragIndex];
 		const ofVec2f movement = uv - node.anchor;
 		node.anchor = uv;
 		node.inHandle = clampMappingPoint(node.inHandle + movement);
@@ -1465,10 +2155,14 @@ bool JPboxgroup::updateAdvancedMappingMouseDragged(int mouseButton)
 	}
 	else if ((advancedMappingDragKind == ADVANCED_MAPPING_DRAG_MASK_IN ||
 		advancedMappingDragKind == ADVANCED_MAPPING_DRAG_MASK_OUT) &&
+		advancedMappingDragContour >= 0 &&
+		advancedMappingDragContour < static_cast<int>(layer.masks.size()) &&
 		advancedMappingDragIndex >= 0 &&
-		advancedMappingDragIndex < static_cast<int>(layer.mask.size()))
+		advancedMappingDragIndex < static_cast<int>(
+			layer.masks[advancedMappingDragContour].nodes.size()))
 	{
-		auto &node = layer.mask[advancedMappingDragIndex];
+		auto &node = layer.masks[advancedMappingDragContour]
+			.nodes[advancedMappingDragIndex];
 		if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_MASK_IN)
 		{
 			node.inHandle = uv;
@@ -1543,15 +2237,159 @@ bool JPboxgroup::updateAdvancedMappingMouseDragged(int mouseButton)
 
 bool JPboxgroup::updateAdvancedMappingMouseReleased(int mouseButton)
 {
-	if (mouseButton != OF_MOUSE_BUTTON_LEFT ||
-		!mappingPanelPointerCaptured) return false;
+	if (!mappingPanelPointerCaptured) return false;
+	JPbox_shader *box = getAdvancedMappingEditBox();
+	auto *state = box != nullptr ? box->getAdvancedMappingState() : nullptr;
+	if (mouseButton == OF_MOUSE_BUTTON_RIGHT)
+	{
+		if (!advancedMappingViewPanning && !advancedMappingRightPanPending)
+			return false;
+		if (advancedMappingRightPanPending && state != nullptr &&
+			advancedMappingPendingDeleteContour >= 0 &&
+			advancedMappingPendingDeleteContour < static_cast<int>(
+				state->layers[state->selectedLayer].masks.size()))
+		{
+			auto &layer = state->layers[state->selectedLayer];
+			const int contourIndex = advancedMappingPendingDeleteContour;
+			auto &contour = layer.masks[contourIndex];
+			if (advancedMappingPendingDeleteNode >= 0 &&
+				advancedMappingPendingDeleteNode <
+					static_cast<int>(contour.nodes.size()))
+			{
+				contour.nodes.erase(contour.nodes.begin() +
+					advancedMappingPendingDeleteNode);
+				if (contour.nodes.size() < 3) contour.closed = false;
+				const bool removedContour = contour.nodes.empty();
+				if (removedContour)
+				{
+					layer.masks.erase(layer.masks.begin() + contourIndex);
+					advancedMappingSelectedMaskContours.erase(std::remove(
+						advancedMappingSelectedMaskContours.begin(),
+						advancedMappingSelectedMaskContours.end(), contourIndex),
+						advancedMappingSelectedMaskContours.end());
+					for (int &selected : advancedMappingSelectedMaskContours)
+						if (selected > contourIndex) selected--;
+				}
+				else
+				{
+					advancedMappingSelectedMaskContour = contourIndex;
+					advancedMappingSelectedMaskContours.assign(1, contourIndex);
+				}
+				if (removedContour)
+					advancedMappingSelectedMaskContour =
+						advancedMappingSelectedMaskContours.empty() ? -1 :
+						advancedMappingSelectedMaskContours.back();
+				advancedMappingSelectedMaskNode = -1;
+				markAdvancedMappingChanged(box, state->selectedLayer, true);
+			}
+		}
+	}
+	else if (mouseButton == OF_MOUSE_BUTTON_MIDDLE)
+	{
+		if (!advancedMappingViewPanning) return false;
+	}
+	else if (mouseButton == OF_MOUSE_BUTTON_LEFT)
+	{
+		if (advancedMappingViewPanning) return false;
+		if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_MASK_MARQUEE &&
+			state != nullptr)
+		{
+			ofRectangle marquee(advancedMappingMarqueeStart,
+				advancedMappingMarqueeEnd.x - advancedMappingMarqueeStart.x,
+				advancedMappingMarqueeEnd.y - advancedMappingMarqueeStart.y);
+			marquee.standardize();
+			if (!advancedMappingMarqueeAdditive)
+				advancedMappingSelectedMaskContours.clear();
+			if (marquee.width > 3.0f || marquee.height > 3.0f)
+			{
+				const ofRectangle preview = getMappingPanelPreviewRect();
+				auto screen = [&](const ofVec2f &point) {
+					return ofVec2f(preview.x + (0.5f +
+						(point.x - advancedMappingViewCenter.x) *
+						advancedMappingViewZoom) * preview.width,
+						preview.y + (0.5f +
+						(point.y - advancedMappingViewCenter.y) *
+						advancedMappingViewZoom) * preview.height);
+				};
+				const auto &layer = state->layers[state->selectedLayer];
+				for (int contourIndex = 0; contourIndex <
+					static_cast<int>(layer.masks.size()); contourIndex++)
+				{
+					ofPolyline screenOutline;
+					for (const auto &vertex : buildMaskOutline(
+						layer.masks[contourIndex]))
+					{
+						const ofVec2f point = screen(
+							ofVec2f(vertex.x, vertex.y));
+						screenOutline.addVertex(point.x, point.y, 0.0f);
+					}
+					if (!polylineTouchesRectangle(screenOutline, marquee,
+						layer.masks[contourIndex].closed)) continue;
+					if (std::find(advancedMappingSelectedMaskContours.begin(),
+						advancedMappingSelectedMaskContours.end(), contourIndex) ==
+						advancedMappingSelectedMaskContours.end())
+						advancedMappingSelectedMaskContours.push_back(contourIndex);
+				}
+			}
+			advancedMappingSelectedMaskContour =
+				advancedMappingSelectedMaskContours.empty() ? -1 :
+				advancedMappingSelectedMaskContours.back();
+			advancedMappingSelectedMaskNode = -1;
+		}
+	}
+	else return false;
 	advancedMappingDragKind = ADVANCED_MAPPING_DRAG_NONE;
 	advancedMappingDragIndex = -1;
 	advancedMappingDragLayer = -1;
-	advancedMappingDragSnapshot.mask.clear();
+	advancedMappingDragContour = -1;
+	advancedMappingDragContours.clear();
+	advancedMappingDragSnapshot.masks.clear();
+	advancedMappingViewPanning = false;
+	advancedMappingRightPanPending = false;
+	advancedMappingPendingDeleteContour = -1;
+	advancedMappingPendingDeleteNode = -1;
 	mappingPanelDragging = false;
 	mappingPanelResizing = false;
 	mappingPanelPointerCaptured = false;
 	clampMappingPanelLayout();
+	return true;
+}
+
+void JPboxgroup::clampAdvancedMappingView()
+{
+	advancedMappingViewZoom = ofClamp(advancedMappingViewZoom, 1.0f, 16.0f);
+	const ofRectangle preview = getMappingPanelPreviewRect();
+	if (preview.width <= 0.0f || preview.height <= 0.0f) return;
+	const float keepX = std::min(32.0f, preview.width * 0.45f);
+	const float keepY = std::min(32.0f, preview.height * 0.45f);
+	advancedMappingViewCenter.x = ofClamp(advancedMappingViewCenter.x,
+		(-0.5f + keepX / preview.width) / advancedMappingViewZoom,
+		1.0f + (0.5f - keepX / preview.width) /
+			advancedMappingViewZoom);
+	advancedMappingViewCenter.y = ofClamp(advancedMappingViewCenter.y,
+		(-0.5f + keepY / preview.height) / advancedMappingViewZoom,
+		1.0f + (0.5f - keepY / preview.height) /
+			advancedMappingViewZoom);
+}
+
+bool JPboxgroup::updateAdvancedMappingMouseScrolled(
+	int x, int y, float scrollY)
+{
+	if (scrollY == 0.0f || getAdvancedMappingEditBox() == nullptr)
+		return false;
+	const ofRectangle preview = getMappingPanelPreviewRect();
+	if (!preview.inside(x, y)) return false;
+	const float oldZoom = advancedMappingViewZoom;
+	const ofVec2f pointer((x - preview.x) / preview.width,
+		(y - preview.y) / preview.height);
+	const ofVec2f anchoredUv = advancedMappingViewCenter +
+		ofVec2f((pointer.x - 0.5f) / oldZoom,
+			(pointer.y - 0.5f) / oldZoom);
+	advancedMappingViewZoom = ofClamp(oldZoom *
+		(scrollY > 0.0f ? 1.15f : 1.0f / 1.15f), 1.0f, 16.0f);
+	advancedMappingViewCenter = anchoredUv -
+		ofVec2f((pointer.x - 0.5f) / advancedMappingViewZoom,
+			(pointer.y - 0.5f) / advancedMappingViewZoom);
+	clampAdvancedMappingView();
 	return true;
 }

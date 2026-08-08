@@ -24,6 +24,12 @@ public:
 		bool smooth = false;
 	};
 
+	struct AdvancedMappingContour
+	{
+		std::vector<AdvancedMappingNode> nodes;
+		bool closed = false;
+	};
+
 	// How the source fills its mapped quad. Stretch is the default because it
 	// is what every existing composition was authored against.
 	enum AdvancedMappingFit
@@ -38,8 +44,7 @@ public:
 	{
 		std::array<ofVec2f, 4> corners;
 		std::array<ofVec2f, 8> edgeHandles;
-		std::vector<AdvancedMappingNode> mask;
-		bool maskClosed = false;
+		std::vector<AdvancedMappingContour> masks;
 		bool inspectorExpanded = true;
 		// Kept out of the parameter list on purpose: it reaches the shader as a
 		// uniform int, which the uniform parser ignores, so it adds no slider

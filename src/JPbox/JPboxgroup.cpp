@@ -1532,6 +1532,21 @@ bool JPboxgroup::toggleMappingEdit()
 	mappingGridVisible = false;
 	mappingRenderGuidesVisible = false;
 	mappingEditActive = true;
+	advancedMappingViewZoom = 1.0f;
+	advancedMappingViewCenter.set(0.5f, 0.5f);
+	advancedMappingViewPanning = false;
+	advancedMappingRightPanPending = false;
+	advancedMappingSelectedMaskContour = -1;
+	advancedMappingSelectedMaskNode = -1;
+	advancedMappingSelectedMaskContours.clear();
+	if (JPbox_shader *advanced = getAdvancedMappingEditBox())
+	{
+		if (auto *state = advanced->getAdvancedMappingState())
+		{
+			const auto &masks = state->layers[state->selectedLayer].masks;
+			advancedMappingSelectedMaskContour = masks.empty() ? -1 : 0;
+		}
+	}
 	clampMappingPanelLayout();
 	return true;
 }
@@ -1580,9 +1595,17 @@ void JPboxgroup::endMappingEdit()
 	mappingPanelPointerCaptured = false;
 	advancedMappingDragKind = ADVANCED_MAPPING_DRAG_NONE;
 	advancedMappingDragIndex = -1;
+	advancedMappingSelectedMaskContour = -1;
 	advancedMappingSelectedMaskNode = -1;
+	advancedMappingSelectedMaskContours.clear();
 	advancedMappingDragLayer = -1;
-	advancedMappingDragSnapshot.mask.clear();
+	advancedMappingDragContour = -1;
+	advancedMappingDragContours.clear();
+	advancedMappingDragSnapshot.masks.clear();
+	advancedMappingViewPanning = false;
+	advancedMappingRightPanPending = false;
+	advancedMappingPendingDeleteContour = -1;
+	advancedMappingPendingDeleteNode = -1;
 }
 
 void JPboxgroup::markMappingParameterChanged()
@@ -1668,6 +1691,7 @@ void JPboxgroup::clampMappingPanelLayout()
 		std::max(margin, ofGetWidth() - mappingPanelW - margin));
 	mappingPanelY = ofClamp(mappingPanelY, topMargin,
 		std::max(topMargin, ofGetHeight() - mappingPanelH - margin));
+	if (isAdvancedMappingShaderBox(box)) clampAdvancedMappingView();
 }
 
 bool JPboxgroup::mouseOverMappingPanel() const
@@ -3885,6 +3909,11 @@ bool JPboxgroup::update_cueMouseReleased(int mouseButton)
 
 bool JPboxgroup::mouseScrolled(int x, int y, float scrollX, float scrollY)
 {
+	if (mappingEditActive &&
+		updateAdvancedMappingMouseScrolled(x, y, scrollY))
+	{
+		return true;
+	}
 	if (scrollY == 0 || mouseOverGui())
 	{
 		return false;
