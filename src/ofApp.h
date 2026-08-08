@@ -21,6 +21,7 @@
 #include "JPutils/jp_fileloader.h"
 #include "JPutils/jp_constants.h"
 #include "JPutils/jp_tooltip.h"
+#include "JPutils/jp_help_content.h"
 #include "JPutils/jp_midi_keymap.h"
 #include "JPgui/jp_shader_editor.h"
 #include "ofxOsc.h"
@@ -295,9 +296,12 @@ public:
 	};
 	int pantallaActiva;
 	// HELP and MIDI never scrolled; both now have a full-height frame to fill.
+	// helpContentH / helpViewH used to live here and were measured as a side
+	// effect of drawing, so the scroll clamp always ran a frame late. HelpLayout
+	// owns them now.
 	float helpScroll = 0.0f;
-	float helpContentH = 0.0f;
-	float helpViewH = 0.0f;
+	bool helpScrollbarDragging = false;
+	float helpScrollbarDragOffset = 0.0f;
 	float midiScroll = 0.0f;
 
 	// Every floating thing is a surface with a declared z-order, so "who is on
@@ -463,6 +467,36 @@ public:
 		float rowH = 28.0f;
 	};
 	SettingsLayout getSettingsLayout() const;
+
+	// HELP, same idea. One layout feeds the draw pass, the language button's
+	// hit test and the wheel clamp, so those cannot drift apart again - the
+	// button used to be drawn from jp_screen::actionSlot and hit-tested from a
+	// second hardcoded rect three pixels away.
+	struct HelpRow
+	{
+		jp_help::Kind kind = jp_help::Kind::Entry;
+		jp_help::Scope scope = jp_help::Scope::Global;
+		string keys;
+		vector<string> desc;      // already word-wrapped to the content width
+		float y = 0.0f;           // top of the row, before scrolling
+		float h = 0.0f;
+		// Key label wider than the gutter: description drops to the next line
+		// at full width instead of colliding with it.
+		bool keysOwnLine = false;
+	};
+	struct HelpLayout
+	{
+		ofRectangle frame, body, langBtn, scrollTrack, scrollThumb;
+		float contentX = 0.0f, contentW = 0.0f, keysW = 0.0f, descX = 0.0f;
+		float contentH = 0.0f, viewH = 0.0f, maxScroll = 0.0f;
+		bool showScrollbar = false;
+		vector<HelpRow> rows;
+	};
+	HelpLayout getHelpLayout() const;
+	// Wrapping every description measures a lot of strings; rebuild only when
+	// the language or the available width actually changes.
+	mutable HelpLayout helpLayoutCache;
+	mutable int helpCacheLang = -1;
 	string optionsFieldText[OPTIONS_FIELD_COUNT];
 	int focusedOptionsField = -1;
 	int optionsFieldCursor = 0;

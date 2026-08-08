@@ -377,6 +377,9 @@
     <ClInclude Include="src\JPutils\jp_constants.h">
       <Filter>src\JPutils</Filter>
     </ClInclude>
+    <ClInclude Include="src\JPutils\jp_help_content.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
     <ClInclude Include="src\JPutils\jp_pointer.h">
       <Filter>src\JPutils</Filter>
     </ClInclude>

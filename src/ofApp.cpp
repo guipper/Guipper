@@ -432,215 +432,273 @@ void ofApp::draw_debugInfo() {
 	font_p.drawString("Active Compo : " + sessionName, 30, posy -= sepy);
 	//font_p.drawString("DIALOG BOX : " + ofToString(jp_constants::systemDialog_open), 30, posy -= sepy);
 }
-void ofApp::draw_instrucciones() {
-	float panelX = 30, panelY = 44; // below the top screen-tab bar, left-aligned
-	float panelW = ofGetWidth() - 60;
-	float lineH = 17;
-	float sepy = 17;
-	int totalLines = 0;
-
-	// Count lines for both languages (take the larger one)
-	int esLines = 0, enLines = 0;
-	string es[64], en[64];
-
-	// SPANISH
-	es[esLines++] = "INSTRUCCIONES";
-	es[esLines++] = "";
-	es[esLines++] = "NAVEGACION";
-	es[esLines++] = "ESC : Cierra lo que este mas arriba (campo, lista,";
-	es[esLines++] = "      panel, modal). Nunca cambia de pantalla.";
-	es[esLines++] = "1-6 : Cambiar de pantalla (6 = MIDI)";
-	es[esLines++] = "Barra superior : pantallas | paneles CUE MAP";
-	es[esLines++] = "Enter aplica un campo, ESC lo descarta";
-	es[esLines++] = "";
-	es[esLines++] = "";
-	es[esLines++] = "Cargar archivo: Arrastrar a la ventana";
-	es[esLines++] = "";
-	es[esLines++] = "TECLAS:";
-	es[esLines++] = "1 : Editor de nodos";
-	es[esLines++] = "2 : Configuracion (Settings)";
-	es[esLines++] = "3 : Instrucciones (esta pantalla)";
-	es[esLines++] = "4 : Shader Index (navegador de shaders)";
-	es[esLines++] = "Tambien podes usar los botones NODES, SETTINGS, HELP, IMPORT de arriba";
-	es[esLines++] = "t : Alternar carga como preset o sesion completa";
-	es[esLines++] = "w : Abre ventana de render aparte";
-	es[esLines++] = "f : FullScreen sobre ventana de render";
-	es[esLines++] = "s : Guardar sesion en el XML actual";
-	es[esLines++] = "Ctrl+S : Guardar como (save-as)";
-	es[esLines++] = "l : Cargar sesion";
-	es[esLines++] = "d : Mostrar datos de debug";
-	es[esLines++] = "r : Recargar shader activo";
-	es[esLines++] = "u : Agrupar cajas seleccionadas";
-	es[esLines++] = "z : Alternar cue (seleccion rapida)";
-	es[esLines++] = "x : Disparar codigo en shader activo";
-	es[esLines++] = "h : Agregar caja SPOUT INPUT";
-	es[esLines++] = "c : Agregar caja camara";
-	es[esLines++] = "n : Agregar caja NDI RECEIVER";
-	es[esLines++] = "Shift+C : Agregar caja KINECT V2";
-	es[esLines++] = "Shift+P : Agregar PointerCloud (nube de puntos Kinect)";
-	es[esLines++] = "i : Agregar caja Frame Difference";
-	es[esLines++] = "m : Exportar imagen (captura de pantalla)";
-	es[esLines++] = "e : Activar/desactivar modo secuencia";
-	es[esLines++] = "DEL : Eliminar shader seleccionado";
-	es[esLines++] = "Ctrl+C : Copiar cajas seleccionadas";
-	es[esLines++] = "Ctrl+V : Pegar cajas";
-	es[esLines++] = "Esc : Cerrar shader index";
-	es[esLines++] = "";
-	es[esLines++] = "COMANDOS OSC:";
-	es[esLines++] = "/load/(dir) : Cargar archivo especifico";
-	es[esLines++] = "/setactiverender/(num) : Activar render";
-	es[esLines++] = "/openguinumber/(value) : Control de active";
-	es[esLines++] = "/(shader)/(param) : Control por nombre";
-	es[esLines++] = "";
-	es[esLines++] = "UNIFORMES GLOBALES DISPONIBLES:";
-	es[esLines++] = "uniform float time;";
-	es[esLines++] = "uniform vec2  resolution;";
-	es[esLines++] = "uniform float bpm;";
-	es[esLines++] = "uniform vec4  mouse;";
-	es[esLines++] = "uniform vec2  window_mouse;";
-	es[esLines++] = "uniform int   globalframeNum;";
-	es[esLines++] = "uniform int   boxframeNum;";
-	es[esLines++] = "uniform sampler2D feedback;";
-	es[esLines++] = "";
-	es[esLines++] = "Boton [Lang] en la esquina para cambiar idioma";
-
-	// ENGLISH
-	en[enLines++] = "INSTRUCTIONS";
-	en[enLines++] = "";
-	en[enLines++] = "NAVIGATION";
-	en[enLines++] = "ESC : Closes the topmost thing (field, dropdown,";
-	en[enLines++] = "      panel, modal). Never changes screen.";
-	en[enLines++] = "1-6 : Switch screen (6 = MIDI)";
-	en[enLines++] = "Top bar : screens | panel toggles CUE MAP";
-	en[enLines++] = "Enter applies a field, ESC discards it";
-	en[enLines++] = "";
-	en[enLines++] = "";
-	en[enLines++] = "Drag any file to this window to load it";
-	en[enLines++] = "";
-	en[enLines++] = "KEYS:";
-	en[enLines++] = "1 : Node editor";
-	en[enLines++] = "2 : Settings (XML Configuration)";
-	en[enLines++] = "3 : Instructions (this screen)";
-	en[enLines++] = "4 : Shader Index (shader browser)";
-	en[enLines++] = "You can also use the NODES, SETTINGS, HELP, IMPORT buttons above";
-	en[enLines++] = "t : Toggle load as preset or full session";
-	en[enLines++] = "w : Open separate render window";
-	en[enLines++] = "f : Fullscreen on render window";
-	en[enLines++] = "s : Save session to current XML";
-	en[enLines++] = "Ctrl+S : Save-as (new XML)";
-	en[enLines++] = "l : Load session";
-	en[enLines++] = "d : Toggle debug info";
-	en[enLines++] = "r : Reload active shader";
-	en[enLines++] = "u : Group selected boxes";
-	en[enLines++] = "z : Toggle cue (quick select)";
-	en[enLines++] = "x : Trigger code on active shader";
-	en[enLines++] = "h : Add SPOUT INPUT box";
-	en[enLines++] = "c : Add Camera box";
-	en[enLines++] = "n : Add NDI RECEIVER box";
-	en[enLines++] = "Shift+C : Add KINECT V2 box";
-	en[enLines++] = "Shift+P : Add PointerCloud (Kinect point cloud)";
-	en[enLines++] = "i : Add Frame Difference box";
-	en[enLines++] = "m : Export screenshot to exportimgs/";
-	en[enLines++] = "e : Toggle sequence mode";
-	en[enLines++] = "DEL : Delete selected shader";
-	en[enLines++] = "Ctrl+C : Copy selected boxes";
-	en[enLines++] = "Ctrl+V : Paste boxes";
-	en[enLines++] = "Esc : Close shader index";
-	en[enLines++] = "";
-	en[enLines++] = "OSC COMMANDS:";
-	en[enLines++] = "/load/(dir) : Load specific savefile";
-	en[enLines++] = "/setactiverender/(num) : Set active render";
-	en[enLines++] = "/openguinumber/(value) : Control active";
-	en[enLines++] = "/(shader)/(param) : Control by name";
-	en[enLines++] = "";
-	en[enLines++] = "AVAILABLE GLOBAL UNIFORMS:";
-	en[enLines++] = "uniform float time;";
-	en[enLines++] = "uniform vec2  resolution;";
-	en[enLines++] = "uniform float bpm;";
-	en[enLines++] = "uniform vec4  mouse;";
-	en[enLines++] = "uniform vec2  window_mouse;";
-	en[enLines++] = "uniform int   globalframeNum;";
-	en[enLines++] = "uniform int   boxframeNum;";
-	en[enLines++] = "uniform sampler2D feedback;";
-	en[enLines++] = "";
-	en[enLines++] = "Use [Lang] button at top-right to switch language";
-
-	int maxLines = (language == 0) ? esLines : enLines;
-	string* lines = (language == 0) ? es : en;
-
-	float panelH = 50 + maxLines * sepy + 30;
-	if (panelH > ofGetHeight() - 60) {
-		panelH = ofGetHeight() - 60;
+// Greedy word wrap. Nothing in the codebase did this before: the old help
+// hard-wrapped its longest lines by hand inside the string array, so they never
+// re-flowed when the window changed size.
+static vector<string> wrapText(const ofTrueTypeFont &font, const string &text,
+	float maxWidth)
+{
+	vector<string> out;
+	string line, word;
+	istringstream words(text);
+	while (words >> word)
+	{
+		const string candidate = line.empty() ? word : line + " " + word;
+		if (!line.empty() && font.stringWidth(candidate) > maxWidth)
+		{
+			out.push_back(line);
+			line = word;
+		}
+		else
+		{
+			line = candidate;
+		}
 	}
-	if (panelH < 300) panelH = 300;
+	if (!line.empty()) out.push_back(line);
+	if (out.empty()) out.push_back("");
+	return out;
+}
 
-	// Glassmorphism panel background
-	jp_screen::drawFrame(ofRectangle(panelX, panelY, panelW, panelH),
+ofApp::HelpLayout ofApp::getHelpLayout() const
+{
+	const ofRectangle frame = jp_screen::frame();
+	const ofRectangle body = jp_screen::body(frame);
+	HelpLayout &l = helpLayoutCache;
+
+	// Wrapping measures every string in the table, so rebuild only when
+	// something that changes the wrap changed. frame and body are pure
+	// functions of the window size, so body's size is the whole geometry key.
+	const bool reuse = helpCacheLang == language &&
+		std::abs(l.body.width - body.width) < 0.5f &&
+		std::abs(l.body.height - body.height) < 0.5f;
+
+	if (!reuse)
+	{
+		l = HelpLayout();
+		l.frame = frame;
+		l.body = body;
+		l.langBtn = jp_screen::actionSlot(frame, 0, 52.0f);
+
+		const float scrollbarW = 6.0f;
+		const float availableW = std::max(0.0f,
+			body.width - scrollbarW - 10.0f);
+		l.contentW = std::min(availableW, jp_screen::kContentMaxW);
+		l.contentX = body.x + (availableW - l.contentW) * 0.5f;
+		l.keysW = 118.0f;
+		l.descX = l.contentX + l.keysW + 12.0f;
+
+		const float kRowH = 17.0f;    // first line of a row
+		const float kWrapH = 15.0f;   // each wrapped continuation
+		const float kGapH = 9.0f;
+		const float kHeadLead = 22.0f;
+		const float kHeadH = 26.0f;   // heading text plus its rule
+		const float kTagW = 62.0f;    // reserved so a NODES tag never collides
+
+		float y = 0.0f;
+		for (const jp_help::Line &src : jp_help::table())
+		{
+			HelpRow r;
+			r.kind = src.kind;
+			r.scope = src.scope;
+			r.keys = src.keys;
+			const string copy = jp_help::text(src, language);
+
+			switch (src.kind)
+			{
+			case jp_help::Kind::Gap:
+				r.h = kGapH;
+				break;
+
+			case jp_help::Kind::Heading:
+				if (y > 0.0f) y += kHeadLead;
+				r.desc.push_back(copy);
+				r.h = kHeadH;
+				break;
+
+			case jp_help::Kind::Note:
+				r.desc = wrapText(jp_constants::p_font, copy, l.contentW);
+				r.h = kRowH + (float)(r.desc.size() - 1) * kWrapH;
+				break;
+
+			case jp_help::Kind::Step:
+				r.desc = wrapText(jp_constants::p_font, copy,
+					std::max(80.0f, l.contentW - 34.0f));
+				r.h = kRowH + (float)(r.desc.size() - 1) * kWrapH + 3.0f;
+				break;
+
+			case jp_help::Kind::Entry:
+			default:
+			{
+				// A key label wider than the gutter drops its description to
+				// the next line rather than colliding with it.
+				r.keysOwnLine = jp_constants::p_font.stringWidth(r.keys) >
+					l.keysW - 10.0f;
+				const float tagW =
+					jp_help::scopeTag(src.scope)[0] != '\0' ? kTagW : 0.0f;
+				const float descW = r.keysOwnLine ?
+					std::max(80.0f, l.contentW - tagW) :
+					std::max(80.0f, l.contentX + l.contentW - l.descX - tagW);
+				r.desc = wrapText(jp_constants::p_font, copy, descW);
+				r.h = kRowH + (float)(r.desc.size() - 1) * kWrapH;
+				if (r.keysOwnLine) r.h += kRowH;
+				break;
+			}
+			}
+
+			r.y = y;
+			y += r.h;
+			l.rows.push_back(r);
+		}
+
+		l.contentH = y + 20.0f;   // a little air under the last row
+		l.viewH = body.height;
+		helpCacheLang = language;
+	}
+
+	// Scroll-dependent parts are cheap and must not be cached, or the thumb
+	// would freeze at wherever it sat when the rows were last built.
+	l.maxScroll = std::max(0.0f, l.contentH - l.viewH);
+	l.showScrollbar = l.maxScroll > 0.5f;
+	if (l.showScrollbar)
+	{
+		const float w = 6.0f;
+		const float trackX = l.body.getMaxX() - w - 2.0f;
+		l.scrollTrack = ofRectangle(trackX, l.body.y, w, l.body.height);
+		const float thumbH = std::max(30.0f,
+			l.body.height * (l.viewH / l.contentH));
+		const float t = ofClamp(helpScroll / l.maxScroll, 0.0f, 1.0f);
+		l.scrollThumb = ofRectangle(trackX,
+			l.body.y + t * (l.body.height - thumbH), w, thumbH);
+	}
+	else
+	{
+		l.scrollTrack = ofRectangle();
+		l.scrollThumb = ofRectangle();
+	}
+	return l;
+}
+
+void ofApp::draw_instrucciones() {
+	const HelpLayout L = getHelpLayout();
+	// Clamped BEFORE drawing, against a height measured in the layout. This
+	// used to be measured as a side effect of drawing, so the clamp ran on the
+	// previous frame's numbers and overshot after a resize or language switch.
+	helpScroll = ofClamp(helpScroll, 0.0f, L.maxScroll);
+
+	jp_screen::drawFrame(L.frame,
 		language == 0 ? "HELP" : "AYUDA",
 		language == 0 ? "keyboard and workflow" : "teclado y flujo de trabajo");
 
-	// Language toggle, in the standard right-aligned action slot.
-	const ofRectangle langBtn = jp_screen::actionSlot(
-		ofRectangle(panelX, panelY, panelW, panelH), 0, 52.0f);
-	const float langBtnX = langBtn.x, langBtnY = langBtn.y;
-	const float langBtnW = langBtn.width, langBtnH = langBtn.height;
-	string langLabel = (language == 0) ? "EN" : "ES";
-	jp_button::draw(langBtn, langLabel, true, true,
-		language == 0 ? COL_ACCENT_CYAN : COL_ACCENT_GOLD);
-	jp_tooltip::draw("Switch help language", langBtnX, langBtnY, langBtnW, langBtnH);
+	// The button names the language it switches TO, like every other two-letter
+	// toggle in the app.
+	jp_button::draw(L.langBtn, language == 0 ? "ES" : "EN", false);
+	jp_tooltip::draw(language == 0 ? "Ver esta pantalla en espanol" :
+		"Show this screen in English",
+		L.langBtn.x, L.langBtn.y, L.langBtn.width, L.langBtn.height);
 
-	// Body starts below the shared header rule, and scrolls: the help text used
-	// to be silently truncated at the panel bottom with no way to reach the end.
-	const ofRectangle helpBody = jp_screen::body(
-		ofRectangle(panelX, panelY, panelW, panelH));
-	float drawY = helpBody.y + 12.0f - helpScroll;
-	for (int i = 0; i < maxLines; i++) {
-		if (drawY > helpBody.getMaxY()) break;
-		if (drawY < helpBody.y - sepy) {
-			drawY += lines[i].empty() ? sepy * 0.5f : sepy;
-			continue;
-		}
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
 
-		string line = lines[i];
-		if (line.empty()) {
-			drawY += sepy * 0.5f;
-			continue;
-		}
+	// Clip to the body so a partially scrolled row is cut at the frame edge
+	// instead of painting over the header rule. Same primitive the MIDI panel
+	// uses (jp_midi_keymap.cpp:1521).
+	const GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
+	GLint previousScissor[4] = {0, 0, 0, 0};
+	glGetIntegerv(GL_SCISSOR_BOX, previousScissor);
+	glEnable(GL_SCISSOR_TEST);
+	glScissor((int)L.body.x, (int)(ofGetHeight() - (L.body.y + L.body.height)),
+		(int)L.body.width, (int)L.body.height);
 
-		// Section headers (TECLAS:, COMANDOS OSC:)
-		if (line.find("TECLAS:") != string::npos || line.find("KEYS:") != string::npos ||
-			line.find("COMANDOS OSC") != string::npos || line.find("OSC COMMANDS") != string::npos ||
-			line.find("UNIFORMES GLOBALES") != string::npos || line.find("AVAILABLE GLOBAL") != string::npos) {
+	for (size_t i = 0; i < L.rows.size(); i++)
+	{
+		const HelpRow &r = L.rows[i];
+		const float top = L.body.y + r.y - helpScroll;
+		if (top + r.h < L.body.y) continue;
+		if (top > L.body.getMaxY()) break;
+		if (r.kind == jp_help::Kind::Gap) continue;
+
+		if (r.kind == jp_help::Kind::Heading)
+		{
 			ofSetColor(COL_ACCENT_CYAN);
-			font_p.drawString(line, panelX + 15, drawY);
-		}
-		// Uniform declarations — dim cyan
-		else if (line.rfind("uniform ", 0) == 0) {
-			ofSetColor(100, 160, 180);
-			font_p.drawString(line, panelX + 25, drawY);
-		}
-		// First instruction line
-		else if (line.find("Cargar") != string::npos || line.find("Drag any") != string::npos) {
-			ofSetColor(COL_TEXT_DIM);
-			font_p.drawString(line, panelX + 15, drawY);
-		}
-		// Language toggle hint text (the actual button is at top-right)
-		else if (line.find("[Lang]") != string::npos) {
-			ofSetColor(80, 120, 140);
-			font_p.drawString(line, panelX + 20, drawY);
-		}
-		// Everything else
-		else {
-			ofSetColor(COL_TEXT_DIM);
-			font_p.drawString(line, panelX + 20, drawY);
+			modalFont.drawString(r.desc.empty() ? "" : r.desc[0],
+				L.contentX, top + 13.0f);
+			ofSetColor(ofColor(COL_BORDER_MUTED, 150));
+			ofSetLineWidth(1.0f);
+			ofDrawLine(L.contentX, top + 20.0f,
+				L.contentX + L.contentW, top + 20.0f);
+			continue;
 		}
 
-		drawY += sepy;
+		float lineY = top + 12.0f;
+		if (r.kind == jp_help::Kind::Step)
+		{
+			const ofRectangle badge(L.contentX, top, 22.0f, 18.0f);
+			ofFill();
+			ofSetColor(ofColor(COL_ACCENT_CYAN, 185));
+			ofDrawRectRounded(badge, 4.0f);
+			ofSetColor(COL_TEXT_PRIMARY);
+			const float numberW = jp_constants::p_font.stringWidth(r.keys);
+			jp_constants::p_font.drawString(r.keys,
+				badge.x + (badge.width - numberW) * 0.5f, badge.y + 13.0f);
+			ofSetColor(COL_TEXT_SECONDARY);
+			for (size_t d = 0; d < r.desc.size(); d++)
+			{
+				jp_constants::p_font.drawString(r.desc[d],
+					L.contentX + 34.0f, lineY);
+				lineY += 15.0f;
+			}
+			continue;
+		}
+		if (r.kind == jp_help::Kind::Entry && !r.keys.empty())
+		{
+			ofSetColor(COL_TEXT_PRIMARY);
+			jp_constants::p_font.drawString(r.keys, L.contentX, lineY);
+			if (r.keysOwnLine) lineY += 17.0f;
+		}
+
+		const bool fullWidth =
+			r.kind == jp_help::Kind::Note || r.keysOwnLine;
+		ofSetColor(r.kind == jp_help::Kind::Note ?
+			COL_TEXT_DIM : COL_TEXT_SECONDARY);
+		for (size_t d = 0; d < r.desc.size(); d++)
+		{
+			jp_constants::p_font.drawString(r.desc[d],
+				fullWidth ? L.contentX : L.descX, lineY);
+			lineY += 15.0f;
+		}
+
+		// Which screen the shortcut is live on. The old help listed the
+		// NODES-only letter keys as though they worked everywhere.
+		const char *tag = jp_help::scopeTag(r.scope);
+		if (r.kind == jp_help::Kind::Entry && tag[0] != '\0')
+		{
+			ofSetColor(COL_TEXT_MUTED);
+			const float tw = jp_constants::p2_font.stringWidth(tag);
+			jp_constants::p2_font.drawString(tag,
+				L.contentX + L.contentW - tw, top + 12.0f);
+		}
 	}
-	helpContentH = (drawY + helpScroll) - (helpBody.y + 12.0f);
-	helpViewH = helpBody.height;
-	helpScroll = ofClamp(helpScroll, 0.0f,
-		std::max(0.0f, helpContentH - helpViewH));
+	if (L.showScrollbar)
+	{
+		ofFill();
+		ofSetColor(ofColor(COL_BG_SCROLLBAR, 60));
+		ofDrawRectRounded(L.scrollTrack, 3.0f);
+		const bool over = L.scrollTrack.inside(
+			(float)ofGetMouseX(), (float)ofGetMouseY());
+		ofSetColor(over ? COL_BORDER_HOVER : COL_BORDER_DEFAULT);
+		ofDrawRectRounded(L.scrollThumb, 3.0f);
+	}
+	if (scissorWasEnabled)
+	{
+		glEnable(GL_SCISSOR_TEST);
+		glScissor(previousScissor[0], previousScissor[1],
+			previousScissor[2], previousScissor[3]);
+	}
+	else
+	{
+		glDisable(GL_SCISSOR_TEST);
+	}
+	ofPopStyle();
 }
 ofApp::SettingsLayout ofApp::getSettingsLayout() const
 {
@@ -4383,6 +4441,23 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	prevKey = e.keycode;
 }
 void ofApp::mouseDragged(int x, int y, int button) {
+	if (pantallaActiva == TUTORIAL && helpScrollbarDragging)
+	{
+		const HelpLayout L = getHelpLayout();
+		if (!L.showScrollbar)
+		{
+			helpScrollbarDragging = false;
+			helpScroll = 0.0f;
+			return;
+		}
+		const float travel = std::max(1.0f,
+			L.scrollTrack.height - L.scrollThumb.height);
+		const float thumbY = ofClamp(
+			y - helpScrollbarDragOffset,
+			L.scrollTrack.y, L.scrollTrack.y + travel);
+		helpScroll = ((thumbY - L.scrollTrack.y) / travel) * L.maxScroll;
+		return;
+	}
 	midiKeymap.mouseDragged(x, y, button);
 
 	// Forward to shader editor for selection dragging, on its screen only.
@@ -4536,15 +4611,35 @@ void ofApp::mousePressed(int x, int y, int button) {
 		boxes.update_mousePressed(button);
 	}
 	if (pantallaActiva == TUTORIAL) {
-		// Language toggle — only click on the top-right button area
-		float panelX = 30, panelY = 44;
-		float panelW = ofGetWidth() - 60;
-		float langBtnW = 52;
-		float langBtnH = 22;
-		float langBtnX = panelX + panelW - langBtnW - 15;
-		float langBtnY = panelY + 13;
-		if (x >= langBtnX && x <= langBtnX + langBtnW && y >= langBtnY && y <= langBtnY + langBtnH) {
+		// Same layout the draw pass used - not a second copy of the numbers.
+		// This was a hardcoded rect at panelY+13 with height 22 against a
+		// button drawn at f.y+10 with height 24, so its top 3px was dead.
+		const HelpLayout L = getHelpLayout();
+		if (button == OF_MOUSE_BUTTON_LEFT &&
+			L.langBtn.inside((float)x, (float)y)) {
 			language = (language == 0) ? 1 : 0;
+			helpScroll = 0.0f;
+			helpScrollbarDragging = false;
+			helpCacheLang = -1;
+			return;
+		}
+		if (button == OF_MOUSE_BUTTON_LEFT && L.showScrollbar &&
+			L.scrollThumb.inside((float)x, (float)y)) {
+			helpScrollbarDragging = true;
+			helpScrollbarDragOffset = y - L.scrollThumb.y;
+			return;
+		}
+		// Click anywhere on the scrollbar track jumps there.
+		if (button == OF_MOUSE_BUTTON_LEFT && L.showScrollbar &&
+			L.scrollTrack.inside((float)x, (float)y)) {
+			const float t = ofClamp(
+				(y - L.scrollTrack.y - L.scrollThumb.height * 0.5f) /
+				std::max(1.0f, L.scrollTrack.height - L.scrollThumb.height),
+				0.0f, 1.0f);
+			helpScroll = t * L.maxScroll;
+			helpScrollbarDragging = true;
+			helpScrollbarDragOffset = L.scrollThumb.height * 0.5f;
+			return;
 		}
 	}
 	if (pantallaActiva == OPCIONES) {
@@ -4761,6 +4856,8 @@ void ofApp::windowResized(int w, int h) {
 	// El resize lo hace solo para mover la interfaz. Los tamaos de render se mantienen igual
 	boxes.update_resized(ofGetWidth(), ofGetHeight());
 	clampSettingsScroll();
+	helpScrollbarDragging = false;
+	helpCacheLang = -1;
 	// InitGLtexture(sendertexture, ofGetWidth(), ofGetHeight()); //!?!??!!?
 	//	boxes.update_resized(jp_constants::renderWidth, jp_constants::renderHeight);
 }
@@ -4780,6 +4877,11 @@ void ofApp::mouseMoved(int x, int y) {
 	}
 }
 void ofApp::mouseReleased(int x, int y, int button) {
+	if (helpScrollbarDragging)
+	{
+		helpScrollbarDragging = false;
+		return;
+	}
 	midiKeymap.mouseReleased(x, y, button);
 	// Gate on the screen that owns the drag. This ran everywhere, so a drag
 	// started on the node canvas still completed - and still wrote settings -
@@ -4812,9 +4914,10 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 		return;
 	}
 	if (pantallaActiva == TUTORIAL) {
-		// Clamp against the same viewport the draw pass measured.
-		helpScroll = ofClamp(helpScroll - scrollY * 34.0f, 0.0f,
-			std::max(0.0f, helpContentH - helpViewH));
+		// Clamp against the layout's own measurement rather than numbers the
+		// last draw pass happened to leave behind.
+		const HelpLayout L = getHelpLayout();
+		helpScroll = ofClamp(helpScroll - scrollY * 34.0f, 0.0f, L.maxScroll);
 		return;
 	}
 	if (pantallaActiva == MIDI_KEYMAP) {

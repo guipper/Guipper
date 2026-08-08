@@ -294,6 +294,7 @@
     <ClInclude Include="src\JPbox\jp_box.h" />
     <ClInclude Include="src\JPutils\jp_fileloader.h" />
     <ClInclude Include="src\JPutils\jp_constants.h" />
+    <ClInclude Include="src\JPutils\jp_help_content.h" />
     <ClInclude Include="src\JPutils\jp_pointer.h" />
     <ClInclude Include="src\JPutils\jp_fbohandler.h" />
     <ClInclude Include="src\JPutils\jp_dragobject.h" />

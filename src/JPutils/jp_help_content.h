@@ -1,0 +1,357 @@
+#pragma once
+
+#include "ofMain.h"
+#include <vector>
+
+// The HELP screen's content, as data.
+//
+// It used to be two parallel `string es[64]` / `en[64]` arrays inside
+// draw_instrucciones(), and the FORMATTING was decided by substring-matching
+// the text itself - a line was a heading because it contained "KEYS:". That is
+// why "NAVIGATION" rendered as plain body text while "KEYS:" rendered cyan, and
+// why the keys were baked into the prose ("z : Toggle cue") instead of getting
+// their own column.
+//
+// Here a row is a row of data. Adding a line is one E(...) entry; there is no
+// formatting rule to touch and nothing is ever inferred from the wording.
+//
+// Spanish is deliberately written WITHOUT accents, matching the original arrays
+// - ofTrueTypeFont is loaded with the default (Latin) charset and accented
+// glyphs came out blank.
+namespace jp_help
+{
+	enum class Kind
+	{
+		Heading,   // section title + rule
+		Step,      // numbered quick-start row
+		Entry,     // keys gutter + description
+		Note,      // prose spanning the full content width, no keys
+		Gap        // vertical space
+	};
+
+	// Which screen a shortcut is actually live on. Most of the letter keys sit
+	// inside `if (pantallaActiva == NODOS)` in ofApp::keyPressed, but the old
+	// help listed them as though they worked everywhere.
+	enum class Scope
+	{
+		Global,
+		Nodes,
+		Import,
+		Editor,
+		Midi,
+		Settings
+	};
+
+	struct Line
+	{
+		Kind kind = Kind::Entry;
+		Scope scope = Scope::Global;
+		const char *keys = "";   // left gutter; empty for Heading/Note/Gap
+		const char *en = "";
+		const char *es = "";
+	};
+
+	inline Line H(const char *en, const char *es)
+	{
+		return {Kind::Heading, Scope::Global, "", en, es};
+	}
+	inline Line N(const char *en, const char *es, Scope s = Scope::Global)
+	{
+		return {Kind::Note, s, "", en, es};
+	}
+	inline Line S(const char *number, const char *en, const char *es)
+	{
+		return {Kind::Step, Scope::Global, number, en, es};
+	}
+	inline Line GAP()
+	{
+		return {Kind::Gap, Scope::Global, "", "", ""};
+	}
+	inline Line E(const char *keys, const char *en, const char *es,
+		Scope s = Scope::Global)
+	{
+		return {Kind::Entry, s, keys, en, es};
+	}
+
+	// Short tag drawn at the right of a row. Empty for Global, so only the
+	// screen-scoped rows carry one.
+	inline const char *scopeTag(Scope s)
+	{
+		switch (s)
+		{
+		case Scope::Nodes:    return "NODES";
+		case Scope::Import:   return "IMPORT";
+		case Scope::Editor:   return "EDITOR";
+		case Scope::Midi:     return "MIDI";
+		case Scope::Settings: return "SETTINGS";
+		default:              return "";
+		}
+	}
+
+	// language 0 == ENGLISH, matching draw_shaderindex and the frame title.
+	// The old body array had this inverted, so the app booted with a Spanish
+	// body under an English "HELP" header.
+	inline const char *text(const Line &l, int language)
+	{
+		return language == 0 ? l.en : l.es;
+	}
+
+	inline const std::vector<Line> &table()
+	{
+		static const std::vector<Line> t = {
+
+		// ------------------------------------------------------------------
+		H("QUICK START", "INICIO RAPIDO"),
+		S("1", "Add a source: drag in an image or video, or add Camera/Kinect from NODES.",
+			"Agrega una fuente: arrastra una imagen o video, o agrega Camara/Kinect desde NODES."),
+		S("2", "Open IMPORT (4), find an effect, and load it as a box.",
+			"Abre IMPORT (4), busca un efecto y cargalo como caja."),
+		S("3", "Drag from the source outlet to the effect inlet to connect them.",
+			"Arrastra desde la salida de la fuente hasta la entrada del efecto para conectarlos."),
+		S("4", "Select a box to edit its inspector. Double-click a box to make it the active render.",
+			"Selecciona una caja para editar su inspector. Haz doble click para convertirla en el render activo."),
+		S("5", "Set outputs and BPM in SETTINGS, map live controls in MIDI, and use CUE to prepare changes off-air.",
+			"Configura salidas y BPM en SETTINGS, asigna controles en MIDI y usa CUE para preparar cambios fuera del aire."),
+		GAP(),
+
+		// ------------------------------------------------------------------
+		H("GETTING AROUND", "MOVERSE POR EL PROGRAMA"),
+		E("1 - 6",
+			"Switch screen: 1 NODES, 2 SETTINGS, 3 HELP, 4 IMPORT, 5 EDITOR, 6 MIDI",
+			"Cambiar de pantalla: 1 NODES, 2 SETTINGS, 3 HELP, 4 IMPORT, 5 EDITOR, 6 MIDI"),
+		N("The top bar has the same six screens as buttons, then a separate group: CUE and MAP.",
+			"La barra superior tiene las mismas seis pantallas como botones, y aparte un grupo: CUE y MAP."),
+		E("CUE",
+			"Opens the cue preview panel. Lights up when a box is cued",
+			"Abre el panel de preview del cue. Se enciende cuando hay una caja en cue"),
+		E("MAP",
+			"Projection mapping editor. Greyed out until a mapping shader is selected",
+			"Editor de mapeo. Deshabilitado hasta que selecciones un shader de mapeo"),
+		E("ESC",
+			"Closes the topmost open thing, one layer per press: field, dropdown, panel, modal. Never changes screen",
+			"Cierra lo que este mas arriba, una capa por vez: campo, lista, panel, modal. Nunca cambia de pantalla"),
+		E("Enter",
+			"Applies the focused text field. ESC discards it",
+			"Aplica el campo de texto enfocado. ESC lo descarta"),
+		E("Mouse wheel",
+			"Scrolls the list under the pointer: this screen, IMPORT, MIDI, SETTINGS",
+			"Scrollea la lista debajo del puntero: esta pantalla, IMPORT, MIDI, SETTINGS"),
+		N("Drag files onto the window to load them. Several at once are laid out in a grid where you dropped them. Takes .frag, .xml, images and videos.",
+			"Arrastra archivos a la ventana para cargarlos. Varios a la vez se acomodan en grilla donde los soltaste. Acepta .frag, .xml, imagenes y videos."),
+		GAP(),
+
+		// ------------------------------------------------------------------
+		H("SESSIONS", "SESIONES"),
+		E("s", "Save the session into the current XML",
+			"Guardar la sesion en el XML actual", Scope::Nodes),
+		E("l", "Load the session from the current path",
+			"Cargar la sesion desde la ruta actual", Scope::Nodes),
+		E("Ctrl+S",
+			"Save as: SAVE writes a new file, UPDATE overwrites, CANCEL closes. Works on any screen",
+			"Guardar como: SAVE escribe un archivo nuevo, UPDATE sobrescribe, CANCEL cierra. Funciona en cualquier pantalla"),
+		N("Careful: in the shader EDITOR, Ctrl+S saves the SHADER FILE instead of the session. It is the only shortcut that means two things.",
+			"Ojo: en el EDITOR de shaders, Ctrl+S guarda el ARCHIVO DEL SHADER en vez de la sesion. Es el unico atajo que significa dos cosas."),
+		E("t", "Toggle loading as a preset (merge) or as a full session (replace)",
+			"Alternar carga como preset (mezcla) o sesion completa (reemplaza)", Scope::Nodes),
+		N("The session opened at startup is the Default compo field in SETTINGS.",
+			"La sesion que se abre al arrancar es el campo Default compo en SETTINGS."),
+		GAP(),
+
+		// ------------------------------------------------------------------
+		H("NODE GRAPH", "GRAFO DE NODOS"),
+		N("These keys only work on the NODES screen.",
+			"Estas teclas solo funcionan en la pantalla NODES.", Scope::Nodes),
+		E("Ctrl+C / Ctrl+V", "Copy and paste the selected boxes",
+			"Copiar y pegar las cajas seleccionadas", Scope::Nodes),
+		E("DEL", "Delete all selected boxes",
+			"Eliminar todas las cajas seleccionadas", Scope::Nodes),
+		E("u", "Group the selected boxes into one box-group",
+			"Agrupar las cajas seleccionadas en un grupo", Scope::Nodes),
+		N("Double-click a group tab to rename it: Enter commits, ESC cancels, clicking away commits.",
+			"Doble click en la pestana de un grupo para renombrarla: Enter confirma, ESC cancela, click afuera confirma."),
+		E("r", "Reload the active shader from disk",
+			"Recargar el shader activo desde el disco", Scope::Nodes),
+		E("x", "Trigger the code block on the active shader",
+			"Disparar el bloque de codigo del shader activo", Scope::Nodes),
+		E("e", "Toggle sequence mode",
+			"Activar o desactivar el modo secuencia", Scope::Nodes),
+		E("z", "Cue the selected box, or the active render of the group you are inside",
+			"Poner en cue la caja seleccionada, o el render activo del grupo en el que estas", Scope::Nodes),
+		E("w", "Open the separate render window",
+			"Abrir la ventana de render aparte", Scope::Nodes),
+		E("m", "Save a PNG of the active render into exportimgs/",
+			"Guardar un PNG del render activo en exportimgs/", Scope::Nodes),
+		E("d", "Toggle the debug overlay: FPS, box count, active compo",
+			"Mostrar u ocultar los datos de debug: FPS, cantidad de cajas, compo activa", Scope::Nodes),
+		E("Single click", "Select a box and open its inspector",
+			"Seleccionar una caja y abrir su inspector", Scope::Nodes),
+		E("Double-click", "Make the box the active render",
+			"Convertir la caja en el render activo", Scope::Nodes),
+		E("Outlet drag", "Connect a box outlet to another box inlet",
+			"Conectar la salida de una caja a la entrada de otra", Scope::Nodes),
+		E("Empty drag", "Draw a rectangle to select several boxes",
+			"Dibujar un rectangulo para seleccionar varias cajas", Scope::Nodes),
+		E("Middle/right drag", "Pan the node canvas",
+			"Mover el canvas de nodos", Scope::Nodes),
+		E("Mouse wheel", "Zoom the node canvas around the pointer",
+			"Hacer zoom del canvas alrededor del puntero", Scope::Nodes),
+		GAP(),
+
+		// ------------------------------------------------------------------
+		H("ADDING BOXES", "AGREGAR CAJAS"),
+		N("Also NODES only. IMPORT (4) is the browsable way to add shaders.",
+			"Tambien solo en NODES. IMPORT (4) es la forma navegable de agregar shaders.", Scope::Nodes),
+		E("c", "Camera input", "Entrada de camara", Scope::Nodes),
+		E("i", "Frame difference", "Diferencia de cuadros", Scope::Nodes),
+#ifdef NDI
+		E("n", "NDI receiver", "Receptor NDI", Scope::Nodes),
+#endif
+#ifdef SPOUT
+		E("h", "Spout input", "Entrada Spout", Scope::Nodes),
+#endif
+		E("Shift+C", "Kinect V2 input", "Entrada Kinect V2", Scope::Nodes),
+		E("Shift+P", "PointerCloud: Kinect V2 point cloud",
+			"PointerCloud: nube de puntos del Kinect V2", Scope::Nodes),
+		GAP(),
+
+		// ------------------------------------------------------------------
+		H("IMPORT: SHADER BROWSER", "IMPORT: NAVEGADOR DE SHADERS"),
+		N("Press 4. The search field takes focus straight away, so letter shortcuts are off until you press ESC.",
+			"Presiona 4. El campo de busqueda toma el foco enseguida, asi que los atajos de letras no andan hasta que presiones ESC.", Scope::Import),
+		E("Type", "Filter the shader list",
+			"Filtrar la lista de shaders", Scope::Import),
+		E("Up / Down", "Move the selection",
+			"Mover la seleccion", Scope::Import),
+		E("Enter", "Load the selected shader as a box. Double-click does the same",
+			"Cargar el shader seleccionado como caja. Doble click hace lo mismo", Scope::Import),
+		E("Star icon", "Mark a favourite. Favourites are kept in data/shader_favorites.xml",
+			"Marcar favorito. Los favoritos se guardan en data/shader_favorites.xml", Scope::Import),
+		E("MOVE MIDI", "Bind a MIDI control that adds this shader, without opening the MIDI screen",
+			"Asignar un control MIDI que agrega este shader, sin abrir la pantalla MIDI", Scope::Import),
+		GAP(),
+
+		// ------------------------------------------------------------------
+		H("SHADER EDITOR", "EDITOR DE SHADERS"),
+		N("Press 5 or the EDITOR tab to edit the selected shader. Open files appear as tabs.",
+			"Presiona 5 o la pestana EDITOR para editar el shader seleccionado. Los archivos abiertos aparecen como pestanas.", Scope::Editor),
+		E("Ctrl+S", "Save the shader file. This does NOT save the session",
+			"Guardar el archivo del shader. Esto NO guarda la sesion", Scope::Editor),
+		E("Ctrl+C / X / V / A", "Copy, cut, paste, and select all inside the text",
+			"Copiar, cortar, pegar y seleccionar todo dentro del texto", Scope::Editor),
+		E("Home / End", "Start and end of the line. PageUp and PageDown scroll",
+			"Inicio y fin de linea. PageUp y PageDown scrollean", Scope::Editor),
+		E("Shift + arrows", "Select text",
+			"Seleccionar texto", Scope::Editor),
+		E("r", "Back on NODES, reload the shader to see your changes",
+			"De vuelta en NODES, recarga el shader para ver los cambios", Scope::Nodes),
+		GAP(),
+
+		// ------------------------------------------------------------------
+		H("MIDI MAPPING", "MAPEO MIDI"),
+		N("Press 6 or the MIDI tab. Bindings are saved per device, so two controllers keep separate maps.",
+			"Presiona 6 o la pestana MIDI. Las asignaciones se guardan por dispositivo, asi dos controladores mantienen mapas separados.", Scope::Midi),
+		E("Key bind map on/off",
+			"Master switch for mapping mode. While it is on a badge shows in the top bar",
+			"Interruptor general del modo mapeo. Mientras esta activo se ve un cartel en la barra superior", Scope::Midi),
+		E("Learn",
+			"Arm a row, then move a MIDI control to bind it",
+			"Arma una fila y despues mueve un control MIDI para asignarlo", Scope::Midi),
+		N("If that control is already bound you get a prompt: Replace, Keep both, or Cancel. Keep both fires every binding on the key.",
+			"Si ese control ya esta asignado aparece un aviso: Replace, Keep both o Cancel. Keep both dispara todas las asignaciones de esa tecla.", Scope::Midi),
+		E("Target box + Action",
+			"Build a custom bind: pick a box, an action, and for Parameter also which parameter",
+			"Armar una asignacion propia: elegi una caja, una accion y, para Parameter, tambien que parametro", Scope::Midi),
+		E("Rescan devices",
+			"Pick up a controller that was plugged in after startup",
+			"Detectar un controlador conectado despues de arrancar", Scope::Midi),
+		N("Global actions include next and previous box, set active, toggle gallery mode, and BPM tap. Gallery mode is only reachable from a MIDI binding.",
+			"Las acciones globales incluyen caja siguiente y anterior, set active, modo galeria y BPM tap. El modo galeria solo se alcanza desde una asignacion MIDI.", Scope::Midi),
+		N("With mapping mode on you can also click a box button or an inspector slider directly to arm it.",
+			"Con el modo mapeo activo tambien podes hacer click directo en un boton de caja o en un slider del inspector para armarlo.", Scope::Midi),
+		GAP(),
+
+		// ------------------------------------------------------------------
+		H("CUE AND PROJECTION MAPPING", "CUE Y MAPEO DE PROYECCION"),
+		N("Cue stages a box so you can set it up before it goes live. The cue panel shows it in amber while the output keeps running.",
+			"El cue prepara una caja para que la ajustes antes de que salga al aire. El panel de cue la muestra en ambar mientras la salida sigue corriendo."),
+		E("CUE / z", "Open the cue panel and cue the selected box",
+			"Abrir el panel de cue y poner en cue la caja seleccionada"),
+		E("MAP", "Projection mapping editor. Needs a mapping shader selected first",
+			"Editor de mapeo de proyeccion. Necesita un shader de mapeo seleccionado"),
+		N("In the mapping editor drag the corners to fit the surface, and use the buttons to show borders, points and the curved grid.",
+			"En el editor de mapeo arrastra las esquinas para ajustar la superficie, y usa los botones para mostrar bordes, puntos y la grilla curva."),
+		GAP(),
+
+		// ------------------------------------------------------------------
+		H("SETTINGS AND OUTPUT", "CONFIGURACION Y SALIDA"),
+		N("Press 2. Holds OSC ports and IP, render size, BPM with AUTOTAP, Spout and NDI toggles, and the default compo.",
+			"Presiona 2. Tiene los puertos e IP de OSC, tamano de render, BPM con AUTOTAP, Spout y NDI, y la compo por defecto.", Scope::Settings),
+		E("Live outputs",
+			"Add an output per screen, choose its monitor and source, and crop it",
+			"Agregar una salida por pantalla, elegir monitor y fuente, y recortarla", Scope::Settings),
+		E("Fullscreen",
+			"A checkbox on each live output. This replaced the old global f shortcut",
+			"Una casilla en cada salida. Reemplazo al viejo atajo global f", Scope::Settings),
+		E("Screen wall",
+			"Lay several outputs out as a wall, by grid or by measured positions in mm",
+			"Acomodar varias salidas como muro, por grilla o por posiciones medidas en mm", Scope::Settings),
+		E("Tab / Shift+Tab", "Move between fields while editing a live output or wall split",
+			"Moverse entre campos al editar una salida o division del muro", Scope::Settings),
+		GAP(),
+
+		// ------------------------------------------------------------------
+		H("OSC", "OSC"),
+		N("Incoming messages use the address shown below plus one numeric argument. Commands that do not use the value still require a numeric argument.",
+			"Los mensajes entrantes usan la direccion indicada y un argumento numerico. Los comandos que no usan el valor igualmente requieren un argumento numerico."),
+		E("/load/<file>", "Load savefiles/<file>; the numeric argument is ignored",
+			"Cargar savefiles/<archivo>; el argumento numerico se ignora"),
+		E("/setactiverender", "Argument: box index to make active in the current graph",
+			"Argumento: indice de la caja a activar en el grafo actual"),
+		E("/nextshader", "Select the next box",
+			"Seleccionar la caja siguiente"),
+		E("/prevshader", "Select the previous box",
+			"Seleccionar la caja anterior"),
+		E("/setactiveshader", "Make the currently selected box active",
+			"Convertir la caja seleccionada en activa"),
+		E("/nextshader_gallerymode", "Select and activate the next box",
+			"Seleccionar y activar la caja siguiente"),
+		E("/prevshader_gallerymode", "Select and activate the previous box",
+			"Seleccionar y activar la caja anterior"),
+		E("/setactivecycle", "Toggle sequence/gallery mode",
+			"Alternar el modo secuencia/galeria"),
+		E("/disablegallerymode", "Disable gallery mode and enable every box",
+			"Desactivar modo galeria y encender todas las cajas"),
+		E("/setdurationgalleryms", "Argument: gallery duration in milliseconds",
+			"Argumento: duracion de galeria en milisegundos"),
+		E("/addmirrorsquad", "Add the mirrorquad shader box",
+			"Agregar la caja del shader mirrorquad"),
+		E("/<box>/<parameter>", "Argument: native value for a named float parameter; use /<box>/onoff for its power state",
+			"Argumento: valor nativo de un parametro float por nombre; usa /<caja>/onoff para encenderla"),
+		E("/openguinumber/<parameterIndex>", "Argument: value for that parameter on the currently open inspector",
+			"Argumento: valor para ese parametro en el inspector actualmente abierto"),
+		GAP(),
+
+		// ------------------------------------------------------------------
+		H("GLOBAL SHADER UNIFORMS", "UNIFORMES GLOBALES DE SHADER"),
+		N("Declare any of these in a .frag and Guipper fills it in every frame.",
+			"Declara cualquiera de estos en un .frag y Guipper lo completa en cada cuadro."),
+		E("uniform float time;", "Seconds since the app started",
+			"Segundos desde que arranco el programa"),
+		E("uniform vec2 resolution;", "Render size in pixels",
+			"Tamano del render en pixeles"),
+		E("uniform float bpm;", "Global BPM, shared with AUTOTAP and BPM tap",
+			"BPM global, compartido con AUTOTAP y BPM tap"),
+		E("uniform vec4 mouse;", "Normalized main-window mouse; xy are current and zw store the last click",
+			"Mouse normalizado de la ventana principal; xy son actuales y zw guardan el ultimo click"),
+		E("uniform vec2 window_mouse;", "Legacy normalized render-window mouse value; display-only live outputs no longer update it",
+			"Valor normalizado legacy del mouse de render; las salidas solo-display ya no lo actualizan"),
+		E("uniform int globalframeNum;", "Frames since the app started",
+			"Cuadros desde que arranco el programa"),
+		E("uniform int boxframeNum;", "Frames since this box started",
+			"Cuadros desde que arranco esta caja"),
+		E("uniform sampler2D feedback;", "This box's previous frame, for feedback effects",
+			"El cuadro anterior de esta caja, para efectos de feedback"),
+		};
+		return t;
+	}
+}

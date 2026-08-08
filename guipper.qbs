@@ -73,6 +73,7 @@ Project{
             'src/JPutils/jp_fileloader.h',
             'src/JPutils/jp_midi_keymap.cpp',
             'src/JPutils/jp_midi_keymap.h',
+            'src/JPutils/jp_help_content.h',
             'src/JPutils/jp_pointer.h',
             'src/JPutils/jp_parametergroup.cpp',
             'src/JPutils/jp_parametergroup.h',
