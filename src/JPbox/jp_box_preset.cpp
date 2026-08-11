@@ -152,6 +152,29 @@ void JPbox_preset::setup(string _directory, string _name)
 				{
 					bx->parameters.setBpmRate(bpmRate.getIntValue(), destinationIndex);
 				}
+				auto audioSource = param.getChild("audiosource");
+				if (audioSource)
+				{
+					bx->parameters.setAudioSource(audioSource.getIntValue(), destinationIndex);
+				}
+				auto audioDiv = param.getChild("audiodiv");
+				if (audioDiv)
+				{
+					bx->parameters.setAudioDiv(audioDiv.getIntValue(), destinationIndex);
+				}
+				auto loadAudioFloat = [&](const char *key, auto setter)
+				{
+					auto node = param.getChild(key);
+					if (node) (bx->parameters.*setter)(node.getFloatValue(), destinationIndex);
+				};
+				loadAudioFloat("audiobase", &JPParameterGroup::setAudioBase);
+				loadAudioFloat("audioamount", &JPParameterGroup::setAudioAmount);
+				auto audioInvert = param.getChild("audioinvert");
+				if (audioInvert) bx->parameters.setAudioInvert(audioInvert.getBoolValue(), destinationIndex);
+				loadAudioFloat("audiothreshold", &JPParameterGroup::setAudioThreshold);
+				loadAudioFloat("audiocurve", &JPParameterGroup::setAudioCurve);
+				loadAudioFloat("audioattackms", &JPParameterGroup::setAudioAttackMs);
+				loadAudioFloat("audioreleasems", &JPParameterGroup::setAudioReleaseMs);
 			}
 			else if (bx->parameters.getType(destinationIndex) == bx->parameters.BOOL)
 			{
@@ -886,6 +909,15 @@ void JPbox_preset::save()
 					param.appendChild("movtype").set(boxes[i]->parameters.getMovType(k));
 					param.appendChild("speed").set(boxes[i]->parameters.getSpeed(k));
 					param.appendChild("bpmrate").set(boxes[i]->parameters.getBpmRate(k));
+					param.appendChild("audiosource").set(boxes[i]->parameters.getAudioSource(k));
+					param.appendChild("audiodiv").set(boxes[i]->parameters.getAudioDiv(k));
+					param.appendChild("audiobase").set(boxes[i]->parameters.getAudioBase(k));
+					param.appendChild("audioamount").set(boxes[i]->parameters.getAudioAmount(k));
+					param.appendChild("audioinvert").set(boxes[i]->parameters.getAudioInvert(k));
+					param.appendChild("audiothreshold").set(boxes[i]->parameters.getAudioThreshold(k));
+					param.appendChild("audiocurve").set(boxes[i]->parameters.getAudioCurve(k));
+					param.appendChild("audioattackms").set(boxes[i]->parameters.getAudioAttackMs(k));
+					param.appendChild("audioreleasems").set(boxes[i]->parameters.getAudioReleaseMs(k));
 				}
 			}
 		}

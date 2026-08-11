@@ -1,5 +1,7 @@
 #include "jp_parametergroup.h"
+#include "jp_audio_analyzer.h"
 #include "jp_constants.h"
+#include "jp_audio.h"
 #include <algorithm>
 #include <cmath>
 
@@ -19,6 +21,20 @@ void JPParameter::setup(float _var, string _name)
 	seed = ofRandom(10000);
 	bpmEligible = false;
 	bpmRate = BPM_RATE_ONE;
+	// Every float slider can follow audio - unlike BPM sync, which is limited
+	// to uniforms parsed from a .frag.
+	audioEligible = true;
+	audioSource = jp_audio::SRC_LOW;
+	audioDiv = jp_audio::DIV_1;
+	audioBase = _var;
+	audioAmount = 1.0f;
+	audioInvert = false;
+	audioThreshold = 0.0f;
+	audioCurve = 1.0f;
+	audioAttackMs = 8.0f;
+	audioReleaseMs = 250.0f;
+	audioShapingOpen = false;
+	audioSmoothed = 0.0f;
 	needsUpdate = false;
 }
 void JPParameter::setup(bool _var, string _name)
@@ -33,6 +49,19 @@ void JPParameter::setup(bool _var, string _name)
 	speed = 1.0;
 	bpmEligible = false;
 	bpmRate = BPM_RATE_ONE;
+	// Bools are driven by the MIDI/threshold path, not by an automation curve.
+	audioEligible = false;
+	audioSource = jp_audio::SRC_LOW;
+	audioDiv = jp_audio::DIV_1;
+	audioBase = _var ? 1.0f : 0.0f;
+	audioAmount = 1.0f;
+	audioInvert = false;
+	audioThreshold = 0.0f;
+	audioCurve = 1.0f;
+	audioAttackMs = 8.0f;
+	audioReleaseMs = 250.0f;
+	audioShapingOpen = false;
+	audioSmoothed = 0.0f;
 	needsUpdate = false;
 }
 float JPParameter::getBpmMultiplier() const
@@ -53,6 +82,16 @@ void JPParameter::cycleBpmRate()
 		int(BPM_RATE_QUARTER),
 		int(BPM_RATE_QUADRUPLE)) + 1) %
 		(int(BPM_RATE_QUADRUPLE) + 1);
+}
+void JPParameter::cycleAudioSource()
+{
+	audioSource = (std::clamp(audioSource, 0, int(jp_audio::SRC_COUNT) - 1) + 1) %
+		int(jp_audio::SRC_COUNT);
+}
+void JPParameter::cycleAudioDiv()
+{
+	audioDiv = (std::clamp(audioDiv, 0, int(jp_audio::DIV_COUNT) - 1) + 1) %
+		int(jp_audio::DIV_COUNT);
 }
 void JPParameter::update()
 {
@@ -117,6 +156,40 @@ void JPParameter::update()
 					std::max(0.0f, 1.0f - phase),
 					decayExponent);
 				floatLerpValue = ofLerp(min, max, envelope);
+			}
+		}
+		if (movtype == AUDIO)
+		{
+			const float dt = ofClamp((float)ofGetLastFrameTime(),
+				1.0f / 1000.0f, 0.1f);
+			if (!audioEligible || !jp_audio::isRunning())
+			{
+				floatLerpValue = jp_audio_internal::smoothToward(
+					floatLerpValue, audioBase, audioReleaseMs, dt);
+			}
+			else
+			{
+				float shaped = jp_audio::getValue(audioSource, audioDiv);
+				const float threshold = ofClamp(audioThreshold, 0.0f, 0.99f);
+				shaped = ofClamp((shaped - threshold) / (1.0f - threshold), 0.0f, 1.0f);
+				shaped = std::pow(shaped, ofClamp(audioCurve, 0.20f, 5.0f));
+				if (audioInvert) shaped = 1.0f - shaped;
+
+				const bool logic = audioSource == jp_audio::SRC_KICK_LOGIC ||
+					audioSource == jp_audio::SRC_SNARE_LOGIC;
+				if (logic)
+					audioSmoothed = shaped;
+				else
+				{
+					const float milliseconds = shaped > audioSmoothed ?
+						audioAttackMs : audioReleaseMs;
+					audioSmoothed = jp_audio_internal::smoothToward(
+						audioSmoothed, shaped, milliseconds, dt);
+				}
+				const float mapped = ofLerp(min, max,
+					ofClamp(audioSmoothed, 0.0f, 1.0f));
+				floatLerpValue = ofLerp(audioBase, mapped,
+					ofClamp(audioAmount, 0.0f, 1.0f));
 			}
 		}
 	}
@@ -224,10 +297,19 @@ void JPParameterGroup::setmovetype(int _movetype, int _index)
 
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
-		parameters[_index]->movtype =
-			_movetype == JPParameter::BPM &&
-				!parameters[_index]->bpmEligible ?
-				JPParameter::STANDART : _movetype;
+		// The load-time gate: a save file may ask for a mode this parameter is
+		// not eligible for, or - from a newer build - one that does not exist
+		// here at all. An unhandled movtype would be non-zero, so
+		// JPParameterGroup::update() would keep "updating" it forever with no
+		// branch to run.
+		int wanted = _movetype;
+		if (wanted == JPParameter::BPM && !parameters[_index]->bpmEligible)
+			wanted = JPParameter::STANDART;
+		if (wanted == JPParameter::AUDIO && !parameters[_index]->audioEligible)
+			wanted = JPParameter::STANDART;
+		if (wanted < 0 || wanted > JPParameter::AUDIO)
+			wanted = JPParameter::STANDART;
+		parameters[_index]->movtype = wanted;
 	}
 }
 // SETTERS
@@ -274,6 +356,50 @@ void JPParameterGroup::setBpmRate(int _rate, int _index)
 		_rate,
 		int(JPParameter::BPM_RATE_QUARTER),
 		int(JPParameter::BPM_RATE_QUADRUPLE));
+}
+void JPParameterGroup::setAudioSource(int _source, int _index)
+{
+	if (_index < 0 || _index >= parameters.size())
+		return;
+
+	parameters[_index]->audioSource =
+		std::clamp(_source, 0, int(jp_audio::SRC_COUNT) - 1);
+}
+void JPParameterGroup::setAudioDiv(int _div, int _index)
+{
+	if (_index < 0 || _index >= parameters.size())
+		return;
+
+	parameters[_index]->audioDiv =
+		std::clamp(_div, 0, int(jp_audio::DIV_COUNT) - 1);
+}
+void JPParameterGroup::setAudioBase(float value, int index)
+{
+	if (index >= 0 && index < parameters.size()) parameters[index]->audioBase = ofClamp(value, 0.0f, 1.0f);
+}
+void JPParameterGroup::setAudioAmount(float value, int index)
+{
+	if (index >= 0 && index < parameters.size()) parameters[index]->audioAmount = ofClamp(value, 0.0f, 1.0f);
+}
+void JPParameterGroup::setAudioInvert(bool value, int index)
+{
+	if (index >= 0 && index < parameters.size()) parameters[index]->audioInvert = value;
+}
+void JPParameterGroup::setAudioThreshold(float value, int index)
+{
+	if (index >= 0 && index < parameters.size()) parameters[index]->audioThreshold = ofClamp(value, 0.0f, 0.99f);
+}
+void JPParameterGroup::setAudioCurve(float value, int index)
+{
+	if (index >= 0 && index < parameters.size()) parameters[index]->audioCurve = ofClamp(value, 0.20f, 5.0f);
+}
+void JPParameterGroup::setAudioAttackMs(float value, int index)
+{
+	if (index >= 0 && index < parameters.size()) parameters[index]->audioAttackMs = ofClamp(value, 0.0f, 2000.0f);
+}
+void JPParameterGroup::setAudioReleaseMs(float value, int index)
+{
+	if (index >= 0 && index < parameters.size()) parameters[index]->audioReleaseMs = ofClamp(value, 1.0f, 5000.0f);
 }
 void JPParameterGroup::setBoolValue(bool _val, int _index)
 {
@@ -337,6 +463,27 @@ int JPParameterGroup::getBpmRate(int _index)
 
 	return parameters[_index]->bpmRate;
 }
+int JPParameterGroup::getAudioSource(int _index)
+{
+	if (_index < 0 || _index >= parameters.size())
+		return jp_audio::SRC_LOW;
+
+	return parameters[_index]->audioSource;
+}
+int JPParameterGroup::getAudioDiv(int _index)
+{
+	if (_index < 0 || _index >= parameters.size())
+		return jp_audio::DIV_1;
+
+	return parameters[_index]->audioDiv;
+}
+float JPParameterGroup::getAudioBase(int i) { return i >= 0 && i < parameters.size() ? parameters[i]->audioBase : 0.0f; }
+float JPParameterGroup::getAudioAmount(int i) { return i >= 0 && i < parameters.size() ? parameters[i]->audioAmount : 1.0f; }
+bool JPParameterGroup::getAudioInvert(int i) { return i >= 0 && i < parameters.size() && parameters[i]->audioInvert; }
+float JPParameterGroup::getAudioThreshold(int i) { return i >= 0 && i < parameters.size() ? parameters[i]->audioThreshold : 0.0f; }
+float JPParameterGroup::getAudioCurve(int i) { return i >= 0 && i < parameters.size() ? parameters[i]->audioCurve : 1.0f; }
+float JPParameterGroup::getAudioAttackMs(int i) { return i >= 0 && i < parameters.size() ? parameters[i]->audioAttackMs : 8.0f; }
+float JPParameterGroup::getAudioReleaseMs(int i) { return i >= 0 && i < parameters.size() ? parameters[i]->audioReleaseMs : 250.0f; }
 float JPParameterGroup::getFloatValue(int _index)
 {
 	if (_index >= parameters.size())

@@ -79,6 +79,21 @@
     <ClCompile Include="src\JPbox\jp_box_spout.cpp">
       <Filter>src\JPbox</Filter>
     </ClCompile>
+    <ClCompile Include="src\JPutils\jp_shader_globals.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPutils\jp_uishot.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPutils\jp_audio.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPutils\jp_audio_analyzer.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPutils\jp_persistence_test.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
     <ClCompile Include="src\JPutils\jp_parametergroup.cpp">
       <Filter>src\JPutils</Filter>
     </ClCompile>
@@ -375,6 +390,24 @@
       <Filter>src\JPutils</Filter>
     </ClInclude>
     <ClInclude Include="src\JPutils\jp_constants.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_shader_globals.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_uishot.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_audio.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_audio_analyzer.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_audio_queue.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_persistence_test.h">
       <Filter>src\JPutils</Filter>
     </ClInclude>
     <ClInclude Include="src\JPutils\jp_help_content.h">

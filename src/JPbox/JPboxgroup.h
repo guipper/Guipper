@@ -38,6 +38,19 @@ class JPboxgroup
 {
 
 public:
+	struct InspectorLayoutMetrics
+	{
+		float panelWidth = 450.0f;
+		float outerInset = 8.0f;
+		float contentPadding = 12.0f;
+		float columnGap = 8.0f;
+		float rowGap = 8.0f;
+		float minControlHeight = 24.0f;
+		float headerHeight = 52.0f;
+		float titleFontSize = 18.0f;
+		float bodyFontSize = 12.0f;
+		float secondaryFontSize = 11.0f;
+	};
 	// How many parameter slots the MIDI keymap exposes per box. Bindings are
 	// stored by index, so this has to stay fixed: growing it with the largest
 	// box on screen silently remapped saved bindings.
@@ -166,6 +179,14 @@ public:
 	bool isMappingShaderBox(JPbox *box) const;
 	void closeInspector();
 	ofRectangle getInspectorBounds() const;
+	ofRectangle getInspectorHeaderBounds() const { return inspectorHeaderBounds; }
+	ofRectangle getInspectorBodyViewport() const { return inspectorBodyViewport; }
+	const InspectorLayoutMetrics &getInspectorLayoutMetrics() const
+		{ return inspectorLayout; }
+	float getInspectorContentHeight() const { return inspectorContentHeight; }
+	float getInspectorScrollY() const { return inspectorScrollY; }
+	float getInspectorMaxScrollY() const { return inspectorMaxScrollY; }
+	void setInspectorScrollNormalized(float normalized);
 	// Set by ofApp so the canvas also yields to surfaces this class does not
 	// own - the MIDI panel, the shader editor, the save modal, dropdowns.
 	void setExternalGuiHitTest(std::function<bool(float, float)> fn);
@@ -256,6 +277,8 @@ public:
 
 	vector<JPcontroller *> controllers; // ESTE ARRAY ES DINAMICO , QUIERE DECIR QUE DEPENDE DE CUANDO CAMBIEN LOS COSOS
 										// ESTO ES SOLO PARA QUE LERPEE LOS VALORES HACIA ESTO.
+	JPComplexSlider *audioShapingDragSlider = nullptr;
+	int audioShapingDragControl = JPComplexSlider::AUDIO_SHAPING_NONE;
 	vector<JPExposeButton *> exposeButtons; // Expose buttons for group view inspector
 	vector<JPbox *> boxes;				// TODOS LOS SHADERRENDERS QUE TIENE EL OBJETO.
 
@@ -324,6 +347,7 @@ private:
 
 	void draw_cursorrect();
 	void setControllers();
+	void rebuildControllersIfLayoutStale();
 	void setupShaderRendersFromDataFolder(); // Esta es para que levante todos
 	int findBoxIndexByName(string boxName) const;
 	JPbox *findBoxByName(string boxName) const;
@@ -462,6 +486,18 @@ private:
 	float inspectorwindow_x;
 	float inspectorwindow_y;
 	float inspectorwindow_sepy; // Esta es para el espacio que hay entre distintos sliders.
+	InspectorLayoutMetrics inspectorLayout;
+	float inspectorScrollY = 0.0f;
+	float inspectorMaxScrollY = 0.0f;
+	float inspectorContentHeight = 0.0f;
+	ofRectangle inspectorHeaderBounds;
+	ofRectangle inspectorBodyViewport;
+	ofRectangle inspectorScrollbarTrack;
+	ofRectangle inspectorScrollbarThumb;
+	bool inspectorScrollbarDragging = false;
+	float inspectorScrollbarDragOffset = 0.0f;
+	JPbox *inspectorScrollOwner = nullptr;
+	bool inspectorRelayoutForClamp = false;
 	ofRectangle inspectorInputsHeaderBounds;
 	bool inspectorInputsExpanded = true;
 	vector<InspectorInputRow> inspectorInputRows;
@@ -472,6 +508,8 @@ private:
 	};
 	vector<InspectorParameterGroupHeader>
 		advancedMappingParameterHeaders;
+	bool inspectorBodyContains(float x, float y) const;
+	bool handleInspectorScrollbarPressed(float x, float y);
 
 	JPBang inspectorsetactive;			 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA
 	JPBang inspectorreload;				 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA

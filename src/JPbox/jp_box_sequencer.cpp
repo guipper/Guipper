@@ -1,4 +1,5 @@
 #include "jp_box_sequencer.h"
+#include "../JPutils/jp_shader_globals.h"
 #include "../JPutils/jp_tooltip.h"
 #include <iostream>
 #include <algorithm>
@@ -280,20 +281,12 @@ void JPbox_sequencer::clear()
 
 void JPbox_sequencer::update_globalUniforms()
 {
-    shader.setUniformTexture("feedback", fbo.getTexture(), 0);
-    shader.setUniform2f("resolution", fbo.getWidth(), fbo.getHeight());
-    shader.setUniform4f("mouse",
-        ofMap(ofGetMouseX(), 0, ofGetWidth(), 0, 1),
-        ofMap(ofGetMouseY(), 0, ofGetHeight(), 0, 1),
-        ofMap(jp_constants::mousePressedPos.x, 0, ofGetWidth(), 0, 1),
-        ofMap(jp_constants::mousePressedPos.y, 0, ofGetHeight(), 0, 1));
-    shader.setUniform1i("globalframeNum", ofGetFrameNum());
-    shader.setUniform1i("boxframeNum", frameNum);
-    shader.setUniform2f("window_mouse",
-        ofMap(jp_constants::window_mousex, 0, jp_constants::window_width, 0, 1),
-        ofMap(jp_constants::window_mousey, 0, jp_constants::window_height, 0, 1));
-    shader.setUniform1f("time", ofGetElapsedTimef());
-    shader.setUniform1f("bpm", jp_constants::bpm);
+	JPShaderGlobalsCtx ctx;
+	ctx.width = fbo.getWidth();
+	ctx.height = fbo.getHeight();
+	ctx.boxFrameNum = frameNum;
+	ctx.feedback = &fbo.getTexture();
+	jp_shader_globals::apply(shader, ctx);
 }
 
 void JPbox_sequencer::update_sequencerUniforms()

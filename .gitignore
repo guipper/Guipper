@@ -17,3 +17,8 @@ bin/guipper_debug.app/
 bin/guipper.*
 bin/guipper.app/
 obj/
+bin/data/uishots/*
+bin/data/groups/
+bin/data/shader_favorites.xml
+tests/audio_core_tests
+tests/audio_core_tests_tsan

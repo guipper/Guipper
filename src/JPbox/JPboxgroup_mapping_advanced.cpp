@@ -563,6 +563,7 @@ void JPboxgroup::drawAdvancedMappingParameterHeaders(JPbox *box)
 
 bool JPboxgroup::handleAdvancedMappingParameterHeaderClick(JPbox *box)
 {
+	if (!inspectorBodyContains(ofGetMouseX(), ofGetMouseY())) return false;
 	JPbox_shader *shaderBox = dynamic_cast<JPbox_shader *>(box);
 	if (shaderBox == nullptr || !shaderBox->isAdvancedMappingShader())
 		return false;

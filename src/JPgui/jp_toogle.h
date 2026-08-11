@@ -28,7 +28,10 @@ public:
 		GODER,
 		GOIZQ,
 		RAN,
-		BPM_SYNC
+		BPM_SYNC,
+		// Index-aligned with JPParameter::MovType, so update_movtype() can keep
+		// using textureindex directly. AUDIO_SRC == MovType::AUDIO == 6.
+		AUDIO_SRC
 	};
 
 private:

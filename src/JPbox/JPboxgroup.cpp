@@ -1,5 +1,6 @@
 #include "JPboxgroup.h"
 #include "../JPutils/jp_pointer.h"
+#include "../JPutils/jp_audio.h"
 #include "../JPgui/jp_shader_editor.h"
 #include "../JPutils/jp_textfield.h"
 #include "../JPutils/jp_tooltip.h"
@@ -1969,25 +1970,22 @@ float JPboxgroup::layoutInspectorInputRows(JPbox *box, float startY)
 		return startY;
 	}
 
-	const float panelLeft = inspectorwindow_x - inspectorwindow_width / 2.0f;
-	const float panelInset = 10.0f;
-	const float headerHeight = 24.0f;
-	const float rowHeight = 25.0f;
+	const float panelLeft = inspectorBodyViewport.x;
+	const float panelInset = inspectorLayout.contentPadding;
+	const float headerHeight = inspectorLayout.minControlHeight;
+	const float rowHeight = inspectorLayout.minControlHeight;
 	const float arrowSize = 18.0f;
 	const float exposeSize = 18.0f;
 	const float unlinkSize = 18.0f;
-	const float sectionGap = 7.0f;
-	const float nextControlHalfHeight =
-		box->parameters.getSize() > 0 ? inspectorwindow_sepy * 0.5f : 0.0f;
+	const float sectionGap = inspectorLayout.rowGap;
 	inspectorInputsHeaderBounds.set(
 		panelLeft + panelInset,
 		startY,
-		inspectorwindow_width - panelInset * 2.0f,
+		inspectorBodyViewport.width - panelInset * 2.0f,
 		headerHeight);
 	if (!inspectorInputsExpanded)
 	{
-		return inspectorInputsHeaderBounds.getBottom() +
-			sectionGap + nextControlHalfHeight;
+		return inspectorInputsHeaderBounds.getBottom() + sectionGap;
 	}
 
 	float rowY = inspectorInputsHeaderBounds.getBottom() + 2.0f;
@@ -1997,7 +1995,8 @@ float JPboxgroup::layoutInspectorInputRows(JPbox *box, float startY)
 		InspectorInputRow row;
 		row.linkIndex = linkIndex;
 		row.bounds.set(panelLeft + panelInset + 2.0f, rowY,
-			inspectorwindow_width - (panelInset + 2.0f) * 2.0f, rowHeight);
+			inspectorBodyViewport.width - (panelInset + 2.0f) * 2.0f,
+			rowHeight);
 		row.upButton.set(row.bounds.x + 3.0f,
 			row.bounds.y + (rowHeight - arrowSize) / 2.0f,
 			arrowSize, arrowSize);
@@ -2009,10 +2008,10 @@ float JPboxgroup::layoutInspectorInputRows(JPbox *box, float startY)
 			row.bounds.y + (rowHeight - exposeSize) / 2.0f,
 			exposeSize, exposeSize);
 		inspectorInputRows.push_back(row);
-		rowY += rowHeight;
+		rowY += rowHeight + 2.0f;
 	}
 
-	return rowY + sectionGap + nextControlHalfHeight;
+	return rowY + sectionGap;
 }
 
 void JPboxgroup::drawInspectorInputRows(JPbox *box)
@@ -2379,6 +2378,7 @@ bool JPboxgroup::toggleInspectorTextureInputExposure(
 
 bool JPboxgroup::handleInspectorInputClick(JPbox *box)
 {
+	if (!inspectorBodyContains(ofGetMouseX(), ofGetMouseY())) return false;
 	if (box != nullptr &&
 		inspectorInputsHeaderBounds.inside(ofGetMouseX(), ofGetMouseY()))
 	{
@@ -2419,6 +2419,7 @@ bool JPboxgroup::handleInspectorInputClick(JPbox *box)
 bool JPboxgroup::handleInspectorAutomationClick()
 {
 	const ofVec2f mouse(ofGetMouseX(), ofGetMouseY());
+	if (!inspectorBodyContains(mouse.x, mouse.y)) return false;
 	auto boundsFor = [](const JPdragobject &control)
 	{
 		return ofRectangle(
@@ -2467,6 +2468,88 @@ bool JPboxgroup::handleInspectorAutomationClick()
 			return true;
 		}
 
+		// AUDIO mode, mirroring the BPM pair above. Handle shaping controls
+		// before the persistent source/division row and the mode button.
+		if (parameter->audioEligible && parameter->movtype == JPParameter::AUDIO &&
+			boundsFor(slider->audio_shape_button).inside(mouse))
+		{
+			parameter->audioShapingOpen = !parameter->audioShapingOpen;
+			setControllers();
+			return true;
+		}
+		if (parameter->audioEligible && parameter->movtype == JPParameter::AUDIO &&
+			parameter->audioShapingOpen)
+		{
+			const int shapingControl = slider->audioShapingControlAt(
+				mouse.x, mouse.y);
+			if (shapingControl != JPComplexSlider::AUDIO_SHAPING_NONE)
+			{
+				audioShapingDragSlider = slider;
+				audioShapingDragControl = shapingControl;
+				slider->setAudioShapingControlFromMouse(
+					shapingControl, mouse.x);
+				parameter->update();
+				markCueDraftDirty(cueSelectedIndex());
+				if (isCueDraftMode()) updateCueDraftGraph();
+				return true;
+			}
+			if (boundsFor(slider->audio_invert_button).inside(mouse))
+			{
+				parameter->audioInvert = !parameter->audioInvert;
+				parameter->update();
+				markCueDraftDirty(cueSelectedIndex());
+				if (isCueDraftMode()) updateCueDraftGraph();
+				return true;
+			}
+		}
+		if (parameter->audioEligible &&
+			parameter->movtype == JPParameter::AUDIO &&
+			jp_audio::isRhythmSource(parameter->audioSource) &&
+			boundsFor(slider->audio_div_button).inside(mouse))
+		{
+			parameter->cycleAudioDiv();
+			parameter->update();
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode())
+			{
+				updateCueDraftGraph();
+			}
+			return true;
+		}
+		if (parameter->audioEligible &&
+			parameter->movtype == JPParameter::AUDIO &&
+			boundsFor(slider->audio_source_button).inside(mouse))
+		{
+			parameter->cycleAudioSource();
+			parameter->update();
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode())
+			{
+				updateCueDraftGraph();
+			}
+			// No relayout needed: the chip slots are reserved, so the row does
+			// not move when the source changes.
+			return true;
+		}
+		if (parameter->audioEligible &&
+			parameter->movtype != JPParameter::STANDART &&
+			boundsFor(slider->boton_audio).inside(mouse))
+		{
+			if (parameter->movtype != JPParameter::AUDIO)
+				parameter->audioBase = parameter->floatLerpValue;
+			parameter->movtype = JPParameter::AUDIO;
+			parameter->needsUpdate = false;
+			parameter->update();
+			slider->boton_audio.activable = false;
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode())
+			{
+				updateCueDraftGraph();
+			}
+			setControllers();
+			return true;
+		}
+
 		if (!boundsFor(slider->boton_collapse).inside(mouse))
 		{
 			if (isCueDraftMode() &&
@@ -2478,7 +2561,10 @@ bool JPboxgroup::handleInspectorAutomationClick()
 					boundsFor(slider->handler2).inside(mouse) ||
 					boundsFor(slider->boton_idayvuelta).inside(mouse) ||
 					boundsFor(slider->boton_random).inside(mouse) ||
-					boundsFor(slider->boton_direccion).inside(mouse);
+					boundsFor(slider->boton_direccion).inside(mouse) ||
+					boundsFor(slider->boton_audio).inside(mouse) ||
+					boundsFor(slider->audio_source_button).inside(mouse) ||
+					boundsFor(slider->audio_div_button).inside(mouse);
 				if (overAutomationControl)
 				{
 					markCueDraftDirty(cueSelectedIndex());
@@ -2497,6 +2583,29 @@ bool JPboxgroup::handleInspectorAutomationClick()
 	return false;
 }
 
+// A row's geometry - its height, and where the mode chips sit - depends on the
+// parameter's movtype. But setPosAndSize() runs only when the controllers are
+// rebuilt, while boton_idayvuelta / boton_random / boton_direccion change
+// movtype from inside JPToogle::draw(). Without this the row keeps the layout
+// of the mode it was built for and every control sits a slot out of place.
+void JPboxgroup::rebuildControllersIfLayoutStale()
+{
+	for (JPcontroller *controller : controllers)
+	{
+		JPComplexSlider *slider = dynamic_cast<JPComplexSlider *>(controller);
+		if (slider == nullptr || slider->parameters == nullptr) continue;
+		const bool sourceChanged =
+			slider->parameters->movtype == JPParameter::AUDIO &&
+			slider->builtForAudioSource != slider->parameters->audioSource;
+		if (slider->builtForMovtype != slider->parameters->movtype ||
+			sourceChanged)
+		{
+			setControllers();
+			return;
+		}
+	}
+}
+
 void JPboxgroup::draw_paramswindow()
 {
 	jp_pointer::Scope pointerScope(jp_pointer::kInspector);
@@ -2504,6 +2613,21 @@ void JPboxgroup::draw_paramswindow()
 	JPbox *inspectorBox = getInspectorBox();
 	if (inspectorBox != nullptr)
 	{
+		rebuildControllersIfLayoutStale();
+		// The inspector owns its surface. Preserve any upstream clip, but draw
+		// the sticky panel/header unclipped before applying the body viewport.
+		GLint previousInspectorScissor[4];
+		GLint inspectorViewport[4];
+		const GLboolean inspectorScissorWasEnabled =
+			glIsEnabled(GL_SCISSOR_TEST);
+		glGetIntegerv(GL_SCISSOR_BOX, previousInspectorScissor);
+		glGetIntegerv(GL_VIEWPORT, inspectorViewport);
+		// Use an explicit full-viewport clip rather than disabling scissor. Some
+		// OF render paths cache the enabled state and can otherwise reinstate a
+		// stale body clip before the title glyphs are submitted.
+		glEnable(GL_SCISSOR_TEST);
+		glScissor(inspectorViewport[0], inspectorViewport[1],
+			inspectorViewport[2], inspectorViewport[3]);
 		/*//CUADRADO VERDE
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		ofSetColor(255, 255);
@@ -2556,7 +2680,7 @@ void JPboxgroup::draw_paramswindow()
 			headerActionRight - headerActionWidth;
 		const float titleVisualCenterY =
 			inspectorwindow_sepy -
-			jp_constants::h_font.stringHeight("Ag") / 2.0f;
+			jp_constants::inspector_title_font.stringHeight("Ag") / 2.0f;
 		const float headerActionTop =
 			titleVisualCenterY - headerActionHeight / 2.0f;
 
@@ -2574,33 +2698,18 @@ void JPboxgroup::draw_paramswindow()
 		const float titleRight = headerActionWidth > 0.0f ?
 			headerActionLeft - 10.0f : panelRight - 12.0f;
 		float maxTitleW = std::max(20.0f, titleRight - titleX);
-		if (jp_constants::h_font.stringWidth(title) > maxTitleW)
+		if (jp_constants::inspector_title_font.stringWidth(title) > maxTitleW)
 		{
-			while (title.size() > 1 && jp_constants::h_font.stringWidth(title + "..") > maxTitleW)
+			while (title.size() > 1 &&
+				jp_constants::inspector_title_font.stringWidth(title + "..") > maxTitleW)
 			{
 				title.pop_back();
 			}
 			title += "..";
 		}
-		ofSetColor(COL_TEXT_PRIMARY);
-		jp_constants::h_font.drawString(title, titleX, inspectorwindow_sepy);
-		ofSetColor(ofColor(COL_BORDER_MUTED, 120));
-		ofDrawLine(titleX, headerDividerY, panelRight - 12.0f,
-			headerDividerY);
-
-		if (headerActionWidth > 0.0f)
-		{
-			ofSetColor(ofColor(COL_BG_INPUT, 245));
-			ofDrawRectRounded(headerActionLeft, headerActionTop,
-				headerActionWidth, headerActionHeight, 3.0f);
-			ofNoFill();
-			ofSetColor(ofColor(COL_BORDER_MUTED, 185));
-			ofSetLineWidth(1.0f);
-			ofDrawRectRounded(headerActionLeft, headerActionTop,
-				headerActionWidth, headerActionHeight, 3.0f);
-			ofFill();
-		}
-
+		// Header controls are measured here but painted once, after the clipped
+		// body. Keeping geometry and painting separate prevents stale scissor
+		// state and duplicated header styles from drifting apart.
 		float nextActionX = headerActionLeft;
 		if (hasRandomAction)
 		{
@@ -2609,136 +2718,55 @@ void JPboxgroup::draw_paramswindow()
 				headerActionTop + headerActionHeight / 2.0f;
 			inspectorrandom.width = randomActionWidth;
 			inspectorrandom.height = headerActionHeight;
-			if (inspectorrandom.mouseOver())
-			{
-				ofSetColor(ofColor(COL_BG_HOVER, 230));
-				ofDrawRectRounded(nextActionX + 1.0f,
-					headerActionTop + 1.0f,
-					randomActionWidth - 2.0f,
-					headerActionHeight - 2.0f, 2.0f);
-			}
-			ofSetColor(inspectorrandom.mouseOver() ?
-				COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
-			jp_constants::p_font.drawString(
-				"RDM",
-				inspectorrandom.x -
-					jp_constants::p_font.stringWidth("RDM") / 2.0f,
-				inspectorrandom.y +
-					jp_constants::p_font.stringHeight("RDM") / 2.0f - 2.0f);
-			drawInspectorClickBounds(inspectorrandom);
 			nextActionX += randomActionWidth;
 		}
 
 		if (hasCameraAction)
 		{
-			if (nextActionX > headerActionLeft)
-			{
-				ofSetColor(ofColor(COL_BORDER_MUTED, 165));
-				ofDrawLine(nextActionX, headerActionTop + 4.0f,
-					nextActionX,
-					headerActionTop + headerActionHeight - 4.0f);
-			}
 			camerarefreshbutton.x = nextActionX + cameraActionWidth / 2.0f;
 			camerarefreshbutton.y =
 				headerActionTop + headerActionHeight / 2.0f;
 			camerarefreshbutton.width = cameraActionWidth;
 			camerarefreshbutton.height = headerActionHeight;
-			if (camerarefreshbutton.mouseOver())
-			{
-				ofSetColor(ofColor(COL_BG_HOVER, 230));
-				ofDrawRectRounded(nextActionX + 1.0f,
-					headerActionTop + 1.0f,
-					cameraActionWidth - 2.0f,
-					headerActionHeight - 2.0f, 2.0f);
-			}
-			ofSetColor(camerarefreshbutton.mouseOver() ?
-				COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
-			const bool isKinect =
-				inspectorBox->getTipo() == inspectorBox->KINECT2BOX;
-			const string scanLabel = isKinect ? "RETRY" : "SCAN";
-			jp_constants::p_font.drawString(
-				scanLabel,
-				camerarefreshbutton.x -
-					jp_constants::p_font.stringWidth(scanLabel) / 2.0f,
-				camerarefreshbutton.y +
-					jp_constants::p_font.stringHeight("SCAN") / 2.0f - 2.0f);
-			jp_tooltip::draw(isKinect ? "Reconnect the Kinect v2" :
-				"Rescan cameras connected after startup",
-				camerarefreshbutton.x - camerarefreshbutton.width / 2.0f,
-				camerarefreshbutton.y - camerarefreshbutton.height / 2.0f,
-				camerarefreshbutton.width, camerarefreshbutton.height);
-			drawInspectorClickBounds(camerarefreshbutton);
 			nextActionX += cameraActionWidth;
 		}
 
 		if (hasEditAction)
 		{
-			if (nextActionX > headerActionLeft)
-			{
-				ofSetColor(ofColor(COL_BORDER_MUTED, 165));
-				ofDrawLine(nextActionX, headerActionTop + 4.0f,
-					nextActionX,
-					headerActionTop + headerActionHeight - 4.0f);
-			}
 			editbutton.x = nextActionX + editActionWidth / 2.0f;
 			editbutton.y =
 				headerActionTop + headerActionHeight / 2.0f;
 			editbutton.width = editActionWidth;
 			editbutton.height = headerActionHeight;
-			if (editbutton.mouseOver())
-			{
-				ofSetColor(ofColor(COL_BG_HOVER, 230));
-				ofDrawRectRounded(nextActionX + 1.0f,
-					headerActionTop + 1.0f,
-					editActionWidth - 2.0f,
-					headerActionHeight - 2.0f, 2.0f);
-			}
-			ofSetColor(editbutton.mouseOver() ?
-				COL_ACCENT_GOLD : COL_ACCENT_GOLD_DIM);
-			jp_constants::p_font.drawString(
-				"EDIT",
-				editbutton.x -
-					jp_constants::p_font.stringWidth("EDIT") / 2.0f,
-				editbutton.y +
-					jp_constants::p_font.stringHeight("EDIT") / 2.0f - 2.0f);
-			drawInspectorClickBounds(editbutton);
 			nextActionX += editActionWidth;
 		}
 
 		if (hasMappingAction)
 		{
-			if (nextActionX > headerActionLeft)
-			{
-				ofSetColor(ofColor(COL_BORDER_MUTED, 165));
-				ofDrawLine(nextActionX, headerActionTop + 4.0f,
-					nextActionX,
-					headerActionTop + headerActionHeight - 4.0f);
-			}
 			mappingbutton.x = nextActionX + mappingActionWidth / 2.0f;
 			mappingbutton.y = headerActionTop + headerActionHeight / 2.0f;
 			mappingbutton.width = mappingActionWidth;
 			mappingbutton.height = headerActionHeight;
-			if (mappingbutton.mouseOver())
-			{
-				ofSetColor(ofColor(COL_BG_HOVER, 230));
-				ofDrawRectRounded(nextActionX + 1.0f,
-					headerActionTop + 1.0f,
-					mappingActionWidth - 2.0f,
-					headerActionHeight - 2.0f, 2.0f);
-			}
-			ofSetColor(mappingEditActive ? COL_ACCENT_CYAN :
-				(mappingbutton.mouseOver() ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY));
-			jp_constants::p_font.drawString(
-				"MAP",
-				mappingbutton.x - jp_constants::p_font.stringWidth("MAP") / 2.0f,
-				mappingbutton.y + jp_constants::p_font.stringHeight("MAP") / 2.0f - 2.0f);
-			jp_tooltip::draw("Edit mapping corners",
-				mappingbutton.x - mappingbutton.width / 2.0f,
-				mappingbutton.y - mappingbutton.height / 2.0f,
-				mappingbutton.width, mappingbutton.height);
-			drawInspectorClickBounds(mappingbutton);
 			nextActionX += mappingActionWidth;
 		}
+
+		const float inspectorPixelScale = ofGetHeight() > 0 ?
+			inspectorViewport[3] / static_cast<float>(ofGetHeight()) : 1.0f;
+		glEnable(GL_SCISSOR_TEST);
+		glScissor(
+			inspectorViewport[0] + static_cast<GLint>(std::floor(
+				inspectorBodyViewport.x * inspectorPixelScale)),
+			inspectorViewport[1] + static_cast<GLint>(std::floor(
+				(ofGetHeight() - inspectorBodyViewport.getBottom()) *
+				inspectorPixelScale)),
+			std::max(0, static_cast<GLint>(std::ceil(
+				inspectorBodyViewport.width * inspectorPixelScale))),
+			std::max(0, static_cast<GLint>(std::ceil(
+				inspectorBodyViewport.height * inspectorPixelScale))));
+		const bool suppressBodyPointer = !inspectorBodyContains(
+			ofGetMouseX(), ofGetMouseY());
+		if (suppressBodyPointer)
+			JPdragobject::setMouseOverride(ofVec2f(-10000.0f, -10000.0f));
 
 		drawInspectorInputRows(inspectorBox);
 		drawAdvancedMappingParameterHeaders(inspectorBox);
@@ -2779,6 +2807,11 @@ void JPboxgroup::draw_paramswindow()
 			{
 				continue;
 			}
+			const ofRectangle controllerBounds(
+				controllers[i]->x - controllers[i]->width * 0.5f,
+				controllers[i]->y - controllers[i]->height * 0.5f,
+				controllers[i]->width, controllers[i]->height);
+			if (!controllerBounds.intersects(inspectorBodyViewport)) continue;
 			controllers[i]->draw();
 			if (dynamic_cast<JPComplexSlider *>(controllers[i]) == nullptr)
 			{
@@ -2804,7 +2837,94 @@ void JPboxgroup::draw_paramswindow()
 					}
 				}
 			}
-	}
+		}
+		if (suppressBodyPointer) JPdragobject::clearMouseOverride();
+
+		// Paint the sticky header last. Besides giving it the correct z-order,
+		// this protects it from renderers that leave a stale FBO scissor active
+		// before the inspector is entered.
+		glEnable(GL_SCISSOR_TEST);
+		glScissor(inspectorViewport[0], inspectorViewport[1],
+			inspectorViewport[2], inspectorViewport[3]);
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		ofSetColor(COL_BG_PANEL);
+		ofDrawRectangle(inspectorHeaderBounds);
+		ofSetColor(COL_TEXT_PRIMARY);
+		jp_constants::inspector_title_font.drawString(
+			title, titleX, inspectorwindow_sepy);
+		ofSetColor(ofColor(COL_BORDER_MUTED, 120));
+		ofDrawLine(titleX, headerDividerY, panelRight - 12.0f,
+			headerDividerY);
+		if (headerActionWidth > 0.0f)
+		{
+			ofSetColor(ofColor(COL_BG_INPUT, 245));
+			ofDrawRectRounded(headerActionLeft, headerActionTop,
+				headerActionWidth, headerActionHeight, 3.0f);
+			ofNoFill();
+			ofSetColor(ofColor(COL_BORDER_MUTED, 185));
+			ofDrawRectRounded(headerActionLeft, headerActionTop,
+				headerActionWidth, headerActionHeight, 3.0f);
+			ofFill();
+		}
+		bool firstHeaderAction = true;
+		auto drawHeaderAction = [&](JPBang &button, const string &label,
+			const ofColor &idleColor, const ofColor &hoverColor,
+			const string &tooltip)
+		{
+			if (button.width <= 0.0f) return;
+			const float left = button.x - button.width * 0.5f;
+			if (!firstHeaderAction)
+			{
+				ofSetColor(ofColor(COL_BORDER_MUTED, 165));
+				ofDrawLine(left, headerActionTop + 4.0f, left,
+					headerActionTop + headerActionHeight - 4.0f);
+			}
+			firstHeaderAction = false;
+			const bool hovered = button.mouseOver();
+			if (hovered)
+			{
+				ofSetColor(ofColor(COL_BG_HOVER, 230));
+				ofDrawRectRounded(left + 1.0f, headerActionTop + 1.0f,
+					button.width - 2.0f, headerActionHeight - 2.0f, 2.0f);
+			}
+			ofSetColor(hovered ? hoverColor : idleColor);
+			jp_constants::inspector_secondary_font.drawString(label,
+				button.x - jp_constants::inspector_secondary_font.stringWidth(label) * 0.5f,
+				button.y + jp_constants::inspector_secondary_font.stringHeight(label) * 0.5f - 2.0f);
+			if (!tooltip.empty())
+				jp_tooltip::draw(tooltip, left,
+					button.y - button.height * 0.5f,
+					button.width, button.height);
+			drawInspectorClickBounds(button);
+		};
+		drawHeaderAction(inspectorrandom, "RDM", COL_TEXT_SECONDARY,
+			COL_ACCENT_CYAN, "Randomize parameters");
+		drawHeaderAction(camerarefreshbutton,
+			inspectorBox->getTipo() == inspectorBox->KINECT2BOX ? "RETRY" : "SCAN",
+			COL_TEXT_SECONDARY, COL_ACCENT_CYAN,
+			inspectorBox->getTipo() == inspectorBox->KINECT2BOX ?
+				"Reconnect the Kinect v2" :
+				"Rescan cameras connected after startup");
+		drawHeaderAction(editbutton, "EDIT", COL_ACCENT_GOLD_DIM,
+			COL_ACCENT_GOLD, "Edit shader source");
+		drawHeaderAction(mappingbutton, "MAP",
+			mappingEditActive ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY,
+			COL_ACCENT_CYAN, "Edit mapping corners");
+
+		if (inspectorMaxScrollY > 0.0f)
+		{
+			ofSetRectMode(OF_RECTMODE_CORNER);
+			ofSetColor(ofColor(COL_BG_SCROLLBAR, 70));
+			ofDrawRectRounded(inspectorScrollbarTrack, 2.0f);
+			ofSetColor(inspectorScrollbarDragging ? COL_ACCENT_CYAN :
+				ofColor(COL_TEXT_MUTED, 210));
+			ofDrawRectRounded(inspectorScrollbarThumb, 2.0f);
+		}
+		if (inspectorScissorWasEnabled)
+			glScissor(previousInspectorScissor[0], previousInspectorScissor[1],
+				previousInspectorScissor[2], previousInspectorScissor[3]);
+		else
+			glDisable(GL_SCISSOR_TEST);
 }
 }
 void JPboxgroup::draw_conections()
@@ -3187,6 +3307,36 @@ void JPboxgroup::setinspectorsetactiveparams()
 void JPboxgroup::update_mouseDragged(int mousebutton)
 {
 	ofVec2f screenMouse(ofGetMouseX(), ofGetMouseY());
+	if (mousebutton == OF_MOUSE_BUTTON_LEFT && inspectorScrollbarDragging)
+	{
+		const float travel = inspectorScrollbarTrack.height -
+			inspectorScrollbarThumb.height;
+		if (travel > 0.0f && inspectorMaxScrollY > 0.0f)
+		{
+			const float thumbY = ofClamp(
+				screenMouse.y - inspectorScrollbarDragOffset,
+				inspectorScrollbarTrack.y,
+				inspectorScrollbarTrack.getBottom() -
+					inspectorScrollbarThumb.height);
+			inspectorScrollY = (thumbY - inspectorScrollbarTrack.y) /
+				travel * inspectorMaxScrollY;
+			setControllers();
+		}
+		return;
+	}
+	if (mousebutton == OF_MOUSE_BUTTON_LEFT &&
+		audioShapingDragSlider != nullptr &&
+		audioShapingDragControl != JPComplexSlider::AUDIO_SHAPING_NONE)
+	{
+		if (audioShapingDragSlider->setAudioShapingControlFromMouse(
+			audioShapingDragControl, screenMouse.x))
+		{
+			audioShapingDragSlider->parameters->update();
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode()) updateCueDraftGraph();
+		}
+		return;
+	}
 	ofVec2f previousScreenMouse(ofGetPreviousMouseX(), ofGetPreviousMouseY());
 	ofVec2f canvasMouse = screenToCanvas(screenMouse);
 	ofVec2f previousCanvasMouse = screenToCanvas(previousScreenMouse);
@@ -3332,7 +3482,8 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 			}
 		}
 		// Si invertimos el for en este crashea. habra que cambiarlo en otro lugar tambien?
-		if (!slideragarrado && inspectorBox != nullptr)
+		if (!slideragarrado && inspectorBox != nullptr &&
+			inspectorBodyContains(ofGetMouseX(), ofGetMouseY()))
 		{
 			for (int i = 0; i < controllers.size(); i++)
 			{
@@ -3381,6 +3532,11 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	}
 
 	JPbox *inputInspectorBox = getInspectorBox();
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT && inputInspectorBox != nullptr &&
+		handleInspectorScrollbarPressed(ofGetMouseX(), ofGetMouseY()))
+	{
+		return;
+	}
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
 		inputInspectorBox != nullptr && mouseOverGui() &&
 		handleAdvancedMappingParameterHeaderClick(inputInspectorBox))
@@ -3602,7 +3758,8 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			float sliderRight = controllers[i]->x + sliderVisualWidth / 2.0f;
 			float mx = ofGetMouseX();
 			float my = ofGetMouseY();
-			bool overVisualSlider = (mx >= sliderLeft && mx <= sliderRight &&
+			bool overVisualSlider = inspectorBodyContains(mx, my) &&
+				(mx >= sliderLeft && mx <= sliderRight &&
 				my >= controllers[i]->y - controllers[i]->height / 2 &&
 				my <= controllers[i]->y + controllers[i]->height / 2);
 			if (overVisualSlider)
@@ -3749,6 +3906,12 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 }
 void JPboxgroup::update_mouseReleased(int mouseButton)
 {
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT)
+	{
+		audioShapingDragSlider = nullptr;
+		audioShapingDragControl = JPComplexSlider::AUDIO_SHAPING_NONE;
+		inspectorScrollbarDragging = false;
+	}
 	// Determine active box vector based on context (main vs group view)
 	vector<JPbox *> *activeBoxesPtr = &boxes;
 	JPbox_preset *activePreset = nullptr;
@@ -3914,6 +4077,19 @@ bool JPboxgroup::mouseScrolled(int x, int y, float scrollX, float scrollY)
 	{
 		return true;
 	}
+	if (scrollY != 0.0f && getInspectorBox() != nullptr &&
+		inspectorBodyContains(x, y))
+	{
+		if (inspectorMaxScrollY > 0.0f)
+		{
+			const float previous = inspectorScrollY;
+			inspectorScrollY = ofClamp(inspectorScrollY - scrollY * 36.0f,
+				0.0f, inspectorMaxScrollY);
+			if (std::abs(previous - inspectorScrollY) > 0.01f)
+				setControllers();
+		}
+		return true;
+	}
 	if (scrollY == 0 || mouseOverGui())
 	{
 		return false;
@@ -3923,6 +4099,45 @@ bool JPboxgroup::mouseScrolled(int x, int y, float scrollX, float scrollY)
 	float oldZoom = viewportZoom;
 	zoomViewport(ofVec2f(x, y), zoomFactor);
 	return viewportZoom != oldZoom;
+}
+
+bool JPboxgroup::inspectorBodyContains(float x, float y) const
+{
+	return inspectorBodyViewport.width > 0.0f &&
+		inspectorBodyViewport.inside(x, y);
+}
+
+bool JPboxgroup::handleInspectorScrollbarPressed(float x, float y)
+{
+	if (inspectorMaxScrollY <= 0.0f ||
+		!inspectorScrollbarTrack.inside(x, y)) return false;
+	if (inspectorScrollbarThumb.inside(x, y))
+	{
+		inspectorScrollbarDragOffset = y - inspectorScrollbarThumb.y;
+	}
+	else
+	{
+		inspectorScrollbarDragOffset = inspectorScrollbarThumb.height * 0.5f;
+		const float travel = inspectorScrollbarTrack.height -
+			inspectorScrollbarThumb.height;
+		if (travel > 0.0f)
+		{
+			const float thumbY = ofClamp(y - inspectorScrollbarDragOffset,
+				inspectorScrollbarTrack.y,
+				inspectorScrollbarTrack.getBottom() - inspectorScrollbarThumb.height);
+			inspectorScrollY = (thumbY - inspectorScrollbarTrack.y) /
+				travel * inspectorMaxScrollY;
+			setControllers();
+		}
+	}
+	inspectorScrollbarDragging = true;
+	return true;
+}
+
+void JPboxgroup::setInspectorScrollNormalized(float normalized)
+{
+	inspectorScrollY = ofClamp(normalized, 0.0f, 1.0f) * inspectorMaxScrollY;
+	setControllers();
 }
 void JPboxgroup::updateTransition(int _idx) {
 
@@ -4128,6 +4343,15 @@ void JPboxgroup::save(string outputPath)
 					param.appendChild("movtype").set(boxes[i]->parameters.getMovType(k));
 					param.appendChild("speed").set(boxes[i]->parameters.getSpeed(k));
 					param.appendChild("bpmrate").set(boxes[i]->parameters.getBpmRate(k));
+					param.appendChild("audiosource").set(boxes[i]->parameters.getAudioSource(k));
+					param.appendChild("audiodiv").set(boxes[i]->parameters.getAudioDiv(k));
+					param.appendChild("audiobase").set(boxes[i]->parameters.getAudioBase(k));
+					param.appendChild("audioamount").set(boxes[i]->parameters.getAudioAmount(k));
+					param.appendChild("audioinvert").set(boxes[i]->parameters.getAudioInvert(k));
+					param.appendChild("audiothreshold").set(boxes[i]->parameters.getAudioThreshold(k));
+					param.appendChild("audiocurve").set(boxes[i]->parameters.getAudioCurve(k));
+					param.appendChild("audioattackms").set(boxes[i]->parameters.getAudioAttackMs(k));
+					param.appendChild("audioreleasems").set(boxes[i]->parameters.getAudioReleaseMs(k));
 				}
 			}
 		}
@@ -4336,6 +4560,29 @@ void JPboxgroup::load(string _dirinput)
 				{
 					bx->parameters.setBpmRate(bpmRate.getIntValue(), destinationIndex);
 				}
+				auto audioSource = param.getChild("audiosource");
+				if (audioSource)
+				{
+					bx->parameters.setAudioSource(audioSource.getIntValue(), destinationIndex);
+				}
+				auto audioDiv = param.getChild("audiodiv");
+				if (audioDiv)
+				{
+					bx->parameters.setAudioDiv(audioDiv.getIntValue(), destinationIndex);
+				}
+				auto loadAudioFloat = [&](const char *key, auto setter)
+				{
+					auto node = param.getChild(key);
+					if (node) (bx->parameters.*setter)(node.getFloatValue(), destinationIndex);
+				};
+				loadAudioFloat("audiobase", &JPParameterGroup::setAudioBase);
+				loadAudioFloat("audioamount", &JPParameterGroup::setAudioAmount);
+				auto audioInvert = param.getChild("audioinvert");
+				if (audioInvert) bx->parameters.setAudioInvert(audioInvert.getBoolValue(), destinationIndex);
+				loadAudioFloat("audiothreshold", &JPParameterGroup::setAudioThreshold);
+				loadAudioFloat("audiocurve", &JPParameterGroup::setAudioCurve);
+				loadAudioFloat("audioattackms", &JPParameterGroup::setAudioAttackMs);
+				loadAudioFloat("audioreleasems", &JPParameterGroup::setAudioReleaseMs);
 			}
 			else if (bx->parameters.getType(destinationIndex) == bx->parameters.BOOL)
 			{
@@ -4460,6 +4707,8 @@ void JPboxgroup::load(string _dirinput)
 
 }
 void JPboxgroup::setControllers(){
+	audioShapingDragSlider = nullptr;
+	audioShapingDragControl = JPComplexSlider::AUDIO_SHAPING_NONE;
 
 	for (int i = 0; i < controllers.size(); i++)
 	{
@@ -4482,8 +4731,32 @@ void JPboxgroup::setControllers(){
 	JPbox *inspectorBox = getInspectorBox();
 	if (inspectorBox == nullptr)
 	{
+		inspectorScrollOwner = nullptr;
+		inspectorScrollY = inspectorMaxScrollY = inspectorContentHeight = 0.0f;
+		inspectorHeaderBounds.set(0, 0, 0, 0);
+		inspectorBodyViewport.set(0, 0, 0, 0);
 		return;
 	}
+	if (inspectorScrollOwner != inspectorBox)
+	{
+		inspectorScrollOwner = inspectorBox;
+		inspectorScrollY = 0.0f;
+	}
+	inspectorwindow_width = inspectorLayout.panelWidth;
+	inspectorwindow_x = ofGetWidth() - inspectorwindow_width * 0.5f;
+	// Measure against the largest body the window can display. Once content is
+	// known below, the actual panel contracts to that measured height.
+	inspectorwindow_height = ofGetHeight();
+	inspectorwindow_y = inspectorwindow_height * 0.5f;
+	const float panelLeft = inspectorwindow_x - inspectorwindow_width * 0.5f;
+	inspectorHeaderBounds.set(panelLeft, 0.0f,
+		inspectorwindow_width, inspectorLayout.headerHeight);
+	inspectorBodyViewport.set(
+		panelLeft + inspectorLayout.outerInset,
+		inspectorLayout.headerHeight,
+		inspectorwindow_width - inspectorLayout.outerInset * 2.0f,
+		std::max(0.0f, ofGetHeight() - inspectorLayout.headerHeight -
+			inspectorLayout.outerInset));
 
 	JPbox_shader *advancedShader = dynamic_cast<JPbox_shader *>(inspectorBox);
 	JPbox_shader::AdvancedMappingState *advancedState =
@@ -4491,38 +4764,32 @@ void JPboxgroup::setControllers(){
 		advancedShader->getAdvancedMappingState() : nullptr;
 	int lastAdvancedLayer = -1;
 
-	inspectorwindow_height = 0;
 	float slider_width = inspectorwindow_width * 3 / 4;
-	float slider_height = inspectorwindow_sepy * 7 / 10;
-	const float controllerWidth = inspectorwindow_width - 8.0f;
+	float slider_height = inspectorLayout.minControlHeight;
+	const float controllerWidth = inspectorBodyViewport.width;
 	const float standardControllerHeight = inspectorwindow_sepy;
-	const float automatedControllerHeight =
-		inspectorwindow_sepy * 5.0f / 3.0f;
-	const float automationTransitionOffset =
-		(automatedControllerHeight - standardControllerHeight) / 2.0f;
-
-	inspectorwindow_height = font_p->stringHeight(inspectorBox->name);
-	inspectorwindow_height += inspectorwindow_sepy * 1.;
-
-	// El espacio que ponemos para dibujar el reload shader. Cosa que ya sacamos.
-	/*if(boxes[openguinumber]->getTipo() == boxes[openguinumber]->SHADERBOX){
-		inspectorwindow_height += inspectorwindow_setactivesize;
-	}*/
-	// Espacio para dibujar el set active render
-	inspectorwindow_height += inspectorwindow_sepy * 0.5;
-	inspectorwindow_height = layoutInspectorInputRows(
-		inspectorBox, inspectorwindow_height);
+	const float controllerRowGap = inspectorLayout.rowGap;
+	auto controllerHeightFor = [&](JPParameter *parameter) {
+		return JPComplexSlider::requiredHeight(parameter,
+			standardControllerHeight);
+	};
+	auto controllerYFor = [&](float cursorY, JPParameter *parameter) {
+		return cursorY + controllerHeightFor(parameter) * 0.5f;
+	};
+	float layoutCursor = inspectorBodyViewport.y +
+		inspectorLayout.contentPadding - inspectorScrollY;
+	layoutCursor = layoutInspectorInputRows(inspectorBox, layoutCursor);
 	if (inspectorBox->getTipo() == inspectorBox->KINECT2BOX)
 	{
-		const float left = inspectorwindow_x - inspectorwindow_width / 2.0f + 10.0f;
+		const float left = inspectorBodyViewport.x + inspectorLayout.contentPadding;
 		const float gap = 4.0f;
 		const float width = (inspectorwindow_width - 20.0f - gap * 2.0f) / 3.0f;
 		for (int i = 0; i < 3; ++i)
 		{
 			kinectStreamButtons[i].set(left + i * (width + gap),
-				inspectorwindow_height - 10.0f, width, 26.0f);
+				layoutCursor, width, 26.0f);
 		}
-		inspectorwindow_height += 54.0f;
+		layoutCursor += 54.0f + controllerRowGap;
 	}
 	else
 	{
@@ -4531,12 +4798,6 @@ void JPboxgroup::setControllers(){
 	/*inspectorwindow_height += inspectorwindow_setactivesize;
 	inspectorwindow_height += inspectorwindow_sepy * 0.5;
 	*/
-
-	// FIJATE QUE ESTO SI LA PRIMERA CONDICION NO SE CUMPLE NI EVALUA LA SEGUNDA. PARA PODER EVALUAR LA SEGUNDA LA PRIMERA TIENE QUE SER TRU
-	if (inspectorBox->parameters.getSize() > 0 && inspectorBox->parameters.getMovType(0) != 0)
-	{
-		inspectorwindow_height += automationTransitionOffset;
-	}
 
 	for (int k = 0; k < inspectorBox->parameters.getSize(); k++)
 	{
@@ -4549,11 +4810,12 @@ void JPboxgroup::setControllers(){
 			InspectorParameterGroupHeader header;
 			header.layerIndex = advancedLayer;
 			header.bounds.set(
-				inspectorwindow_x - inspectorwindow_width / 2.0f + 10.0f,
-				inspectorwindow_height - standardControllerHeight / 2.0f,
-				inspectorwindow_width - 20.0f, 24.0f);
+				inspectorBodyViewport.x + inspectorLayout.contentPadding,
+				layoutCursor,
+				inspectorBodyViewport.width - inspectorLayout.contentPadding * 2.0f,
+				inspectorLayout.minControlHeight);
 			advancedMappingParameterHeaders.push_back(header);
-			inspectorwindow_height += 24.0f;
+			layoutCursor += inspectorLayout.minControlHeight + controllerRowGap;
 			lastAdvancedLayer = advancedLayer;
 		}
 		const bool parameterHidden = advancedState != nullptr &&
@@ -4576,24 +4838,8 @@ void JPboxgroup::setControllers(){
 				continue;
 			}
 
-			float complexsliderheight = standardControllerHeight;
-			if (inspectorBox->parameters.getMovType(k) != 0)
-			{
-				complexsliderheight = automatedControllerHeight;
-			}
-			if (k > 0)
-			{
-				if (inspectorBox->parameters.getMovType(k) != 0 &&
-					inspectorBox->parameters.getMovType(k - 1) == 0)
-				{
-					inspectorwindow_height += automationTransitionOffset;
-				}
-				if (inspectorBox->parameters.getMovType(k) == 0 &&
-					inspectorBox->parameters.getMovType(k - 1) != 0)
-				{
-					inspectorwindow_height -= automationTransitionOffset;
-				}
-			}
+			float complexsliderheight = controllerHeightFor(
+				inspectorBox->parameters.parameters[k]);
 			// boxes[openguinumber]->parameters.setFloatValue(0.0, k);
 
 			// boxes[openguinumber]->parameters.parameters[k]->floatValue = 0.5;
@@ -4603,30 +4849,27 @@ void JPboxgroup::setControllers(){
 			// JPParameter* as = boxes[openguinumber]->parameters.parameters[k];
 			JPComplexSlider *sl = new JPComplexSlider();
 			sl->setup(inspectorwindow_x,
-					  inspectorwindow_height, controllerWidth, complexsliderheight,
+					  controllerYFor(layoutCursor,
+						  inspectorBox->parameters.parameters[k]),
+					  controllerWidth, complexsliderheight,
 					  inspectorBox->parameters.parameters[k]);
 			if (advancedLayer >= 0)
 				sl->name = parameterName.substr(7);
 
 			controllers.push_back(sl);
 
-			if (k != inspectorBox->parameters.getSize() - 1)
-			{
-				// inspectorwindow_height -= inspectorwindow_sepy * 0.5;
-				inspectorwindow_height += complexsliderheight;
-			}
-			else
-			{
-				inspectorwindow_height += complexsliderheight * .5;
-			}
+			layoutCursor += complexsliderheight + controllerRowGap;
 		}
 		else if (inspectorBox->parameters.getType(k) == inspectorBox->parameters.BOOL)
 		{
 			float complexsliderheight = standardControllerHeight;
 			JPToogle *toogle = new JPToogle();
 			toogle->setParametersPointer(inspectorBox->parameters.getJParameter(k));
+			toogle->setFontPointer(jp_constants::inspector_body_font);
 			toogle->setup(inspectorwindow_x,
-						  inspectorwindow_height, slider_width, slider_height, inspectorBox->parameters.getName(k), inspectorBox->parameters.getBoolValue(k));
+						  layoutCursor + complexsliderheight * 0.5f,
+						  slider_width, slider_height,
+						  inspectorBox->parameters.getName(k), inspectorBox->parameters.getBoolValue(k));
 			if (parameterHidden)
 			{
 				toogle->y = -10000.0f;
@@ -4635,7 +4878,7 @@ void JPboxgroup::setControllers(){
 			}
 			controllers.push_back(toogle);
 			if (!parameterHidden)
-				inspectorwindow_height += complexsliderheight;
+				layoutCursor += complexsliderheight + controllerRowGap;
 		}
 		}
 
@@ -4676,22 +4919,21 @@ void JPboxgroup::setControllers(){
 							 << preset->boxes[bi]->name << "\"" << endl;
 						if (!hasExposedInThisChild && bi > 0)
 						{
-							inspectorwindow_height += inspectorwindow_sepy * 0.5;
+							layoutCursor += controllerRowGap;
 						}
 						hasExposedInThisChild = true;
 
 						if (ei < preset->boxes[bi]->parameters.getSize() &&
 							preset->boxes[bi]->parameters.getType(ei) == preset->boxes[bi]->parameters.FLOAT)
 						{
-							float complexsliderheight = standardControllerHeight;
-							if (preset->boxes[bi]->parameters.getMovType(ei) != 0)
-							{
-								complexsliderheight = automatedControllerHeight;
-							}
+							float complexsliderheight = controllerHeightFor(
+								preset->boxes[bi]->parameters.parameters[ei]);
 
 							JPComplexSlider *sl = new JPComplexSlider();
 							sl->setup(inspectorwindow_x,
-									  inspectorwindow_height, controllerWidth, complexsliderheight,
+									  controllerYFor(layoutCursor,
+										  preset->boxes[bi]->parameters.parameters[ei]),
+									  controllerWidth, complexsliderheight,
 									  preset->boxes[bi]->parameters.parameters[ei]);
 
 							// Prepend full path to the slider name
@@ -4703,7 +4945,7 @@ void JPboxgroup::setControllers(){
 							controllers.push_back(sl);
 							exposedControllerMapping.push_back({bi, ei});
 
-							inspectorwindow_height += complexsliderheight;
+							layoutCursor += complexsliderheight + controllerRowGap;
 						}
 					}
 				}
@@ -4732,22 +4974,21 @@ void JPboxgroup::setControllers(){
 						{
 							if (!hasExposedInThisChild && bi > 0)
 							{
-								inspectorwindow_height += inspectorwindow_sepy * 0.5;
+								layoutCursor += controllerRowGap;
 							}
 							hasExposedInThisChild = true;
 
 							if (ei < rootPreset->boxes[bi]->parameters.getSize() &&
 								rootPreset->boxes[bi]->parameters.getType(ei) == rootPreset->boxes[bi]->parameters.FLOAT)
 							{
-								float complexsliderheight = standardControllerHeight;
-								if (rootPreset->boxes[bi]->parameters.getMovType(ei) != 0)
-								{
-									complexsliderheight = automatedControllerHeight;
-								}
+								float complexsliderheight = controllerHeightFor(
+									rootPreset->boxes[bi]->parameters.parameters[ei]);
 
 								JPComplexSlider *sl = new JPComplexSlider();
 								sl->setup(inspectorwindow_x,
-										  inspectorwindow_height, controllerWidth, complexsliderheight,
+										  controllerYFor(layoutCursor,
+											  rootPreset->boxes[bi]->parameters.parameters[ei]),
+										  controllerWidth, complexsliderheight,
 										  rootPreset->boxes[bi]->parameters.parameters[ei]);
 
 								// Prepend child name to the slider label
@@ -4757,7 +4998,7 @@ void JPboxgroup::setControllers(){
 								controllers.push_back(sl);
 								exposedControllerMapping.push_back({bi, ei});
 
-								inspectorwindow_height += complexsliderheight;
+								layoutCursor += complexsliderheight + controllerRowGap;
 							}
 							// Propagated expose: the exposed param comes from a grandchild (child's child)
 							// Use exposedParamOriginalIndices[bi][ei] to find the original parameter
@@ -4773,16 +5014,15 @@ void JPboxgroup::setControllers(){
 									pi >= 0 && pi < childPreset->boxes[ci]->parameters.getSize() &&
 									childPreset->boxes[ci]->parameters.getType(pi) == childPreset->boxes[ci]->parameters.FLOAT)
 								{
-									float complexsliderheight = standardControllerHeight;
-									if (childPreset->boxes[ci]->parameters.getMovType(pi) != 0)
-									{
-										complexsliderheight = automatedControllerHeight;
-									}
+									float complexsliderheight = controllerHeightFor(
+										childPreset->boxes[ci]->parameters.parameters[pi]);
 
 									JPComplexSlider *sl = new JPComplexSlider();
 									sl->setup(inspectorwindow_x,
-											  inspectorwindow_height, controllerWidth, complexsliderheight,
-											  childPreset->boxes[ci]->parameters.parameters[pi]);
+											  controllerYFor(layoutCursor,
+													  childPreset->boxes[ci]->parameters.parameters[pi]),
+												  controllerWidth, complexsliderheight,
+												  childPreset->boxes[ci]->parameters.parameters[pi]);
 
 									string fullName = rootPreset->boxes[bi]->name + "."
 										+ childPreset->boxes[ci]->name + "." + sl->name;
@@ -4791,7 +5031,7 @@ void JPboxgroup::setControllers(){
 									controllers.push_back(sl);
 									exposedControllerMapping.push_back({bi, ei});
 
-									inspectorwindow_height += complexsliderheight;
+									layoutCursor += complexsliderheight + controllerRowGap;
 								}
 							}
 						}
@@ -4893,11 +5133,49 @@ void JPboxgroup::setControllers(){
 		}
 	}
 
-	if (!controllers.empty())
+	const float trailingGap = controllers.empty() ? 0.0f : controllerRowGap;
+	inspectorContentHeight = std::max(0.0f,
+		layoutCursor - trailingGap + inspectorScrollY - inspectorBodyViewport.y +
+		inspectorLayout.contentPadding);
+	const float availableBodyHeight = std::max(0.0f,
+		ofGetHeight() - inspectorLayout.headerHeight -
+			inspectorLayout.outerInset);
+	inspectorBodyViewport.height = std::min(
+		inspectorContentHeight, availableBodyHeight);
+	inspectorwindow_height = inspectorLayout.headerHeight +
+		inspectorBodyViewport.height + inspectorLayout.outerInset;
+	inspectorwindow_y = inspectorwindow_height * 0.5f;
+	inspectorMaxScrollY = std::max(0.0f,
+		inspectorContentHeight - inspectorBodyViewport.height);
+	const float previousScroll = inspectorScrollY;
+	inspectorScrollY = ofClamp(inspectorScrollY, 0.0f, inspectorMaxScrollY);
+	if (std::abs(previousScroll - inspectorScrollY) > 0.01f &&
+		!inspectorRelayoutForClamp)
 	{
-		inspectorwindow_height += 6.0f;
+		inspectorRelayoutForClamp = true;
+		setControllers();
+		inspectorRelayoutForClamp = false;
+		return;
 	}
-	inspectorwindow_y = inspectorwindow_height / 2;
+	inspectorScrollbarTrack.set(
+		inspectorBodyViewport.getRight() - 4.0f,
+		inspectorBodyViewport.y + 2.0f, 3.0f,
+		std::max(0.0f, inspectorBodyViewport.height - 4.0f));
+	if (inspectorMaxScrollY > 0.0f)
+	{
+		const float thumbHeight = std::max(30.0f,
+			inspectorScrollbarTrack.height * inspectorBodyViewport.height /
+				inspectorContentHeight);
+		const float travel = inspectorScrollbarTrack.height - thumbHeight;
+		inspectorScrollbarThumb.set(inspectorScrollbarTrack.x - 1.0f,
+			inspectorScrollbarTrack.y + travel *
+				(inspectorScrollY / inspectorMaxScrollY),
+			5.0f, thumbHeight);
+	}
+	else
+	{
+		inspectorScrollbarThumb.set(0, 0, 0, 0);
+	}
 
 	cout << "setControllers done: controllers=" << (int)controllers.size()
 		 << " exposeButtons=" << (int)exposeButtons.size()
@@ -7366,6 +7644,15 @@ void JPboxgroup::copyParametersByNameOrIndex(JPParameterGroup &destination, JPPa
 			destination.setMax(source.getMax(srcIndex), dstIndex);
 			destination.setSpeed(source.getSpeed(srcIndex), dstIndex);
 			destination.setBpmRate(source.getBpmRate(srcIndex), dstIndex);
+			destination.setAudioSource(source.getAudioSource(srcIndex), dstIndex);
+			destination.setAudioDiv(source.getAudioDiv(srcIndex), dstIndex);
+			destination.setAudioBase(source.getAudioBase(srcIndex), dstIndex);
+			destination.setAudioAmount(source.getAudioAmount(srcIndex), dstIndex);
+			destination.setAudioInvert(source.getAudioInvert(srcIndex), dstIndex);
+			destination.setAudioThreshold(source.getAudioThreshold(srcIndex), dstIndex);
+			destination.setAudioCurve(source.getAudioCurve(srcIndex), dstIndex);
+			destination.setAudioAttackMs(source.getAudioAttackMs(srcIndex), dstIndex);
+			destination.setAudioReleaseMs(source.getAudioReleaseMs(srcIndex), dstIndex);
 			destination.setmovetype(source.getMovType(srcIndex), dstIndex);
 		}
 		else if (source.getType(srcIndex) == source.BOOL)
@@ -8095,6 +8382,15 @@ void JPboxgroup::groupSelectedBoxes()
 					param.appendChild("movtype").set(box->parameters.getMovType(k));
 					param.appendChild("speed").set(box->parameters.getSpeed(k));
 					param.appendChild("bpmrate").set(box->parameters.getBpmRate(k));
+					param.appendChild("audiosource").set(box->parameters.getAudioSource(k));
+					param.appendChild("audiodiv").set(box->parameters.getAudioDiv(k));
+					param.appendChild("audiobase").set(box->parameters.getAudioBase(k));
+					param.appendChild("audioamount").set(box->parameters.getAudioAmount(k));
+					param.appendChild("audioinvert").set(box->parameters.getAudioInvert(k));
+					param.appendChild("audiothreshold").set(box->parameters.getAudioThreshold(k));
+					param.appendChild("audiocurve").set(box->parameters.getAudioCurve(k));
+					param.appendChild("audioattackms").set(box->parameters.getAudioAttackMs(k));
+					param.appendChild("audioreleasems").set(box->parameters.getAudioReleaseMs(k));
 				}
 			}
 		}
@@ -8675,6 +8971,15 @@ void JPboxgroup::copySelectedBoxes()
 					param.appendChild("movtype").set(box->parameters.getMovType(k));
 					param.appendChild("speed").set(box->parameters.getSpeed(k));
 					param.appendChild("bpmrate").set(box->parameters.getBpmRate(k));
+					param.appendChild("audiosource").set(box->parameters.getAudioSource(k));
+					param.appendChild("audiodiv").set(box->parameters.getAudioDiv(k));
+					param.appendChild("audiobase").set(box->parameters.getAudioBase(k));
+					param.appendChild("audioamount").set(box->parameters.getAudioAmount(k));
+					param.appendChild("audioinvert").set(box->parameters.getAudioInvert(k));
+					param.appendChild("audiothreshold").set(box->parameters.getAudioThreshold(k));
+					param.appendChild("audiocurve").set(box->parameters.getAudioCurve(k));
+					param.appendChild("audioattackms").set(box->parameters.getAudioAttackMs(k));
+					param.appendChild("audioreleasems").set(box->parameters.getAudioReleaseMs(k));
 				}
 			}
 		}
@@ -8812,6 +9117,29 @@ void JPboxgroup::pasteBoxes()
 						{
 							bx->parameters.setBpmRate(bpmRate.getIntValue(), paramIndex);
 						}
+						auto audioSource = param.getChild("audiosource");
+						if (audioSource)
+						{
+							bx->parameters.setAudioSource(audioSource.getIntValue(), paramIndex);
+						}
+						auto audioDiv = param.getChild("audiodiv");
+						if (audioDiv)
+						{
+							bx->parameters.setAudioDiv(audioDiv.getIntValue(), paramIndex);
+						}
+						auto loadAudioFloat = [&](const char *key, auto setter)
+						{
+							auto node = param.getChild(key);
+							if (node) (bx->parameters.*setter)(node.getFloatValue(), paramIndex);
+						};
+						loadAudioFloat("audiobase", &JPParameterGroup::setAudioBase);
+						loadAudioFloat("audioamount", &JPParameterGroup::setAudioAmount);
+						auto audioInvert = param.getChild("audioinvert");
+						if (audioInvert) bx->parameters.setAudioInvert(audioInvert.getBoolValue(), paramIndex);
+						loadAudioFloat("audiothreshold", &JPParameterGroup::setAudioThreshold);
+						loadAudioFloat("audiocurve", &JPParameterGroup::setAudioCurve);
+						loadAudioFloat("audioattackms", &JPParameterGroup::setAudioAttackMs);
+						loadAudioFloat("audioreleasems", &JPParameterGroup::setAudioReleaseMs);
 					}
 					else if (bx->parameters.getType(paramIndex) == bx->parameters.BOOL)
 					{

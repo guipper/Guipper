@@ -213,6 +213,11 @@
     <ClCompile Include="src\JPbox\jp_box_video.cpp" />
     <ClCompile Include="src\JPbox\jp_box_preset.cpp" />
     <ClCompile Include="src\JPbox\jp_box_spout.cpp" />
+    <ClCompile Include="src\JPutils\jp_audio.cpp" />
+    <ClCompile Include="src\JPutils\jp_audio_analyzer.cpp" />
+    <ClCompile Include="src\JPutils\jp_persistence_test.cpp" />
+    <ClCompile Include="src\JPutils\jp_uishot.cpp" />
+    <ClCompile Include="src\JPutils\jp_shader_globals.cpp" />
     <ClCompile Include="src\JPutils\jp_parametergroup.cpp" />
     <ClCompile Include="src\JPutils\jp_dragobject.cpp" />
     <ClCompile Include="src\JPutils\jp_fileloader.cpp" />
@@ -294,6 +299,12 @@
     <ClInclude Include="src\JPbox\jp_box.h" />
     <ClInclude Include="src\JPutils\jp_fileloader.h" />
     <ClInclude Include="src\JPutils\jp_constants.h" />
+    <ClInclude Include="src\JPutils\jp_audio.h" />
+    <ClInclude Include="src\JPutils\jp_audio_analyzer.h" />
+    <ClInclude Include="src\JPutils\jp_audio_queue.h" />
+    <ClInclude Include="src\JPutils\jp_persistence_test.h" />
+    <ClInclude Include="src\JPutils\jp_uishot.h" />
+    <ClInclude Include="src\JPutils\jp_shader_globals.h" />
     <ClInclude Include="src\JPutils\jp_help_content.h" />
     <ClInclude Include="src\JPutils\jp_pointer.h" />
     <ClInclude Include="src\JPutils\jp_fbohandler.h" />

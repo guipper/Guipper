@@ -14,6 +14,9 @@ float jp_constants::beatOriginSeconds = 0.0f;
 ofTrueTypeFont jp_constants::p_font;
 ofTrueTypeFont jp_constants::h_font;
 ofTrueTypeFont jp_constants::p2_font;
+ofTrueTypeFont jp_constants::inspector_title_font;
+ofTrueTypeFont jp_constants::inspector_body_font;
+ofTrueTypeFont jp_constants::inspector_secondary_font;
 
 bool jp_constants::systemDialog_open;
 ofVec2f jp_constants::mousePressedPos;
@@ -37,6 +40,9 @@ void jp_constants::init(int _renderwidth, int _renderheight, int _window_width, 
 	p_font.loadFont("font/Montserrat-Regular.ttf", 11);
 	h_font.loadFont("font/Montserrat-Regular.ttf", 20);
 	p2_font.loadFont("font/Montserrat-Regular.ttf", 10);
+	inspector_title_font.loadFont("font/Montserrat-Regular.ttf", 18);
+	inspector_body_font.loadFont("font/Montserrat-Regular.ttf", 12);
+	inspector_secondary_font.loadFont("font/Montserrat-Regular.ttf", 11);
 
 	CmouseOver.clear();
 	Cfront.clear();

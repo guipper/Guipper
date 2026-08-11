@@ -22,6 +22,8 @@
 #include "JPutils/jp_constants.h"
 #include "JPutils/jp_tooltip.h"
 #include "JPutils/jp_help_content.h"
+#include "JPutils/jp_audio.h"
+#include "JPutils/jp_shader_globals.h"
 #include "JPutils/jp_midi_keymap.h"
 #include "JPgui/jp_shader_editor.h"
 #include "ofxOsc.h"
@@ -463,10 +465,32 @@ public:
 		ofRectangle browseButton;
 		ofRectangle saveButton;
 		ofRectangle activeCompoRow;
+		// Audio input. Deliberately NOT text fields: keeping them out of the
+		// FIELD_* enum avoids touching labels[], fieldTooltips[], the
+		// initOptionsFields/applyOptionsField switch and the numeric-field
+		// hit-test loop, all of which key off FIELD_OSC_IP_OUT as a count.
+		ofRectangle audioEnableButton;
+		ofRectangle audioDeviceField;
+		ofRectangle audioGainSlider;
+		ofRectangle audioDivButton;
+		ofRectangle audioAutoGainButton;
+		ofRectangle audioChannelButton;
+		ofRectangle audioCalibrateButton;
+		ofRectangle audioGateSlider;
+		ofRectangle audioMeter;
 		float labelX = 0.0f;
 		float rowH = 28.0f;
 	};
 	SettingsLayout getSettingsLayout() const;
+	// Audio device dropdown state (SETTINGS). Registered with SURFACE_DROPDOWN
+	// so it blocks the rows it covers.
+	bool audioMenuOpen = false;
+	bool audioGainDragging = false;
+	bool audioGateDragging = false;
+	ofRectangle getAudioMenuBounds() const;
+	void drawAudioSettings(const SettingsLayout &L);
+	bool handleAudioSettingsClick(int x, int y);
+
 
 	// HELP, same idea. One layout feeds the draw pass, the language button's
 	// hit test and the wheel clamp, so those cannot drift apart again - the

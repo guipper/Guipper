@@ -121,6 +121,8 @@ void JPSlider::draw()
 
 		if (showtext)
 		{
+			ofTrueTypeFont &labelFont = font_p != nullptr ?
+				*font_p : jp_constants::p_font;
 			const bool integerMillimeters =
 				name == "near mm" || name == "far mm";
 			string valueStr = ofToString(
@@ -129,13 +131,13 @@ void JPSlider::draw()
 			{
 				valueStr = blendModeNameFromValue(parameters->floatValue);
 			}
-			float textY = y + jp_constants::p_font.stringHeight(name) / 2;
+			float textY = y + labelFont.stringHeight(name) / 2;
 			// Name left-aligned, value right-aligned for a clean, readable row.
 			ofSetColor(COL_TEXT_PRIMARY);
-			jp_constants::p_font.drawString(name, left + 8, textY);
+			labelFont.drawString(name, left + 8, textY);
 			ofSetColor(COL_TEXT_PRIMARY, 220);
-			float vw = jp_constants::p_font.stringWidth(valueStr);
-			jp_constants::p_font.drawString(valueStr, left + width - vw - 8, textY);
+			float vw = labelFont.stringWidth(valueStr);
+			labelFont.drawString(valueStr, left + width - vw - 8, textY);
 		}
 		ofSetColor(jp_constants::textcolor);
 	}

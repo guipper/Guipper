@@ -116,13 +116,22 @@ void JPToogle::drawSelectedTexture()
 				(parameters->movtype == JPParameter::GODER ||
 				 parameters->movtype == JPParameter::GOIZQ)) ||
 			(textureindex == BPM_SYNC &&
-				parameters->movtype == JPParameter::BPM);
+				parameters->movtype == JPParameter::BPM) ||
+			(textureindex == AUDIO_SRC &&
+				parameters->movtype == JPParameter::AUDIO);
 		drawAutomationButton(x, y, width, height, active, hovered);
 		ofSetColor(active ? COL_ACCENT_CYAN :
 			(hovered ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY));
 		ofSetLineWidth(1.7f);
 
-		if (textureindex == BPM_SYNC)
+		if (textureindex == AUDIO_SRC)
+		{
+			// Three bars of differing height: a level meter.
+			ofDrawLine(x - 6.0f, y + 5.0f, x - 6.0f, y - 1.0f);
+			ofDrawLine(x, y + 5.0f, x, y - 6.0f);
+			ofDrawLine(x + 6.0f, y + 5.0f, x + 6.0f, y + 1.0f);
+		}
+		else if (textureindex == BPM_SYNC)
 		{
 			const float left = x - 8.0f;
 			const float right = x + 8.0f;
@@ -219,10 +228,12 @@ void JPToogle::draw()
 	if (showtext)
 	{
 		string Strvalue = name;
+		ofTrueTypeFont &labelFont = font_p != nullptr ?
+			*font_p : jp_constants::p_font;
 		ofSetColor(boolValue ? ofColor(0) : ofColor(255));
-		jp_constants::p_font.drawString(Strvalue,
-										x - jp_constants::p_font.stringWidth(Strvalue) / 2,
-										y + jp_constants::p_font.stringHeight(Strvalue) / 2);
+		labelFont.drawString(Strvalue,
+			x - labelFont.stringWidth(Strvalue) / 2,
+			y + labelFont.stringHeight(Strvalue) / 2);
 	}
 	ofSetColor(255, 0, 0);
 }

@@ -5,6 +5,7 @@ JPcontroller::JPcontroller()
 	paleta = 0;
 	useTexture = false;
 	parameters = nullptr;
+	font_p = nullptr;
 	//	cout << " ASLDDASD " << endl;
 }
 JPcontroller::~JPcontroller()

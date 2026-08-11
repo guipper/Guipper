@@ -1,4 +1,5 @@
 #include "jp_box_shader.h"
+#include "../JPutils/jp_shader_globals.h"
 #include <iostream>
 #include <sstream>
 #include <filesystem>
@@ -490,7 +491,17 @@ void JPbox_shader::setUniforms(JPParameterGroup &_parameters,
 					value = ofToFloat(frase[4]);
 					// cout << "Value : " << value << endl;
 				}
-				_parameters.addFloatValue(value, frase[2], true);
+				// ONLY the uniforms introduced with jp_shader_globals are skipped.
+				// This deliberately does NOT filter the older globals (time, bpm,
+				// ...): they already become parameters today, and saved
+				// compositions load their <param> blocks POSITIONALLY, so
+				// dropping one here would shift every later index and scramble
+				// the values of every existing save. Cleaning those up is a
+				// migration, not a side effect of adding audio.
+				if (!jp_shader_globals::isNewGlobalName(frase[2]))
+				{
+					_parameters.addFloatValue(value, frase[2], true);
+				}
 			}
 			else if (linesOfTheFile[l].find("sampler2DRect") != std::string::npos)
 			{
@@ -554,20 +565,12 @@ void JPbox_shader::update_NonglobalUniforms()
 }
 void JPbox_shader::update_globalUniforms()
 {
-	shader.setUniformTexture("feedback", fbo.getTexture(), 0);
-	/// shader.setUniformTexture("camara", videograb->getTexture(),1);
-	shader.setUniform2f("resolution", fbo.getWidth(), fbo.getHeight());
-	shader.setUniform4f("mouse", ofMap(ofGetMouseX(), 0, ofGetWidth(), 0, 1),
-						ofMap(ofGetMouseY(), 0, ofGetHeight(), 0, 1),
-						ofMap(jp_constants::mousePressedPos.x, 0, ofGetWidth(), 0, 1),
-						ofMap(jp_constants::mousePressedPos.y, 0, ofGetHeight(), 0, 1));
-
-	shader.setUniform1i("globalframeNum", ofGetFrameNum());
-	shader.setUniform1i("boxframeNum", frameNum);
-	shader.setUniform2f("window_mouse", ofMap(jp_constants::window_mousex, 0, jp_constants::window_width, 0, 1),
-						ofMap(jp_constants::window_mousey, 0, jp_constants::window_height, 0, 1));
-	shader.setUniform1f("time", ofGetElapsedTimef());
-	shader.setUniform1f("bpm", jp_constants::bpm);
+	JPShaderGlobalsCtx ctx;
+	ctx.width = fbo.getWidth();
+	ctx.height = fbo.getHeight();
+	ctx.boxFrameNum = frameNum;
+	ctx.feedback = &fbo.getTexture();
+	jp_shader_globals::apply(shader, ctx);
 }
 
 /*********************************DEPRECATED ******************************************/
