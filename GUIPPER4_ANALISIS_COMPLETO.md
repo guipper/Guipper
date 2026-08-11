@@ -70,6 +70,12 @@ guipper4/
 │   ├── JPutils/                    # Utilidades
 │   │   ├── jp_constants.h / .cpp   # Constantes globales + tipografía
 │   │   ├── jp_parametergroup.h/.cpp# Grupo de parámetros (float/bool)
+│   │   ├── jp_audio.h / .cpp       # Captura y fachada de audio global
+│   │   ├── jp_audio_analyzer.h/.cpp# FFT, bandas, onsets, tempo y calibración
+│   │   ├── jp_audio_queue.h         # Cola SPSC acotada callback → main thread
+│   │   ├── jp_shader_globals.h/.cpp # Uniforms globales centralizados
+│   │   ├── jp_uishot.h / .cpp       # Capturas deterministas del inspector
+│   │   ├── jp_persistence_test.h/.cpp# Pruebas XML activadas por entorno
 │   │   ├── jp_fbohandler.h / .cpp  # Manejador de conexiones FBO
 │   │   ├── jp_dragobject.h / .cpp  # Objeto arrastrable base
 │   │   ├── jp_fileloader.h / .cpp  # Carga asíncrona de archivos
@@ -163,6 +169,8 @@ Persiste en `bin/data/settings.xml`:
 - Ruta de composición por defecto
 - Layout del CUE panel
 - Gallery duration
+- Audio: enabled, dispositivo, ganancia manual/automática, canal Mix/Left/Right,
+  noise gate y división rítmica de uniforms
 
 ---
 
@@ -213,7 +221,40 @@ uniform vec2  window_mouse;
 uniform int   globalframeNum;
 uniform int   boxframeNum;
 uniform sampler2D feedback;  // Auto-feedback del propio FBO
+uniform vec4  audio_bands;    // low, mid, high, level (0..1)
+uniform vec4  audio_hits;     // kick, snare, low+kick, high+snare (0..1)
+uniform float audio_trigger;  // trigger de kick dividido (0/1)
+uniform float audio_express;  // envolvente de kick dividida (0..1)
+uniform float audio_logic;    // toggle de kick dividido (0/1)
+uniform vec4  audio_onsets;   // kick/snare trigger + logic
+uniform vec4  audio_rhythm;   // phase, pulse, BPM, confidence
+uniform vec4  audio_spectrum0; // bins logarítmicos 0..3
+uniform vec4  audio_spectrum1; // bins 4..7
+uniform vec4  audio_spectrum2; // bins 8..11
+uniform vec4  audio_spectrum3; // bins 12..15
 ```
+
+Los uniforms de audio se aplican mediante `jp_shader_globals` en shaders,
+secuenciadores, diferencia de frames y previews. Son globales y nunca generan
+sliders automáticos. `audio_trigger`, `audio_express` y `audio_logic` conservan
+compatibilidad y usan la división elegida en Settings.
+
+### 6.2.1 Audio-reactividad
+
+- El callback mezcla `Mix`, `Left` o `Right`, aplica ganancia atómica y encola
+  bloques completos sin locks, allocations ni overwrite de datos sin leer.
+- El analizador principal produce un `AudioSnapshot` inmutable por update con
+  low/mid/high/level, 16 bins, kick/snare, BPM, fase, confianza, peak, clipping
+  y cantidad de bloques descartados.
+- La calibración dura tres segundos. Auto-gain usa percentiles y adaptación
+  lenta; el noise gate evita falsas detecciones durante silencio.
+- Un parámetro en modo Audio guarda un valor base y aplica threshold, curve,
+  invert, attack/release, rango min/max y amount. Al perder entrada vuelve de
+  forma suave a la base.
+- El inspector usa una tarjeta compacta; Source/Every/Shaping están en una
+  segunda banda y los seis controles avanzados forman una grilla de dos columnas.
+
+Referencia completa: [`mds/AUDIO_REACTIVITY.md`](mds/AUDIO_REACTIVITY.md).
 
 ### 6.3 JPbox_image - Nodo de Imagen
 - Carga imágenes `.jpg`, `.png`, `.jpeg`
@@ -265,7 +306,8 @@ uniform sampler2D feedback;  // Auto-feedback del propio FBO
 
 ### 7.1 Funcionalidades Principales
 - **Render activo**: selecciona qué nodo se envía al output final
-- **Inspector**: panel lateral con sliders para el nodo seleccionado (`openguinumber`)
+- **Inspector**: panel lateral de 450 px, alto según contenido, header fijo y
+  body con scroll/clipping cuando los parámetros exceden la ventana
 - **Conexiones**: arrastrar outlet de un nodo a inlet de otro
 - **Viewport**: zoom (scroll) y pan (click medio) del canvas
 - **Selección múltiple**: clic+arrastrar para seleccionar varios nodos

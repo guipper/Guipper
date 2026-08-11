@@ -72,18 +72,21 @@ Practical effects:
 ## 4.1 Process Startup
 
 1. `main.cpp` configures OF/GLFW windows and launches `ofApp`.
-2. `ofApp::setup()` initializes window/defaults, constants, managers, OSC, settings, and first session load.
-3. `JPboxgroup::setup()` initializes graph/inspector/transition state.
-4. Optional: Spout and NDI senders are initialized depending on flags and settings.
+2. `ofApp::setup()` initializes window defaults, constants, managers, and OSC.
+3. `JPboxgroup::setup()` initializes graph, inspector, and transition state.
+4. `loadSettings()` restores runtime configuration and the first session.
+5. `jp_audio::setup()` opens the configured audio stream using those settings.
+6. Optional Spout and NDI senders initialize according to their feature flags.
 
 ## 4.2 Frame Loop
 
 Per frame (`ofApp::update()`):
-1. `boxes.update()` updates all box states and inspector interactions.
-2. If Spout enabled and active: `drawSpout()` sends active render texture.
-3. If NDI enabled: sends active render FBO image.
-4. `updateOSC()` handles inbound and outbound OSC.
-5. Handles async Save-As completion and session save.
+1. `jp_audio::update()` consumes queued blocks and publishes one analyzer snapshot.
+2. `boxes.update()` updates all box states and audio-driven parameters.
+3. If Spout enabled and active: `drawSpout()` sends active render texture.
+4. If NDI enabled: sends active render FBO image.
+5. `updateOSC()` handles inbound and outbound OSC.
+6. Handles async Save-As completion and session save.
 
 Per frame (`ofApp::draw()`):
 1. Draw active render background.
@@ -211,6 +214,13 @@ Movement modes (`MovType` enum):
 - `GODER` (one direction wrap)
 - `GOIZQ` (opposite direction wrap)
 - `RANDOM` (noise-based)
+- `BPM` (time-based global beat envelope with selectable rate)
+- `AUDIO` (live analyzer source with persisted response shaping)
+
+Audio fields are append-only in saved XML: `audioBase`, amount, invert,
+threshold, curve, attack/release milliseconds, source, and onset division.
+Missing legacy fields retain constructor defaults; setter paths clamp invalid
+values. Audio smoothing uses elapsed time rather than frame count.
 
 ## 6.2 `JPParameterGroup`
 
@@ -240,6 +250,12 @@ Controller hierarchy:
 - Movement mode toggle(s).
 - Speed knob.
 - Min/max handlers for automation range.
+- A distinct audio source row and optional two-column shaping grid.
+
+The inspector uses a 52 px sticky header and a clipped, scrollable body. Its
+panel height follows content up to the window limit; hidden rows do not receive
+pointer events. Controller heights and shaping offsets come from shared layout
+metrics used by measurement, rendering, hit-testing, and UI captures.
 
 `JPToogle` has texture-based modes used for movement controls:
 - collapse
@@ -431,6 +447,17 @@ Float default value behavior:
 - If no default is detected, random initial value in `[0,1]` is used.
 
 Global uniforms are always injected at render time (not parsed from file).
+`jp_shader_globals` is the single application point for shader boxes,
+sequencers, frame-difference effects, and previews. Audio globals are:
+
+- `audio_bands`: low, mid, high, level (`0..1`).
+- `audio_hits`: kick, snare, low+kick, high+snare (`0..1`).
+- `audio_trigger`, `audio_express`, `audio_logic`: divided kick rhythm values.
+- `audio_onsets`: kick/snare triggers and logic values.
+- `audio_rhythm`: beat phase, beat pulse, BPM, confidence.
+- `audio_spectrum0..3`: sixteen normalized log-spaced bins.
+
+See [`AUDIO_REACTIVITY.md`](AUDIO_REACTIVITY.md) for the component contract.
 
 ---
 
@@ -454,8 +481,9 @@ Add a new source/effect box type:
 4. Ensure session serialization compatibility if params/links are used.
 
 Add new global shader uniform:
-1. Add in `JPbox_shader::update_globalUniforms`.
-2. Keep naming consistent with shader library expectations.
+1. Add it in `jp_shader_globals::apply`.
+2. Mark it in `jp_shader_globals::isGlobalName` so parsing never creates a slider.
+3. Keep naming and normalization consistent across every render path.
 
 Change inspector behavior:
 1. Edit `JPboxgroup::setControllers` and relevant `JPgui/*` widgets.
@@ -485,6 +513,18 @@ After non-trivial changes, validate:
 - external window open/resize/fullscreen + settings save on exit
 - Spout/NDI sender output if compiled in
 - sequence/gallery mode transitions
+- audio device/channel switching, calibration, clipping and silence recovery
+- audio mappings returning smoothly to their captured base value
+
+Automated checks:
+
+```bash
+make -C tests run
+make -C tests tsan
+make Release -j2
+cd bin && GUIPPER_PERSISTENCE_TEST=1 ./Guipper
+cd bin && GUIPPER_UISHOT=inspector ./Guipper
+```
 
 ---
 
@@ -531,4 +571,3 @@ What remains future-facing vs thesis/roadmap language:
 
 `JPParameterGroup`:
 - add/get/set/update for all param types and automation state.
-

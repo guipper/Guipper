@@ -25,6 +25,7 @@ Special thanks to Kali Shade for contributing a wide range of shaders to the off
   <li>Possibility to add new shaders to expand the library.</li>
   <li>Communication with other programs through NDI and SPOUT.</li>
   <li>Parameter automation for creating smooth animations.</li>
+  <li>Live audio-reactive parameters with FFT bands, onset detection, tempo tracking, calibration, and response shaping.</li>
   <li>OSC control for connections with external interfaces.</li>
   <li>MIDI mapping with learn mode and per-device profiles (all devices usable at once).</li>
   <li>Support for images, videos, and webcam as visual sources.</li>
@@ -34,6 +35,19 @@ Special thanks to Kali Shade for contributing a wide range of shaders to the off
   <li>Box groups (sub-compositions) and a cue/crossfade staging workflow.</li>
   <li>Cross-platform: Windows, Linux and macOS (openFrameworks 0.12.1).</li>
 </ul>
+
+## Audio-Reactive Visuals
+
+Enable audio in **SETTINGS**, choose an input device and channel mode, then use
+the audio button on any eligible parameter. Sources include low/mid/high bands,
+overall level, kick/snare envelopes, triggers, and logic. The compact
+**Shaping** section controls amount, threshold, curve, polarity, attack, and
+release. The inspector is content-sized and scrolls only when its content no
+longer fits the window.
+
+Shaders can consume normalized bands, onsets, rhythm data, and sixteen spectrum
+bins through global uniforms. See [Audio-Reactive Visuals](mds/AUDIO_REACTIVITY.md)
+for the complete workflow, uniform reference, diagnostics, and tests.
 
 ## Installation
 Provide step-by-step instructions on how to install and configure Guipper. Include information on how to download and compile the source code, as well as any additional required configurations.
@@ -81,7 +95,6 @@ You can reach me at julian.d.puppo@gmail.com.
   <li>Reviewing and cleaning up existing shaders and adding new ones.</li>
   <li>Finalizing the multi-platform version for LINUX, MAC, and WINDOWS.</li>
   <li>Adding Syphon support to the MAC version.</li>
-  <li>Adding audio-reactivity to parameters using FFT.</li>
   <li>Adding a MIDI system for parameter control.</li>
   <li>Implementing a system of uniforms for vec2, vec3, and vec4.</li>
   <li>Cleaning up functions in the .common file.</li>
@@ -106,6 +119,7 @@ Diseño del software realizado por Lautaro Nuñez Muller.
   <li>Posibilidad de agregar nuevos shaders para ampliar la biblioteca.</li>
   <li>Comunicación con otros programas mediante NDI y SPOUT.</li>
   <li>Automatización de parámetros para crear animaciones fluidas.</li>
+  <li>Parámetros audio-reactivos con FFT, detección de kick/snare, tempo y controles de respuesta.</li>
   <li>Control OSC para establecer conexiones con interfaces externas.</li>
   <li>Soporte para imágenes, videos y cámara web como fuentes visuales.</li>
   <li>Randomización de parámetros para obtener resultados visuales sorprendentes.</li>
@@ -136,7 +150,6 @@ Escribime al mail : julian.d.puppo@gmail.com
   <li>Revisión y limpieza de shaders existentes y agregar nuevos.</li>
   <li>Finalizar la versión multiplataforma para LINUX, MAC y WINDOWS.</li>
   <li>Agregar soporte Syphon a la versión de MAC.</li>
-  <li>Agregar soporte audiorítmico a los parámetros mediante FFT.</li>
   <li>Agregar sistema de MIDI para controlar los parámetros.</li>
   <li>Implementar un sistema de uniforms para vec2, vec3 y vec4.</li>
   <li>Limpiar las funciones que están en el archivo .common.</li>

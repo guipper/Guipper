@@ -7,6 +7,9 @@
 - **Box grouping** — presets act as collapsible sub-compositions (group view with its own graph + active render).
 - **Cue / crossfade staging** — stage param/link/bypass/add/delete changes into a draft (including inside box-groups) and Apply with a crossfade.
 - **MIDI mapping with learn mode** — per-device profiles (all devices usable at once, loose ALSA name matching); bindable actions incl. `ADD_SHADER_BOX`, bindable inline from the Import page.
+- **Performance-ready audio reactivity** — live-device capture, 48/44.1 kHz negotiation, bounded lock-free handoff, FFT bands, adaptive kick/snare onsets, tempo confidence, calibration, auto-gain, clipping/overrun diagnostics, parameter shaping, and global shader uniforms.
+- **Scrollable inspector polish** — inspector-specific typography and spacing, content-sized panel, sticky header, clipped body hit-testing, compact audio cards, and scrollbar only when content overflows.
+- **Audio and persistence regression tests** — deterministic signal fixtures, frame-rate-independent smoothing, ThreadSanitizer queue stress, legacy/current/invalid XML checks, and environment-triggered inspector captures.
 
 ## High Priority
 - Extend the internal file browser/picker to images, videos, and savefiles (shaders done; these are still drag-and-drop only).
@@ -26,7 +29,6 @@
 - Reduce update/draw coupling in GUI widgets for cleaner real-time performance.
 - Cache and optimize connection drawing / hit testing for large node graphs.
 - Add optional "performance mode" (reduced UI redraw frequency).
-- Add automated tests for XML load/save round trips.
 
 ## Node Graph UX
 - Add copy/paste/duplicate for boxes and selections.
@@ -59,7 +61,7 @@
 - Add searchable command palette.
 - Add configurable keyboard shortcuts.
 - Add language localization framework beyond ES/EN toggle.
-- Add dockable/resizable inspector and panels.
+- Add dockable/resizable panels (the inspector is currently fixed at 450 px).
 
 ## Suggested Milestone Plan
 1. Core stability pass (memory safety + save/load hardening + autosave).
