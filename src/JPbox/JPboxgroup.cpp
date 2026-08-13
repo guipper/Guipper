@@ -556,11 +556,15 @@ void JPboxgroup::draw()
 
 		// Cue draft overlay — shown whenever the cue targets the current graph
 		// (main graph or the active preset in group view).
-		if (cueTargetsCurrentView())
+		const bool cueStagesVisibleNodes = isCueDraftMode() &&
+			(!isGroupViewActive() || getDraftPresetForCurrentView() != nullptr);
+		if (cueTargetsCurrentView() || cueStagesVisibleNodes)
 		{
-			JPbox *draftBox = getCueDraftBoxForRealIndex(i);
-			bool cueDraftBox = isCueSourceIndex(i);
-			bool cueDirtyBox = isCueDraftDirty(i);
+			JPbox *draftBox = getCueDraftBoxForCurrentViewIndex(i);
+			const int cueDirtyIndex = isGroupViewActive() &&
+				!activeGroupPath.empty() ? activeGroupPath[0] : i;
+			bool cueDraftBox = draftBox != nullptr;
+			bool cueDirtyBox = isCueDraftDirty(cueDirtyIndex);
 			if (cueDraftBox)
 			{
 				activeBoxes[i]->setBackgroundOverride(cueDirtyBox ? ofColor(COL_ACCENT_CYAN_DARK, 245) : ofColor(COL_ACCENT_CYAN_DARK, 200),
@@ -585,12 +589,14 @@ void JPboxgroup::draw()
 				if (draftBypassAfterDraw != draftBypassBeforeDraw)
 				{
 					draftBox->setBypass(draftBypassAfterDraw);
-					markCueDraftDirty(i, CUE_DIRTY_BYPASS_PAUSE);
+					markCueDraftDirty(cueDirtyIndex,
+						CUE_DIRTY_BYPASS_PAUSE);
 				}
 				if (draftOnOffAfterDraw != draftOnOffBeforeDraw)
 				{
 					draftBox->setonoff(draftOnOffAfterDraw);
-					markCueDraftDirty(i, CUE_DIRTY_BYPASS_PAUSE);
+					markCueDraftDirty(cueDirtyIndex,
+						CUE_DIRTY_BYPASS_PAUSE);
 				}
 				activeBoxes[i]->setBypass(realBypass);
 				activeBoxes[i]->setonoff(realOnOff);
@@ -6354,7 +6360,8 @@ bool JPboxgroup::applyCueDraftToSource()
 			continue;
 		}
 		if ((flags & (CUE_DIRTY_PARAMS | CUE_DIRTY_LINKS |
-					  CUE_DIRTY_ADDED | CUE_DIRTY_PRESET_ACTIVE)) != 0)
+					  CUE_DIRTY_ADDED | CUE_DIRTY_PRESET_ACTIVE |
+					  CUE_DIRTY_BYPASS_PAUSE)) != 0)
 		{
 			copyParametersByNameOrIndex(targetBoxes[realIndex]->parameters, cueState.draftBoxes[draftIndex]->parameters);
 			targetBoxes[realIndex]->copyCustomStateFrom(
@@ -6567,6 +6574,24 @@ JPbox *JPboxgroup::getCueDraftBoxForRealIndex(int index) const
 		return cueState.draftBoxes[draftIndex];
 	}
 	return nullptr;
+}
+
+JPbox *JPboxgroup::getCueDraftBoxForCurrentViewIndex(int index) const
+{
+	if (!isCueDraftMode() || index < 0)
+	{
+		return nullptr;
+	}
+	if (!isGroupViewActive())
+	{
+		return getCueDraftBoxForRealIndex(index);
+	}
+	JPbox_preset *draftPreset = getDraftPresetForCurrentView();
+	if (draftPreset == nullptr || index >= (int)draftPreset->boxes.size())
+	{
+		return nullptr;
+	}
+	return draftPreset->boxes[index];
 }
 
 JPbox *JPboxgroup::getEditableBoxForRealIndex(int index)

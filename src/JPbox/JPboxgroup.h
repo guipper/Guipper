@@ -409,6 +409,8 @@ private:
 		const ofRectangle &srcNorm = ofRectangle(0.0f, 0.0f, 1.0f, 1.0f));
 	JPbox *getCueDraftSourceBox();
 	JPbox *getCueDraftBoxForRealIndex(int index) const;
+	// Draft counterpart of a node currently visible in MAIN or a nested group.
+	JPbox *getCueDraftBoxForCurrentViewIndex(int index) const;
 	JPbox *getEditableBoxForRealIndex(int index);
 	bool beginCueDraftForBoxIndex(int index);
 	bool buildCueDraftGraph(int sourceIndex);
