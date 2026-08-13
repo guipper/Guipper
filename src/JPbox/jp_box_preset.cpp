@@ -146,6 +146,12 @@ void JPbox_preset::setup(string _directory, string _name)
 				bx->parameters.setFloatLerpValue(param.getChild("value").getFloatValue(), destinationIndex);
 				bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), destinationIndex);
 				bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), destinationIndex);
+				auto lastMoveType = param.getChild("lastmovtype");
+				if (lastMoveType)
+				{
+					bx->parameters.setlastmovetype(
+						lastMoveType.getIntValue(), destinationIndex);
+				}
 				bx->parameters.setSpeed(param.getChild("speed").getFloatValue(), destinationIndex);
 				auto bpmRate = param.getChild("bpmrate");
 				if (bpmRate)
@@ -907,6 +913,7 @@ void JPbox_preset::save()
 					param.appendChild("max").set(boxes[i]->parameters.getMax(k));
 					param.appendChild("value").set(boxes[i]->parameters.getFloatValue(k));
 					param.appendChild("movtype").set(boxes[i]->parameters.getMovType(k));
+					param.appendChild("lastmovtype").set(boxes[i]->parameters.getLastMovType(k));
 					param.appendChild("speed").set(boxes[i]->parameters.getSpeed(k));
 					param.appendChild("bpmrate").set(boxes[i]->parameters.getBpmRate(k));
 					param.appendChild("audiosource").set(boxes[i]->parameters.getAudioSource(k));

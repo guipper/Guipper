@@ -13,6 +13,7 @@ void JPParameter::setup(float _var, string _name)
 	floatLerpValue = _var;
 	variabletype = FLOAT;
 	movtype = STANDART;
+	lastMovtype = OSC;
 	dir = true;
 
 	min = 0.0;
@@ -43,6 +44,7 @@ void JPParameter::setup(bool _var, string _name)
 	boolValue = _var;
 	variabletype = BOOL;
 	movtype = STANDART;
+	lastMovtype = OSC;
 
 	min = 0.0;
 	max = 1.0;
@@ -292,25 +294,69 @@ void JPParameterGroup::update()
 }
 void JPParameterGroup::setmovetype(int _movetype, int _index)
 {
-	if (_index >= parameters.size())
+	if (_index < 0 || _index >= (int)parameters.size())
 		return;
 
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
-		// The load-time gate: a save file may ask for a mode this parameter is
-		// not eligible for, or - from a newer build - one that does not exist
-		// here at all. An unhandled movtype would be non-zero, so
-		// JPParameterGroup::update() would keep "updating" it forever with no
-		// branch to run.
-		int wanted = _movetype;
-		if (wanted == JPParameter::BPM && !parameters[_index]->bpmEligible)
-			wanted = JPParameter::STANDART;
-		if (wanted == JPParameter::AUDIO && !parameters[_index]->audioEligible)
-			wanted = JPParameter::STANDART;
-		if (wanted < 0 || wanted > JPParameter::AUDIO)
-			wanted = JPParameter::STANDART;
-		parameters[_index]->movtype = wanted;
+		parameters[_index]->setAutomationMode(_movetype);
 	}
+}
+
+void JPParameter::setAutomationMode(int mode)
+{
+	// Load files may contain a newer or ineligible mode. Keeping validation
+	// here ensures every UI, reload and persistence path has the same fallback.
+	int wanted = mode;
+	if (wanted < STANDART || wanted > AUDIO)
+	{
+		wanted = STANDART;
+	}
+	if ((wanted == BPM && !bpmEligible) ||
+		(wanted == AUDIO && !audioEligible))
+	{
+		wanted = STANDART;
+	}
+	movtype = wanted;
+	if (wanted != STANDART)
+	{
+		lastMovtype = wanted;
+	}
+}
+
+void JPParameter::setLastAutomationMode(int mode)
+{
+	int wanted = mode;
+	if (wanted <= STANDART || wanted > AUDIO ||
+		(wanted == BPM && !bpmEligible) ||
+		(wanted == AUDIO && !audioEligible))
+	{
+		wanted = OSC;
+	}
+	lastMovtype = wanted;
+}
+
+void JPParameter::toggleAutomation()
+{
+	if (movtype == STANDART)
+	{
+		setLastAutomationMode(lastMovtype);
+		setAutomationMode(lastMovtype);
+	}
+	else
+	{
+		setAutomationMode(STANDART);
+	}
+}
+
+void JPParameterGroup::setlastmovetype(int _movetype, int _index)
+{
+	if (_index < 0 || _index >= (int)parameters.size() ||
+		parameters[_index]->variabletype != parameters[_index]->FLOAT)
+	{
+		return;
+	}
+	parameters[_index]->setLastAutomationMode(_movetype);
 }
 // SETTERS
 void JPParameterGroup::setFloatValue(float _val, int _index)
@@ -561,6 +607,12 @@ int JPParameterGroup::getMovType(int _index)
 
 	// cout << endl << "MOVTYPE" << parameters[_index]->movtype << endl;
 	return parameters[_index]->movtype;
+}
+int JPParameterGroup::getLastMovType(int _index)
+{
+	if (_index < 0 || _index >= (int)parameters.size())
+		return JPParameter::OSC;
+	return parameters[_index]->lastMovtype;
 }
 JPParameter *JPParameterGroup::getJParameter(int _index)
 {

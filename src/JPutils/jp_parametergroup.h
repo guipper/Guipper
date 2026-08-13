@@ -37,7 +37,13 @@ public:
 		BPM_RATE_QUADRUPLE,
 	};
 	int movtype;
+	// Last non-standard automation mode selected for this parameter. It remains
+	// available while automation is disabled and is persisted with the graph.
+	int lastMovtype;
 	int bpmRate;
+	void setAutomationMode(int mode);
+	void setLastAutomationMode(int mode);
+	void toggleAutomation();
 
 	string name;
 	float floatValue;
@@ -117,6 +123,7 @@ public:
 	float getAudioReleaseMs(int _index);
 	bool getBoolValue(int _index);
 	int getMovType(int _index);
+	int getLastMovType(int _index);
 	JPParameter *getJParameter(int _index);
 	// SETTERS:
 	void setFloatValue(float _val, int _index);
@@ -138,6 +145,7 @@ public:
 	void setAudioReleaseMs(float value, int index);
 	void update();
 	void setmovetype(int _movetype, int _index);
+	void setlastmovetype(int _movetype, int _index);
 	vector<JPParameter *> parameters;
 
 private:

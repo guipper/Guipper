@@ -2553,7 +2553,7 @@ bool JPboxgroup::handleInspectorAutomationClick()
 			slider->boton_bpm.activable2 &&
 			boundsFor(slider->boton_bpm).inside(mouse))
 		{
-			parameter->movtype = JPParameter::BPM;
+			parameter->setAutomationMode(JPParameter::BPM);
 			parameter->needsUpdate = false;
 			parameter->update();
 			slider->boton_bpm.activable = false;
@@ -2634,7 +2634,7 @@ bool JPboxgroup::handleInspectorAutomationClick()
 		{
 			if (parameter->movtype != JPParameter::AUDIO)
 				parameter->audioBase = parameter->floatLerpValue;
-			parameter->movtype = JPParameter::AUDIO;
+			parameter->setAutomationMode(JPParameter::AUDIO);
 			parameter->needsUpdate = false;
 			parameter->update();
 			slider->boton_audio.activable = false;
@@ -2670,7 +2670,7 @@ bool JPboxgroup::handleInspectorAutomationClick()
 			continue;
 		}
 
-		parameter->movtype = parameter->movtype == 0 ? 1 : 0;
+		parameter->toggleAutomation();
 		parameter->needsUpdate = false;
 		parameter->update();
 		markCueDraftDirty(cueSelectedIndex());
@@ -4543,6 +4543,7 @@ void JPboxgroup::save(string outputPath)
 					param.appendChild("max").set(boxes[i]->parameters.getMax(k));
 					param.appendChild("value").set(boxes[i]->parameters.getFloatValue(k));
 					param.appendChild("movtype").set(boxes[i]->parameters.getMovType(k));
+					param.appendChild("lastmovtype").set(boxes[i]->parameters.getLastMovType(k));
 					param.appendChild("speed").set(boxes[i]->parameters.getSpeed(k));
 					param.appendChild("bpmrate").set(boxes[i]->parameters.getBpmRate(k));
 					param.appendChild("audiosource").set(boxes[i]->parameters.getAudioSource(k));
@@ -4756,6 +4757,12 @@ void JPboxgroup::load(string _dirinput)
 				bx->parameters.setFloatLerpValue(param.getChild("value").getFloatValue(), destinationIndex);
 				bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), destinationIndex);
 				bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), destinationIndex);
+				auto lastMoveType = param.getChild("lastmovtype");
+				if (lastMoveType)
+				{
+					bx->parameters.setlastmovetype(
+						lastMoveType.getIntValue(), destinationIndex);
+				}
 				bx->parameters.setSpeed(param.getChild("speed").getFloatValue(), destinationIndex);
 				auto bpmRate = param.getChild("bpmrate");
 				if (bpmRate)
@@ -7920,6 +7927,8 @@ void JPboxgroup::copyParametersByNameOrIndex(JPParameterGroup &destination, JPPa
 			destination.setAudioAttackMs(source.getAudioAttackMs(srcIndex), dstIndex);
 			destination.setAudioReleaseMs(source.getAudioReleaseMs(srcIndex), dstIndex);
 			destination.setmovetype(source.getMovType(srcIndex), dstIndex);
+			destination.setlastmovetype(
+				source.getLastMovType(srcIndex), dstIndex);
 		}
 		else if (source.getType(srcIndex) == source.BOOL)
 		{
@@ -8646,6 +8655,7 @@ void JPboxgroup::groupSelectedBoxes()
 					param.appendChild("max").set(box->parameters.getMax(k));
 					param.appendChild("value").set(box->parameters.getFloatValue(k));
 					param.appendChild("movtype").set(box->parameters.getMovType(k));
+					param.appendChild("lastmovtype").set(box->parameters.getLastMovType(k));
 					param.appendChild("speed").set(box->parameters.getSpeed(k));
 					param.appendChild("bpmrate").set(box->parameters.getBpmRate(k));
 					param.appendChild("audiosource").set(box->parameters.getAudioSource(k));
@@ -9235,6 +9245,7 @@ void JPboxgroup::copySelectedBoxes()
 					param.appendChild("max").set(box->parameters.getMax(k));
 					param.appendChild("value").set(box->parameters.getFloatValue(k));
 					param.appendChild("movtype").set(box->parameters.getMovType(k));
+					param.appendChild("lastmovtype").set(box->parameters.getLastMovType(k));
 					param.appendChild("speed").set(box->parameters.getSpeed(k));
 					param.appendChild("bpmrate").set(box->parameters.getBpmRate(k));
 					param.appendChild("audiosource").set(box->parameters.getAudioSource(k));
@@ -9377,6 +9388,12 @@ void JPboxgroup::pasteBoxes()
 						bx->parameters.setFloatLerpValue(param.getChild("value").getFloatValue(), paramIndex);
 						bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), paramIndex);
 						bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), paramIndex);
+						auto lastMoveType = param.getChild("lastmovtype");
+						if (lastMoveType)
+						{
+							bx->parameters.setlastmovetype(
+								lastMoveType.getIntValue(), paramIndex);
+						}
 						bx->parameters.setSpeed(param.getChild("speed").getFloatValue(), paramIndex);
 						auto bpmRate = param.getChild("bpmrate");
 						if (bpmRate)

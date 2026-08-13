@@ -25,7 +25,34 @@ namespace
 			"audioattackms", "audioreleasems"};
 		for (auto &box : xml.getChildren("box"))
 			for (auto &param : box.getChild("parameters").getChildren("param"))
+			{
 				for (const char *field : fields) param.removeChild(field);
+				param.removeChild("lastmovtype");
+			}
+	}
+
+	bool automationModeMemoryWorks()
+	{
+		JPParameter parameter;
+		parameter.setup(0.5f, "memory-test");
+		parameter.bpmEligible = true;
+		const int modes[] = {JPParameter::OSC, JPParameter::GODER,
+			JPParameter::GOIZQ, JPParameter::RANDOM, JPParameter::BPM,
+			JPParameter::AUDIO};
+		for (int mode : modes)
+		{
+			parameter.setAutomationMode(mode);
+			parameter.toggleAutomation();
+			if (parameter.movtype != JPParameter::STANDART ||
+				parameter.lastMovtype != mode)
+			{
+				return false;
+			}
+			parameter.toggleAutomation();
+			if (parameter.movtype != mode) return false;
+		}
+		parameter.setLastAutomationMode(999);
+		return parameter.lastMovtype == JPParameter::OSC;
 	}
 }
 
@@ -50,6 +77,7 @@ bool jp_persistence_test::run(ofApp &app)
 	box->parameters.setFloatLerpValue(0.37f, 0);
 	box->parameters.setMin(0.12f, 0); box->parameters.setMax(0.88f, 0);
 	box->parameters.setmovetype(JPParameter::AUDIO, 0);
+	box->parameters.setmovetype(JPParameter::STANDART, 0);
 	box->parameters.setAudioSource(jp_audio::SRC_SNARE_LOGIC, 0);
 	box->parameters.setAudioDiv(jp_audio::DIV_16, 0);
 	box->parameters.setAudioBase(0.41f, 0);
@@ -63,7 +91,9 @@ bool jp_persistence_test::run(ofApp &app)
 
 	app.boxes.clear(); app.boxes.load(currentPath);
 	box = app.boxes.boxes.empty() ? nullptr : app.boxes.boxes.front();
-	const bool current = sameParameterOrder(box, names) &&
+	bool current = sameParameterOrder(box, names) &&
+		box->parameters.getMovType(0) == JPParameter::STANDART &&
+		box->parameters.getLastMovType(0) == JPParameter::AUDIO &&
 		box->parameters.getAudioSource(0) == jp_audio::SRC_SNARE_LOGIC &&
 		box->parameters.getAudioDiv(0) == jp_audio::DIV_16 &&
 		near(box->parameters.getAudioBase(0), 0.41f) &&
@@ -73,11 +103,17 @@ bool jp_persistence_test::run(ofApp &app)
 		near(box->parameters.getAudioCurve(0), 2.0f) &&
 		near(box->parameters.getAudioAttackMs(0), 31.0f) &&
 		near(box->parameters.getAudioReleaseMs(0), 777.0f);
+	if (current)
+	{
+		box->parameters.getJParameter(0)->toggleAutomation();
+		current = box->parameters.getMovType(0) == JPParameter::AUDIO;
+	}
 
 	ofXml legacy; legacy.load(currentPath); removeAudioFields(legacy); legacy.save(legacyPath);
 	app.boxes.clear(); app.boxes.load(legacyPath);
 	box = app.boxes.boxes.empty() ? nullptr : app.boxes.boxes.front();
 	const bool old = sameParameterOrder(box, names) &&
+		box->parameters.getLastMovType(0) == JPParameter::OSC &&
 		box->parameters.getAudioSource(0) == jp_audio::SRC_LOW &&
 		box->parameters.getAudioDiv(0) == jp_audio::DIV_1 &&
 		near(box->parameters.getAudioAmount(0), 1.0f) &&
@@ -97,10 +133,12 @@ bool jp_persistence_test::run(ofApp &app)
 	param.getChild("audiocurve").set(99.0f);
 	param.getChild("audioattackms").set(-1.0f);
 	param.getChild("audioreleasems").set(99999.0f);
+	param.getChild("lastmovtype").set(999);
 	invalid.save(invalidPath);
 	app.boxes.clear(); app.boxes.load(invalidPath);
 	box = app.boxes.boxes.empty() ? nullptr : app.boxes.boxes.front();
 	const bool clamped = sameParameterOrder(box, names) &&
+		box->parameters.getLastMovType(0) == JPParameter::OSC &&
 		box->parameters.getAudioSource(0) == jp_audio::SRC_COUNT - 1 &&
 		box->parameters.getAudioDiv(0) == jp_audio::DIV_1 &&
 		near(box->parameters.getAudioBase(0), 1.0f) &&
@@ -110,7 +148,9 @@ bool jp_persistence_test::run(ofApp &app)
 		near(box->parameters.getAudioAttackMs(0), 0.0f) &&
 		near(box->parameters.getAudioReleaseMs(0), 5000.0f);
 
+	const bool modeMemory = automationModeMemoryWorks();
 	ofLogNotice("jp_persistence_test") << "current=" << current
-		<< " legacy=" << old << " invalid=" << clamped;
-	return current && old && clamped;
+		<< " legacy=" << old << " invalid=" << clamped
+		<< " modeMemory=" << modeMemory;
+	return current && old && clamped && modeMemory;
 }

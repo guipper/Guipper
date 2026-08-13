@@ -245,14 +245,7 @@ void JPToogle::update_movtype()
 		cout << "parameters->movtype " << parameters->movtype << endl;
 		if (textureindex == 0)
 		{
-			if (parameters->movtype == 0)
-			{
-				parameters->movtype = 1;
-			}
-			else if (parameters->movtype != 0)
-			{
-				parameters->movtype = 0;
-			}
+			parameters->toggleAutomation();
 			parameters->needsUpdate = true;
 		}
 		else if (textureindex == 2)
@@ -261,16 +254,16 @@ void JPToogle::update_movtype()
 			cout << "PUTA FLECHITA " << endl;
 			if (parameters->movtype != 2)
 			{
-				parameters->movtype = 2;
+				parameters->setAutomationMode(JPParameter::GODER);
 			}
 			else
 			{
-				parameters->movtype = 3;
+				parameters->setAutomationMode(JPParameter::GOIZQ);
 			}
 		}
 		else
 		{
-			parameters->movtype = textureindex;
+			parameters->setAutomationMode(textureindex);
 			// cout << "ANTERIOR" << parameters->movtype << endl;
 			// cout << "SIGUIENTE" << parameters->movtype << endl;
 		}

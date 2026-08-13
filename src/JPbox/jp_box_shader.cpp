@@ -110,6 +110,8 @@ void JPbox_shader::reload()
 						canRestoreMoveType ? previousMoveType :
 							JPParameter::STANDART,
 						k);
+					parameters.setlastmovetype(
+						auxparameters.getLastMovType(i), k);
 				}
 			}
 		}
