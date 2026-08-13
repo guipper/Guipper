@@ -24,6 +24,8 @@ public:
 	bool isSourceAllocated() const;
 	float getSourceWidth() const;
 	float getSourceHeight() const;
+	ofFbo *getFirstInput() const { return fbo1; }
+	ofFbo *getSecondInput() const { return fbo2; }
 	// No reallocate here on purpose. Nothing in the app resizes render FBOs at
 	// runtime - the two box fbo.allocate loops are commented out because doing
 	// it crashed the app (JPboxgroup.cpp:8289) - so callers must convert

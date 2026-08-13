@@ -52,6 +52,24 @@ for the complete workflow, uniform reference, diagnostics, and tests.
 ## Installation
 Provide step-by-step instructions on how to install and configure Guipper. Include information on how to download and compile the source code, as well as any additional required configurations.
 
+### GPU selection on Linux
+
+Launch Guipper through `bin/launch-guipper.sh`. It automatically uses NVIDIA
+PRIME render offload when a working NVIDIA GPU is available and otherwise uses
+the system default renderer. The desktop entry in `bin/Guipper.desktop` uses
+this launcher too.
+
+Set `GUIPPER_GPU=default` to use the system renderer explicitly, or
+`GUIPPER_GPU=nvidia` to force NVIDIA PRIME offload:
+
+```bash
+GUIPPER_GPU=default ./bin/launch-guipper.sh
+GUIPPER_GPU=nvidia ./bin/launch-guipper.sh
+```
+
+Set `GUIPPER_PROFILE=1` to show and log the CPU timing profiler while Guipper
+is running.
+
 ### Kinect v2 on Linux
 
 Guipper can capture Kinect v2 color, depth, and infrared directly through

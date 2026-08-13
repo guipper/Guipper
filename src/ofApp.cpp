@@ -4,6 +4,7 @@
 #include "JPutils/jp_textfield.h"
 #include <iostream>
 #include <algorithm>
+#include <chrono>
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
@@ -24,6 +25,24 @@ bool shaderHasMain(const string &path)
 	// their source contains preprocessing directives before main().
 	return source.find("void main") != string::npos;
 }
+
+using ProfileClock = std::chrono::steady_clock;
+float elapsedProfileMs(ProfileClock::time_point start)
+{
+	return std::chrono::duration<float, std::milli>(
+		ProfileClock::now() - start).count();
+}
+
+void smoothProfileValue(float &average, float sampleMs)
+{
+	average = average <= 0.0f ? sampleMs : ofLerp(average, sampleMs, 0.08f);
+}
+}
+
+void ofApp::recordProfileValue(float &average, float &peak, float sampleMs)
+{
+	average = average <= 0.0f ? sampleMs : ofLerp(average, sampleMs, 0.08f);
+	peak = std::max(sampleMs, peak * 0.995f);
 }
 
 //--------------------------------------------------------------
@@ -31,6 +50,7 @@ void ofApp::setup() {
 
 	// ESC is used to cancel modals / leave screens, not to quit the whole app.
 	ofSetEscapeQuitsApp(false);
+	isDebug = std::getenv("GUIPPER_PROFILE") != nullptr;
 
 	font_p.loadFont("font/Montserrat-Regular.ttf", 11); // Inicio fuente.
 
@@ -296,6 +316,8 @@ void ofApp::registerSurfaces()
 	});
 }
 void ofApp::update() {
+	const auto updateStart = ProfileClock::now();
+	boxes.setProfilingEnabled(isDebug);
 	jp_uishot::update(*this);
 	// Arming a learn from the canvas (Map mode) brings its screen up, so the
 	// binding you just armed is visible and is not cancelled by the sync below.
@@ -303,8 +325,23 @@ void ofApp::update() {
 	midiKeymap.setPanelVisible(pantallaActiva == MIDI_KEYMAP);
 	// Before boxes.update(): that is what drives JPParameter::update(), so
 	// analysing after it would leave every audio-driven parameter a frame stale.
+	auto stageStart = ProfileClock::now();
 	jp_audio::update();
+	smoothProfileValue(frameProfile.audioMs, elapsedProfileMs(stageStart));
+	vector<string> requiredRenderSources;
+	for (const LiveOutputRuntime &output : liveOutputs)
+	{
+		if (output.config.enabled &&
+			output.config.sourceMode == LIVE_OUTPUT_FIXED_BOX &&
+			!output.config.sourceBox.empty())
+		{
+			requiredRenderSources.push_back(output.config.sourceBox);
+		}
+	}
+	boxes.setRequiredRenderSources(requiredRenderSources);
+	stageStart = ProfileClock::now();
 	boxes.update();
+	smoothProfileValue(frameProfile.boxesMs, elapsedProfileMs(stageStart));
 	updateRetiredLiveOutputWindows();
 	const float now = ofGetElapsedTimef();
 	if (lastLiveOutputMonitorRefresh < 0.0f ||
@@ -332,7 +369,9 @@ void ofApp::update() {
 		pantallaActiva = EDITOR;
 	}
 
+	stageStart = ProfileClock::now();
 	midiKeymap.update();
+	smoothProfileValue(frameProfile.midiMs, elapsedProfileMs(stageStart));
 
 	// Clear the Import-page bind-waiting state once the MIDI message is captured
 	// (or learning was cancelled elsewhere).
@@ -340,6 +379,7 @@ void ofApp::update() {
 		importBindWaiting = false;
 	}
 
+	stageStart = ProfileClock::now();
 #ifdef SPOUT
 	if (spoutActive && boxes.getBoxesSize() > 0) {
 		ofClear(0);
@@ -352,8 +392,11 @@ void ofApp::update() {
 		ndiSender.SendImage(*boxes.getActiverender());
 	}
 #endif
+	smoothProfileValue(frameProfile.outputsMs, elapsedProfileMs(stageStart));
 
+	stageStart = ProfileClock::now();
 	updateOSC();
+	smoothProfileValue(frameProfile.oscMs, elapsedProfileMs(stageStart));
 
 	if (saveas_saver.activeflag) {
 		savedirectory = saveas_saver.path;
@@ -398,8 +441,27 @@ void ofApp::update() {
 			renderShaderPreview(true);
 		}
 	}
+	recordProfileValue(frameProfile.updateMs, frameProfile.updatePeakMs,
+		elapsedProfileMs(updateStart));
+	if (isDebug && (lastProfileLogTime < 0.0f ||
+		now - lastProfileLogTime >= 1.0f))
+	{
+		lastProfileLogTime = now;
+		const JPboxgroup::ProfileSnapshot &graph = boxes.getProfileSnapshot();
+		cout << "PROFILE fps=" << ofToString(ofGetFrameRate(), 2)
+			<< " update=" << ofToString(frameProfile.updateMs, 2)
+			<< " draw=" << ofToString(frameProfile.drawMs, 2)
+			<< " graph=" << ofToString(frameProfile.boxesMs, 2)
+			<< " main=" << ofToString(graph.mainGraphMs, 2)
+			<< " group=" << ofToString(graph.groupViewMs, 2)
+			<< " audio=" << ofToString(frameProfile.audioMs, 2)
+			<< " outputs=" << ofToString(frameProfile.outputsMs, 2)
+			<< " osc=" << ofToString(frameProfile.oscMs, 2)
+			<< endl;
+	}
 }
 void ofApp::draw() {
+	const auto drawStart = ProfileClock::now();
 	if (pantallaActiva == NODOS) {
 		boxes.drawNodeEditorBackground(ofGetWidth(), ofGetHeight());
 		drawScreenTabs();
@@ -446,6 +508,8 @@ void ofApp::draw() {
 	// LAST: grabScreen is glReadPixels on the back buffer, so it must run
 	// before the swap.
 	jp_uishot::draw(*this);
+	recordProfileValue(frameProfile.drawMs, frameProfile.drawPeakMs,
+		elapsedProfileMs(drawStart));
 }
 void ofApp::draw_debugInfo() {
 
@@ -459,6 +523,34 @@ void ofApp::draw_debugInfo() {
 	string sessionName = ofFilePath::getFileName(savedirectory);
 	if (sessionName.empty()) sessionName = "none";
 	font_p.drawString("Active Compo : " + sessionName, 30, posy -= sepy);
+	font_p.drawString("CPU update: " + ofToString(frameProfile.updateMs, 2) +
+		" ms  peak " + ofToString(frameProfile.updatePeakMs, 2), 30, posy -= sepy);
+	font_p.drawString("  audio " + ofToString(frameProfile.audioMs, 2) +
+		"  graph " + ofToString(frameProfile.boxesMs, 2) +
+		"  MIDI " + ofToString(frameProfile.midiMs, 2), 30, posy -= sepy);
+	font_p.drawString("  outputs " + ofToString(frameProfile.outputsMs, 2) +
+		"  OSC " + ofToString(frameProfile.oscMs, 2), 30, posy -= sepy);
+	font_p.drawString("CPU draw: " + ofToString(frameProfile.drawMs, 2) +
+		" ms  peak " + ofToString(frameProfile.drawPeakMs, 2), 30, posy -= sepy);
+	const JPboxgroup::ProfileSnapshot &graph = boxes.getProfileSnapshot();
+	font_p.drawString("Graph: params " + ofToString(graph.parametersMs, 2) +
+		" group " + ofToString(graph.groupViewMs, 2) +
+		" main " + ofToString(graph.mainGraphMs, 2) +
+		" cue " + ofToString(graph.cueDraftMs, 2) +
+		" transition " + ofToString(graph.transitionMs, 2), 30, posy -= sepy);
+	vector<JPboxgroup::ProfileEntry> slowBoxes = graph.boxes;
+	std::sort(slowBoxes.begin(), slowBoxes.end(),
+		[](const JPboxgroup::ProfileEntry &a,
+			const JPboxgroup::ProfileEntry &b) {
+			return a.averageMs > b.averageMs;
+		});
+	for (int i = 0; i < std::min(5, (int)slowBoxes.size()); ++i)
+	{
+		const JPboxgroup::ProfileEntry &entry = slowBoxes[i];
+		font_p.drawString("  " + entry.name + ": " +
+			ofToString(entry.averageMs, 2) + " ms  peak " +
+			ofToString(entry.peakMs, 2), 30, posy -= sepy);
+	}
 	//font_p.drawString("DIALOG BOX : " + ofToString(jp_constants::systemDialog_open), 30, posy -= sepy);
 }
 // Greedy word wrap. Nothing in the codebase did this before: the old help

@@ -49,6 +49,11 @@ public:
 	virtual void update();
 	virtual void draw();
 	virtual void updateFBO();
+	// The graph scheduler can reduce the refresh rate of off-screen shader
+	// thumbnails without pausing parameters or their animation clocks. Source
+	// boxes ignore this hint unless their implementation explicitly opts in.
+	void setRenderThisFrame(bool enabled) { renderThisFrame = enabled; }
+	bool shouldRenderThisFrame() const { return renderThisFrame; }
 	void draw_outlet();
 	virtual void clear();
 	virtual void saveCustomState(ofXml &boxNode) const;
@@ -120,6 +125,7 @@ public:
 	bool showCode = false;
 protected:
 	int tipo; // Habra una manera menos cacuija de hacer esto? no se, pero ya me pudrio si, esta bien o mal me la chupa.
+	bool renderThisFrame = true;
 
 	uint64_t titleHoverStartMillis = 0;
 	uint64_t bypassHoverStartMillis = 0;

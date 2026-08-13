@@ -285,6 +285,27 @@ public:
 	int openguinumber = -1;
 	int controllerselected; // ME INDICA QUE VARIABLE ESTA AGARRADA
 	bool activeSequence; //SECUENCIA ACTIVA
+	struct ProfileEntry
+	{
+		string name;
+		float averageMs = 0.0f;
+		float peakMs = 0.0f;
+	};
+	struct ProfileSnapshot
+	{
+		float parametersMs = 0.0f;
+		float groupViewMs = 0.0f;
+		float mainGraphMs = 0.0f;
+		float cueDraftMs = 0.0f;
+		float transitionMs = 0.0f;
+		vector<ProfileEntry> boxes;
+	};
+	void setProfilingEnabled(bool enabled) { profilingEnabled = enabled; }
+	const ProfileSnapshot &getProfileSnapshot() const { return profileSnapshot; }
+	void setRequiredRenderSources(const vector<string> &names)
+	{
+		requiredRenderSources = names;
+	}
 	void groupSelectedBoxes();
 
 	// Clipboard - copy/paste across main and group views
@@ -295,6 +316,11 @@ public:
 	// Shader editor pointer (set by ofApp)
 	JPShaderEditor* shaderEditor = nullptr;
 private:
+	bool profilingEnabled = false;
+	ProfileSnapshot profileSnapshot;
+	void recordProfileValue(float &average, float &peak, float sampleMs);
+	vector<string> requiredRenderSources;
+	void scheduleTopLevelRenders();
 	enum CueMode
 	{
 		CUE_NONE,

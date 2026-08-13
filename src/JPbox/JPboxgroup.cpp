@@ -9,9 +9,16 @@
 #include <cctype>
 #include <functional>
 #include <cmath>
+#include <chrono>
 
 namespace
 {
+	using ProfileClock = std::chrono::steady_clock;
+	float elapsedProfileMs(ProfileClock::time_point start)
+	{
+		return std::chrono::duration<float, std::milli>(
+			ProfileClock::now() - start).count();
+	}
 	constexpr bool kShowInspectorClickBounds = false;
 
 	string fitInspectorLabel(string text, float maxWidth)
@@ -63,6 +70,90 @@ namespace
 				control.width,
 				control.height),
 			enabled);
+	}
+}
+
+void JPboxgroup::recordProfileValue(float &average, float &peak,
+	float sampleMs)
+{
+	average = average <= 0.0f ? sampleMs : ofLerp(average, sampleMs, 0.08f);
+	peak = std::max(sampleMs, peak * 0.995f);
+}
+
+void JPboxgroup::scheduleTopLevelRenders()
+{
+	const int boxCount = (int)boxes.size();
+	vector<bool> fullRate(boxCount, activeSequence);
+
+	// Mark a box and every top-level FBO feeding its inputs. Pointer matching is
+	// used instead of names so duplicate display names cannot select the wrong
+	// dependency.
+	std::function<void(int)> markDependencies = [&](int index)
+	{
+		if (index < 0 || index >= boxCount || fullRate[index]) return;
+		fullRate[index] = true;
+		JPbox *consumer = boxes[index];
+		for (int inlet = 0; inlet < consumer->fbohandlergroup.getSize(); ++inlet)
+		{
+			if (!consumer->fbohandlergroup.getisPointerSet(inlet)) continue;
+			ofFbo *input = consumer->fbohandlergroup.getFboPointerReference(inlet);
+			for (int source = 0; source < boxCount; ++source)
+			{
+				if (&boxes[source]->fbo == input)
+				{
+					markDependencies(source);
+					break;
+				}
+			}
+		}
+	};
+
+	if (activerender != nullptr) markDependencies(*activerender);
+	// A normal CUE preview displays a real (usually non-active) graph box.
+	// Treat that preview exactly like a fixed live output so animation and all
+	// of its upstream inputs remain full-rate while the panel is open.
+	if (isCueNormalPreviewMode())
+	{
+		markDependencies(cueState.previewIndex);
+	}
+
+	// Keep both transition inputs live only for the crossfade. Once it reaches
+	// its target, the active render already covers the second input and the old
+	// branch can return to thumbnail rate.
+	if (transition.getLerpValue() < 1.0f)
+	{
+		const ofFbo *transitionInputs[] = {
+			transition.getFirstInput(), transition.getSecondInput()
+		};
+		for (const ofFbo *input : transitionInputs)
+		{
+			for (int i = 0; input != nullptr && i < boxCount; ++i)
+			{
+				if (&boxes[i]->fbo == input) markDependencies(i);
+			}
+		}
+	}
+
+	// A live-output window may intentionally show a non-active box.
+	for (const string &name : requiredRenderSources)
+	{
+		for (int i = 0; i < boxCount; ++i)
+		{
+			if (boxes[i]->name == name)
+			{
+				markDependencies(i);
+				break;
+			}
+		}
+	}
+
+	constexpr int kInactivePreviewInterval = 4;
+	const uint64_t frame = ofGetFrameNum();
+	for (int i = 0; i < boxCount; ++i)
+	{
+		const bool previewRefresh =
+			(frame + (uint64_t)i) % kInactivePreviewInterval == 0;
+		boxes[i]->setRenderThisFrame(fullRate[i] || previewRefresh);
 	}
 }
 
@@ -2984,7 +3075,14 @@ void JPboxgroup::draw_conections()
 void JPboxgroup::update(){
 
 	// bool unoagarrado = false;
+	auto profileStageStart = ProfileClock::now();
 	update_paramswindow();
+	if (profilingEnabled)
+	{
+		float unusedPeak = 0.0f;
+		recordProfileValue(profileSnapshot.parametersMs, unusedPeak,
+			elapsedProfileMs(profileStageStart));
+	}
 	if (mappingEditActive && getMappingEditBox() == nullptr)
 	{
 		endMappingEdit();
@@ -2994,12 +3092,55 @@ void JPboxgroup::update(){
 	// Update sub-boxes when in group view mode
 	if (isGroupViewActive())
 	{
+		profileStageStart = ProfileClock::now();
 		JPbox_preset *preset = getActivePreset();
+		// An enabled top-level preset recursively updates this same subtree in
+		// the main graph pass below. The group editor only needs a separate
+		// update when a paused/bypassed ancestor prevents that recursion.
+		bool subtreeUpdatedByMainGraph = !activeGroupPath.empty();
+		JPbox_preset *ancestor = nullptr;
+		if (subtreeUpdatedByMainGraph)
+		{
+			const int rootIndex = activeGroupPath[0];
+			if (rootIndex < 0 || rootIndex >= (int)boxes.size())
+			{
+				subtreeUpdatedByMainGraph = false;
+			}
+			else
+			{
+				ancestor = dynamic_cast<JPbox_preset *>(boxes[rootIndex]);
+			}
+		}
+		for (size_t depth = 1;
+			subtreeUpdatedByMainGraph && depth < activeGroupPath.size(); ++depth)
+		{
+			if (ancestor == nullptr || !ancestor->getonoff() ||
+				ancestor->getBypass())
+			{
+				subtreeUpdatedByMainGraph = false;
+				break;
+			}
+			const int childIndex = activeGroupPath[depth];
+			if (childIndex < 0 || childIndex >= (int)ancestor->boxes.size())
+			{
+				subtreeUpdatedByMainGraph = false;
+				break;
+			}
+			ancestor = dynamic_cast<JPbox_preset *>(ancestor->boxes[childIndex]);
+		}
+		if (subtreeUpdatedByMainGraph &&
+			(ancestor == nullptr || !ancestor->getonoff() || ancestor->getBypass()))
+		{
+			subtreeUpdatedByMainGraph = false;
+		}
 		if (preset != nullptr)
 		{
 			for (int i = (int)preset->boxes.size() - 1; i >= 0; i--)
 			{
-				preset->boxes[i]->update();
+				if (!subtreeUpdatedByMainGraph)
+				{
+					preset->boxes[i]->update();
+				}
 				// Handle box grabbing for sub-boxes
 				if (ofGetMousePressed() && !viewportPanning){
 					JPdragobject::setMouseOverride(canvasMouse);
@@ -3031,6 +3172,17 @@ void JPboxgroup::update(){
 		}
 
 		// Do NOT return here - main boxes must keep updating even in group view
+		if (profilingEnabled)
+		{
+			float unusedPeak = 0.0f;
+			recordProfileValue(profileSnapshot.groupViewMs, unusedPeak,
+				elapsedProfileMs(profileStageStart));
+		}
+	}
+	else if (profilingEnabled)
+	{
+		float unusedPeak = 0.0f;
+		recordProfileValue(profileSnapshot.groupViewMs, unusedPeak, 0.0f);
 	}
 
 	// Reset dragging state when mouse is not pressed
@@ -3041,8 +3193,32 @@ void JPboxgroup::update(){
 	}
 
 	float lerpAmount = 0.3;
+	scheduleTopLevelRenders();
+	profileStageStart = ProfileClock::now();
 	for (int i = boxes.size() - 1; i >= 0; i--){
+		const auto boxStart = profilingEnabled ? ProfileClock::now() :
+			ProfileClock::time_point();
 		boxes[i]->update();
+		if (profilingEnabled)
+		{
+			ProfileEntry *entry = nullptr;
+			for (ProfileEntry &candidate : profileSnapshot.boxes)
+			{
+				if (candidate.name == boxes[i]->name)
+				{
+					entry = &candidate;
+					break;
+				}
+			}
+			if (entry == nullptr)
+			{
+				profileSnapshot.boxes.push_back(ProfileEntry());
+				entry = &profileSnapshot.boxes.back();
+				entry->name = boxes[i]->name;
+			}
+			recordProfileValue(entry->averageMs, entry->peakMs,
+				elapsedProfileMs(boxStart));
+		}
 		// boxes[i]->parameters.update(); //La mutie y no paso nada
 		for (int k = boxes[i]->parameters.getSize() - 1; k >= 0; k--){
 		}
@@ -3119,11 +3295,24 @@ void JPboxgroup::update(){
 			}
 		}
 	}
+	if (profilingEnabled)
+	{
+		float unusedPeak = 0.0f;
+		recordProfileValue(profileSnapshot.mainGraphMs, unusedPeak,
+			elapsedProfileMs(profileStageStart));
+	}
 	processPendingCueRebuild();
 	processPendingCueApply();
+	profileStageStart = ProfileClock::now();
 	if (isCueDraftMode())
 	{
 		updateCueDraftGraph();
+	}
+	if (profilingEnabled)
+	{
+		float unusedPeak = 0.0f;
+		recordProfileValue(profileSnapshot.cueDraftMs, unusedPeak,
+			elapsedProfileMs(profileStageStart));
 	}
 	// SUELTA LAS CAJITAS Y EL SELECTION RECT
 	if (!ofGetMousePressed())
@@ -3158,7 +3347,14 @@ void JPboxgroup::update(){
 
 	if (!boxes.empty())
 	{
+		profileStageStart = ProfileClock::now();
 		transition.update(); //ACTUALIZO EL TRANSITION
+		if (profilingEnabled)
+		{
+			float unusedPeak = 0.0f;
+			recordProfileValue(profileSnapshot.transitionMs, unusedPeak,
+				elapsedProfileMs(profileStageStart));
+		}
 	}
 		//activeSequence = true;
 		const float sequenceIntervalMs = std::max(durationGalleryMs, 16.0f);
@@ -7497,6 +7693,51 @@ void JPboxgroup::rewireCueDraftGraph()
 void JPboxgroup::updateCueDraftGraph()
 {
 	vector<JPbox *> &target = getCueTargetBoxes();
+	vector<bool> required(cueState.draftBoxes.size(), false);
+	std::function<void(int)> markDraftDependencies = [&](int index)
+	{
+		if (index < 0 || index >= (int)cueState.draftBoxes.size() ||
+			required[index] || cueState.draftBoxes[index] == nullptr)
+		{
+			return;
+		}
+		required[index] = true;
+		JPbox *consumer = cueState.draftBoxes[index];
+		for (int inlet = 0; inlet < consumer->fbohandlergroup.getSize(); ++inlet)
+		{
+			if (!consumer->fbohandlergroup.getisPointerSet(inlet)) continue;
+			ofFbo *input = consumer->fbohandlergroup.getFboPointerReference(inlet);
+			for (int source = 0; source < (int)cueState.draftBoxes.size(); ++source)
+			{
+				JPbox *candidate = cueState.draftBoxes[source];
+				if (candidate != nullptr && &candidate->fbo == input)
+				{
+					markDraftDependencies(source);
+					break;
+				}
+			}
+		}
+	};
+	auto markDraftBox = [&](JPbox *box)
+	{
+		for (int i = 0; box != nullptr && i < (int)cueState.draftBoxes.size(); ++i)
+		{
+			if (cueState.draftBoxes[i] == box)
+			{
+				markDraftDependencies(i);
+				break;
+			}
+		}
+	};
+	markDraftBox(cueState.draftOutputBox);
+	markDraftBox(getCuePreviewBox());
+	for (int i = 0; i < (int)cueState.draftBoxes.size(); ++i)
+	{
+		if (cueState.draftBoxes[i] != nullptr)
+		{
+			cueState.draftBoxes[i]->setRenderThisFrame(required[i]);
+		}
+	}
 	for (int i = 0; i < cueState.draftBoxes.size(); i++)
 	{
 		if (cueState.draftBoxes[i] == nullptr)

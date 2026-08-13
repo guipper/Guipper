@@ -33,7 +33,10 @@ void JPbox_framedifference::setup(string _dir, string _name)
 void JPbox_framedifference::update()
 {
 	JPbox::update();
-	updateFBO();
+	if (shouldRenderThisFrame())
+	{
+		updateFBO();
+	}
 	setfbohandler_nodepos(); // MANEJAS LAS ENTRADAS
 	frameNum++;
 }

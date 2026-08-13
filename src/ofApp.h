@@ -82,6 +82,21 @@ public:
 	int activerender = 0;
 	ofFbo output;
 	bool isDebug = false;
+	struct FrameProfile
+	{
+		float updateMs = 0.0f;
+		float audioMs = 0.0f;
+		float boxesMs = 0.0f;
+		float midiMs = 0.0f;
+		float outputsMs = 0.0f;
+		float oscMs = 0.0f;
+		float drawMs = 0.0f;
+		float updatePeakMs = 0.0f;
+		float drawPeakMs = 0.0f;
+	};
+	FrameProfile frameProfile;
+	float lastProfileLogTime = -1.0f;
+	void recordProfileValue(float &average, float &peak, float sampleMs);
 	bool isRecording = false;
 
 	int prevKey = 0;

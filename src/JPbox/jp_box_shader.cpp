@@ -341,7 +341,10 @@ void JPbox_shader::clear()
 void JPbox_shader::update()
 {
 	JPbox::update();
-	updateFBO();
+	if (shouldRenderThisFrame())
+	{
+		updateFBO();
+	}
 	frameNum++;
 }
 void JPbox_shader::updateFBO()
