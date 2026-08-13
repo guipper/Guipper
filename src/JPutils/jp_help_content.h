@@ -171,6 +171,8 @@ namespace jp_help
 			"Doble click en la pestana de un grupo para renombrarla: Enter confirma, ESC cancela, click afuera confirma."),
 		E("r", "Reload the active shader from disk",
 			"Recargar el shader activo desde el disco", Scope::Nodes),
+		E("Down / Up Arrow", "Capture the hovered slider's lower / upper limit while custom range is active",
+			"Capturar el limite inferior / superior del slider bajo el mouse con el rango activo", Scope::Nodes),
 		E("x", "Trigger the code block on the active shader",
 			"Disparar el bloque de codigo del shader activo", Scope::Nodes),
 		E("e", "Toggle sequence mode",

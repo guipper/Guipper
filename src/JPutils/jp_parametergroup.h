@@ -44,6 +44,15 @@ public:
 	void setAutomationMode(int mode);
 	void setLastAutomationMode(int mode);
 	void toggleAutomation();
+	void cycleAutomationPattern();
+	void captureRangeStart();
+	void captureRangeEnd();
+	void setRangeStart(float value);
+	void setRangeEnd(float value);
+	void setRangeEnabled(bool enabled);
+	void clampToEffectiveRange();
+	float effectiveMin() const;
+	float effectiveMax() const;
 
 	string name;
 	float floatValue;
@@ -51,9 +60,19 @@ public:
 
 	float speed;
 	bool boolValue;
+	bool randomLocked;
+	float defaultFloatValue;
+	bool defaultBoolValue;
+	void captureDefaultValue();
+	void restoreDefaultValue();
 
 	float min;
 	float max;
+	// Native slider scale and optional remembered custom limits are separate.
+	// min/max remain the serialized custom endpoints for file compatibility.
+	float nativeMin;
+	float nativeMax;
+	bool rangeEnabled;
 
 	// Audio reactivity: which analyser value drives this parameter, and for
 	// the rhythm sources which beat subdivision. Kept on JPParameter rather
@@ -111,6 +130,10 @@ public:
 	float getLerpValue(int _index);
 	float getMin(int _index);
 	float getMax(int _index);
+	float getRangeMin(int _index);
+	float getRangeMax(int _index);
+	float getNativeMin(int _index);
+	float getNativeMax(int _index);
 	int getBpmRate(int _index);
 	int getAudioSource(int _index);
 	int getAudioDiv(int _index);
@@ -131,6 +154,9 @@ public:
 	void setBoolValue(bool _val, int _index);
 	void setMin(float _val, int _index);
 	void setMax(float _val, int _index);
+	void setRangeMin(float _val, int _index);
+	void setRangeMax(float _val, int _index);
+	void setRangeEnabled(bool enabled, int _index);
 	void setName(string _name);
 	void setSpeed(float _val, int _index);
 	void setBpmRate(int _rate, int _index);

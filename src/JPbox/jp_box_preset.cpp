@@ -1,5 +1,39 @@
 #include "jp_box_preset.h"
 
+namespace
+{
+	void saveParameterUserState(ofXml &node, JPParameter *parameter)
+	{
+		if (parameter == nullptr) return;
+		node.appendChild("randomlocked").set(parameter->randomLocked);
+		if (parameter->variabletype == JPParameter::FLOAT)
+		{
+			node.appendChild("rangeenabled").set(parameter->rangeEnabled);
+			node.appendChild("defaultvalue").set(parameter->defaultFloatValue);
+		}
+		else if (parameter->variabletype == JPParameter::BOOL)
+			node.appendChild("defaultbool").set(parameter->defaultBoolValue);
+	}
+	void loadParameterUserState(ofXml &node, JPParameter *parameter)
+	{
+		if (parameter == nullptr) return;
+		auto locked = node.getChild("randomlocked");
+		if (locked) parameter->randomLocked = locked.getBoolValue();
+		auto value = node.getChild("defaultvalue");
+		if (value && parameter->variabletype == JPParameter::FLOAT)
+			parameter->defaultFloatValue = ofClamp(
+				value.getFloatValue(), parameter->nativeMin, parameter->nativeMax);
+		if (parameter->variabletype == JPParameter::FLOAT)
+		{
+			auto enabled = node.getChild("rangeenabled");
+			parameter->setRangeEnabled(enabled ? enabled.getBoolValue() : false);
+		}
+		auto boolean = node.getChild("defaultbool");
+		if (boolean && parameter->variabletype == JPParameter::BOOL)
+			parameter->defaultBoolValue = boolean.getBoolValue();
+	}
+}
+
 JPbox_preset::JPbox_preset()
 {
 }
@@ -141,8 +175,8 @@ void JPbox_preset::setup(string _directory, string _name)
 			{
 
 				bx->parameters.setName(param.getChild("name").getValue());
-				bx->parameters.setMin(param.getChild("min").getFloatValue(), destinationIndex);
-				bx->parameters.setMax(param.getChild("max").getFloatValue(), destinationIndex);
+				bx->parameters.setRangeMin(param.getChild("min").getFloatValue(), destinationIndex);
+				bx->parameters.setRangeMax(param.getChild("max").getFloatValue(), destinationIndex);
 				bx->parameters.setFloatLerpValue(param.getChild("value").getFloatValue(), destinationIndex);
 				bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), destinationIndex);
 				bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), destinationIndex);
@@ -187,6 +221,8 @@ void JPbox_preset::setup(string _directory, string _name)
 				bx->parameters.setName(param.getChild("name").getValue());
 				bx->parameters.setBoolValue(param.getChild("value").getBoolValue(), destinationIndex);
 			}
+			loadParameterUserState(param,
+				bx->parameters.getJParameter(destinationIndex));
 			destinationIndex++;
 		}
 		bx->loadCustomState(box);
@@ -899,18 +935,17 @@ void JPbox_preset::save()
 			auto parameters = data.appendChild("parameters");
 			for (int k = 0; k < boxes[i]->parameters.getSize(); k++)
 			{
+				auto param = parameters.appendChild("param");
 				if (boxes[i]->parameters.getType(k) == boxes[i]->parameters.BOOL)
 				{
-					auto param = parameters.appendChild("param");
 					param.appendChild("name").set(boxes[i]->parameters.getName(k));
 					param.appendChild("value").set(boxes[i]->parameters.getBoolValue(k));
 				}
 				else
 				{
-					auto param = parameters.appendChild("param");
 					param.appendChild("name").set(boxes[i]->parameters.getName(k));
-					param.appendChild("min").set(boxes[i]->parameters.getMin(k));
-					param.appendChild("max").set(boxes[i]->parameters.getMax(k));
+					param.appendChild("min").set(boxes[i]->parameters.getRangeMin(k));
+					param.appendChild("max").set(boxes[i]->parameters.getRangeMax(k));
 					param.appendChild("value").set(boxes[i]->parameters.getFloatValue(k));
 					param.appendChild("movtype").set(boxes[i]->parameters.getMovType(k));
 					param.appendChild("lastmovtype").set(boxes[i]->parameters.getLastMovType(k));
@@ -926,6 +961,8 @@ void JPbox_preset::save()
 					param.appendChild("audioattackms").set(boxes[i]->parameters.getAudioAttackMs(k));
 					param.appendChild("audioreleasems").set(boxes[i]->parameters.getAudioReleaseMs(k));
 				}
+				saveParameterUserState(param,
+					boxes[i]->parameters.getJParameter(k));
 			}
 		}
 

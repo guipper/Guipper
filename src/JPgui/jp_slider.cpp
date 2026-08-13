@@ -95,7 +95,7 @@ void JPSlider::draw()
 	{
 		// cout << "MUEVE SLIDER " << endl;
 		value = ofMap(ofGetMouseX(), x - width / 2, x + width / 2, min, max);
-		value = ofClamp(value, min, max);
+		value = ofClamp(value, parameters->effectiveMin(), parameters->effectiveMax());
 		parameters->floatValue = value;
 		parameters->floatLerpValue = value;
 	}
@@ -161,7 +161,7 @@ void JPSlider::draw()
 			ofColor(COL_BG_INPUT, 235));
 		ofDrawRectRounded(left, trackTop, width, trackHeight, 3.0f);
 
-		if (rangeRight > rangeLeft)
+		if (parameters->rangeEnabled && rangeRight >= rangeLeft)
 		{
 			ofSetColor(ofColor(COL_ACCENT_CYAN, 105));
 			ofDrawRectRounded(rangeLeft, trackTop,

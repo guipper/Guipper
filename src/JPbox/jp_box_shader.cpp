@@ -97,8 +97,10 @@ void JPbox_shader::reload()
 				{
 					parameters.setFloatValue(auxparameters.getFloatValue(i), k);
 					parameters.setFloatLerpValue(auxparameters.getLerpValue(i), k);
-					parameters.setMin(auxparameters.getMin(i), k);
-					parameters.setMax(auxparameters.getMax(i), k);
+					parameters.setRangeMin(auxparameters.getRangeMin(i), k);
+					parameters.setRangeMax(auxparameters.getRangeMax(i), k);
+					parameters.setRangeEnabled(
+						auxparameters.getJParameter(i)->rangeEnabled, k);
 					parameters.setSpeed(auxparameters.getSpeed(i), k);
 					parameters.setBpmRate(auxparameters.getBpmRate(i), k);
 					const int previousMoveType =
@@ -113,6 +115,11 @@ void JPbox_shader::reload()
 					parameters.setlastmovetype(
 						auxparameters.getLastMovType(i), k);
 				}
+				JPParameter *destination = parameters.getJParameter(k);
+				JPParameter *source = auxparameters.getJParameter(i);
+				destination->randomLocked = source->randomLocked;
+				destination->defaultFloatValue = source->defaultFloatValue;
+				destination->defaultBoolValue = source->defaultBoolValue;
 			}
 		}
 	}

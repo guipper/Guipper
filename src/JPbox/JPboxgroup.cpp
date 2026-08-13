@@ -19,6 +19,38 @@ namespace
 		return std::chrono::duration<float, std::milli>(
 			ProfileClock::now() - start).count();
 	}
+	void saveParameterUserState(ofXml &node, JPParameter *parameter)
+	{
+		if (parameter == nullptr) return;
+		node.appendChild("randomlocked").set(parameter->randomLocked);
+		if (parameter->variabletype == JPParameter::FLOAT)
+		{
+			node.appendChild("rangeenabled").set(parameter->rangeEnabled);
+			node.appendChild("defaultvalue").set(parameter->defaultFloatValue);
+		}
+		else if (parameter->variabletype == JPParameter::BOOL)
+			node.appendChild("defaultbool").set(parameter->defaultBoolValue);
+	}
+	void loadParameterUserState(ofXml &node, JPParameter *parameter)
+	{
+		if (parameter == nullptr) return;
+		auto locked = node.getChild("randomlocked");
+		if (locked) parameter->randomLocked = locked.getBoolValue();
+		auto value = node.getChild("defaultvalue");
+		if (value && parameter->variabletype == JPParameter::FLOAT)
+			parameter->defaultFloatValue = ofClamp(
+				value.getFloatValue(), parameter->nativeMin, parameter->nativeMax);
+		if (parameter->variabletype == JPParameter::FLOAT)
+		{
+			auto enabled = node.getChild("rangeenabled");
+			// Custom limiting is opt-in. Legacy files keep their remembered
+			// endpoints, but open on the native slider domain.
+			parameter->setRangeEnabled(enabled ? enabled.getBoolValue() : false);
+		}
+		auto boolean = node.getChild("defaultbool");
+		if (boolean && parameter->variabletype == JPParameter::BOOL)
+			parameter->defaultBoolValue = boolean.getBoolValue();
+	}
 	constexpr bool kShowInspectorClickBounds = false;
 
 	string fitInspectorLabel(string text, float maxWidth)
@@ -942,6 +974,8 @@ void JPboxgroup::setupGalleryDurationSlider()
 	galleryDurationParam.setup(clampedDuration, "durationgallery_ms");
 	galleryDurationParam.min = 0.0f;
 	galleryDurationParam.max = 4200.0f;
+	galleryDurationParam.nativeMin = 0.0f;
+	galleryDurationParam.nativeMax = 4200.0f;
 	galleryDurationParam.movtype = JPParameter::STANDART;
 
 	galleryDurationSlider.setup(sliderX, sliderY, sliderWidth, sliderHeight,
@@ -2513,6 +2547,62 @@ bool JPboxgroup::handleInspectorInputClick(JPbox *box)
 	return false;
 }
 
+bool JPboxgroup::handleInspectorLockClick()
+{
+	if (!inspectorBodyContains(ofGetMouseX(), ofGetMouseY())) return false;
+	const ofVec2f mouse(ofGetMouseX(), ofGetMouseY());
+	for (int i = 0; i < (int)parameterLockButtons.size() &&
+		i < (int)controllers.size(); ++i)
+	{
+		if (!parameterLockButtons[i].inside(mouse) ||
+			controllers[i] == nullptr || controllers[i]->parameters == nullptr)
+			continue;
+		controllers[i]->parameters->randomLocked =
+			!controllers[i]->parameters->randomLocked;
+		markCueDraftDirty(cueSelectedIndex());
+		if (isCueDraftMode()) updateCueDraftGraph();
+		return true;
+	}
+	return false;
+}
+
+bool JPboxgroup::handleInspectorRangeClick()
+{
+	if (!inspectorBodyContains(ofGetMouseX(), ofGetMouseY())) return false;
+	const ofVec2f mouse(ofGetMouseX(), ofGetMouseY());
+	for (int i = 0; i < (int)parameterRangeButtons.size() &&
+		i < (int)controllers.size(); ++i)
+	{
+		JPParameter *parameter = controllers[i] != nullptr ?
+			controllers[i]->parameters : nullptr;
+		if (parameterRangeButtons[i].inside(mouse) && parameter != nullptr &&
+			parameter->variabletype == JPParameter::FLOAT)
+		{
+			parameter->setRangeEnabled(!parameter->rangeEnabled);
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode()) updateCueDraftGraph();
+			setControllers();
+			return true;
+		}
+	}
+	for (JPcontroller *controller : controllers)
+	{
+		JPComplexSlider *slider = dynamic_cast<JPComplexSlider *>(controller);
+		if (slider == nullptr) continue;
+		const int handle = slider->rangeHandleAt(mouse.x, mouse.y);
+		if (handle == 0) continue;
+		rangeDragSlider = slider;
+		rangeDragHandle = handle;
+		slider->rangeHandleDragging = true;
+		slider->slider_value.activable2 = false;
+		slider->setRangeHandleFromMouse(handle, mouse.x);
+		markCueDraftDirty(cueSelectedIndex());
+		if (isCueDraftMode()) updateCueDraftGraph();
+		return true;
+	}
+	return false;
+}
+
 bool JPboxgroup::handleInspectorAutomationClick()
 {
 	const ofVec2f mouse(ofGetMouseX(), ofGetMouseY());
@@ -2647,6 +2737,17 @@ bool JPboxgroup::handleInspectorAutomationClick()
 			return true;
 		}
 
+		// One compact button cycles the four basic automation patterns.
+		if (parameter->movtype != JPParameter::STANDART &&
+			boundsFor(slider->boton_idayvuelta).inside(mouse))
+		{
+			parameter->cycleAutomationPattern();
+			parameter->update();
+			slider->boton_idayvuelta.activable = false;
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode()) updateCueDraftGraph();
+			return true;
+		}
 		if (!boundsFor(slider->boton_collapse).inside(mouse))
 		{
 			if (isCueDraftMode() &&
@@ -2657,8 +2758,6 @@ bool JPboxgroup::handleInspectorAutomationClick()
 					boundsFor(slider->handler1).inside(mouse) ||
 					boundsFor(slider->handler2).inside(mouse) ||
 					boundsFor(slider->boton_idayvuelta).inside(mouse) ||
-					boundsFor(slider->boton_random).inside(mouse) ||
-					boundsFor(slider->boton_direccion).inside(mouse) ||
 					boundsFor(slider->boton_audio).inside(mouse) ||
 					boundsFor(slider->audio_source_button).inside(mouse) ||
 					boundsFor(slider->audio_div_button).inside(mouse);
@@ -2681,10 +2780,8 @@ bool JPboxgroup::handleInspectorAutomationClick()
 }
 
 // A row's geometry - its height, and where the mode chips sit - depends on the
-// parameter's movtype. But setPosAndSize() runs only when the controllers are
-// rebuilt, while boton_idayvuelta / boton_random / boton_direccion change
-// movtype from inside JPToogle::draw(). Without this the row keeps the layout
-// of the mode it was built for and every control sits a slot out of place.
+// parameter's movtype. Rebuild when a mode changes so modifier rows and audio
+// shaping controls always use geometry for their current state.
 void JPboxgroup::rebuildControllersIfLayoutStale()
 {
 	for (JPcontroller *controller : controllers)
@@ -2694,7 +2791,16 @@ void JPboxgroup::rebuildControllersIfLayoutStale()
 		const bool sourceChanged =
 			slider->parameters->movtype == JPParameter::AUDIO &&
 			slider->builtForAudioSource != slider->parameters->audioSource;
-		if (slider->builtForMovtype != slider->parameters->movtype ||
+		auto isBasicPattern = [](int mode)
+		{
+			return mode == JPParameter::OSC || mode == JPParameter::RANDOM ||
+				mode == JPParameter::GODER || mode == JPParameter::GOIZQ;
+		};
+		const bool layoutChanged =
+			slider->builtForMovtype != slider->parameters->movtype &&
+			!(isBasicPattern(slider->builtForMovtype) &&
+				isBasicPattern(slider->parameters->movtype));
+		if (layoutChanged ||
 			sourceChanged)
 		{
 			setControllers();
@@ -2752,9 +2858,12 @@ void JPboxgroup::draw_paramswindow()
 			inspectorwindow_x - inspectorwindow_width / 2.0f;
 		const float panelRight =
 			inspectorwindow_x + inspectorwindow_width / 2.0f;
-		const float headerDividerY = inspectorwindow_sepy + 14.0f;
-		const bool hasRandomAction =
-			inspectorBox->parameters.getSize() > 0;
+		const float headerDividerY = inspectorLayout.headerHeight - 8.0f;
+		const bool hasRandomAction = std::any_of(
+			controllers.begin(), controllers.end(), [](JPcontroller *controller)
+			{
+				return controller != nullptr && controller->parameters != nullptr;
+			});
 		const bool hasEditAction =
 			inspectorBox->getTipo() == inspectorBox->SHADERBOX &&
 			shaderEditor != nullptr && !inspectorBox->dir.empty();
@@ -2763,26 +2872,39 @@ void JPboxgroup::draw_paramswindow()
 			inspectorBox->getTipo() == inspectorBox->CAMBOX ||
 			inspectorBox->getTipo() == inspectorBox->KINECT2BOX;
 		const float randomActionWidth = 44.0f;
+		const float defaultActionWidth = 42.0f;
+		const float saveDefaultActionWidth = 62.0f;
 		const float mappingActionWidth = 48.0f;
 		const float editActionWidth = 48.0f;
 		const float cameraActionWidth = 48.0f;
-		const float headerActionHeight = 24.0f;
+		const float headerActionHeight = 26.0f;
+		const float headerActionGap = 5.0f;
+		const int headerActionCount =
+			(hasRandomAction ? 3 : 0) +
+			(hasMappingAction ? 1 : 0) +
+			(hasCameraAction ? 1 : 0) +
+			(hasEditAction ? 1 : 0);
 		const float headerActionWidth =
 			(hasRandomAction ? randomActionWidth : 0.0f) +
+			(hasRandomAction ? defaultActionWidth + saveDefaultActionWidth : 0.0f) +
 			(hasMappingAction ? mappingActionWidth : 0.0f) +
 			(hasCameraAction ? cameraActionWidth : 0.0f) +
-			(hasEditAction ? editActionWidth : 0.0f);
-		const float headerActionRight = panelRight - 9.0f;
+			(hasEditAction ? editActionWidth : 0.0f) +
+			std::max(0, headerActionCount - 1) * headerActionGap;
+		const float headerActionRight = panelRight - 12.0f;
 		const float headerActionLeft =
 			headerActionRight - headerActionWidth;
 		const float titleVisualCenterY =
-			inspectorwindow_sepy -
-			jp_constants::inspector_title_font.stringHeight("Ag") / 2.0f;
+			inspectorLayout.headerHeight * 0.5f - 6.0f;
+		const float titleBaselineY = titleVisualCenterY +
+			jp_constants::inspector_title_font.stringHeight("Ag") * 0.5f;
 		const float headerActionTop =
 			titleVisualCenterY - headerActionHeight / 2.0f;
 
 		inspectorrandom.width = 0.0f;
 		inspectorrandom.height = 0.0f;
+		inspectordefault.width = inspectordefault.height = 0.0f;
+		inspectorsavedefault.width = inspectorsavedefault.height = 0.0f;
 		mappingbutton.width = 0.0f;
 		mappingbutton.height = 0.0f;
 		editbutton.width = 0.0f;
@@ -2790,7 +2912,7 @@ void JPboxgroup::draw_paramswindow()
 		camerarefreshbutton.width = 0.0f;
 		camerarefreshbutton.height = 0.0f;
 
-		float titleX = panelLeft + 14.0f;
+		float titleX = panelLeft + 16.0f;
 		string title = name;
 		const float titleRight = headerActionWidth > 0.0f ?
 			headerActionLeft - 10.0f : panelRight - 12.0f;
@@ -2808,43 +2930,34 @@ void JPboxgroup::draw_paramswindow()
 		// body. Keeping geometry and painting separate prevents stale scissor
 		// state and duplicated header styles from drifting apart.
 		float nextActionX = headerActionLeft;
+		auto placeHeaderAction = [&](JPBang &button, float actionWidth)
+		{
+			button.x = nextActionX + actionWidth * 0.5f;
+			button.y = headerActionTop + headerActionHeight * 0.5f;
+			button.width = actionWidth;
+			button.height = headerActionHeight;
+			nextActionX += actionWidth + headerActionGap;
+		};
 		if (hasRandomAction)
 		{
-			inspectorrandom.x = nextActionX + randomActionWidth / 2.0f;
-			inspectorrandom.y =
-				headerActionTop + headerActionHeight / 2.0f;
-			inspectorrandom.width = randomActionWidth;
-			inspectorrandom.height = headerActionHeight;
-			nextActionX += randomActionWidth;
+			placeHeaderAction(inspectorrandom, randomActionWidth);
+			placeHeaderAction(inspectordefault, defaultActionWidth);
+			placeHeaderAction(inspectorsavedefault, saveDefaultActionWidth);
 		}
 
 		if (hasCameraAction)
 		{
-			camerarefreshbutton.x = nextActionX + cameraActionWidth / 2.0f;
-			camerarefreshbutton.y =
-				headerActionTop + headerActionHeight / 2.0f;
-			camerarefreshbutton.width = cameraActionWidth;
-			camerarefreshbutton.height = headerActionHeight;
-			nextActionX += cameraActionWidth;
+			placeHeaderAction(camerarefreshbutton, cameraActionWidth);
 		}
 
 		if (hasEditAction)
 		{
-			editbutton.x = nextActionX + editActionWidth / 2.0f;
-			editbutton.y =
-				headerActionTop + headerActionHeight / 2.0f;
-			editbutton.width = editActionWidth;
-			editbutton.height = headerActionHeight;
-			nextActionX += editActionWidth;
+			placeHeaderAction(editbutton, editActionWidth);
 		}
 
 		if (hasMappingAction)
 		{
-			mappingbutton.x = nextActionX + mappingActionWidth / 2.0f;
-			mappingbutton.y = headerActionTop + headerActionHeight / 2.0f;
-			mappingbutton.width = mappingActionWidth;
-			mappingbutton.height = headerActionHeight;
-			nextActionX += mappingActionWidth;
+			placeHeaderAction(mappingbutton, mappingActionWidth);
 		}
 
 		const float inspectorPixelScale = ofGetHeight() > 0 ?
@@ -2910,6 +3023,76 @@ void JPboxgroup::draw_paramswindow()
 				controllers[i]->width, controllers[i]->height);
 			if (!controllerBounds.intersects(inspectorBodyViewport)) continue;
 			controllers[i]->draw();
+			if (i < (int)parameterRangeButtons.size() &&
+				parameterRangeButtons[i].width > 0.0f &&
+				controllers[i]->parameters != nullptr)
+			{
+				const ofRectangle &button = parameterRangeButtons[i];
+				const bool enabled = controllers[i]->parameters->rangeEnabled;
+				const bool hovered = button.inside(ofGetMouseX(), ofGetMouseY());
+				ofSetRectMode(OF_RECTMODE_CORNER);
+				ofSetColor(enabled ? COL_ACCENT_CYAN_DIM :
+					(hovered ? COL_BG_HOVER : COL_BG_INPUT));
+				ofDrawRectRounded(button, 3.0f);
+				ofNoFill();
+				ofSetColor(enabled ? COL_TEXT_PRIMARY :
+					(hovered ? COL_TEXT_SECONDARY : COL_BORDER_MUTED));
+				ofDrawRectRounded(button, 3.0f);
+				const float cx = button.getCenter().x;
+				const float cy = button.getCenter().y;
+				ofSetLineWidth(1.5f);
+				ofDrawLine(cx - 6.0f, cy, cx + 6.0f, cy);
+				ofDrawLine(cx - 6.0f, cy - 5.0f, cx - 6.0f, cy + 5.0f);
+				ofDrawLine(cx + 6.0f, cy - 5.0f, cx + 6.0f, cy + 5.0f);
+				ofFill();
+				ofDrawCircle(cx - 6.0f, cy, 2.0f);
+				ofDrawCircle(cx + 6.0f, cy, 2.0f);
+				if (enabled)
+				{
+					ofSetColor(COL_ACCENT_CYAN);
+					ofDrawCircle(cx, cy, 1.75f);
+				}
+				ofFill();
+				ofSetLineWidth(1.0f);
+				jp_tooltip::draw("custom range",
+					button.x, button.y, button.width, button.height);
+			}
+			if (i < (int)parameterLockButtons.size() &&
+				parameterLockButtons[i].width > 0.0f &&
+				controllers[i]->parameters != nullptr)
+			{
+				const ofRectangle &button = parameterLockButtons[i];
+				const bool locked = controllers[i]->parameters->randomLocked;
+				const bool hovered = button.inside(ofGetMouseX(), ofGetMouseY());
+				ofSetRectMode(OF_RECTMODE_CORNER);
+				ofSetColor(locked ? COL_ACCENT_GOLD_DIM :
+					(hovered ? COL_BG_HOVER : COL_BG_INPUT));
+				ofDrawRectRounded(button, 3.0f);
+				ofNoFill();
+				ofSetColor(locked ? COL_ACCENT_GOLD : COL_BORDER_MUTED);
+				ofDrawRectRounded(button, 3.0f);
+				ofFill();
+				const float cx = button.getCenter().x;
+				const float cy = button.getCenter().y;
+				ofNoFill();
+				ofSetLineWidth(1.5f);
+				ofDrawRectRounded(cx - 5.0f, cy - 1.0f,
+					10.0f, 8.0f, 1.5f);
+				const float shackleLeft = locked ? cx - 3.5f : cx - 1.0f;
+				ofDrawLine(shackleLeft, cy - 1.0f,
+					shackleLeft, cy - 5.0f);
+				ofDrawLine(shackleLeft, cy - 5.0f,
+					cx + 3.5f, cy - 5.0f);
+				if (locked)
+					ofDrawLine(cx + 3.5f, cy - 5.0f,
+						cx + 3.5f, cy - 1.0f);
+				ofFill();
+				ofSetLineWidth(1.0f);
+				jp_tooltip::draw(locked ?
+					"Unlock for Random and Default" :
+					"Lock from Random and Default",
+					button.x, button.y, button.width, button.height);
+			}
 			if (dynamic_cast<JPComplexSlider *>(controllers[i]) == nullptr)
 			{
 				drawInspectorClickBounds(*controllers[i],
@@ -2948,42 +3131,28 @@ void JPboxgroup::draw_paramswindow()
 		ofDrawRectangle(inspectorHeaderBounds);
 		ofSetColor(COL_TEXT_PRIMARY);
 		jp_constants::inspector_title_font.drawString(
-			title, titleX, inspectorwindow_sepy);
+			title, titleX, titleBaselineY);
 		ofSetColor(ofColor(COL_BORDER_MUTED, 120));
-		ofDrawLine(titleX, headerDividerY, panelRight - 12.0f,
+		ofDrawLine(titleX, headerDividerY, panelRight - 14.0f,
 			headerDividerY);
-		if (headerActionWidth > 0.0f)
-		{
-			ofSetColor(ofColor(COL_BG_INPUT, 245));
-			ofDrawRectRounded(headerActionLeft, headerActionTop,
-				headerActionWidth, headerActionHeight, 3.0f);
-			ofNoFill();
-			ofSetColor(ofColor(COL_BORDER_MUTED, 185));
-			ofDrawRectRounded(headerActionLeft, headerActionTop,
-				headerActionWidth, headerActionHeight, 3.0f);
-			ofFill();
-		}
-		bool firstHeaderAction = true;
 		auto drawHeaderAction = [&](JPBang &button, const string &label,
 			const ofColor &idleColor, const ofColor &hoverColor,
 			const string &tooltip)
 		{
 			if (button.width <= 0.0f) return;
 			const float left = button.x - button.width * 0.5f;
-			if (!firstHeaderAction)
-			{
-				ofSetColor(ofColor(COL_BORDER_MUTED, 165));
-				ofDrawLine(left, headerActionTop + 4.0f, left,
-					headerActionTop + headerActionHeight - 4.0f);
-			}
-			firstHeaderAction = false;
 			const bool hovered = button.mouseOver();
-			if (hovered)
-			{
-				ofSetColor(ofColor(COL_BG_HOVER, 230));
-				ofDrawRectRounded(left + 1.0f, headerActionTop + 1.0f,
-					button.width - 2.0f, headerActionHeight - 2.0f, 2.0f);
-			}
+			ofSetColor(hovered ? ofColor(COL_BG_HOVER, 245) :
+				ofColor(COL_BG_INPUT, 235));
+			ofDrawRectRounded(left, headerActionTop,
+				button.width, headerActionHeight, 3.0f);
+			ofNoFill();
+			ofSetLineWidth(hovered ? 1.5f : 1.0f);
+			ofSetColor(hovered ? ofColor(hoverColor, 210) :
+				ofColor(COL_BORDER_MUTED, 175));
+			ofDrawRectRounded(left, headerActionTop,
+				button.width, headerActionHeight, 3.0f);
+			ofFill();
 			ofSetColor(hovered ? hoverColor : idleColor);
 			jp_constants::inspector_secondary_font.drawString(label,
 				button.x - jp_constants::inspector_secondary_font.stringWidth(label) * 0.5f,
@@ -2996,6 +3165,10 @@ void JPboxgroup::draw_paramswindow()
 		};
 		drawHeaderAction(inspectorrandom, "RDM", COL_TEXT_SECONDARY,
 			COL_ACCENT_CYAN, "Randomize parameters");
+		drawHeaderAction(inspectordefault, "DEF", COL_TEXT_SECONDARY,
+			COL_ACCENT_CYAN, "Restore unlocked parameter defaults");
+		drawHeaderAction(inspectorsavedefault, "SET DEF", COL_ACCENT_GOLD_DIM,
+			COL_ACCENT_GOLD, "Save current values as defaults");
 		drawHeaderAction(camerarefreshbutton,
 			inspectorBox->getTipo() == inspectorBox->KINECT2BOX ? "RETRY" : "SCAN",
 			COL_TEXT_SECONDARY, COL_ACCENT_CYAN,
@@ -3509,6 +3682,17 @@ void JPboxgroup::setinspectorsetactiveparams()
 void JPboxgroup::update_mouseDragged(int mousebutton)
 {
 	ofVec2f screenMouse(ofGetMouseX(), ofGetMouseY());
+	if (mousebutton == OF_MOUSE_BUTTON_LEFT &&
+		rangeDragSlider != nullptr && rangeDragHandle != 0)
+	{
+		if (rangeDragSlider->setRangeHandleFromMouse(
+			rangeDragHandle, screenMouse.x))
+		{
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode()) updateCueDraftGraph();
+		}
+		return;
+	}
 	if (mousebutton == OF_MOUSE_BUTTON_LEFT && inspectorScrollbarDragging)
 	{
 		const float travel = inspectorScrollbarTrack.height -
@@ -3663,8 +3847,11 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 					// Manual update for movtype 0 sliders
 					controllers[i]->value = ofMap(ofGetMouseX(), controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
 						controllers[i]->x + (controllers[i]->width * 3 / 4) / 2,
+						inspectorBox->parameters.getNativeMin(i),
+						inspectorBox->parameters.getNativeMax(i), true);
+					controllers[i]->value = ofClamp(controllers[i]->value,
 						inspectorBox->parameters.getMin(i),
-						inspectorBox->parameters.getMax(i), true);
+						inspectorBox->parameters.getMax(i));
 
 					inspectorBox->parameters.setFloatValue(controllers[i]->value, i);
 					inspectorBox->parameters.setFloatLerpValue(controllers[i]->value, i);
@@ -3674,8 +3861,11 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 				else if (i >= inspectorBox->parameters.getSize())
 				{
 					// Exposed controller: update the value via its internal parameter pointer
+					JPParameter *parameter = controllers[i]->parameters;
 					float newVal = ofMap(ofGetMouseX(), controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
-										  controllers[i]->x + (controllers[i]->width * 3 / 4) / 2, 0.0, 1.0, true);
+						controllers[i]->x + (controllers[i]->width * 3 / 4) / 2,
+						parameter->nativeMin, parameter->nativeMax, true);
+					newVal = ofClamp(newVal, parameter->effectiveMin(), parameter->effectiveMax());
 					controllers[i]->value = newVal;
 					controllers[i]->parameters->floatValue = newVal;
 					controllers[i]->parameters->floatLerpValue = newVal;
@@ -3749,6 +3939,18 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
 		inputInspectorBox != nullptr && mouseOverGui() &&
 		handleInspectorInputClick(inputInspectorBox))
+	{
+		return;
+	}
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
+		inputInspectorBox != nullptr && mouseOverGui() &&
+		handleInspectorRangeClick())
+	{
+		return;
+	}
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
+		inputInspectorBox != nullptr && mouseOverGui() &&
+		handleInspectorLockClick())
 	{
 		return;
 	}
@@ -3893,15 +4095,14 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		if (inspectorrandom.mouseGrab())
 		{
 			bool randomized = false;
-			for (int i = 0; i < inspectorBox->parameters.getSize(); i++)
+			for (JPParameter *parameter : getInspectorActionParameters())
 			{
-				if (inspectorBox->parameters.getType(i) == JPParameter::FLOAT)
+				if (parameter->variabletype == JPParameter::FLOAT &&
+					!parameter->randomLocked)
 				{
-					float mn = inspectorBox->parameters.getMin(i);
-					float mx = inspectorBox->parameters.getMax(i);
-					inspectorBox->parameters.setFloatValue(ofRandom(mn, mx), i);
-					// Also zero out lerp target so it snaps immediately
-					inspectorBox->parameters.setFloatLerpValue(inspectorBox->parameters.getFloatValue(i), i);
+					parameter->floatValue = ofRandom(parameter->effectiveMin(),
+						parameter->effectiveMax());
+					parameter->floatLerpValue = parameter->floatValue;
 					randomized = true;
 				}
 			}
@@ -3913,6 +4114,21 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 					updateCueDraftGraph();
 				}
 			}
+		}
+		if (inspectordefault.mouseGrab())
+		{
+			for (JPParameter *parameter : getInspectorActionParameters())
+				parameter->restoreDefaultValue();
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode()) updateCueDraftGraph();
+			setControllers();
+		}
+		if (inspectorsavedefault.mouseGrab())
+		{
+			for (JPParameter *parameter : getInspectorActionParameters())
+				parameter->captureDefaultValue();
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode()) updateCueDraftGraph();
 		}
 		if (camerarefreshbutton.mouseGrab() &&
 			inspectorBox->getTipo() == inspectorBox->CAMBOX)
@@ -4006,8 +4222,11 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 						ofGetMouseX(),
 						controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
 						controllers[i]->x + (controllers[i]->width * 3 / 4) / 2,
-						inspectorBox->parameters.getMin(i),
-						inspectorBox->parameters.getMax(i), true);
+						inspectorBox->parameters.getNativeMin(i),
+						inspectorBox->parameters.getNativeMax(i), true);
+				controllers[i]->value = ofClamp(controllers[i]->value,
+					inspectorBox->parameters.getMin(i),
+					inspectorBox->parameters.getMax(i));
 				inspectorBox->parameters.setFloatValue(controllers[i]->value, i);
 				inspectorBox->parameters.setFloatLerpValue(controllers[i]->value, i);
 				markCueDraftDirty(cueSelectedIndex());
@@ -4016,15 +4235,15 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		if (mouseButton == 2 && isDoubleClick)
 		{
 			cout << "DOBLE CLICK " << endl;
-			for (int i = 0; i < inspectorBox->parameters.getSize(); i++)
+			for (JPParameter *parameter : getInspectorActionParameters())
 			{
-				if (inspectorBox->parameters.getType(i) == inspectorBox->parameters.FLOAT)
+				if (parameter->variabletype == JPParameter::FLOAT &&
+					!parameter->randomLocked)
 				{
-						float rdm = ofRandom(
-							inspectorBox->parameters.getMin(i),
-							inspectorBox->parameters.getMax(i));
-					inspectorBox->parameters.setFloatLerpValue(rdm, i);
-					inspectorBox->parameters.setFloatValue(rdm, i);
+					const float rdm = ofRandom(parameter->effectiveMin(),
+						parameter->effectiveMax());
+					parameter->floatLerpValue = rdm;
+					parameter->floatValue = rdm;
 					markCueDraftDirty(cueSelectedIndex());
 
 				}
@@ -4110,6 +4329,13 @@ void JPboxgroup::update_mouseReleased(int mouseButton)
 {
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT)
 	{
+		if (rangeDragSlider != nullptr)
+		{
+			rangeDragSlider->rangeHandleDragging = false;
+			rangeDragSlider->slider_value.activable2 = true;
+		}
+		rangeDragSlider = nullptr;
+		rangeDragHandle = 0;
 		audioShapingDragSlider = nullptr;
 		audioShapingDragControl = JPComplexSlider::AUDIO_SHAPING_NONE;
 		inspectorScrollbarDragging = false;
@@ -4532,6 +4758,8 @@ void JPboxgroup::save(string outputPath)
 					auto param = parameters.appendChild("param");
 					param.appendChild("name").set(boxes[i]->parameters.getName(k));
 					param.appendChild("value").set(boxes[i]->parameters.getBoolValue(k));
+					saveParameterUserState(param,
+						boxes[i]->parameters.getJParameter(k));
 				}
 				else
 				{
@@ -4539,11 +4767,13 @@ void JPboxgroup::save(string outputPath)
 					auto param = parameters.appendChild("param");
 					// param.set(boxes[i]->parameters.getFloatValue(k));
 					param.appendChild("name").set(boxes[i]->parameters.getName(k));
-					param.appendChild("min").set(boxes[i]->parameters.getMin(k));
-					param.appendChild("max").set(boxes[i]->parameters.getMax(k));
+					param.appendChild("min").set(boxes[i]->parameters.getRangeMin(k));
+					param.appendChild("max").set(boxes[i]->parameters.getRangeMax(k));
 					param.appendChild("value").set(boxes[i]->parameters.getFloatValue(k));
 					param.appendChild("movtype").set(boxes[i]->parameters.getMovType(k));
 					param.appendChild("lastmovtype").set(boxes[i]->parameters.getLastMovType(k));
+					saveParameterUserState(param,
+						boxes[i]->parameters.getJParameter(k));
 					param.appendChild("speed").set(boxes[i]->parameters.getSpeed(k));
 					param.appendChild("bpmrate").set(boxes[i]->parameters.getBpmRate(k));
 					param.appendChild("audiosource").set(boxes[i]->parameters.getAudioSource(k));
@@ -4752,8 +4982,8 @@ void JPboxgroup::load(string _dirinput)
 			if (bx->parameters.getType(destinationIndex) == bx->parameters.FLOAT)
 			{
 				bx->parameters.setName(param.getChild("name").getValue());
-				bx->parameters.setMin(param.getChild("min").getFloatValue(), destinationIndex);
-				bx->parameters.setMax(param.getChild("max").getFloatValue(), destinationIndex);
+				bx->parameters.setRangeMin(param.getChild("min").getFloatValue(), destinationIndex);
+				bx->parameters.setRangeMax(param.getChild("max").getFloatValue(), destinationIndex);
 				bx->parameters.setFloatLerpValue(param.getChild("value").getFloatValue(), destinationIndex);
 				bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), destinationIndex);
 				bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), destinationIndex);
@@ -4798,6 +5028,8 @@ void JPboxgroup::load(string _dirinput)
 				bx->parameters.setName(param.getChild("name").getValue());
 				bx->parameters.setBoolValue(param.getChild("value").getBoolValue(), destinationIndex);
 			}
+			loadParameterUserState(param,
+				bx->parameters.getJParameter(destinationIndex));
 			destinationIndex++;
 		}
 		bx->loadCustomState(box);
@@ -4915,9 +5147,27 @@ void JPboxgroup::load(string _dirinput)
 
 
 }
+vector<JPParameter *> JPboxgroup::getInspectorActionParameters() const
+{
+	vector<JPParameter *> result;
+	for (JPcontroller *controller : controllers)
+	{
+		JPParameter *parameter = controller != nullptr ?
+			controller->parameters : nullptr;
+		if (parameter != nullptr &&
+			std::find(result.begin(), result.end(), parameter) == result.end())
+		{
+			result.push_back(parameter);
+		}
+	}
+	return result;
+}
+
 void JPboxgroup::setControllers(){
 	audioShapingDragSlider = nullptr;
 	audioShapingDragControl = JPComplexSlider::AUDIO_SHAPING_NONE;
+	rangeDragSlider = nullptr;
+	rangeDragHandle = 0;
 
 	for (int i = 0; i < controllers.size(); i++)
 	{
@@ -4925,6 +5175,8 @@ void JPboxgroup::setControllers(){
 		controllers[i] = nullptr;
 	}
 	controllers.clear();
+	parameterLockButtons.clear();
+	parameterRangeButtons.clear();
 
 	// Clean up expose buttons
 	for (int i = 0; i < exposeButtons.size(); i++)
@@ -4975,7 +5227,12 @@ void JPboxgroup::setControllers(){
 
 	float slider_width = inspectorwindow_width * 3 / 4;
 	float slider_height = inspectorLayout.minControlHeight;
-	const float controllerWidth = inspectorBodyViewport.width;
+	// Keep parameter controls clear of the per-row lock button. Group view
+	// reserves an additional column for its existing expose button.
+	const float rowActionReserve = isGroupViewActive() ? 90.0f : 60.0f;
+	const float controllerWidth = std::max(1.0f,
+		inspectorBodyViewport.width - rowActionReserve);
+	const float controllerX = inspectorBodyViewport.x + controllerWidth * 0.5f;
 	const float standardControllerHeight = inspectorwindow_sepy;
 	const float controllerRowGap = inspectorLayout.rowGap;
 	auto controllerHeightFor = [&](JPParameter *parameter) {
@@ -5037,7 +5294,7 @@ void JPboxgroup::setControllers(){
 			if (parameterHidden)
 			{
 				JPComplexSlider *sl = new JPComplexSlider();
-				sl->setup(inspectorwindow_x, -10000.0f,
+				sl->setup(controllerX, -10000.0f,
 					controllerWidth, standardControllerHeight,
 					inspectorBox->parameters.parameters[k]);
 				sl->name = parameterName.substr(7);
@@ -5057,7 +5314,7 @@ void JPboxgroup::setControllers(){
 
 			// JPParameter* as = boxes[openguinumber]->parameters.parameters[k];
 			JPComplexSlider *sl = new JPComplexSlider();
-			sl->setup(inspectorwindow_x,
+			sl->setup(controllerX,
 					  controllerYFor(layoutCursor,
 						  inspectorBox->parameters.parameters[k]),
 					  controllerWidth, complexsliderheight,
@@ -5075,9 +5332,9 @@ void JPboxgroup::setControllers(){
 			JPToogle *toogle = new JPToogle();
 			toogle->setParametersPointer(inspectorBox->parameters.getJParameter(k));
 			toogle->setFontPointer(jp_constants::inspector_body_font);
-			toogle->setup(inspectorwindow_x,
+			toogle->setup(controllerX,
 						  layoutCursor + complexsliderheight * 0.5f,
-						  slider_width, slider_height,
+						  std::min(slider_width, controllerWidth), slider_height,
 						  inspectorBox->parameters.getName(k), inspectorBox->parameters.getBoolValue(k));
 			if (parameterHidden)
 			{
@@ -5139,7 +5396,7 @@ void JPboxgroup::setControllers(){
 								preset->boxes[bi]->parameters.parameters[ei]);
 
 							JPComplexSlider *sl = new JPComplexSlider();
-							sl->setup(inspectorwindow_x,
+							sl->setup(controllerX,
 									  controllerYFor(layoutCursor,
 										  preset->boxes[bi]->parameters.parameters[ei]),
 									  controllerWidth, complexsliderheight,
@@ -5194,7 +5451,7 @@ void JPboxgroup::setControllers(){
 									rootPreset->boxes[bi]->parameters.parameters[ei]);
 
 								JPComplexSlider *sl = new JPComplexSlider();
-								sl->setup(inspectorwindow_x,
+								sl->setup(controllerX,
 										  controllerYFor(layoutCursor,
 											  rootPreset->boxes[bi]->parameters.parameters[ei]),
 										  controllerWidth, complexsliderheight,
@@ -5227,7 +5484,7 @@ void JPboxgroup::setControllers(){
 										childPreset->boxes[ci]->parameters.parameters[pi]);
 
 									JPComplexSlider *sl = new JPComplexSlider();
-									sl->setup(inspectorwindow_x,
+									sl->setup(controllerX,
 											  controllerYFor(layoutCursor,
 													  childPreset->boxes[ci]->parameters.parameters[pi]),
 												  controllerWidth, complexsliderheight,
@@ -5322,6 +5579,9 @@ void JPboxgroup::setControllers(){
 				// Position button at the far right edge of the inspector panel
 				float btnX = inspectorwindow_x + inspectorwindow_width / 2 - btnSize / 2 - btnRightMargin;
 				float btnY = controllers[k]->y;
+				if (JPComplexSlider *slider =
+					dynamic_cast<JPComplexSlider *>(controllers[k]))
+					btnY = slider->primaryRowY;
 
 				JPExposeButton *btn = new JPExposeButton();
 				btn->setup(btnX, btnY, btnSize);
@@ -5339,6 +5599,37 @@ void JPboxgroup::setControllers(){
 				}
 				exposeButtons.push_back(btn);
 			}
+		}
+	}
+
+	const float lockSize = 22.0f;
+	const float lockRightInset = isGroupViewActive() ? 33.0f : 4.0f;
+	for (JPcontroller *controller : controllers)
+	{
+		if (controller == nullptr || controller->parameters == nullptr ||
+			controller->width <= 0.0f)
+		{
+			parameterLockButtons.emplace_back(0, 0, 0, 0);
+			parameterRangeButtons.emplace_back(0, 0, 0, 0);
+			continue;
+		}
+		float actionCenterY = controller->y;
+		if (JPComplexSlider *slider =
+			dynamic_cast<JPComplexSlider *>(controller))
+			actionCenterY = slider->primaryRowY;
+		parameterLockButtons.emplace_back(
+			inspectorBodyViewport.getRight() - lockRightInset - lockSize,
+			actionCenterY - lockSize * 0.5f,
+			lockSize, lockSize);
+		if (controller->parameters->variabletype == JPParameter::FLOAT)
+		{
+			const ofRectangle &lock = parameterLockButtons.back();
+			parameterRangeButtons.emplace_back(
+				lock.x - lockSize - 5.0f, lock.y, lockSize, lockSize);
+		}
+		else
+		{
+			parameterRangeButtons.emplace_back(0, 0, 0, 0);
 		}
 	}
 
@@ -5552,7 +5843,7 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 						markCueDraftDirty(i);
 						// ESTO ES PARA QUE SOLO MODIFIQUE EL VALOR DEL SLIDER SOLO SI ESTA ABIERTO ESE COSO
 						if (openguinumber == i){
-							controllers[k]->value = _val; // ACa la cantidad de controllers siempre va a ser igual a la cantidad de parameters size;
+							controllers[k]->value = targetBox->parameters.getFloatValue(k);
 						}
 					}
 				}
@@ -5578,7 +5869,7 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 			inspectorBox->parameters.setFloatValue(_val, Intindex);
 			inspectorBox->parameters.setFloatLerpValue(_val, Intindex);
 			markCueDraftDirty(cueSelectedIndex());
-			controllers[Intindex]->value = _val;
+			controllers[Intindex]->value = inspectorBox->parameters.getFloatValue(Intindex);
 		}
 	}
 }
@@ -7913,8 +8204,10 @@ void JPboxgroup::copyParametersByNameOrIndex(JPParameterGroup &destination, JPPa
 		{
 			destination.setFloatValue(source.getFloatValue(srcIndex), dstIndex);
 			destination.setFloatLerpValue(source.getLerpValue(srcIndex), dstIndex);
-			destination.setMin(source.getMin(srcIndex), dstIndex);
-			destination.setMax(source.getMax(srcIndex), dstIndex);
+			destination.setRangeMin(source.getRangeMin(srcIndex), dstIndex);
+			destination.setRangeMax(source.getRangeMax(srcIndex), dstIndex);
+			destination.setRangeEnabled(
+				source.getJParameter(srcIndex)->rangeEnabled, dstIndex);
 			destination.setSpeed(source.getSpeed(srcIndex), dstIndex);
 			destination.setBpmRate(source.getBpmRate(srcIndex), dstIndex);
 			destination.setAudioSource(source.getAudioSource(srcIndex), dstIndex);
@@ -7934,6 +8227,13 @@ void JPboxgroup::copyParametersByNameOrIndex(JPParameterGroup &destination, JPPa
 		{
 			destination.setBoolValue(source.getBoolValue(srcIndex), dstIndex);
 		}
+		JPParameter *destinationParameter = destination.getJParameter(dstIndex);
+		JPParameter *sourceParameter = source.getJParameter(srcIndex);
+		destinationParameter->randomLocked = sourceParameter->randomLocked;
+		destinationParameter->defaultFloatValue =
+			sourceParameter->defaultFloatValue;
+		destinationParameter->defaultBoolValue =
+			sourceParameter->defaultBoolValue;
 	}
 }
 void JPboxgroup::setCuePanelLayout(float x, float y, float w, float h)
@@ -8024,7 +8324,7 @@ static bool applyMidiParameterValue(JPParameter *parameter,
 			return true;
 		}
 		const float mapped = ofMap(normalized, 0.0f, 1.0f,
-			parameter->min, parameter->max, true);
+			parameter->effectiveMin(), parameter->effectiveMax(), true);
 		parameter->floatValue = mapped;
 		parameter->floatLerpValue = mapped;
 		if (controller != nullptr)
@@ -8651,8 +8951,8 @@ void JPboxgroup::groupSelectedBoxes()
 				}
 				else
 				{
-					param.appendChild("min").set(box->parameters.getMin(k));
-					param.appendChild("max").set(box->parameters.getMax(k));
+					param.appendChild("min").set(box->parameters.getRangeMin(k));
+					param.appendChild("max").set(box->parameters.getRangeMax(k));
 					param.appendChild("value").set(box->parameters.getFloatValue(k));
 					param.appendChild("movtype").set(box->parameters.getMovType(k));
 					param.appendChild("lastmovtype").set(box->parameters.getLastMovType(k));
@@ -8668,6 +8968,7 @@ void JPboxgroup::groupSelectedBoxes()
 					param.appendChild("audioattackms").set(box->parameters.getAudioAttackMs(k));
 					param.appendChild("audioreleasems").set(box->parameters.getAudioReleaseMs(k));
 				}
+				saveParameterUserState(param, box->parameters.getJParameter(k));
 			}
 		}
 
@@ -9241,8 +9542,8 @@ void JPboxgroup::copySelectedBoxes()
 				}
 				else
 				{
-					param.appendChild("min").set(box->parameters.getMin(k));
-					param.appendChild("max").set(box->parameters.getMax(k));
+					param.appendChild("min").set(box->parameters.getRangeMin(k));
+					param.appendChild("max").set(box->parameters.getRangeMax(k));
 					param.appendChild("value").set(box->parameters.getFloatValue(k));
 					param.appendChild("movtype").set(box->parameters.getMovType(k));
 					param.appendChild("lastmovtype").set(box->parameters.getLastMovType(k));
@@ -9258,6 +9559,7 @@ void JPboxgroup::copySelectedBoxes()
 					param.appendChild("audioattackms").set(box->parameters.getAudioAttackMs(k));
 					param.appendChild("audioreleasems").set(box->parameters.getAudioReleaseMs(k));
 				}
+				saveParameterUserState(param, box->parameters.getJParameter(k));
 			}
 		}
 
@@ -9383,8 +9685,8 @@ void JPboxgroup::pasteBoxes()
 					if (bx->parameters.getType(paramIndex) == bx->parameters.FLOAT)
 					{
 						bx->parameters.setName(param.getChild("name").getValue());
-						bx->parameters.setMin(param.getChild("min").getFloatValue(), paramIndex);
-						bx->parameters.setMax(param.getChild("max").getFloatValue(), paramIndex);
+						bx->parameters.setRangeMin(param.getChild("min").getFloatValue(), paramIndex);
+						bx->parameters.setRangeMax(param.getChild("max").getFloatValue(), paramIndex);
 						bx->parameters.setFloatLerpValue(param.getChild("value").getFloatValue(), paramIndex);
 						bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), paramIndex);
 						bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), paramIndex);
@@ -9429,6 +9731,8 @@ void JPboxgroup::pasteBoxes()
 						bx->parameters.setName(param.getChild("name").getValue());
 						bx->parameters.setBoolValue(param.getChild("value").getBoolValue(), paramIndex);
 					}
+					loadParameterUserState(param,
+						bx->parameters.getJParameter(paramIndex));
 					paramIndex++;
 				}
 			}
@@ -10259,6 +10563,49 @@ void JPboxgroup::keyPressed(int key)
 	{
 		jp_textfield::handleKey(tabRenameBuffer, tabRenameCursor, key);
 	}
+}
+
+bool JPboxgroup::handleInspectorRangeShortcut(int key)
+{
+	if ((key != OF_KEY_DOWN && key != OF_KEY_UP) ||
+		!inspectorBodyContains(ofGetMouseX(), ofGetMouseY()))
+	{
+		return false;
+	}
+	if (getInspectorBox() == nullptr) return false;
+
+	// Use the controller's parameter pointer so exposed parameters in preset
+	// and group inspectors receive the same shortcut behavior as own params.
+	for (JPcontroller *controller : controllers)
+	{
+		JPComplexSlider *slider =
+			dynamic_cast<JPComplexSlider *>(controller);
+		if (slider == nullptr || slider->parameters == nullptr ||
+			slider->parameters->variabletype != JPParameter::FLOAT ||
+			!slider->parameters->rangeEnabled ||
+			!ofRectangle(slider->x - slider->width * 0.5f,
+				slider->y - slider->height * 0.5f,
+				slider->width, slider->height).intersects(inspectorBodyViewport) ||
+			!slider->slider_value.mouseOver())
+		{
+			continue;
+		}
+
+		JPParameter *parameter = slider->parameters;
+		if (key == OF_KEY_DOWN)
+		{
+			parameter->captureRangeStart();
+		}
+		else
+		{
+			parameter->captureRangeEnd();
+		}
+		markCueDraftDirty(cueSelectedIndex());
+		if (isCueDraftMode()) updateCueDraftGraph();
+		setControllers();
+		return true;
+	}
+	return false;
 }
 
 // Extracted from keyPressed so clicking away can commit the rename too - the

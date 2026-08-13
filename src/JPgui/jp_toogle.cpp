@@ -109,7 +109,10 @@ void JPToogle::drawSelectedTexture()
 	{
 		const bool active =
 			(textureindex == IDAYVUELTA &&
-				parameters->movtype == JPParameter::OSC) ||
+				(parameters->movtype == JPParameter::OSC ||
+				 parameters->movtype == JPParameter::RANDOM ||
+				 parameters->movtype == JPParameter::GODER ||
+				 parameters->movtype == JPParameter::GOIZQ)) ||
 			(textureindex == RAN &&
 				parameters->movtype == JPParameter::RANDOM) ||
 			(textureindex == GODER &&
@@ -146,17 +149,13 @@ void JPToogle::drawSelectedTexture()
 		}
 		else if (textureindex == RAN)
 		{
-			const float left = x - 7.0f;
-			const float right = x + 7.0f;
-			ofDrawLine(left, y - 5.0f, x - 2.0f, y - 5.0f);
-			ofDrawLine(x - 2.0f, y - 5.0f, x + 2.0f, y + 5.0f);
-			ofDrawLine(x + 2.0f, y + 5.0f, right, y + 5.0f);
-			drawArrowHead(right, y + 5.0f, 1.0f);
-			ofDrawLine(left, y + 5.0f, x - 2.0f, y + 5.0f);
-			ofDrawLine(x - 2.0f, y + 5.0f, x, y + 2.0f);
-			ofDrawLine(x, y - 2.0f, x + 2.0f, y - 5.0f);
-			ofDrawLine(x + 2.0f, y - 5.0f, right, y - 5.0f);
-			drawArrowHead(right, y - 5.0f, 1.0f);
+			// A tiny die is more legible than crossed shuffle paths at 22 px.
+			ofNoFill();
+			ofDrawRectRounded(x - 6.0f, y - 6.0f, 12.0f, 12.0f, 2.0f);
+			ofFill();
+			ofDrawCircle(x - 3.0f, y - 3.0f, 1.2f);
+			ofDrawCircle(x + 3.0f, y + 3.0f, 1.2f);
+			ofDrawCircle(x, y, 1.2f);
 		}
 		else if (textureindex == GODER)
 		{
@@ -170,11 +169,40 @@ void JPToogle::drawSelectedTexture()
 		}
 		else if (textureindex == IDAYVUELTA)
 		{
-			const float left = x - 8.0f;
-			const float right = x + 8.0f;
-			ofDrawLine(left, y, right, y);
-			drawArrowHead(left, y, -1.0f);
-			drawArrowHead(right, y, 1.0f);
+			if (parameters->movtype == JPParameter::RANDOM)
+			{
+				ofNoFill();
+				ofDrawRectRounded(x - 6.0f, y - 6.0f, 12.0f, 12.0f, 2.0f);
+				ofFill();
+				ofDrawCircle(x - 3.0f, y - 3.0f, 1.2f);
+				ofDrawCircle(x + 3.0f, y + 3.0f, 1.2f);
+				ofDrawCircle(x, y, 1.2f);
+			}
+			else if (parameters->movtype == JPParameter::GODER ||
+				parameters->movtype == JPParameter::GOIZQ)
+			{
+				const float direction =
+					parameters->movtype == JPParameter::GOIZQ ? -1.0f : 1.0f;
+				const float startX = x - direction * 7.0f;
+				const float endX = x + direction * 7.0f;
+				ofDrawLine(startX, y, endX, y);
+				drawArrowHead(endX, y, direction);
+			}
+			else
+			{
+				const float left = x - 7.0f;
+				const float right = x + 7.0f;
+				ofDrawLine(left, y - 3.0f, right, y - 3.0f);
+				drawArrowHead(right, y - 3.0f, 1.0f);
+				ofDrawLine(right, y + 3.0f, left, y + 3.0f);
+				drawArrowHead(left, y + 3.0f, -1.0f);
+			}
+		}
+		if (active && (textureindex == IDAYVUELTA ||
+			textureindex == RAN || textureindex == GODER))
+		{
+			ofSetColor(COL_TEXT_PRIMARY);
+			ofDrawCircle(x, y + height * 0.5f - 2.0f, 1.25f);
 		}
 		ofSetLineWidth(1.0f);
 	}
@@ -183,7 +211,13 @@ void JPToogle::draw()
 {
 
 	// YO SE QUE ESTO ES UN CHOCLAZO Y QUE SE PUEDE SINTETIZAR. PERO ESTOY QUEMADEN
-	if (ofGetMousePressed() && mouseOver() && activable && activable2)
+	// The combined basic-pattern button is handled by JPboxgroup's mouse event.
+	// Polling it here would let one held press fire again after a controller
+	// rebuild creates a fresh JPToogle.
+	const bool eventDrivenPatternButton =
+		useTexture && textureindex == IDAYVUELTA;
+	if (!eventDrivenPatternButton && ofGetMousePressed() && mouseOver() &&
+		activable && activable2)
 	{
 		activeFlag = true;
 		activable = false;
@@ -247,6 +281,10 @@ void JPToogle::update_movtype()
 		{
 			parameters->toggleAutomation();
 			parameters->needsUpdate = true;
+		}
+		else if (textureindex == IDAYVUELTA)
+		{
+			parameters->cycleAutomationPattern();
 		}
 		else if (textureindex == 2)
 		{

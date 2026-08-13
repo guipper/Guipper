@@ -243,7 +243,7 @@ void JPHandler::draw()
 
 	ofPushStyle();
 	ofSetColor(grabbed ? COL_TEXT_PRIMARY :
-		(hovered ? COL_ACCENT_CYAN : COL_ACCENT_CYAN_DIM));
+		(hovered ? COL_ACCENT_GOLD : COL_ACCENT_GOLD_DIM));
 	ofSetLineWidth(grabbed || hovered ? 2.0f : 1.5f);
 	ofDrawLine(x, y - halfMark, x, y + halfMark);
 	ofDrawLine(x, y - halfMark, x + inward * 4.0f, y - halfMark);
@@ -365,6 +365,40 @@ bool JPComplexSlider::setAudioShapingControlFromMouse(int control,
 	return true;
 }
 
+int JPComplexSlider::rangeHandleAt(float mouseX, float mouseY) const
+{
+	if (parameters == nullptr || !parameters->rangeEnabled) return 0;
+	auto inside = [&](const JPHandler &handle)
+	{
+		return mouseX >= handle.x - handle.width * 0.5f &&
+			mouseX <= handle.x + handle.width * 0.5f &&
+			mouseY >= handle.y - handle.height * 0.5f &&
+			mouseY <= handle.y + handle.height * 0.5f;
+	};
+	const bool lower = inside(handler1);
+	const bool upper = inside(handler2);
+	if (lower && upper)
+		return mouseX < handler1.x ? 1 : 2;
+	if (lower) return 1;
+	if (upper) return 2;
+	return 0;
+}
+
+bool JPComplexSlider::setRangeHandleFromMouse(int handle, float mouseX)
+{
+	if (parameters == nullptr || !parameters->rangeEnabled ||
+		(handle != 1 && handle != 2)) return false;
+	const float next = ofMap(mouseX,
+		slider_value.x - slider_value.width * 0.5f,
+		slider_value.x + slider_value.width * 0.5f,
+		parameters->nativeMin, parameters->nativeMax, true);
+	const float previous = handle == 1 ? parameters->min : parameters->max;
+	if (handle == 1) parameters->setRangeStart(next);
+	else parameters->setRangeEnd(next);
+	setPosAndSize();
+	return std::abs(previous - next) > 0.000001f;
+}
+
 void JPComplexSlider::setup(float _x, float _y, float _width, float _height, JPParameter *_parameters)
 {
 	parameters = _parameters;
@@ -392,10 +426,8 @@ void JPComplexSlider::setup(float _x, float _y, float _width, float _height, JPP
 	//_parameters.saludar();
 
 	boton_collapse.setParametersPointer(parameters);
-	boton_direccion.setParametersPointer(parameters);
 	slider_value.setParametersPointer(parameters);
 	boton_idayvuelta.setParametersPointer(parameters);
-	boton_random.setParametersPointer(parameters);
 	boton_bpm.setParametersPointer(parameters);
 	// Without this JPToogle::draw() dereferences a null `parameters` the first
 	// time an inspector shows a float slider - i.e. the instant you click a box.
@@ -485,11 +517,23 @@ void JPComplexSlider::draw()
 		boton_collapse.width, boton_collapse.height);
 
 	// movtype = parameters->movtype;
-	if (parameters->movtype != 0)
+	if (parameters->rangeEnabled)
 	{
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		handler1.draw();
 		handler2.draw();
+		jp_tooltip::draw("Drag lower custom-range limit; Down Arrow captures current value",
+			handler1.x - handler1.width * 0.5f,
+			handler1.y - handler1.height * 0.5f,
+			handler1.width, handler1.height);
+		jp_tooltip::draw("Drag upper custom-range limit; Up Arrow captures current value",
+			handler2.x - handler2.width * 0.5f,
+			handler2.y - handler2.height * 0.5f,
+			handler2.width, handler2.height);
+	}
+
+	if (parameters->movtype != 0)
+	{
 		ofSetColor(COL_ACCENT_CYAN, 255);
 
 		ofSetRectMode(OF_RECTMODE_CORNER);
@@ -497,8 +541,6 @@ void JPComplexSlider::draw()
 		slider_speed.draw();
 		speed = slider_speed.value;
 		boton_idayvuelta.draw();
-		boton_random.draw();
-		boton_direccion.draw();
 		if (parameters->bpmEligible)
 		{
 			boton_bpm.draw();
@@ -563,22 +605,18 @@ void JPComplexSlider::draw()
 			slider_speed.x - slider_speed.width / 2.0f,
 			slider_speed.y - slider_speed.height / 2.0f,
 			slider_speed.width, slider_speed.height);
-		jp_tooltip::draw("Ping-pong automation mode",
+		string automationPattern = "Ping-pong";
+		if (parameters->movtype == JPParameter::RANDOM)
+			automationPattern = "Random";
+		else if (parameters->movtype == JPParameter::GODER)
+			automationPattern = "Forward";
+		else if (parameters->movtype == JPParameter::GOIZQ)
+			automationPattern = "Reverse";
+		jp_tooltip::draw("Automation pattern: " + automationPattern +
+			" (click to change)",
 			boton_idayvuelta.x - boton_idayvuelta.width / 2.0f,
 			boton_idayvuelta.y - boton_idayvuelta.height / 2.0f,
 			boton_idayvuelta.width, boton_idayvuelta.height);
-		jp_tooltip::draw("Random automation mode",
-			boton_random.x - boton_random.width / 2.0f,
-			boton_random.y - boton_random.height / 2.0f,
-			boton_random.width, boton_random.height);
-		const string directionTooltip =
-			parameters->movtype == JPParameter::GOIZQ ?
-				"Automation direction: reverse" :
-				"Automation direction: forward";
-		jp_tooltip::draw(directionTooltip,
-			boton_direccion.x - boton_direccion.width / 2.0f,
-			boton_direccion.y - boton_direccion.height / 2.0f,
-			boton_direccion.width, boton_direccion.height);
 		if (parameters->bpmEligible)
 		{
 			jp_tooltip::draw("Sync parameter to global BPM",
@@ -666,8 +704,6 @@ void JPComplexSlider::draw()
 		drawClickBounds(handler2);
 		drawClickBounds(slider_speed, slider_speed.activable2);
 		drawClickBounds(boton_idayvuelta, boton_idayvuelta.activable2);
-		drawClickBounds(boton_random, boton_random.activable2);
-		drawClickBounds(boton_direccion, boton_direccion.activable2);
 		if (parameters->bpmEligible)
 		{
 			drawClickBounds(boton_bpm, boton_bpm.activable2);
@@ -715,69 +751,11 @@ void JPComplexSlider::update()
 		slider_speed.activable2 = false;
 		boton_collapse.activable2 = false;
 		boton_idayvuelta.activable2 = false;
-		boton_random.activable2 = false;
-		boton_direccion.activable2 = false;
 		boton_bpm.activable2 = false;
 		handler1.activeFlag = false;
 		handler2.activeFlag = false;
 	}
-	slider_value.activable2 = activable2;
-	if (activeFlag && activable2)
-	{
-		if (parameters->movtype != 0)
-		{
-			if (!slider_speed.activeFlag)
-			{
-				// slider_speed.activeFlag = false;
-				if (handler1.activeFlag)
-				{
-					handler1.setPos(ofGetMouseX(), handler1.y);
-					handler1.x = ofClamp(handler1.x,
-										 slider_value.x - slider_value.width / 2,
-										 handler2.x);
-					parameters->min = ofMap(handler1.x,
-											slider_value.x - slider_value.width / 2,
-											slider_value.x + slider_value.width / 2,
-											0.0, 1.0);
-				}
-				else if (handler2.activeFlag)
-				{
-					handler2.setPos(ofGetMouseX(), handler2.y);
-					// Max handle can't cross below the min handle.
-					handler2.x = ofClamp(handler2.x,
-										 handler1.x,
-										 slider_value.x + slider_value.width / 2);
-					parameters->max = ofMap(handler2.x,
-											slider_value.x - slider_value.width / 2,
-											slider_value.x + slider_value.width / 2,
-											0.0, 1.0);
-				}
-			}
-			else
-			{
-				slider_speed.activable2 = true;
-			}
-			if (!handler1.activeFlag && !handler2.activeFlag && !slider_speed.activeFlag)
-			{
-				boton_collapse.activable2 = true;
-				boton_idayvuelta.activable2 = true;
-				boton_random.activable2 = true;
-				boton_direccion.activable2 = true;
-				if (parameters->bpmEligible)
-				{
-					boton_bpm.activable2 = true;
-				}
-			}
-			else
-			{
-				boton_collapse.activable2 = false;
-				boton_idayvuelta.activable2 = false;
-				boton_random.activable2 = false;
-				boton_direccion.activable2 = false;
-				boton_bpm.activable2 = false;
-			}
-		}
-	}
+	slider_value.activable2 = activable2 && !rangeHandleDragging;
 	// Automation is handled once in JPboxgroup::update_mousePressed(). Keeping
 	// draw-time polling disabled prevents a rebuilt button from toggling again
 	// while the same physical press is still down.
@@ -794,19 +772,31 @@ void JPComplexSlider::setPosAndSize()
 	primaryRowY = parameters != nullptr && parameters->movtype != 0 ?
 		y - height * 0.5f + layout.primaryRowOffset : y;
 
-	// Este es como el setup de todos los elementos :
-	float b_cx = x - width / 2 + 18;
+	// Keep expanded rows visually inside their card. The automation toggle and
+	// the last mode button previously sat almost against the two vertical edges.
+	const bool automated = parameters != nullptr && parameters->movtype != 0;
+	const float automatedInlinePadding = 10.0f;
+	float b_cx = x - width / 2 + (automated ?
+		automatedInlinePadding + 10.0f : 18.0f);
 	boton_collapse.setup(b_cx,
 						 primaryRowY, 20, 20);
 
 	if (parameters->movtype == 0)
 	{
-		float slidervaluewidth = width * 3 / 4;
-		slider_value.setup(x, primaryRowY,
+		// Fill the complete content lane between the automation toggle and the
+		// row-action columns. A centered fractional width left two inert grey
+		// bands that looked interactive but did nothing.
+		const float sliderLeft =
+			boton_collapse.x + boton_collapse.width * 0.5f + 4.0f;
+		const float sliderRight = x + width * 0.5f - 4.0f;
+		const float slidervaluewidth = std::max(24.0f,
+			sliderRight - sliderLeft);
+		slider_value.setup(sliderLeft + slidervaluewidth * 0.5f,
+						   primaryRowY,
 						   slidervaluewidth,
 						   height * 8 / 10,
-						   parameters->min,
-						   parameters->max,
+				parameters->nativeMin,
+				parameters->nativeMax,
 						   value,
 						   name);
 	}
@@ -828,7 +818,7 @@ void JPComplexSlider::setPosAndSize()
 		const bool secondRow =
 			parameters->movtype == JPParameter::BPM ||
 			parameters->movtype == JPParameter::AUDIO;
-		const float rightPad = 8.0f;
+		const float rightPad = automatedInlinePadding;
 
 		// The value slider takes whatever is LEFT OVER, instead of a hardcoded
 		// fraction of the row. The fractions could not survive adding a control:
@@ -836,9 +826,9 @@ void JPComplexSlider::setPosAndSize()
 		// and the rhythm division chip fell off entirely. Sizing by subtraction
 		// means every combination of buttons fits by construction.
 		const int modeButtons =
-			3 + (hasBpmMode ? 1 : 0) + (hasAudioMode ? 1 : 0);
+			1 + (hasBpmMode ? 1 : 0) + (hasAudioMode ? 1 : 0);
 		const float sliderLeft = boton_collapse.x +
-			boton_collapse.width * 0.75f + botonsepx / 4.0f;
+			boton_collapse.width * 0.5f + 4.0f;
 		const float tail =
 			sliderspeedw + botonsepx / 4.0f +
 			modeButtonGap + modeButtonSize +
@@ -861,8 +851,8 @@ void JPComplexSlider::setPosAndSize()
 						   primaryRowY + 10.0f,
 						   slidervaluewidth,
 						   rangeControlHeight,
-						   0.0,
-						   1.0,
+						   parameters->nativeMin,
+						   parameters->nativeMax,
 						   value,
 						   name);
 
@@ -881,13 +871,6 @@ void JPComplexSlider::setPosAndSize()
 		boton_idayvuelta.setup(
 			pos, primaryRowY, modeButtonSize, modeButtonSize);
 
-		pos += modeButtonSize + modeButtonGap;
-		boton_random.setup(
-			pos, primaryRowY, modeButtonSize, modeButtonSize);
-
-		pos += modeButtonSize + modeButtonGap;
-		boton_direccion.setup(
-			pos, primaryRowY, modeButtonSize, modeButtonSize);
 		if (hasBpmMode)
 		{
 			pos += modeButtonSize + modeButtonGap;
@@ -928,7 +911,7 @@ void JPComplexSlider::setPosAndSize()
 			// One left margin for the whole audio block. The chip row used to
 			// start 8px inside the shaping grid below it, so the icon and the
 			// "Amount" cell did not share an edge.
-			const float audioBlockLeft = x - width / 2.0f + 16.0f;
+			const float audioBlockLeft = x - width / 2.0f + 14.0f;
 			const float iconLead = 18.0f;   // icon half-width plus its gap
 			const float audioLeft = audioBlockLeft + iconLead;
 			float cursor = audioLeft;
@@ -983,37 +966,21 @@ void JPComplexSlider::setPosAndSize()
 
 		// speed = slider_speed.value;
 
-		const float handlerw = 14.0f;
-		const float handlerh = rangeControlHeight;
-
-		// parameters->min = ofClamp(parameters->min, 0.0, 1.0);
-		//	parameters->max = ofClamp(parameters->max, 0.0, 1.0);
-		// parameters->max = 1.0;
-
-		float handler1_x = ofMap(parameters->min,
-								 0.0, 1.0,
-								 slider_value.x - slider_value.width / 2,
-								 slider_value.x + slider_value.width / 2);
-
-		float handler2_x = ofMap(parameters->max,
-								 0.0, 1.0,
-								 slider_value.x - slider_value.width / 2,
-								 slider_value.x + slider_value.width / 2);
-
-		handler1.setup(handler1_x,
-					   slider_value.y,
-					   handlerw,
-					   handlerh);
-
-		handler2.setup(handler2_x,
-					   slider_value.y,
-					   handlerw,
-					   handlerh);
 	}
+	const float handlerw = 14.0f;
+	const float handlerh = std::max(16.0f, slider_value.height);
+	const float handler1_x = ofMap(parameters->min,
+		parameters->nativeMin, parameters->nativeMax,
+		slider_value.x - slider_value.width / 2,
+		slider_value.x + slider_value.width / 2, true);
+	const float handler2_x = ofMap(parameters->max,
+		parameters->nativeMin, parameters->nativeMax,
+		slider_value.x - slider_value.width / 2,
+		slider_value.x + slider_value.width / 2, true);
+	handler1.setup(handler1_x, slider_value.y, handlerw, handlerh);
+	handler2.setup(handler2_x, slider_value.y, handlerw, handlerh);
 	handler2.isLeft = false;
 	boton_idayvuelta.setUseTexture(boton_idayvuelta.IDAYVUELTA);
-	boton_random.setUseTexture(boton_idayvuelta.RAN);
-	boton_direccion.setUseTexture(boton_idayvuelta.GODER);
 	if (parameters->bpmEligible)
 	{
 		boton_bpm.setUseTexture(boton_bpm.BPM_SYNC);

@@ -18,6 +18,9 @@ void JPParameter::setup(float _var, string _name)
 
 	min = 0.0;
 	max = 1.0;
+	nativeMin = min;
+	nativeMax = max;
+	rangeEnabled = false;
 	speed = 0.2;
 	seed = ofRandom(10000);
 	bpmEligible = false;
@@ -37,6 +40,9 @@ void JPParameter::setup(float _var, string _name)
 	audioShapingOpen = false;
 	audioSmoothed = 0.0f;
 	needsUpdate = false;
+	randomLocked = false;
+	defaultFloatValue = _var;
+	defaultBoolValue = false;
 }
 void JPParameter::setup(bool _var, string _name)
 {
@@ -48,6 +54,9 @@ void JPParameter::setup(bool _var, string _name)
 
 	min = 0.0;
 	max = 1.0;
+	nativeMin = min;
+	nativeMax = max;
+	rangeEnabled = false;
 	speed = 1.0;
 	bpmEligible = false;
 	bpmRate = BPM_RATE_ONE;
@@ -65,6 +74,9 @@ void JPParameter::setup(bool _var, string _name)
 	audioShapingOpen = false;
 	audioSmoothed = 0.0f;
 	needsUpdate = false;
+	randomLocked = false;
+	defaultFloatValue = _var ? 1.0f : 0.0f;
+	defaultBoolValue = _var;
 }
 float JPParameter::getBpmMultiplier() const
 {
@@ -100,19 +112,21 @@ void JPParameter::update()
 	// ACA DEBERIA ACTUALIARSE SI ES TIPO UN FLOAT :
 	if (variabletype == FLOAT)
 	{
+		const float low = effectiveMin();
+		const float high = effectiveMax();
 		float absolutespeed = .015;
 		if (movtype == OSC)
 		{
 			// floatValue += speed;
 			(dir) ? floatLerpValue += speed *absolutespeed : floatLerpValue -= speed * absolutespeed;
-			if (floatLerpValue > max)
+			if (floatLerpValue > high)
 			{
-				floatLerpValue = max;
+				floatLerpValue = high;
 				dir = !dir;
 			}
-			if (floatLerpValue < min)
+			if (floatLerpValue < low)
 			{
-				floatLerpValue = min;
+				floatLerpValue = low;
 				dir = !dir;
 			}
 		}
@@ -120,9 +134,9 @@ void JPParameter::update()
 		{
 			dir = true;
 			(dir) ? floatLerpValue += speed *absolutespeed : floatLerpValue -= speed * absolutespeed;
-			if (floatLerpValue > max)
+			if (floatLerpValue > high)
 			{
-				floatLerpValue = min;
+				floatLerpValue = low;
 			}
 		}
 		if (movtype == GOIZQ)
@@ -130,15 +144,15 @@ void JPParameter::update()
 			// cout << "FUNCIONA" << endl;
 			dir = false;
 			(dir) ? floatLerpValue += speed *absolutespeed : floatLerpValue -= speed * absolutespeed;
-			if (floatLerpValue < min)
+			if (floatLerpValue < low)
 			{
-				floatLerpValue = max;
+				floatLerpValue = high;
 			}
 		}
 		if (movtype == RANDOM)
 		{
 			float n = ofMap(ofNoise(ofGetElapsedTimeMillis() * speed * absolutespeed *.01+ seed),
-							0.0, 1.0, min, max);
+							0.0, 1.0, low, high);
 			floatValue = n;
 			floatLerpValue = n;
 		}
@@ -146,7 +160,7 @@ void JPParameter::update()
 		{
 			if (!bpmEligible || jp_constants::bpm <= 0.0f)
 			{
-				floatLerpValue = min;
+				floatLerpValue = low;
 			}
 			else
 			{
@@ -157,7 +171,7 @@ void JPParameter::update()
 				const float envelope = std::pow(
 					std::max(0.0f, 1.0f - phase),
 					decayExponent);
-				floatLerpValue = ofLerp(min, max, envelope);
+				floatLerpValue = ofLerp(low, high, envelope);
 			}
 		}
 		if (movtype == AUDIO)
@@ -188,12 +202,13 @@ void JPParameter::update()
 					audioSmoothed = jp_audio_internal::smoothToward(
 						audioSmoothed, shaped, milliseconds, dt);
 				}
-				const float mapped = ofLerp(min, max,
+				const float mapped = ofLerp(low, high,
 					ofClamp(audioSmoothed, 0.0f, 1.0f));
 				floatLerpValue = ofLerp(audioBase, mapped,
 					ofClamp(audioAmount, 0.0f, 1.0f));
 			}
 		}
+		floatLerpValue = ofClamp(floatLerpValue, low, high);
 	}
 
 	floatValue = floatLerpValue;
@@ -349,6 +364,87 @@ void JPParameter::toggleAutomation()
 	}
 }
 
+void JPParameter::cycleAutomationPattern()
+{
+	switch (movtype)
+	{
+	case OSC:    setAutomationMode(RANDOM); break;
+	case RANDOM: setAutomationMode(GODER); break;
+	case GODER:  setAutomationMode(GOIZQ); break;
+	case GOIZQ:  setAutomationMode(OSC); break;
+	default:     setAutomationMode(OSC); break;
+	}
+}
+
+void JPParameter::captureRangeStart()
+{
+	setRangeStart(floatValue);
+}
+
+void JPParameter::captureRangeEnd()
+{
+	setRangeEnd(floatValue);
+}
+
+float JPParameter::effectiveMin() const
+{
+	return rangeEnabled ? min : nativeMin;
+}
+
+float JPParameter::effectiveMax() const
+{
+	return rangeEnabled ? max : nativeMax;
+}
+
+void JPParameter::clampToEffectiveRange()
+{
+	if (variabletype != FLOAT) return;
+	floatValue = ofClamp(floatValue, effectiveMin(), effectiveMax());
+	floatLerpValue = ofClamp(floatLerpValue, effectiveMin(), effectiveMax());
+}
+
+void JPParameter::setRangeStart(float value)
+{
+	min = ofClamp(value, nativeMin, nativeMax);
+	if (min > max) max = min;
+	clampToEffectiveRange();
+}
+
+void JPParameter::setRangeEnd(float value)
+{
+	max = ofClamp(value, nativeMin, nativeMax);
+	if (max < min) min = max;
+	clampToEffectiveRange();
+}
+
+void JPParameter::setRangeEnabled(bool enabled)
+{
+	rangeEnabled = enabled;
+	if (rangeEnabled) clampToEffectiveRange();
+}
+
+void JPParameter::captureDefaultValue()
+{
+	if (variabletype == FLOAT)
+		defaultFloatValue = floatValue;
+	else if (variabletype == BOOL)
+		defaultBoolValue = boolValue;
+}
+
+void JPParameter::restoreDefaultValue()
+{
+	if (randomLocked) return;
+	if (variabletype == FLOAT)
+	{
+		floatValue = ofClamp(defaultFloatValue, effectiveMin(), effectiveMax());
+		floatLerpValue = floatValue;
+	}
+	else if (variabletype == BOOL)
+	{
+		boolValue = defaultBoolValue;
+	}
+}
+
 void JPParameterGroup::setlastmovetype(int _movetype, int _index)
 {
 	if (_index < 0 || _index >= (int)parameters.size() ||
@@ -366,7 +462,8 @@ void JPParameterGroup::setFloatValue(float _val, int _index)
 
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
-		parameters[_index]->floatValue = _val;
+		parameters[_index]->floatValue = ofClamp(_val,
+			parameters[_index]->effectiveMin(), parameters[_index]->effectiveMax());
 	}
 }
 void JPParameterGroup::setFloatLerpValue(float _val, int _index)
@@ -376,7 +473,8 @@ void JPParameterGroup::setFloatLerpValue(float _val, int _index)
 
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
-		parameters[_index]->floatLerpValue = _val;
+		parameters[_index]->floatLerpValue = ofClamp(_val,
+			parameters[_index]->effectiveMin(), parameters[_index]->effectiveMax());
 	}
 }
 void JPParameterGroup::setName(string _name)
@@ -463,6 +561,7 @@ void JPParameterGroup::setMin(float _val, int _index)
 
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
+		parameters[_index]->nativeMin = _val;
 		parameters[_index]->min = _val;
 	}
 }
@@ -473,8 +572,27 @@ void JPParameterGroup::setMax(float _val, int _index)
 
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
+		parameters[_index]->nativeMax = _val;
 		parameters[_index]->max = _val;
 	}
+}
+void JPParameterGroup::setRangeMin(float value, int index)
+{
+	if (index >= 0 && index < parameters.size() &&
+		parameters[index]->variabletype == JPParameter::FLOAT)
+		parameters[index]->setRangeStart(value);
+}
+void JPParameterGroup::setRangeMax(float value, int index)
+{
+	if (index >= 0 && index < parameters.size() &&
+		parameters[index]->variabletype == JPParameter::FLOAT)
+		parameters[index]->setRangeEnd(value);
+}
+void JPParameterGroup::setRangeEnabled(bool enabled, int index)
+{
+	if (index >= 0 && index < parameters.size() &&
+		parameters[index]->variabletype == JPParameter::FLOAT)
+		parameters[index]->setRangeEnabled(enabled);
 }
 // GETTERS :
 int JPParameterGroup::getSize()
@@ -565,7 +683,7 @@ float JPParameterGroup::getMin(int _index)
 
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
-		return parameters[_index]->min;
+		return parameters[_index]->effectiveMin();
 	}
 	else
 	{
@@ -579,12 +697,28 @@ float JPParameterGroup::getMax(int _index)
 
 	if (parameters[_index]->variabletype == parameters[_index]->FLOAT)
 	{
-		return parameters[_index]->max;
+		return parameters[_index]->effectiveMax();
 	}
 	else
 	{
 		return 1.0;
 	}
+}
+float JPParameterGroup::getRangeMin(int index)
+{
+	return index >= 0 && index < parameters.size() ? parameters[index]->min : 0.0f;
+}
+float JPParameterGroup::getRangeMax(int index)
+{
+	return index >= 0 && index < parameters.size() ? parameters[index]->max : 1.0f;
+}
+float JPParameterGroup::getNativeMin(int index)
+{
+	return index >= 0 && index < parameters.size() ? parameters[index]->nativeMin : 0.0f;
+}
+float JPParameterGroup::getNativeMax(int index)
+{
+	return index >= 0 && index < parameters.size() ? parameters[index]->nativeMax : 1.0f;
 }
 bool JPParameterGroup::getBoolValue(int _index)
 {

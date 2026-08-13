@@ -41,12 +41,12 @@ public:
 	struct InspectorLayoutMetrics
 	{
 		float panelWidth = 450.0f;
-		float outerInset = 8.0f;
-		float contentPadding = 12.0f;
+		float outerInset = 10.0f;
+		float contentPadding = 14.0f;
 		float columnGap = 8.0f;
-		float rowGap = 8.0f;
+		float rowGap = 10.0f;
 		float minControlHeight = 24.0f;
-		float headerHeight = 52.0f;
+		float headerHeight = 56.0f;
 		float titleFontSize = 18.0f;
 		float bodyFontSize = 12.0f;
 		float secondaryFontSize = 11.0f;
@@ -124,6 +124,7 @@ public:
 	void triggerCodeOnActiveShader();
 	void deleteSelectedShader();
 	void keyPressed(int key); // For inline tab renaming
+	bool handleInspectorRangeShortcut(int key);
 	void commitTabRename();
 	void cancelTabRename();
 
@@ -279,7 +280,11 @@ public:
 										// ESTO ES SOLO PARA QUE LERPEE LOS VALORES HACIA ESTO.
 	JPComplexSlider *audioShapingDragSlider = nullptr;
 	int audioShapingDragControl = JPComplexSlider::AUDIO_SHAPING_NONE;
+	JPComplexSlider *rangeDragSlider = nullptr;
+	int rangeDragHandle = 0;
 	vector<JPExposeButton *> exposeButtons; // Expose buttons for group view inspector
+	vector<ofRectangle> parameterLockButtons;
+	vector<ofRectangle> parameterRangeButtons;
 	vector<JPbox *> boxes;				// TODOS LOS SHADERRENDERS QUE TIENE EL OBJETO.
 
 	int openguinumber = -1;
@@ -373,6 +378,7 @@ private:
 
 	void draw_cursorrect();
 	void setControllers();
+	vector<JPParameter *> getInspectorActionParameters() const;
 	void rebuildControllersIfLayoutStale();
 	void setupShaderRendersFromDataFolder(); // Esta es para que levante todos
 	int findBoxIndexByName(string boxName) const;
@@ -394,6 +400,8 @@ private:
 	void drawInspectorInputRows(JPbox *box);
 	bool handleInspectorInputClick(JPbox *box);
 	bool handleInspectorAutomationClick();
+	bool handleInspectorLockClick();
+	bool handleInspectorRangeClick();
 	bool moveInspectorInputUp(JPbox *box, int linkIndex);
 	bool unlinkInspectorInput(JPbox *box, int linkIndex);
 	class JPbox_preset *getInspectorInputOwnerPreset() const;
@@ -542,6 +550,8 @@ private:
 	JPBang inspectorsetactive;			 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA
 	JPBang inspectorreload;				 // ESTE BANG ES PARA SETEAR QUE EL QUE ESTA ABIERTO EN EL INSPECTOR PONGA COMO ACTIVE EN EL RENDER DE SALIDA
 	JPBang inspectorrandom;              // Randomiza todos los parametros del shader en el inspector
+	JPBang inspectordefault;
+	JPBang inspectorsavedefault;
 	JPBang editbutton;                   // Boton EDIT para abrir el shader en el editor de codigo
 	JPBang mappingbutton;                // Enters the corner-pin mapping editor
 	JPBang camerarefreshbutton;          // Re-enumerates camera capture devices

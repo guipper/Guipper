@@ -26,15 +26,15 @@ class JPComplexSlider : public JPcontroller
 public:
 	struct LayoutMetrics
 	{
-		float automatedHeight = 46.0f;
-		float modifierHeight = 74.0f;
-		float expandedAudioHeight = 156.0f;
-		float primaryRowOffset = 23.0f;
-		float secondRowOffset = 31.0f;
-		float shapingFirstOffset = 57.0f;
-		float shapingRowStep = 28.0f;
-		float shapingControlHeight = 22.0f;
-		float shapingColumnGap = 8.0f;
+		float automatedHeight = 50.0f;
+		float modifierHeight = 80.0f;
+		float expandedAudioHeight = 166.0f;
+		float primaryRowOffset = 25.0f;
+		float secondRowOffset = 35.0f;
+		float shapingFirstOffset = 62.0f;
+		float shapingRowStep = 30.0f;
+		float shapingControlHeight = 24.0f;
+		float shapingColumnGap = 10.0f;
 	};
 	static const LayoutMetrics &layoutMetrics();
 	static float requiredHeight(const JPParameter *parameter,
@@ -55,8 +55,6 @@ public:
 	// JPTooglelist boton_collapse; //LO PONGO ACA PORQUE SI NO , NO ME DEJA OBTENERLO EN EL FOR.
 	JPToogle boton_collapse;
 	JPToogle boton_idayvuelta;
-	JPToogle boton_random;
-	JPToogle boton_direccion;
 	JPToogle boton_bpm;
 	JPdragobject bpm_rate_button;
 	// Audio mode. BPM and AUDIO are mutually exclusive, so the source chip
@@ -98,9 +96,12 @@ public:
 	int audioShapingControlAt(float mouseX, float mouseY) const;
 	bool setAudioShapingControlFromMouse(int control, float mouseX);
 	float audioShapingControlNormalized(int control) const;
+	int rangeHandleAt(float mouseX, float mouseY) const;
+	bool setRangeHandleFromMouse(int handle, float mouseX);
 	// void setMoveType(int _movtype);
 
 	// void setPos(float _x, float _y);
 	void setPosAndSize();
 	JPHandler handler1, handler2;
+	bool rangeHandleDragging = false;
 };

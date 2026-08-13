@@ -22,7 +22,8 @@ namespace
 	{
 		static const char *fields[] = {"audiosource", "audiodiv", "audiobase",
 			"audioamount", "audioinvert", "audiothreshold", "audiocurve",
-			"audioattackms", "audioreleasems"};
+			"audioattackms", "audioreleasems", "randomlocked",
+			"defaultvalue", "defaultbool", "rangeenabled"};
 		for (auto &box : xml.getChildren("box"))
 			for (auto &param : box.getChild("parameters").getChildren("param"))
 			{
@@ -51,8 +52,72 @@ namespace
 			parameter.toggleAutomation();
 			if (parameter.movtype != mode) return false;
 		}
+		parameter.setAutomationMode(JPParameter::OSC);
+		const int patternCycle[] = {JPParameter::RANDOM, JPParameter::GODER,
+			JPParameter::GOIZQ, JPParameter::OSC};
+		for (int expected : patternCycle)
+		{
+			parameter.cycleAutomationPattern();
+			if (parameter.movtype != expected || parameter.lastMovtype != expected)
+				return false;
+		}
 		parameter.setLastAutomationMode(999);
 		return parameter.lastMovtype == JPParameter::OSC;
+	}
+
+	bool rangeCaptureWorks()
+	{
+		JPParameter parameter;
+		parameter.setup(0.75f, "range-test");
+		parameter.nativeMin = -180.0f;
+		parameter.nativeMax = 180.0f;
+		parameter.min = -90.0f;
+		parameter.max = 0.5f;
+		parameter.setRangeEnabled(true);
+		parameter.floatValue = parameter.floatLerpValue = 0.75f;
+		parameter.captureRangeStart();
+		if (!near(parameter.min, 0.75f) || !near(parameter.max, 0.75f))
+			return false;
+		parameter.floatValue = parameter.floatLerpValue = -45.0f;
+		parameter.captureRangeEnd();
+		if (!near(parameter.min, -45.0f) || !near(parameter.max, -45.0f) ||
+			!near(parameter.floatValue, -45.0f)) return false;
+		parameter.setRangeEnabled(false);
+		if (!near(parameter.effectiveMin(), -180.0f) ||
+			!near(parameter.effectiveMax(), 180.0f) ||
+			!near(parameter.min, -45.0f)) return false;
+		parameter.floatValue = parameter.floatLerpValue = 90.0f;
+		parameter.setRangeEnabled(true);
+		return near(parameter.floatValue, -45.0f) &&
+			std::isfinite(parameter.floatValue) &&
+			std::isfinite(parameter.floatLerpValue);
+	}
+
+	bool lockAndDefaultWork()
+	{
+		JPParameter floatParameter;
+		floatParameter.setup(0.25f, "default-float-test");
+		floatParameter.floatValue = floatParameter.floatLerpValue = 0.6f;
+		floatParameter.captureDefaultValue();
+		floatParameter.floatValue = floatParameter.floatLerpValue = 0.9f;
+		floatParameter.randomLocked = true;
+		floatParameter.restoreDefaultValue();
+		if (!near(floatParameter.floatValue, 0.9f)) return false;
+		floatParameter.randomLocked = false;
+		floatParameter.restoreDefaultValue();
+		if (!near(floatParameter.floatValue, 0.6f) ||
+			!near(floatParameter.floatLerpValue, 0.6f)) return false;
+
+		JPParameter boolParameter;
+		boolParameter.setup(true, "default-bool-test");
+		boolParameter.captureDefaultValue();
+		boolParameter.boolValue = false;
+		boolParameter.randomLocked = true;
+		boolParameter.restoreDefaultValue();
+		if (boolParameter.boolValue) return false;
+		boolParameter.randomLocked = false;
+		boolParameter.restoreDefaultValue();
+		return boolParameter.boolValue;
 	}
 }
 
@@ -73,9 +138,19 @@ bool jp_persistence_test::run(ofApp &app)
 	std::vector<std::string> names;
 	for (int i = 0; i < box->parameters.getSize(); ++i)
 		names.push_back(box->parameters.getName(i));
+	int boolIndex = -1;
+	for (int i = 0; i < box->parameters.getSize(); ++i)
+		if (box->parameters.getType(i) == JPParameter::BOOL)
+		{
+			boolIndex = i;
+			break;
+		}
+	if (boolIndex < 0) return false;
 	box->parameters.setFloatValue(0.37f, 0);
 	box->parameters.setFloatLerpValue(0.37f, 0);
-	box->parameters.setMin(0.12f, 0); box->parameters.setMax(0.88f, 0);
+	box->parameters.setRangeMin(0.12f, 0);
+	box->parameters.setRangeMax(0.88f, 0);
+	box->parameters.setRangeEnabled(false, 0);
 	box->parameters.setmovetype(JPParameter::AUDIO, 0);
 	box->parameters.setmovetype(JPParameter::STANDART, 0);
 	box->parameters.setAudioSource(jp_audio::SRC_SNARE_LOGIC, 0);
@@ -87,13 +162,42 @@ bool jp_persistence_test::run(ofApp &app)
 	box->parameters.setAudioCurve(2.0f, 0);
 	box->parameters.setAudioAttackMs(31.0f, 0);
 	box->parameters.setAudioReleaseMs(777.0f, 0);
+	box->parameters.getJParameter(0)->randomLocked = true;
+	box->parameters.getJParameter(0)->defaultFloatValue = 0.62f;
+	box->parameters.setBoolValue(true, boolIndex);
+	box->parameters.getJParameter(boolIndex)->randomLocked = true;
+	box->parameters.getJParameter(boolIndex)->defaultBoolValue = true;
 	app.boxes.save(currentPath);
+	bool shaderReload = false;
+	if (auto *shader = dynamic_cast<JPbox_shader *>(box))
+	{
+		shader->reload();
+		shaderReload = shader->parameters.getJParameter(0)->randomLocked &&
+			!shader->parameters.getJParameter(0)->rangeEnabled &&
+			near(shader->parameters.getRangeMin(0), 0.12f) &&
+			near(shader->parameters.getRangeMax(0), 0.88f) &&
+			near(shader->parameters.getNativeMin(0), 0.0f) &&
+			near(shader->parameters.getNativeMax(0), 1.0f) &&
+			near(shader->parameters.getJParameter(0)->defaultFloatValue, 0.62f) &&
+			shader->parameters.getJParameter(boolIndex)->randomLocked &&
+			shader->parameters.getJParameter(boolIndex)->defaultBoolValue;
+	}
 
 	app.boxes.clear(); app.boxes.load(currentPath);
 	box = app.boxes.boxes.empty() ? nullptr : app.boxes.boxes.front();
 	bool current = sameParameterOrder(box, names) &&
 		box->parameters.getMovType(0) == JPParameter::STANDART &&
 		box->parameters.getLastMovType(0) == JPParameter::AUDIO &&
+		!box->parameters.getJParameter(0)->rangeEnabled &&
+		near(box->parameters.getRangeMin(0), 0.12f) &&
+		near(box->parameters.getRangeMax(0), 0.88f) &&
+		near(box->parameters.getMin(0), 0.0f) &&
+		near(box->parameters.getMax(0), 1.0f) &&
+		box->parameters.getJParameter(0)->randomLocked &&
+		near(box->parameters.getJParameter(0)->defaultFloatValue, 0.62f) &&
+		box->parameters.getBoolValue(boolIndex) &&
+		box->parameters.getJParameter(boolIndex)->randomLocked &&
+		box->parameters.getJParameter(boolIndex)->defaultBoolValue &&
 		box->parameters.getAudioSource(0) == jp_audio::SRC_SNARE_LOGIC &&
 		box->parameters.getAudioDiv(0) == jp_audio::DIV_16 &&
 		near(box->parameters.getAudioBase(0), 0.41f) &&
@@ -113,7 +217,15 @@ bool jp_persistence_test::run(ofApp &app)
 	app.boxes.clear(); app.boxes.load(legacyPath);
 	box = app.boxes.boxes.empty() ? nullptr : app.boxes.boxes.front();
 	const bool old = sameParameterOrder(box, names) &&
+		!box->parameters.getJParameter(0)->rangeEnabled &&
+		near(box->parameters.getRangeMin(0), 0.12f) &&
+		near(box->parameters.getRangeMax(0), 0.88f) &&
+		near(box->parameters.getMin(0), 0.0f) &&
+		near(box->parameters.getMax(0), 1.0f) &&
 		box->parameters.getLastMovType(0) == JPParameter::OSC &&
+		!box->parameters.getJParameter(0)->randomLocked &&
+		!box->parameters.getJParameter(boolIndex)->randomLocked &&
+		!box->parameters.getJParameter(boolIndex)->defaultBoolValue &&
 		box->parameters.getAudioSource(0) == jp_audio::SRC_LOW &&
 		box->parameters.getAudioDiv(0) == jp_audio::DIV_1 &&
 		near(box->parameters.getAudioAmount(0), 1.0f) &&
@@ -134,11 +246,13 @@ bool jp_persistence_test::run(ofApp &app)
 	param.getChild("audioattackms").set(-1.0f);
 	param.getChild("audioreleasems").set(99999.0f);
 	param.getChild("lastmovtype").set(999);
+	param.getChild("defaultvalue").set(99.0f);
 	invalid.save(invalidPath);
 	app.boxes.clear(); app.boxes.load(invalidPath);
 	box = app.boxes.boxes.empty() ? nullptr : app.boxes.boxes.front();
 	const bool clamped = sameParameterOrder(box, names) &&
 		box->parameters.getLastMovType(0) == JPParameter::OSC &&
+		near(box->parameters.getJParameter(0)->defaultFloatValue, 1.0f) &&
 		box->parameters.getAudioSource(0) == jp_audio::SRC_COUNT - 1 &&
 		box->parameters.getAudioDiv(0) == jp_audio::DIV_1 &&
 		near(box->parameters.getAudioBase(0), 1.0f) &&
@@ -148,9 +262,92 @@ bool jp_persistence_test::run(ofApp &app)
 		near(box->parameters.getAudioAttackMs(0), 0.0f) &&
 		near(box->parameters.getAudioReleaseMs(0), 5000.0f);
 
+	bool midiRange = false;
+	if (box != nullptr)
+	{
+		JPParameter *parameter = box->parameters.getJParameter(0);
+		parameter->setAutomationMode(JPParameter::STANDART);
+		parameter->setRangeStart(0.2f);
+		parameter->setRangeEnd(0.6f);
+		parameter->setRangeEnabled(true);
+		if (app.boxes.selectOpenBoxByIndex(0) &&
+			app.boxes.setOpenBoxParameterAtIndex(0, 0.0f))
+		{
+			const bool low = near(parameter->floatValue, 0.2f);
+			app.boxes.setOpenBoxParameterAtIndex(0, 1.0f);
+			const bool high = near(parameter->floatValue, 0.6f);
+			parameter->setRangeStart(0.4f);
+			parameter->setRangeEnd(0.4f);
+			app.boxes.setOpenBoxParameterAtIndex(0, 0.75f);
+			const bool zeroWidth = near(parameter->floatValue, 0.4f) &&
+				std::isfinite(parameter->floatValue);
+			midiRange = low && high && zeroWidth;
+		}
+	}
+
+	bool cueState = false;
+	if (box != nullptr && app.boxes.selectOpenBoxByIndex(0))
+	{
+		JPParameter *real = box->parameters.getJParameter(0);
+		real->randomLocked = false;
+		real->defaultFloatValue = 0.15f;
+		real->setRangeStart(0.1f);
+		real->setRangeEnd(0.9f);
+		real->setRangeEnabled(false);
+		if (app.boxes.setCueBoxByIndex(0))
+		{
+			JPbox *draftBox = app.boxes.getInspectorBox();
+			JPParameter *draft = draftBox != nullptr ?
+				draftBox->parameters.getJParameter(0) : nullptr;
+			if (draft != nullptr && draft != real)
+			{
+				draft->randomLocked = true;
+				draft->defaultFloatValue = 0.73f;
+				draft->setRangeStart(0.25f);
+				draft->setRangeEnd(0.75f);
+				draft->setRangeEnabled(true);
+				app.boxes.setOpenBoxParameterAtIndex(0, 0.5f);
+				if (app.boxes.applyCue())
+				{
+					const bool applied = real->randomLocked && real->rangeEnabled &&
+						near(real->min, 0.25f) && near(real->max, 0.75f) &&
+						near(real->defaultFloatValue, 0.73f);
+					app.boxes.clearCue();
+					real->randomLocked = false;
+					real->defaultFloatValue = 0.15f;
+					real->setRangeEnabled(false);
+					if (app.boxes.setCueBoxByIndex(0))
+					{
+						draftBox = app.boxes.getInspectorBox();
+						draft = draftBox != nullptr ?
+							draftBox->parameters.getJParameter(0) : nullptr;
+						if (draft != nullptr && draft != real)
+						{
+							draft->randomLocked = true;
+							draft->defaultFloatValue = 0.91f;
+							app.boxes.setOpenBoxParameterAtIndex(0, 0.5f);
+							app.boxes.clearCue();
+							cueState = applied && !real->randomLocked && !real->rangeEnabled &&
+								near(real->defaultFloatValue, 0.15f);
+						}
+					}
+				}
+			}
+		}
+		app.boxes.clearCue();
+	}
+
 	const bool modeMemory = automationModeMemoryWorks();
+	const bool rangeCapture = rangeCaptureWorks();
+	const bool lockDefault = lockAndDefaultWork();
 	ofLogNotice("jp_persistence_test") << "current=" << current
 		<< " legacy=" << old << " invalid=" << clamped
-		<< " modeMemory=" << modeMemory;
-	return current && old && clamped && modeMemory;
+		<< " shaderReload=" << shaderReload
+		<< " modeMemory=" << modeMemory
+		<< " rangeCapture=" << rangeCapture
+		<< " midiRange=" << midiRange
+		<< " cueState=" << cueState
+		<< " lockDefault=" << lockDefault;
+	return current && old && clamped && shaderReload && modeMemory &&
+		rangeCapture && midiRange && cueState && lockDefault;
 }

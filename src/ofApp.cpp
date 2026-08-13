@@ -4614,6 +4614,9 @@ void ofApp::keyPressed(int key) {
 	}
 
 	if (pantallaActiva == NODOS) {
+		if (boxes.handleInspectorRangeShortcut(key)) {
+			return;
+		}
 		if (key == 't') {
 			loadAspreset = !loadAspreset;
 		}

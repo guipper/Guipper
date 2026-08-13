@@ -34,13 +34,14 @@ namespace
 
 	enum Arm
 	{
-		ARM_COLLAPSED = 0, ARM_AUTOMATED, ARM_BPM, ARM_AUDIO, ARM_AUDIOSHAPE,
+		ARM_COLLAPSED = 0, ARM_RANGE, ARM_AUTOMATED, ARM_BPM, ARM_AUDIO, ARM_AUDIOSHAPE,
 		ARM_MIXED, ARM_BOOL, ARM_INPUTS, ARM_INPUTS_COLLAPSED, ARM_LONG_TITLE,
 		ARM_SCROLL_TOP, ARM_SCROLL_MIDDLE, ARM_SCROLL_BOTTOM, ARM_COUNT
 	};
 	struct StateDef { const char *name; const char *fixture; Arm arm; };
 	const StateDef kStates[ARM_COUNT] = {
 		{"collapsed",        kFixtureFloats, ARM_COLLAPSED},
+		{"custom_range",     kFixtureFloats, ARM_RANGE},
 		{"automated",        kFixtureFloats, ARM_AUTOMATED},
 		{"bpm",              kFixtureFloats, ARM_BPM},
 		{"audio",            kFixtureFloats, ARM_AUDIO},
@@ -74,6 +75,9 @@ namespace
 			p->speed = 0.35f;
 			p->min = 0.0f;
 			p->max = 1.0f;
+			p->nativeMin = 0.0f;
+			p->nativeMax = 1.0f;
+			p->rangeEnabled = false;
 			p->floatValue = 0.5f;
 			p->floatLerpValue = 0.5f;
 			// audioBase is seeded from the shader's ofRandom default, and the
@@ -113,6 +117,14 @@ namespace
 
 		switch (def.arm)
 		{
+		case ARM_RANGE:
+			if (JPParameter *p = param(0))
+			{
+				p->min = 0.25f;
+				p->max = 0.75f;
+				p->rangeEnabled = true;
+			}
+			break;
 		case ARM_AUTOMATED: setMode(0, JPParameter::OSC); break;
 		case ARM_BPM:       setMode(0, JPParameter::BPM); break;
 		case ARM_AUDIO:     setMode(0, JPParameter::AUDIO); break;
