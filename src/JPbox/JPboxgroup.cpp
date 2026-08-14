@@ -10944,6 +10944,11 @@ void JPboxgroup::cancelTabRename()
 	tabRenameBuffer.clear();
 }
 
+bool JPboxgroup::wantsKeyCapture() const
+{
+	return tabRenaming || mediaTimeFieldFocus != 0;
+}
+
 void JPboxgroup::keyPressed(int key)
 {
 	if (mediaTimeFieldFocus != 0)

@@ -4444,8 +4444,11 @@ void ofApp::keyPressed(int key) {
 		return;
 	}
 
-	// Forward key to boxgroup for inline tab renaming
-	if (boxes.tabRenaming) {
+	// Forward key to boxgroup for inline tab renaming and the media IN/OUT
+	// time fields. Gating this on tabRenaming alone meant the time fields were
+	// unreachable: JPboxgroup::keyPressed handles them, but nothing ever called
+	// it while they had focus, so typing an in-point silently did nothing.
+	if (boxes.wantsKeyCapture()) {
 		boxes.keyPressed(key);
 		return;
 	}
@@ -4661,7 +4664,12 @@ void ofApp::keyPressed(int key) {
 #endif
 		}
 
-		if (key == OF_KEY_DEL) {
+		// BACKSPACE as well as DEL. On a Mac keyboard the key labelled Delete
+		// is backspace - forward-delete only exists as fn+Delete - so matching
+		// OF_KEY_DEL alone left macOS users with no way to delete a box at all.
+		// Every text surface returns before this point, so neither key can be
+		// swallowed here while something is being typed.
+		if (key == OF_KEY_DEL || key == OF_KEY_BACKSPACE) {
 			cout << "DEL " << endl;
 			boxes.deleteSelectedShader();
 		}

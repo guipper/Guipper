@@ -124,7 +124,12 @@ public:
 	void addBox(string dir);
 	void triggerCodeOnActiveShader();
 	void deleteSelectedShader();
-	void keyPressed(int key); // For inline tab renaming
+	void keyPressed(int key); // Inline tab renaming and the media IN/OUT fields
+	// True while a text surface owned by the boxgroup is accepting keystrokes.
+	// ofApp must consult this before acting on any key of its own: the media
+	// time fields take BACKSPACE and digits, which would otherwise fall through
+	// to the global shortcuts and delete the selected box mid-edit.
+	bool wantsKeyCapture() const;
 	bool handleInspectorRangeShortcut(int key);
 	bool handleMediaInspectorClick();
 	void commitTabRename();
