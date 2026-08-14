@@ -1,25 +1,27 @@
 #include "TransitionSR.h"
 
-TransitionSR::TransitionSR(){
-
-}
+TransitionSR::TransitionSR()
+	: fbo1(nullptr), fbo2(nullptr), lerpValue(1.0f) {}
 TransitionSR::~TransitionSR(){
 
 }
 void TransitionSR::setup() {
 	dummyfbo.allocate(100, 100);
-	
-	ofSetColor(0, 0);
 	dummyfbo.begin();
+	ofClear(0, 0, 0, 0);
 	dummyfbo.end();
 
 
 	fbo1 = &dummyfbo;
 	fbo2 = &dummyfbo;
+	lerpValue = 1.0f;
 	//dir = "shaders/blending/mix.frag";
-	shader.load("shaders/default.vert", "shaders/private/mix.frag");
+	ensureShader();
 	//este.allocate(ofGetWidth(), ofGetHeight());
 	este.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
+	este.begin();
+	ofClear(0, 0, 0, 0);
+	este.end();
 
 	cout << "CARGA EL SHADER TRANSITION " << endl;
 }
@@ -27,15 +29,15 @@ void TransitionSR::setup(ofFbo * _fbo1, ofFbo * _fbo2){
 
 	fbo1 = _fbo1;
 	fbo2 = _fbo2;
+	lerpValue = 1.0f;
 	//dir = "shaders/blending/mix.frag";
-	//shader.load("shaders/default.vert", "shaders/private/mix.frag");
+	ensureShader();
 	//este.allocate(ofGetWidth(), ofGetHeight());
 
-
-
-
 	este.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
-	este.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
+	este.begin();
+	ofClear(0, 0, 0, 0);
+	este.end();
 }
 void TransitionSR::advance() {
 	lerpValue += 0.02;
@@ -44,26 +46,23 @@ void TransitionSR::advance() {
 
 void TransitionSR::update() {
 	advance();
+	ofPushStyle();
 	ofSetColor(255, 255);
 	este.begin();
-	shader.begin();
-	
-
-	//Pareciera que le gusto esta forma de evaluar si un puntero esta vacio o no :
-	if (fbo1 != 0) {
-		shader.setUniformTexture("textura1", *fbo1, 1);
-	}
-	if (fbo2 != 0) {
-		shader.setUniformTexture("textura2", *fbo2, 2);
-	}
-	
+	// Transparent pixels must replace the previous frame. Blending a new
+	// transparent frame over the old transition canvas leaves position trails.
+	ofClear(0, 0, 0, 0);
+	ofEnableBlendMode(OF_BLENDMODE_DISABLED);
 	// Smoothstep keeps the crossfade gentle at both ends of the transition.
 	float easedLerpValue = lerpValue * lerpValue * (3.0f - 2.0f * lerpValue);
-	shader.setUniform1f("mixst", easedLerpValue);
-	shader.setUniform2f("resolution", este.getWidth(), este.getHeight());
-	ofRect(0, 0, este.getWidth(), este.getHeight());
-	shader.end();
+	if (!renderStraightMix(fbo1, fbo2, easedLerpValue,
+		este.getWidth(), este.getHeight()) && fbo2 != nullptr)
+	{
+		fbo2->draw(0, 0, este.getWidth(), este.getHeight());
+	}
 	este.end();
+	ofEnableAlphaBlending();
+	ofPopStyle();
 
 	/*lerpValue += 0.02;
 	lerpValue = ofClamp(lerpValue, 0.0, 1.0);
@@ -73,6 +72,30 @@ void TransitionSR::update() {
 	ofRect(0, 0, este.getWidth(), este.getHeight());
 
 	este.end();*/
+}
+bool TransitionSR::ensureShader()
+{
+	if (shader.isLoaded()) return true;
+	return shader.load("shaders/default.vert", "shaders/private/mix.frag");
+}
+
+bool TransitionSR::renderStraightMix(ofFbo *first, ofFbo *second,
+	float mixValue, float width, float height)
+{
+	if (first == nullptr || second == nullptr || !first->isAllocated() ||
+		!second->isAllocated() || width <= 0.0f || height <= 0.0f ||
+		!ensureShader())
+	{
+		return false;
+	}
+	shader.begin();
+	shader.setUniformTexture("textura1", *first, 1);
+	shader.setUniformTexture("textura2", *second, 2);
+	shader.setUniform1f("mixst", ofClamp(mixValue, 0.0f, 1.0f));
+	shader.setUniform2f("resolution", width, height);
+	ofDrawRectangle(0, 0, width, height);
+	shader.end();
+	return true;
 }
 void TransitionSR::setLerpValue(float _val) {
 	lerpValue = ofClamp(_val, 0.0f, 1.0f);

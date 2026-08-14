@@ -412,12 +412,32 @@ void JPMidiKeymap::processKey(const MidiKey &key)
 	// Every binding on this key fires, not just the first. One pad can drive
 	// two actions - which is what the "keep both" answer to a conflict means.
 	const string keyId = getKeyId(key);
+	// GUIPPER_MIDI_TRACE=1 reports what arrived, which bindings it matched and
+	// what each one did. Every step from "the knob moved" to "the parameter
+	// changed" is otherwise invisible, so a binding that silently resolves to
+	// the wrong index or to no box at all looks the same as a dead cable.
+	static const bool trace = std::getenv("GUIPPER_MIDI_TRACE") != nullptr;
+	int matched = 0;
 	for (int i = 0; i < (int)bindings.size(); i++)
 	{
 		if (getKeyId(bindings[i].key) == keyId)
 		{
+			++matched;
+			if (trace)
+			{
+				ofLogNotice("midi") << "in " << keyId
+					<< " value=" << key.value
+					<< " -> binding[" << i << "] action=" << (int)bindings[i].action
+					<< " paramIndex=" << bindings[i].parameterIndex
+					<< " boxName='" << bindings[i].boxName << "'";
+			}
 			applyBinding(bindings[i], key.value);
 		}
+	}
+	if (trace && matched == 0)
+	{
+		ofLogNotice("midi") << "in " << keyId << " value=" << key.value
+			<< " -> NO BINDING (" << bindings.size() << " known)";
 	}
 }
 
@@ -661,10 +681,26 @@ void JPMidiKeymap::applyBinding(const Binding &binding, float midiValue)
 		// Follows the open inspector, as before. With nothing open it falls
 		// back to the box the binding was made against, so a bind still does
 		// what its row says instead of nothing at all.
-		if (!boxes->setOpenBoxParameterAtIndex(binding.parameterIndex, midiValue))
+		static const bool trace = std::getenv("GUIPPER_MIDI_TRACE") != nullptr;
+		const bool viaOpen =
+			boxes->setOpenBoxParameterAtIndex(binding.parameterIndex, midiValue);
+		bool viaName = false;
+		if (!viaOpen)
 		{
-			boxes->setBoxParameterAtIndex(binding.boxName,
+			viaName = boxes->setBoxParameterAtIndex(binding.boxName,
 				binding.parameterIndex, midiValue);
+		}
+		if (trace)
+		{
+			JPParameter *p =
+				boxes->getOpenParameterAtIndex(binding.parameterIndex);
+			ofLogNotice("midi") << "  PARAMETER index="
+				<< binding.parameterIndex
+				<< " openBox=" << (boxes->getInspectorBox() != nullptr)
+				<< " name=" << (p ? p->name : std::string("<none>"))
+				<< " movtype=" << (p ? p->movtype : -1)
+				<< " viaOpen=" << viaOpen << " viaName=" << viaName
+				<< " value=" << midiValue;
 		}
 	}
 	else if (binding.action == NEXT_SHADER)
@@ -3245,11 +3281,18 @@ bool JPMidiKeymap::tryCaptureInspectorFunctionClick(int x, int y)
 	{
 		return false;
 	}
+	// `i` is a bind slot; controllers are indexed by array position, and those
+	// differ on a media box. Resolve before pairing them, or clicking a slider
+	// to bind it would arm a different slot than the one under the cursor.
 	for (int i = 0; i < boxes->getOpenParameterCount(); i++)
 	{
 		JPParameter *parameter =
 			boxes->getOpenParameterAtIndex(i);
-		JPcontroller *controller = boxes->controllers[i];
+		const int resolved = boxes->resolveBindableParameterIndex(
+			boxes->getInspectorBox(), i);
+		JPcontroller *controller =
+			(resolved >= 0 && resolved < (int)boxes->controllers.size()) ?
+				boxes->controllers[resolved] : nullptr;
 		if (parameter != nullptr && controller != nullptr &&
 			controller->mouseOver() &&
 			(parameter->variabletype == JPParameter::FLOAT ||

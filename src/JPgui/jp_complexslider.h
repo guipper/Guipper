@@ -98,6 +98,8 @@ public:
 	float audioShapingControlNormalized(int control) const;
 	int rangeHandleAt(float mouseX, float mouseY) const;
 	bool setRangeHandleFromMouse(int handle, float mouseX);
+	bool valueSliderContains(float mouseX, float mouseY) const;
+	float valueFromMouse(float mouseX) const;
 	// void setMoveType(int _movtype);
 
 	// void setPos(float _x, float _y);

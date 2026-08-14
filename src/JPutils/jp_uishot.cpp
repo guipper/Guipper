@@ -36,7 +36,7 @@ namespace
 	{
 		ARM_COLLAPSED = 0, ARM_RANGE, ARM_AUTOMATED, ARM_BPM, ARM_AUDIO, ARM_AUDIOSHAPE,
 		ARM_MIXED, ARM_BOOL, ARM_INPUTS, ARM_INPUTS_COLLAPSED, ARM_LONG_TITLE,
-		ARM_SCROLL_TOP, ARM_SCROLL_MIDDLE, ARM_SCROLL_BOTTOM, ARM_COUNT
+		ARM_MEDIA, ARM_MEDIA_TRANSPORT, ARM_SCROLL_TOP, ARM_SCROLL_MIDDLE, ARM_SCROLL_BOTTOM, ARM_COUNT
 	};
 	struct StateDef { const char *name; const char *fixture; Arm arm; };
 	const StateDef kStates[ARM_COUNT] = {
@@ -51,6 +51,8 @@ namespace
 		{"inputs",           kFixtureFloats, ARM_INPUTS},
 		{"inputs_collapsed", kFixtureFloats, ARM_INPUTS_COLLAPSED},
 		{"long_title",       kFixtureFloats, ARM_LONG_TITLE},
+		{"media",            "",             ARM_MEDIA},
+		{"media_transport",  "",             ARM_MEDIA_TRANSPORT},
 		{"scroll_top",       kFixtureScroll, ARM_SCROLL_TOP},
 		{"scroll_middle",    kFixtureScroll, ARM_SCROLL_MIDDLE},
 		{"scroll_bottom",    kFixtureScroll, ARM_SCROLL_BOTTOM},
@@ -102,10 +104,24 @@ namespace
 	void armState(ofApp &app, const StateDef &def)
 	{
 		app.boxes.clear();
-		app.boxes.addBox(def.fixture, 120.0f, 200.0f);
+		if(def.arm==ARM_MEDIA || def.arm==ARM_MEDIA_TRANSPORT)
+		{
+			string path;
+			if(def.arm==ARM_MEDIA_TRANSPORT && std::getenv("GUIPPER_UISHOT_VIDEO"))
+				path=std::getenv("GUIPPER_UISHOT_VIDEO");
+			else
+			{
+				ofPixels pixels;pixels.allocate(96,54,OF_PIXELS_RGBA);
+				for(int y=0;y<54;++y)for(int x=0;x<96;++x)
+					pixels.setColor(x,y,ofColor(0,175,190,(x+y)%24<12?255:80));
+				path=shotDir()+"media_fixture.png";ofSaveImage(pixels,path);
+			}
+			app.boxes.addBox(path,120.0f,200.0f);
+		}
+		else app.boxes.addBox(def.fixture, 120.0f, 200.0f);
 		if (app.boxes.boxes.empty()) return;
 		JPbox *box = app.boxes.boxes[0];
-		pinParameters(box);
+		if(def.arm!=ARM_MEDIA && def.arm!=ARM_MEDIA_TRANSPORT)pinParameters(box);
 
 		auto param = [&](int i) -> JPParameter * {
 			return i < box->parameters.getSize() ?
@@ -355,9 +371,12 @@ void jp_uishot::update(ofApp &app)
 void jp_uishot::draw(ofApp &app)
 {
 	if (!gActive || gDone) return;
-	if (gFrames <= kSettleFrames) return;
 
 	const StateDef &def = kStates[gState];
+	// Async video discovery needs enough time for duration/frame metadata to
+	// reach the inspector. Other cards remain fast and deterministic.
+	const int settleFrames = def.arm == ARM_MEDIA_TRANSPORT ? 240 : kSettleFrames;
+	if (gFrames <= settleFrames) return;
 	ofImage shot;
 	shot.grabScreen(ofGetWidth() - kShotW, 0, kShotW, ofGetHeight());
 	const std::string prefix = ofToString(ofGetWidth()) + "x" +

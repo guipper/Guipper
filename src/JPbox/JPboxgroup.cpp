@@ -1,4 +1,5 @@
 #include "JPboxgroup.h"
+#include "jp_media.h"
 #include "../JPutils/jp_pointer.h"
 #include "../JPutils/jp_audio.h"
 #include "../JPgui/jp_shader_editor.h"
@@ -10,6 +11,8 @@
 #include <functional>
 #include <cmath>
 #include <chrono>
+#include <iomanip>
+#include <sstream>
 
 namespace
 {
@@ -50,6 +53,52 @@ namespace
 		auto boolean = node.getChild("defaultbool");
 		if (boolean && parameter->variabletype == JPParameter::BOOL)
 			parameter->defaultBoolValue = boolean.getBoolValue();
+	}
+	string mediaTimeLabel(double seconds)
+	{
+		seconds = std::max(0.0, seconds);
+		const int hours = (int)(seconds / 3600.0);
+		const int mins = ((int)(seconds / 60.0)) % 60;
+		const double secs = seconds - (int)(seconds / 60.0) * 60.0;
+		std::ostringstream label;
+		label << std::setfill('0');
+		if (hours > 0) label << std::setw(2) << hours << ':';
+		label << std::setw(2) << mins << ':' << std::fixed <<
+			std::setw(6) << std::setprecision(3) << secs;
+		return label.str();
+	}
+	bool parseMediaTime(const string &text, double duration, int frames, float &normalized)
+	{
+		try
+		{
+			double seconds = 0.0;
+			if (!text.empty() && (text.back()=='f' || text.back()=='F'))
+			{
+				const int frame = std::stoi(text.substr(0,text.size()-1));
+				normalized = frames > 1 ? frame/(float)(frames-1) : 0.0f; return true;
+			}
+			vector<string> parts = ofSplitString(text, ":", true, true);
+			if(parts.size()==1) seconds=std::stod(parts[0]);
+			else if(parts.size()==2) seconds=std::stod(parts[0])*60.0+std::stod(parts[1]);
+			else if(parts.size()==3) seconds=std::stod(parts[0])*3600.0+std::stod(parts[1])*60.0+std::stod(parts[2]);
+			else return false;
+			normalized = duration > 0 ? (float)(seconds/duration) : 0.0f; return true;
+		}
+		catch (...) { return false; }
+	}
+	void copyFboStraight(ofFbo &source, ofFbo &destination)
+	{
+		if (!source.isAllocated() || !destination.isAllocated()) return;
+		ofPushStyle();
+		destination.begin();
+		ofClear(0, 0, 0, 0);
+		ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+		ofSetColor(255);
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		source.draw(0, 0, destination.getWidth(), destination.getHeight());
+		destination.end();
+		ofEnableAlphaBlending();
+		ofPopStyle();
 	}
 	constexpr bool kShowInspectorClickBounds = false;
 
@@ -103,6 +152,169 @@ namespace
 				control.height),
 			enabled);
 	}
+}
+
+void JPboxgroup::layoutMediaInspector(JPMediaInspectable *media, float &cursorY)
+{
+	if (media == nullptr) return;
+	const float x=inspectorBodyViewport.x+inspectorLayout.contentPadding;
+	const float w=inspectorBodyViewport.width-inspectorLayout.contentPadding*2.0f;
+	const bool playable=media->mediaPlayable() || !media->mediaReady();
+	mediaInspectorPlayableBuilt=playable;
+	const float h=playable?176.0f:42.0f;
+	mediaInspector.card.set(x,cursorY,w,h);
+	const float gap=5.0f, button=24.0f, top=cursorY+9.0f;
+	mediaInspector.fit.set(x+8,top,w-16,button);
+	if(playable)
+	{
+		float bx=x+8;
+		const float transportTop=top+32;
+		auto placeTransport=[&](ofRectangle&r,float width){r.set(bx,transportTop,width,button);bx+=width+gap;};
+		placeTransport(mediaInspector.restart,button);placeTransport(mediaInspector.previous,button);
+		placeTransport(mediaInspector.play,32);placeTransport(mediaInspector.next,button);placeTransport(mediaInspector.direction,button);
+		mediaInspector.loop.set(x+8,top+64,78,button);
+		mediaInspector.speed.set(x+91,top+64,76,button);
+		mediaInspector.mute.set(x+w-126,top+64,42,button);
+		mediaInspector.volume.set(x+w-79,top+64,71,button);
+		mediaInspector.timeline.set(x+8,top+100,w-16,18);
+		const float rangeGroupWidth=108.0f,rangeButtonWidth=30.0f,rangeGap=3.0f;
+		mediaInspector.inButton.set(x+8,top+126,rangeButtonWidth,24);
+		mediaInspector.inField.set(mediaInspector.inButton.getRight()+rangeGap,top+126,
+			rangeGroupWidth-rangeButtonWidth-rangeGap,24);
+		mediaInspector.outButton.set(x+w-116,top+126,rangeButtonWidth,24);
+		mediaInspector.outField.set(mediaInspector.outButton.getRight()+rangeGap,top+126,
+			rangeGroupWidth-rangeButtonWidth-rangeGap,24);
+	}
+	else
+	{
+		mediaInspector.restart.set(0,0,0,0);mediaInspector.previous.set(0,0,0,0);
+		mediaInspector.play.set(0,0,0,0);mediaInspector.next.set(0,0,0,0);
+		mediaInspector.direction.set(0,0,0,0);mediaInspector.loop.set(0,0,0,0);
+		mediaInspector.speed.set(0,0,0,0);mediaInspector.mute.set(0,0,0,0);
+		mediaInspector.volume.set(0,0,0,0);mediaInspector.timeline.set(0,0,0,0);
+		mediaInspector.inButton.set(0,0,0,0);mediaInspector.inField.set(0,0,0,0);
+		mediaInspector.outButton.set(0,0,0,0);mediaInspector.outField.set(0,0,0,0);
+	}
+	cursorY+=h+inspectorLayout.rowGap;
+}
+
+void JPboxgroup::drawMediaInspector(JPMediaInspectable *target)
+{
+	if(target==nullptr || mediaInspector.card.width<=0) return;
+	JPMediaState &s=target->mediaState();
+	jp_media::normalize(s);
+	auto button=[&](const ofRectangle&r,const string&label,bool active=false)
+	{
+		if(r.width<=0)return;
+		const bool over=r.inside(ofGetMouseX(),ofGetMouseY());
+		ofSetColor(active?COL_ACCENT_CYAN_DIM:(over?COL_BG_HOVER:COL_BG_INPUT));ofDrawRectRounded(r,3);
+		ofNoFill();ofSetColor(active?COL_ACCENT_CYAN:COL_BORDER_MUTED);ofDrawRectRounded(r,3);ofFill();
+		ofSetColor(active?COL_TEXT_PRIMARY:COL_TEXT_SECONDARY);
+		jp_constants::inspector_media_font.drawString(label,r.getCenter().x-jp_constants::inspector_media_font.stringWidth(label)/2,r.getCenter().y+3);
+	};
+	enum class MediaIcon { Restart, Previous, PlayPause, Next, Direction };
+	auto iconButton=[&](const ofRectangle&r,MediaIcon icon,bool active=false)
+	{
+		button(r,"",active);
+		const float cx=r.getCenter().x,cy=r.getCenter().y;
+		ofSetColor(active?COL_TEXT_PRIMARY:COL_TEXT_SECONDARY);
+		ofSetLineWidth(1.4f);
+		if(icon==MediaIcon::Restart)
+		{
+			ofPolyline arc;
+			for(int i=0;i<=16;++i)
+			{
+				const float a=ofDegToRad(-45.0f+i*17.0f);
+				arc.addVertex(cx+std::cos(a)*6.0f,cy+std::sin(a)*6.0f);
+			}
+			arc.draw();
+			ofDrawTriangle(cx+4.2f,cy-6.0f,cx+9.0f,cy-5.2f,cx+6.2f,cy-1.5f);
+		}
+		else if(icon==MediaIcon::Previous)
+		{
+			ofDrawLine(cx-6,cy-6,cx-6,cy+6);
+			ofDrawTriangle(cx-4,cy,cx+5,cy-6,cx+5,cy+6);
+		}
+		else if(icon==MediaIcon::PlayPause)
+		{
+			if(active)
+			{
+				ofDrawRectangle(cx-5,cy-6,3,12);
+				ofDrawRectangle(cx+2,cy-6,3,12);
+			}
+			else ofDrawTriangle(cx-4,cy-7,cx+7,cy,cx-4,cy+7);
+		}
+		else if(icon==MediaIcon::Next)
+		{
+			ofDrawTriangle(cx+4,cy,cx-5,cy-6,cx-5,cy+6);
+			ofDrawLine(cx+6,cy-6,cx+6,cy+6);
+		}
+		else
+		{
+			const float direction=active?-1.0f:1.0f;
+			ofDrawLine(cx-7*direction,cy,cx+7*direction,cy);
+			ofDrawTriangle(cx+7*direction,cy,
+				cx+2*direction,cy-4,cx+2*direction,cy+4);
+		}
+		ofSetLineWidth(1.0f);
+	};
+	ofSetColor(ofColor(COL_BG_PANEL,245));ofDrawRectRounded(mediaInspector.card,4);
+	ofNoFill();ofSetColor(ofColor(COL_BORDER_MUTED,180));ofDrawRectRounded(mediaInspector.card,4);ofFill();
+	static const char *fits[]={"CUSTOM","FIT","FILL","STRETCH","ORIGINAL"};
+	const int fitIndex=std::clamp((int)s.fitMode,0,4);
+	ofSetColor(COL_BG_INPUT);ofDrawRectRounded(mediaInspector.fit,3);
+	const float fitSegment=mediaInspector.fit.width/5.0f;
+	ofSetColor(COL_ACCENT_CYAN_DIM);
+	ofDrawRectRounded(mediaInspector.fit.x+fitSegment*fitIndex,
+		mediaInspector.fit.y,fitSegment,mediaInspector.fit.height,3);
+	for(int i=0;i<5;++i)
+	{
+		if(i>0){ofSetColor(COL_BORDER_MUTED);ofDrawLine(mediaInspector.fit.x+fitSegment*i,
+			mediaInspector.fit.y+4,mediaInspector.fit.x+fitSegment*i,mediaInspector.fit.getBottom()-4);}
+		ofSetColor(i==fitIndex?COL_TEXT_PRIMARY:COL_TEXT_SECONDARY);
+		const string label=fits[i];
+		jp_constants::inspector_media_font.drawString(label,
+			mediaInspector.fit.x+fitSegment*(i+0.5f)-
+			jp_constants::inspector_media_font.stringWidth(label)/2,
+			mediaInspector.fit.getCenter().y+3);
+	}
+	ofNoFill();ofSetColor(COL_ACCENT_CYAN);ofDrawRectRounded(mediaInspector.fit,3);ofFill();
+	jp_tooltip::draw("Object fit",mediaInspector.fit.x,mediaInspector.fit.y,
+		mediaInspector.fit.width,mediaInspector.fit.height);
+	if(mediaInspector.play.width<=0)return;
+	iconButton(mediaInspector.restart,MediaIcon::Restart);
+	iconButton(mediaInspector.previous,MediaIcon::Previous);
+	iconButton(mediaInspector.play,MediaIcon::PlayPause,s.playing);
+	iconButton(mediaInspector.next,MediaIcon::Next);
+	iconButton(mediaInspector.direction,MediaIcon::Direction,s.reverse);
+	jp_tooltip::draw("Restart",mediaInspector.restart.x,mediaInspector.restart.y,mediaInspector.restart.width,mediaInspector.restart.height);
+	jp_tooltip::draw("Previous frame",mediaInspector.previous.x,mediaInspector.previous.y,mediaInspector.previous.width,mediaInspector.previous.height);
+	jp_tooltip::draw(s.playing?"Pause":"Play",mediaInspector.play.x,mediaInspector.play.y,mediaInspector.play.width,mediaInspector.play.height);
+	jp_tooltip::draw("Next frame",mediaInspector.next.x,mediaInspector.next.y,mediaInspector.next.width,mediaInspector.next.height);
+	jp_tooltip::draw(s.reverse?"Play forward":"Play reverse",mediaInspector.direction.x,mediaInspector.direction.y,mediaInspector.direction.width,mediaInspector.direction.height);
+	static const char *loops[]={"ONCE","LOOP","PING"};button(mediaInspector.loop,loops[std::clamp((int)s.loopMode,0,2)],true);
+	button(mediaInspector.speed,ofToString(s.rate,2)+"x");
+	if(target->mediaHasAudio()){button(mediaInspector.mute,s.muted?"MUTE":"AUD",s.muted);button(mediaInspector.volume,ofToString((int)(s.volume*100)));}
+	auto meter=[&](const ofRectangle&r,float n){ofSetColor(COL_ACCENT_CYAN);ofDrawRectangle(r.x+4,r.getBottom()-3,(r.width-8)*ofClamp(n,0.0f,1.0f),1.5f);};
+	meter(mediaInspector.speed,(s.rate-.25f)/3.75f);
+	if(target->mediaHasAudio())meter(mediaInspector.volume,s.volume);
+	const ofRectangle&t=mediaInspector.timeline;
+	ofSetColor(COL_BG_INPUT);ofDrawRectRounded(t,3);
+	const float inX=t.x+t.width*s.rangeIn,outX=t.x+t.width*s.rangeOut,posX=t.x+t.width*s.position;
+	ofSetColor(ofColor(COL_ACCENT_CYAN,80));ofDrawRectangle(inX,t.y,outX-inX,t.height);
+	ofSetColor(COL_ACCENT_GOLD);ofDrawLine(inX,t.y,inX,t.getBottom());ofDrawLine(outX,t.y,outX,t.getBottom());
+	ofSetColor(COL_TEXT_PRIMARY);ofDrawLine(posX,t.y-2,posX,t.getBottom()+2);
+	auto field=[&](const ofRectangle&r,const string&prefix,float n,int focus)
+	{
+		button(r,prefix+((mediaTimeFieldFocus==focus)?mediaTimeFieldBuffer:mediaTimeLabel(n*target->mediaDurationSeconds())),mediaTimeFieldFocus==focus);
+	};
+	button(mediaInspector.inButton,"IN");button(mediaInspector.outButton,"OUT");
+	field(mediaInspector.inField,"",s.rangeIn,1);field(mediaInspector.outField,"",s.rangeOut,2);
+	jp_tooltip::draw("Set IN at playhead",mediaInspector.inButton.x,mediaInspector.inButton.y,
+		mediaInspector.inButton.width,mediaInspector.inButton.height);
+	jp_tooltip::draw("Set OUT at playhead",mediaInspector.outButton.x,mediaInspector.outButton.y,
+		mediaInspector.outButton.width,mediaInspector.outButton.height);
+	if(!target->mediaReady()){ofSetColor(COL_ACCENT_GOLD);jp_constants::inspector_media_font.drawString(target->mediaStatus(),t.x,t.y-4);}
 }
 
 void JPboxgroup::recordProfileValue(float &average, float &peak,
@@ -225,7 +437,8 @@ void JPboxgroup::panViewport(const ofVec2f &screenDelta)
 
 string JPboxgroup::makeNameFromDirectory(const string &directory) const
 {
-	string nombre = directory.substr(directory.find_last_of("/\\") + 1, directory.size());
+	string nombre = jp_media::stem(directory);
+	/*
 	nombre = nombre.substr(0, nombre.find(".mov"));
 	nombre = nombre.substr(0, nombre.find(".mkv"));
 	nombre = nombre.substr(0, nombre.find(".mp4"));
@@ -237,6 +450,7 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	nombre = nombre.substr(0, nombre.find(".jpeg"));
 	nombre = nombre.substr(0, nombre.find(".frag"));
 	nombre = nombre.substr(0, nombre.find(".xml"));
+	*/
 	if (directory.find("cam") != std::string::npos)
 	{
 		nombre = "CAMARITA";
@@ -275,18 +489,11 @@ JPbox *JPboxgroup::createBoxForDirectory(const string &directory, string &name) 
 	{
 		bx = new JPbox_shader();
 	}
-	else if (directory.find(".jpg") != std::string::npos ||
-			 directory.find(".png") != std::string::npos ||
-			 directory.find(".jpeg") != std::string::npos)
+	else if (jp_media::isImage(directory))
 	{
 		bx = new JPbox_image();
 	}
-	else if (directory.find(".mov") != std::string::npos ||
-			 directory.find(".mkv") != std::string::npos ||
-			 directory.find(".mp4") != std::string::npos ||
-			 directory.find(".flv") != std::string::npos ||
-			 directory.find(".vob") != std::string::npos ||
-			 directory.find(".avi") != std::string::npos)
+	else if (jp_media::isVideo(directory))
 	{
 		bx = new JPbox_video();
 	}
@@ -837,6 +1044,7 @@ void JPboxgroup::drawCuePreview()
 	jp_tooltip::draw("Close cue preview", closeX, iconY, iconSize, iconSize);
 
 	ofSetColor(255);
+	ofEnableAlphaBlending();
 	if (cueFullscreenPreview)
 	{
 		drawLiveOutput(previewX, previewY, previewW, previewH);
@@ -1005,18 +1213,7 @@ void JPboxgroup::drawGalleryDurationSlider()
 }
 void JPboxgroup::draw_activerender()
 {
-	if (boxes.size() >= 1)
-	{
-		ofSetRectMode(OF_RECTMODE_CORNER);
-		//
-
-		//if (boxes.size() > 2){
-			transition.draw(0, 0, ofGetWidth() * 2., ofGetHeight() * 2.);
-		//}
-		//else {
-			//boxes[*activerender]->fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
-		//}
-	}
+	drawLiveOutput(0, 0, ofGetWidth() * 2.0f, ofGetHeight() * 2.0f);
 }
 void JPboxgroup::draw_activerender(float _width, float _height)
 {
@@ -1068,11 +1265,11 @@ bool JPboxgroup::drawLiveOutputSource(bool followMainActive,
 			drawLiveOutput(0.0f, 0.0f, _width, _height);
 			return true;
 		}
-		// The transition canvas is the master render, so measure against it.
-		const float texW = transition.isSourceAllocated() ?
-			transition.getSourceWidth() : (float)jp_constants::renderWidth;
-		const float texH = transition.isSourceAllocated() ?
-			transition.getSourceHeight() : (float)jp_constants::renderHeight;
+		const bool transitioning = transition.getLerpValue() < 1.0f &&
+			transition.isSourceAllocated();
+		ofFbo &active = boxes[*activerender]->fbo;
+		const float texW = transitioning ? transition.getSourceWidth() : active.getWidth();
+		const float texH = transitioning ? transition.getSourceHeight() : active.getHeight();
 		const ofRectangle rect = effectiveFor(texW, texH);
 		drawLiveOutput(0.0f, 0.0f, _width, _height,
 			ofRectangle(rect.x / texW, rect.y / texH,
@@ -1086,17 +1283,21 @@ bool JPboxgroup::drawLiveOutputSource(bool followMainActive,
 		return false;
 	}
 
+	ofPushStyle();
+	ofEnableAlphaBlending();
 	ofSetColor(255);
 	ofSetRectMode(OF_RECTMODE_CORNER);
 	if (!cropped)
 	{
 		source->fbo.draw(0.0f, 0.0f, _width, _height);
+		ofPopStyle();
 		return true;
 	}
 	const ofRectangle rect = effectiveFor(source->fbo.getWidth(),
 		source->fbo.getHeight());
 	source->fbo.getTexture().drawSubsection(0.0f, 0.0f, _width, _height,
 		rect.x, rect.y, rect.width, rect.height);
+	ofPopStyle();
 	return true;
 }
 
@@ -2025,9 +2226,12 @@ void JPboxgroup::drawNodeEditorBackground(float _width, float _height)
 	JPbox *previewBox = getCuePreviewBox();
 	if (cueFullscreenPreview && previewBox != nullptr)
 	{
+		ofPushStyle();
+		ofEnableAlphaBlending();
 		ofSetColor(255, 255);
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		previewBox->fbo.draw(0, 0, _width, _height);
+		ofPopStyle();
 		return;
 	}
 	drawLiveOutput(0, 0, _width, _height);
@@ -2036,51 +2240,40 @@ void JPboxgroup::drawNodeEditorBackground(float _width, float _height)
 void JPboxgroup::drawLiveOutput(float x, float y, float w, float h,
 	const ofRectangle &srcNorm)
 {
-	if (boxes.size() >= 1)
+	if (boxes.empty() || activerender == nullptr || *activerender < 0 ||
+		*activerender >= (int)boxes.size())
 	{
-		ofSetRectMode(OF_RECTMODE_CORNER);
-		const bool whole = srcNorm.x <= 0.0f && srcNorm.y <= 0.0f &&
-			srcNorm.width >= 1.0f && srcNorm.height >= 1.0f;
-		// Normalized to pixels per texture, never from one global number: the
-		// activerender fbo and the transition canvas can differ in size, and
-		// the transition canvas is not reallocated on every render resize.
-		auto sub = [&](float texW, float texH) {
-			return ofRectangle(srcNorm.x * texW, srcNorm.y * texH,
-				std::max(1.0f, srcNorm.width * texW),
-				std::max(1.0f, srcNorm.height * texH));
-		};
-
-		//QUE ONDA QUE LO TENGO QUE DIBUJAR DIFERENTE!?
-		if (boxes.size() > 2) {
-			if (whole) transition.draw(x, y, w, h);
-			else {
-				const ofRectangle s = sub(transition.getSourceWidth(),
-					transition.getSourceHeight());
-				transition.drawSubsection(x, y, w, h,
-					s.x, s.y, s.width, s.height);
-			}
-		}
-		else if (activerender != nullptr && *activerender >= 0 &&
-			*activerender < (int)boxes.size()) {
-			ofFbo &source = boxes[*activerender]->fbo;
-			if (whole) source.draw(x, y, w, h);
-			else if (source.isAllocated()) {
-				const ofRectangle s = sub(source.getWidth(),
-					source.getHeight());
-				source.getTexture().drawSubsection(x, y, w, h,
-					s.x, s.y, s.width, s.height);
-			}
-		}
-		// Second pass kept as is: in the <=2 branch the layer underneath shows
-		// through wherever the transition canvas is transparent.
-		if (whole) transition.draw(x, y, w, h);
-		else {
-			const ofRectangle s = sub(transition.getSourceWidth(),
-				transition.getSourceHeight());
-			transition.drawSubsection(x, y, w, h,
-				s.x, s.y, s.width, s.height);
-		}
+		return;
 	}
+
+	const bool whole = srcNorm.x <= 0.0f && srcNorm.y <= 0.0f &&
+		srcNorm.width >= 1.0f && srcNorm.height >= 1.0f;
+	const bool transitioning = transition.getLerpValue() < 1.0f &&
+		transition.isSourceAllocated();
+	ofFbo &active = boxes[*activerender]->fbo;
+	const float sourceW = transitioning ? transition.getSourceWidth() : active.getWidth();
+	const float sourceH = transitioning ? transition.getSourceHeight() : active.getHeight();
+	const ofRectangle subsection(srcNorm.x * sourceW, srcNorm.y * sourceH,
+		std::max(1.0f, srcNorm.width * sourceW),
+		std::max(1.0f, srcNorm.height * sourceH));
+
+	ofPushStyle();
+	ofEnableAlphaBlending();
+	ofSetColor(255);
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	if (transitioning)
+	{
+		if (whole) transition.draw(x, y, w, h);
+		else transition.drawSubsection(x, y, w, h, subsection.x,
+			subsection.y, subsection.width, subsection.height);
+	}
+	else if (active.isAllocated())
+	{
+		if (whole) active.draw(x, y, w, h);
+		else active.getTexture().drawSubsection(x, y, w, h, subsection.x,
+			subsection.y, subsection.width, subsection.height);
+	}
+	ofPopStyle();
 }
 
 float JPboxgroup::layoutInspectorInputRows(JPbox *box, float startY)
@@ -2784,6 +2977,16 @@ bool JPboxgroup::handleInspectorAutomationClick()
 // shaping controls always use geometry for their current state.
 void JPboxgroup::rebuildControllersIfLayoutStale()
 {
+	if (JPMediaInspectable *media = dynamic_cast<JPMediaInspectable *>(getInspectorBox()))
+	{
+		const bool playable = media->mediaPlayable() || !media->mediaReady();
+		if (mediaInspector.card.width > 0 &&
+			playable != mediaInspectorPlayableBuilt)
+		{
+			setControllers();
+			return;
+		}
+	}
 	for (JPcontroller *controller : controllers)
 	{
 		JPComplexSlider *slider = dynamic_cast<JPComplexSlider *>(controller);
@@ -2978,6 +3181,7 @@ void JPboxgroup::draw_paramswindow()
 		if (suppressBodyPointer)
 			JPdragobject::setMouseOverride(ofVec2f(-10000.0f, -10000.0f));
 
+		drawMediaInspector(dynamic_cast<JPMediaInspectable *>(inspectorBox));
 		drawInspectorInputRows(inspectorBox);
 		drawAdvancedMappingParameterHeaders(inspectorBox);
 
@@ -3318,6 +3522,7 @@ void JPboxgroup::update(){
 			{
 				if (!subtreeUpdatedByMainGraph)
 				{
+					preset->boxes[i]->isactiverender = false;
 					preset->boxes[i]->update();
 				}
 				// Handle box grabbing for sub-boxes
@@ -3377,6 +3582,7 @@ void JPboxgroup::update(){
 	for (int i = boxes.size() - 1; i >= 0; i--){
 		const auto boxStart = profilingEnabled ? ProfileClock::now() :
 			ProfileClock::time_point();
+		boxes[i]->isactiverender = activerender != nullptr && i == *activerender;
 		boxes[i]->update();
 		if (profilingEnabled)
 		{
@@ -3682,6 +3888,35 @@ void JPboxgroup::setinspectorsetactiveparams()
 void JPboxgroup::update_mouseDragged(int mousebutton)
 {
 	ofVec2f screenMouse(ofGetMouseX(), ofGetMouseY());
+	if(mousebutton==OF_MOUSE_BUTTON_LEFT && (mediaTimelineDragging || mediaRangeDragging!=0))
+	{
+		auto *target=dynamic_cast<JPMediaInspectable *>(getInspectorBox());
+		if(target)
+		{
+			JPMediaState&s=target->mediaState();
+			if(mediaRangeDragging==5)s.fitMode=(JPMediaFitMode)ofClamp((int)((screenMouse.x-mediaInspector.fit.x)/mediaInspector.fit.width*5.0f),0,4);
+			else if(mediaRangeDragging==3)s.rate=ofMap(screenMouse.x,mediaInspector.speed.x,mediaInspector.speed.getRight(),.25f,4.0f,true);
+			else if(mediaRangeDragging==4)s.volume=ofMap(screenMouse.x,mediaInspector.volume.x,mediaInspector.volume.getRight(),0,1,true);
+			else if(mediaInspector.timeline.width>0)
+			{
+				const float n=ofMap(screenMouse.x,mediaInspector.timeline.x,
+					mediaInspector.timeline.getRight(),0,1,true);
+				if(mediaRangeDragging==1)
+				{
+					s.rangeIn=n;
+					if(s.rangeIn>s.rangeOut)s.rangeOut=s.rangeIn;
+				}
+				else if(mediaRangeDragging==2)
+				{
+					s.rangeOut=n;
+					if(s.rangeOut<s.rangeIn)s.rangeIn=s.rangeOut;
+				}
+				else target->mediaSeek(ofClamp(n,s.rangeIn,s.rangeOut));
+			}
+			markCueDraftDirty(cueSelectedIndex());
+		}
+		return;
+	}
 	if (mousebutton == OF_MOUSE_BUTTON_LEFT &&
 		rangeDragSlider != nullptr && rangeDragHandle != 0)
 	{
@@ -3838,6 +4073,7 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 			if (controllers[i]->activeFlag)
 			{
 				slideragarrado = true;
+				auto *complex=dynamic_cast<JPComplexSlider *>(controllers[i]);
 
 				// Check if this is a normal controller or an exposed one
 				if (i < inspectorBox->parameters.getSize() &&
@@ -3845,13 +4081,8 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 				{
 					// This is because if movtype is 0, it doesn't update to avoid OSC overwrite
 					// Manual update for movtype 0 sliders
-					controllers[i]->value = ofMap(ofGetMouseX(), controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
-						controllers[i]->x + (controllers[i]->width * 3 / 4) / 2,
-						inspectorBox->parameters.getNativeMin(i),
-						inspectorBox->parameters.getNativeMax(i), true);
-					controllers[i]->value = ofClamp(controllers[i]->value,
-						inspectorBox->parameters.getMin(i),
-						inspectorBox->parameters.getMax(i));
+					if(complex==nullptr)continue;
+					controllers[i]->value=complex->valueFromMouse(ofGetMouseX());
 
 					inspectorBox->parameters.setFloatValue(controllers[i]->value, i);
 					inspectorBox->parameters.setFloatLerpValue(controllers[i]->value, i);
@@ -3862,10 +4093,8 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 				{
 					// Exposed controller: update the value via its internal parameter pointer
 					JPParameter *parameter = controllers[i]->parameters;
-					float newVal = ofMap(ofGetMouseX(), controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
-						controllers[i]->x + (controllers[i]->width * 3 / 4) / 2,
-						parameter->nativeMin, parameter->nativeMax, true);
-					newVal = ofClamp(newVal, parameter->effectiveMin(), parameter->effectiveMax());
+					if(complex==nullptr)continue;
+					float newVal=complex->valueFromMouse(ofGetMouseX());
 					controllers[i]->value = newVal;
 					controllers[i]->parameters->floatValue = newVal;
 					controllers[i]->parameters->floatLerpValue = newVal;
@@ -3879,15 +4108,9 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 		{
 			for (int i = 0; i < controllers.size(); i++)
 			{
-				// Use visual slider area (width*3/4) instead of full JPComplexSlider width
-				float sliderVisualWidth = controllers[i]->width * 3.0f / 4.0f;
-				float sliderLeft = controllers[i]->x - sliderVisualWidth / 2.0f;
-				float sliderRight = controllers[i]->x + sliderVisualWidth / 2.0f;
-				float mx = ofGetMouseX();
-				float my = ofGetMouseY();
-				if (mx >= sliderLeft && mx <= sliderRight &&
-					my >= controllers[i]->y - controllers[i]->height / 2 &&
-					my <= controllers[i]->y + controllers[i]->height / 2 &&
+				auto *complex=dynamic_cast<JPComplexSlider *>(controllers[i]);
+				if (complex!=nullptr && complex->valueSliderContains(
+					ofGetMouseX(),ofGetMouseY()) &&
 					mousebutton == OF_MOUSE_BUTTON_LEFT)
 				{
 					// Normal controllers: check type from inspectorBox; exposed controllers handled by their own mouseOver in update_paramswindow
@@ -3905,6 +4128,47 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 			offsety = ofGetMouseY();
 		}
 	}
+}
+
+bool JPboxgroup::handleMediaInspectorClick()
+{
+	auto *target=dynamic_cast<JPMediaInspectable *>(getInspectorBox());
+	if(target==nullptr || !mediaInspector.card.inside(ofGetMouseX(),ofGetMouseY()))return false;
+	JPMediaState&s=target->mediaState(); const ofVec2f m(ofGetMouseX(),ofGetMouseY());
+	if(!target->mediaReady() && !mediaInspector.fit.inside(m))return true;
+	bool changed=true;
+	if(mediaInspector.fit.inside(m)){mediaRangeDragging=5;s.fitMode=(JPMediaFitMode)ofClamp((int)((m.x-mediaInspector.fit.x)/mediaInspector.fit.width*5.0f),0,4);}
+	else if(mediaInspector.restart.inside(m))target->mediaRestart();
+	else if(mediaInspector.previous.inside(m))target->mediaStep(-1);
+	else if(mediaInspector.play.inside(m))s.playing=!s.playing;
+	else if(mediaInspector.next.inside(m))target->mediaStep(1);
+	else if(mediaInspector.direction.inside(m))s.reverse=!s.reverse;
+	else if(mediaInspector.loop.inside(m))s.loopMode=(JPMediaLoopMode)(((int)s.loopMode+1)%3);
+	else if(mediaInspector.speed.inside(m)){mediaRangeDragging=3;s.rate=ofMap(m.x,mediaInspector.speed.x,mediaInspector.speed.getRight(),.25f,4.0f,true);}
+	else if(mediaInspector.mute.inside(m)&&target->mediaHasAudio())s.muted=!s.muted;
+	else if(mediaInspector.volume.inside(m)&&target->mediaHasAudio()){mediaRangeDragging=4;s.volume=ofMap(m.x,mediaInspector.volume.x,mediaInspector.volume.getRight(),0,1,true);}
+	else if(mediaInspector.inButton.inside(m))jp_media::captureRangeIn(s);
+	else if(mediaInspector.outButton.inside(m))jp_media::captureRangeOut(s);
+	else if(mediaInspector.inField.inside(m)||mediaInspector.outField.inside(m))
+	{
+		mediaTimeFieldFocus=mediaInspector.inField.inside(m)?1:2;
+		mediaTimeFieldBuffer=mediaTimeLabel((mediaTimeFieldFocus==1?s.rangeIn:s.rangeOut)*target->mediaDurationSeconds());
+		mediaTimeFieldReplaceOnType=true;
+	}
+	else if(mediaInspector.timeline.inside(m))
+	{
+		const float n=ofMap(m.x,mediaInspector.timeline.x,mediaInspector.timeline.getRight(),0,1,true);
+		const float tolerance=7.0f/mediaInspector.timeline.width;
+		const bool nearIn=std::abs(n-s.rangeIn)<=tolerance;
+		const bool nearOut=std::abs(n-s.rangeOut)<=tolerance;
+		if(nearIn&&nearOut)mediaRangeDragging=n<s.rangeIn?1:2;
+		else if(nearIn)mediaRangeDragging=1;
+		else if(nearOut)mediaRangeDragging=2;
+		else {mediaTimelineDragging=true;target->mediaSeek(ofClamp(n,s.rangeIn,s.rangeOut));}
+	}
+	else changed=false;
+	if(changed){jp_media::normalize(s);markCueDraftDirty(cueSelectedIndex());if(isCueDraftMode())updateCueDraftGraph();}
+	return true;
 }
 void JPboxgroup::update_mousePressed(int mouseButton)
 {
@@ -3924,6 +4188,8 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	}
 
 	JPbox *inputInspectorBox = getInspectorBox();
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT && inputInspectorBox != nullptr &&
+		handleMediaInspectorClick()) return;
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT && inputInspectorBox != nullptr &&
 		handleInspectorScrollbarPressed(ofGetMouseX(), ofGetMouseY()))
 	{
@@ -4170,16 +4436,17 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		int activeone = -1;
 		for (int i = 0; i < controllers.size(); i++)
 		{
-			// Use visual slider area (width*3/4) instead of full JPComplexSlider width
-			float sliderVisualWidth = controllers[i]->width * 3.0f / 4.0f;
-			float sliderLeft = controllers[i]->x - sliderVisualWidth / 2.0f;
-			float sliderRight = controllers[i]->x + sliderVisualWidth / 2.0f;
 			float mx = ofGetMouseX();
 			float my = ofGetMouseY();
+			auto *complex=dynamic_cast<JPComplexSlider *>(controllers[i]);
+			const bool fallbackControlHit=complex==nullptr &&
+				mx>=controllers[i]->x-controllers[i]->width*0.5f &&
+				mx<=controllers[i]->x+controllers[i]->width*0.5f &&
+				my>=controllers[i]->y-controllers[i]->height*0.5f &&
+				my<=controllers[i]->y+controllers[i]->height*0.5f;
 			bool overVisualSlider = inspectorBodyContains(mx, my) &&
-				(mx >= sliderLeft && mx <= sliderRight &&
-				my >= controllers[i]->y - controllers[i]->height / 2 &&
-				my <= controllers[i]->y + controllers[i]->height / 2);
+				((complex!=nullptr && complex->valueSliderContains(mx,my)) ||
+				 fallbackControlHit);
 			if (overVisualSlider)
 			{
 				// cout << "MOUSE OVER " << controllers[i]->name << endl;
@@ -4218,15 +4485,9 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			{
 				// Esto es porque si esta en movtype 0 no actualiza para que no pise con el OSC , entonces hay que actualizarlo manualmente
 				// Esta es la actualizaci�n manual. Acordate que si el movtype esta en 0 el valor NO SE ACTUALIZA.
-					controllers[i]->value = ofMap(
-						ofGetMouseX(),
-						controllers[i]->x - (controllers[i]->width * 3 / 4) / 2,
-						controllers[i]->x + (controllers[i]->width * 3 / 4) / 2,
-						inspectorBox->parameters.getNativeMin(i),
-						inspectorBox->parameters.getNativeMax(i), true);
-				controllers[i]->value = ofClamp(controllers[i]->value,
-					inspectorBox->parameters.getMin(i),
-					inspectorBox->parameters.getMax(i));
+				auto *complex=dynamic_cast<JPComplexSlider *>(controllers[i]);
+				if(complex==nullptr)continue;
+				controllers[i]->value=complex->valueFromMouse(ofGetMouseX());
 				inspectorBox->parameters.setFloatValue(controllers[i]->value, i);
 				inspectorBox->parameters.setFloatLerpValue(controllers[i]->value, i);
 				markCueDraftDirty(cueSelectedIndex());
@@ -4329,6 +4590,8 @@ void JPboxgroup::update_mouseReleased(int mouseButton)
 {
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT)
 	{
+		mediaTimelineDragging = false;
+		mediaRangeDragging = 0;
 		if (rangeDragSlider != nullptr)
 		{
 			rangeDragSlider->rangeHandleDragging = false;
@@ -4906,18 +5169,11 @@ void JPboxgroup::load(string _dirinput)
 		{
 			bx = new JPbox_shader();
 		}
-		else if (directory.getValue().find(".jpg") != std::string::npos ||
-				 directory.getValue().find(".png") != std::string::npos ||
-				 directory.getValue().find(".jpeg") != std::string::npos)
+		else if (jp_media::isImage(directory.getValue()))
 		{
 			bx = new JPbox_image();
 		}
-		else if (directory.getValue().find(".mov") != std::string::npos ||
-				 directory.getValue().find(".mkv") != std::string::npos ||
-				 directory.getValue().find(".mp4") != std::string::npos ||
-				 directory.getValue().find(".flv") != std::string::npos ||
-				 directory.getValue().find(".vob") != std::string::npos ||
-				 directory.getValue().find(".avi") != std::string::npos)
+		else if (jp_media::isVideo(directory.getValue()))
 		{
 			bx = new JPbox_video();
 		}
@@ -4970,14 +5226,23 @@ void JPboxgroup::load(string _dirinput)
 		bx->setonoff(onoff ? onoff.getBoolValue() : true);
 		bx->setBypass(bypass ? bypass.getBoolValue() : false);
 
-		int destinationIndex = 0;
+		int positionalIndex = 0;
 		auto parameters = box.getChild("parameters").getChildren();
 		int parameterLoadLimit = bx->parameters.getSize();
 		// cout << "PARAMETER SIZE SB " << sb->parameters.getSize() << endl;
 
 		for (auto &param : parameters) 
 		{
-			if (destinationIndex >= parameterLoadLimit) break;
+			// By name, falling back to position. Purely positional loading
+			// froze the parameter arrays: reordering, or inserting anywhere but
+			// the end, shifted every value in every saved composition.
+			const int destinationIndex = bx->parameters.resolveLoadIndex(
+				param.getChild("name").getValue(), positionalIndex);
+			++positionalIndex;
+			// continue, not break: a later <param> may still match by name even
+			// when this one resolves nowhere.
+			if (destinationIndex < 0 || destinationIndex >= parameterLoadLimit)
+				continue;
 
 			if (bx->parameters.getType(destinationIndex) == bx->parameters.FLOAT)
 			{
@@ -5030,7 +5295,6 @@ void JPboxgroup::load(string _dirinput)
 			}
 			loadParameterUserState(param,
 				bx->parameters.getJParameter(destinationIndex));
-			destinationIndex++;
 		}
 		bx->loadCustomState(box);
 
@@ -5188,6 +5452,8 @@ void JPboxgroup::setControllers(){
 	inspectorInputRows.clear();
 	advancedMappingParameterHeaders.clear();
 	inspectorInputsHeaderBounds.set(0, 0, 0, 0);
+	mediaInspector.clear();
+	mediaInspectorPlayableBuilt = false;
 
 	JPbox *inspectorBox = getInspectorBox();
 	if (inspectorBox == nullptr)
@@ -5244,6 +5510,8 @@ void JPboxgroup::setControllers(){
 	};
 	float layoutCursor = inspectorBodyViewport.y +
 		inspectorLayout.contentPadding - inspectorScrollY;
+	layoutMediaInspector(dynamic_cast<JPMediaInspectable *>(inspectorBox),
+		layoutCursor);
 	layoutCursor = layoutInspectorInputRows(inspectorBox, layoutCursor);
 	if (inspectorBox->getTipo() == inspectorBox->KINECT2BOX)
 	{
@@ -5264,10 +5532,62 @@ void JPboxgroup::setControllers(){
 	/*inspectorwindow_height += inspectorwindow_setactivesize;
 	inspectorwindow_height += inspectorwindow_sepy * 0.5;
 	*/
+	auto *mediaBox = dynamic_cast<JPMediaInspectable *>(inspectorBox);
+	auto isMediaOwnedParameter = [&](const string &parameterName) {
+		return mediaBox != nullptr &&
+			(parameterName == "strech" || parameterName == "speed" ||
+			 parameterName == "position" || parameterName == "play");
+	};
+	// "scale ratio" is laid out first, above scalex.
+	//
+	// The array is NOT reordered to match - it cannot be, because
+	// JPboxgroup::load fills parameters positionally and "scale ratio" is
+	// appended last precisely so old savefiles keep working. Display order and
+	// array order therefore differ here on purpose.
+	//
+	// That difference is why getBindableParameterOrder exists and must apply
+	// the SAME sequence: when the two disagreed, a MIDI bind on the first row
+	// drove the second parameter. Change one, change both.
+	// Any box carrying a transform parameter lays its rows out in the canonical
+	// order, not the array order. Media boxes always take this path because
+	// their transport card owns four parameters that must be held out.
+	const bool usesCanonicalOrder = mediaBox != nullptr ||
+		[&] {
+			for (int k = 0; k < inspectorBox->parameters.getSize(); ++k)
+				if (jp_media::isRankedTransformParameter(
+						inspectorBox->parameters.getName(k)))
+					return true;
+			return false;
+		}();
+	vector<float> mediaParameterTop(inspectorBox->parameters.getSize(), -1.0f);
+	if (usesCanonicalOrder)
+	{
+		float mediaCursor = layoutCursor;
+		auto place = [&](int k) {
+			mediaParameterTop[k] = mediaCursor;
+			mediaCursor += controllerHeightFor(
+				inspectorBox->parameters.parameters[k]) + controllerRowGap;
+		};
+		auto visible = [&](int k) {
+			return !isMediaOwnedParameter(inspectorBox->parameters.getName(k));
+		};
+		// Ranked first, in rank order; then everything else as declared.
+		for (int rank = 0; rank < jp_media::kUnrankedTransformParameter; ++rank)
+			for (int k = 0; k < inspectorBox->parameters.getSize(); ++k)
+				if (visible(k) && jp_media::transformParameterRank(
+						inspectorBox->parameters.getName(k)) == rank)
+					place(k);
+		for (int k = 0; k < inspectorBox->parameters.getSize(); ++k)
+			if (visible(k) && !jp_media::isRankedTransformParameter(
+					inspectorBox->parameters.getName(k)))
+				place(k);
+		layoutCursor = mediaCursor;
+	}
 
 	for (int k = 0; k < inspectorBox->parameters.getSize(); k++)
 	{
 		const string parameterName = inspectorBox->parameters.getName(k);
+		const bool mediaOwned = isMediaOwnedParameter(parameterName);
 		const int advancedLayer =
 			getAdvancedMappingParameterLayer(parameterName);
 		if (advancedState != nullptr && advancedLayer >= 0 &&
@@ -5284,9 +5604,9 @@ void JPboxgroup::setControllers(){
 			layoutCursor += inspectorLayout.minControlHeight + controllerRowGap;
 			lastAdvancedLayer = advancedLayer;
 		}
-		const bool parameterHidden = advancedState != nullptr &&
+		const bool parameterHidden = mediaOwned || (advancedState != nullptr &&
 			advancedLayer >= 0 &&
-			!advancedState->layers[advancedLayer].inspectorExpanded;
+			!advancedState->layers[advancedLayer].inspectorExpanded);
 
 		if (inspectorBox->parameters.getType(k) == inspectorBox->parameters.FLOAT)
 		{
@@ -5297,7 +5617,8 @@ void JPboxgroup::setControllers(){
 				sl->setup(controllerX, -10000.0f,
 					controllerWidth, standardControllerHeight,
 					inspectorBox->parameters.parameters[k]);
-				sl->name = parameterName.substr(7);
+				sl->name = advancedLayer >= 0 && parameterName.size() > 7 ?
+					parameterName.substr(7) : parameterName;
 				sl->width = 0.0f;
 				sl->height = 0.0f;
 				controllers.push_back(sl);
@@ -5314,8 +5635,15 @@ void JPboxgroup::setControllers(){
 
 			// JPParameter* as = boxes[openguinumber]->parameters.parameters[k];
 			JPComplexSlider *sl = new JPComplexSlider();
+			// usesCanonicalOrder, not mediaBox: the camera, Spout, NDI and
+			// transform-style shader boxes are ordered the same way. Testing
+			// the box type here made the panel draw array order while the bind
+			// slots used canonical order - exactly the disagreement these two
+			// are kept in step to avoid.
+			const float parameterTop = usesCanonicalOrder ?
+				mediaParameterTop[k] : layoutCursor;
 			sl->setup(controllerX,
-					  controllerYFor(layoutCursor,
+					  controllerYFor(parameterTop,
 						  inspectorBox->parameters.parameters[k]),
 					  controllerWidth, complexsliderheight,
 					  inspectorBox->parameters.parameters[k]);
@@ -5324,7 +5652,12 @@ void JPboxgroup::setControllers(){
 
 			controllers.push_back(sl);
 
-			layoutCursor += complexsliderheight + controllerRowGap;
+			// Skipped whenever the canonical pass above already positioned
+			// every row and left layoutCursor past them. This tested
+			// mediaBox and so double-counted the camera and shader boxes,
+			// measuring the panel at roughly twice its content.
+			if (!usesCanonicalOrder)
+				layoutCursor += complexsliderheight + controllerRowGap;
 		}
 		else if (inspectorBox->parameters.getType(k) == inspectorBox->parameters.BOOL)
 		{
@@ -5332,8 +5665,15 @@ void JPboxgroup::setControllers(){
 			JPToogle *toogle = new JPToogle();
 			toogle->setParametersPointer(inspectorBox->parameters.getJParameter(k));
 			toogle->setFontPointer(jp_constants::inspector_body_font);
+			// usesCanonicalOrder, not mediaBox: the camera, Spout, NDI and
+			// transform-style shader boxes are ordered the same way. Testing
+			// the box type here made the panel draw array order while the bind
+			// slots used canonical order - exactly the disagreement these two
+			// are kept in step to avoid.
+			const float parameterTop = usesCanonicalOrder ?
+				mediaParameterTop[k] : layoutCursor;
 			toogle->setup(controllerX,
-						  layoutCursor + complexsliderheight * 0.5f,
+						  parameterTop + complexsliderheight * 0.5f,
 						  std::min(slider_width, controllerWidth), slider_height,
 						  inspectorBox->parameters.getName(k), inspectorBox->parameters.getBoolValue(k));
 			if (parameterHidden)
@@ -5343,7 +5683,7 @@ void JPboxgroup::setControllers(){
 				toogle->height = 0.0f;
 			}
 			controllers.push_back(toogle);
-			if (!parameterHidden)
+			if (!parameterHidden && !usesCanonicalOrder)
 				layoutCursor += complexsliderheight + controllerRowGap;
 		}
 		}
@@ -6022,11 +6362,8 @@ bool JPboxgroup::setCueByIndex(int index)
 		{
 			cueApplySnapshotFbo.allocate(getCueTargetBoxAt(getCueTargetActiveRender())->fbo.getWidth(), getCueTargetBoxAt(getCueTargetActiveRender())->fbo.getHeight());
 		}
-		cueApplySnapshotFbo.begin();
-		ofClear(0, 0, 0, 0);
-		ofSetColor(255, 255);
-		getCueTargetBoxAt(getCueTargetActiveRender())->fbo.draw(0, 0, cueApplySnapshotFbo.getWidth(), cueApplySnapshotFbo.getHeight());
-		cueApplySnapshotFbo.end();
+		copyFboStraight(getCueTargetBoxAt(getCueTargetActiveRender())->fbo,
+			cueApplySnapshotFbo);
 	}
 
 	if (beginCueDraftForBoxIndex(index))
@@ -6423,6 +6760,8 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 		vector<PresetExposedInputSnapshot>
 			presetExposedInputs;
 		unsigned int dirtyFlags = CUE_DIRTY_NONE;
+		bool hasMedia = false;
+		JPMediaState media;
 	};
 
 	vector<DraftSnapshot> snapshots;
@@ -6441,6 +6780,11 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 		snapshot.parameters = cueState.draftBoxes[i]->parameters;
 		snapshot.onoff = cueState.draftBoxes[i]->getonoff();
 		snapshot.bypass = cueState.draftBoxes[i]->getBypass();
+		if (auto *media = dynamic_cast<JPMediaInspectable *>(cueState.draftBoxes[i]))
+		{
+			snapshot.hasMedia = true;
+			snapshot.media = media->mediaState();
+		}
 		if (cueState.draftBoxes[i]->getTipo() == JPbox::PRESETBOX)
 		{
 			JPbox_preset *draftPreset =
@@ -6512,6 +6856,9 @@ bool JPboxgroup::rebuildCueAfterGraphChange()
 		}
 
 		copyParametersByNameOrIndex(draftBox->parameters, snapshots[i].parameters);
+		if (snapshots[i].hasMedia)
+			if (auto *media = dynamic_cast<JPMediaInspectable *>(draftBox))
+				media->mediaState() = snapshots[i].media;
 		draftBox->setonoff(snapshots[i].onoff);
 		draftBox->setBypass(snapshots[i].bypass);
 		if (!snapshots[i].presetActiveRenders.empty() &&
@@ -6631,11 +6978,8 @@ bool JPboxgroup::applyCueDraftToSource()
 	}
 	if (targetActiveRender >= 0 && targetActiveRender < targetSize)
 	{
-		cueApplySnapshotFbo.begin();
-		ofClear(0, 0, 0, 0);
-		ofSetColor(255, 255);
-		getCueTargetBoxAt(targetActiveRender)->fbo.draw(0, 0, cueApplySnapshotFbo.getWidth(), cueApplySnapshotFbo.getHeight());
-		cueApplySnapshotFbo.end();
+		copyFboStraight(getCueTargetBoxAt(targetActiveRender)->fbo,
+			cueApplySnapshotFbo);
 	}
 
 	vector<int> dirtyIndices = cueState.dirtyDraftRealIndices;
@@ -8085,13 +8429,8 @@ void JPboxgroup::updateCueDraftGraph()
 				else
 				{
 					// Clean passthrough: mirror the live composite.
-					cueState.draftBoxes[i]->fbo.begin();
-					ofClear(0, 0, 0, 0);
-					ofSetColor(255, 255);
-					target[realIndex]->fbo.draw(0, 0,
-											   cueState.draftBoxes[i]->fbo.getWidth(),
-											   cueState.draftBoxes[i]->fbo.getHeight());
-					cueState.draftBoxes[i]->fbo.end();
+					copyFboStraight(target[realIndex]->fbo,
+						cueState.draftBoxes[i]->fbo);
 				}
 				continue;
 			}
@@ -8100,13 +8439,8 @@ void JPboxgroup::updateCueDraftGraph()
 			{
 				// Media/source box: mirror the live output.
 				cueState.draftBoxes[i]->update();
-				cueState.draftBoxes[i]->fbo.begin();
-				ofClear(0, 0, 0, 0);
-				ofSetColor(255, 255);
-				target[realIndex]->fbo.draw(0, 0,
-										   cueState.draftBoxes[i]->fbo.getWidth(),
-										   cueState.draftBoxes[i]->fbo.getHeight());
-				cueState.draftBoxes[i]->fbo.end();
+				copyFboStraight(target[realIndex]->fbo,
+					cueState.draftBoxes[i]->fbo);
 				continue;
 			}
 		}
@@ -8152,11 +8486,7 @@ void JPboxgroup::renderPresetDraftMirroringLive(JPbox_preset *draftPreset, JPbox
 		{
 			// Source/media box (camera/video/spout/ndi/image): mirror the live
 			// output instead of re-opening the device.
-			d->fbo.begin();
-			ofClear(0, 0, 0, 0);
-			ofSetColor(255, 255);
-			l->fbo.draw(0, 0, d->fbo.getWidth(), d->fbo.getHeight());
-			d->fbo.end();
+			copyFboStraight(l->fbo, d->fbo);
 		}
 	}
 	// Composite through the same local crossfade used by live presets so a
@@ -8278,18 +8608,77 @@ int JPboxgroup::getMaxParameterCount() const
 }
 int JPboxgroup::getOpenParameterCount() const
 {
-	return controllers.size();
+	// Bind SLOTS, not controllers. A media box carries a zero-size placeholder
+	// controller for each parameter its transport card owns, and those are not
+	// bindable, so counting controllers would offer four dead rows.
+	return (int)getBindableParameterOrder(
+		const_cast<JPboxgroup *>(this)->getInspectorBox()).size();
 }
+vector<int> JPboxgroup::getBindableParameterOrder(JPbox *box) const
+{
+	vector<int> order;
+	if (box == nullptr) return order;
+	const int count = box->parameters.getSize();
+	const bool isMedia = dynamic_cast<JPMediaInspectable *>(box) != nullptr;
+	// The four the transport card drives. Not drawn as sliders, so a slot on
+	// them would be an invisible bind target that only fights the card. Media
+	// boxes only - the camera/NDI/Spout `strech` is an ordinary slider.
+	auto mediaOwned = [&](int k) {
+		if (!isMedia) return false;
+		const string &name = box->parameters.getName(k);
+		return name == "strech" || name == "speed" ||
+			name == "position" || name == "play";
+	};
+	bool hasRanked = false;
+	for (int k = 0; k < count; ++k)
+		if (jp_media::isRankedTransformParameter(box->parameters.getName(k)))
+			hasRanked = true;
+	// MUST match the row order in setControllers. The transform parameters are
+	// drawn in canonical order but stored in whatever order the box or shader
+	// declares, so binding to the raw array index would point a knob at a
+	// different row than the one it sits next to.
+	if (hasRanked || isMedia)
+	{
+		for (int rank = 0; rank < jp_media::kUnrankedTransformParameter; ++rank)
+			for (int k = 0; k < count; ++k)
+				if (!mediaOwned(k) && jp_media::transformParameterRank(
+						box->parameters.getName(k)) == rank)
+					order.push_back(k);
+		for (int k = 0; k < count; ++k)
+			if (!mediaOwned(k) && !jp_media::isRankedTransformParameter(
+					box->parameters.getName(k)))
+				order.push_back(k);
+		return order;
+	}
+	for (int k = 0; k < count; ++k)
+		if (!mediaOwned(k)) order.push_back(k);
+	return order;
+}
+
+int JPboxgroup::resolveBindableParameterIndex(JPbox *box, int slot) const
+{
+	const vector<int> order = getBindableParameterOrder(box);
+	if (slot < 0 || slot >= (int)order.size()) return -1;
+	return order[slot];
+}
+
 JPParameter *JPboxgroup::getOpenParameterAtIndex(
 	int parameterIndex) const
 {
-	if (parameterIndex < 0 ||
-		parameterIndex >= (int)controllers.size() ||
-		controllers[parameterIndex] == nullptr)
+	// parameterIndex is a bind SLOT, not an array index - see
+	// getBindableParameterOrder. The MIDI panel labels its rows from this, so
+	// the resolution has to happen here or the panel would show one name and
+	// drive another.
+	// getInspectorBox() is not const-qualified; this reads it without mutating.
+	const int resolved = resolveBindableParameterIndex(
+		const_cast<JPboxgroup *>(this)->getInspectorBox(), parameterIndex);
+	if (resolved < 0 ||
+		resolved >= (int)controllers.size() ||
+		controllers[resolved] == nullptr)
 	{
 		return nullptr;
 	}
-	return controllers[parameterIndex]->parameters;
+	return controllers[resolved]->parameters;
 }
 // Writing a MIDI 0..1 value onto one parameter, plus the inspector row that
 // mirrors it when there is one.
@@ -8367,8 +8756,17 @@ bool JPboxgroup::setOpenBoxParameterAtIndex(int parameterIndex, float value)
 	{
 		return false;
 	}
-	// Only indexed after getOpenParameterAtIndex has vouched for the range.
-	if (!applyMidiParameterValue(parameter, controllers[parameterIndex], value))
+	// The slot has to be resolved again for the controller: `controllers` is
+	// indexed by array position, while parameterIndex is a bind slot, and for a
+	// media box those differ. Indexing controllers with the raw slot updated the
+	// wrong row's cached value even when the right parameter changed.
+	const int resolved =
+		resolveBindableParameterIndex(getInspectorBox(), parameterIndex);
+	if (resolved < 0 || resolved >= (int)controllers.size())
+	{
+		return false;
+	}
+	if (!applyMidiParameterValue(parameter, controllers[resolved], value))
 	{
 		return false;
 	}
@@ -8398,8 +8796,15 @@ bool JPboxgroup::setBoxParameterAtIndex(string boxName, int parameterIndex,
 	{
 		return setOpenBoxParameterAtIndex(parameterIndex, value);
 	}
+	// Slot -> array index, same as the open path. Resolved from the box itself
+	// so a binding behaves identically whether or not its inspector is up.
+	const int resolved = resolveBindableParameterIndex(box, parameterIndex);
+	if (resolved < 0)
+	{
+		return false;
+	}
 	if (!applyMidiParameterValue(
-			box->parameters.getJParameter(parameterIndex), nullptr, value))
+			box->parameters.getJParameter(resolved), nullptr, value))
 	{
 		return false;
 	}
@@ -10541,6 +10946,47 @@ void JPboxgroup::cancelTabRename()
 
 void JPboxgroup::keyPressed(int key)
 {
+	if (mediaTimeFieldFocus != 0)
+	{
+		auto *target=dynamic_cast<JPMediaInspectable *>(getInspectorBox());
+		if(target==nullptr){mediaTimeFieldFocus=0;return;}
+		JPMediaState&s=target->mediaState();
+		if(key==OF_KEY_ESC){mediaTimeFieldFocus=0;mediaTimeFieldBuffer.clear();return;}
+		if(key==OF_KEY_UP||key==OF_KEY_DOWN)
+		{
+			float &v=mediaTimeFieldFocus==1?s.rangeIn:s.rangeOut;
+			v=target->mediaSteppedPosition(v,key==OF_KEY_UP?1:-1);
+			v=ofClamp(v,0.0f,1.0f);
+			if(mediaTimeFieldFocus==1&&v>s.rangeOut)s.rangeOut=v;
+			else if(mediaTimeFieldFocus==2&&v<s.rangeIn)s.rangeIn=v;
+			mediaTimeFieldBuffer=mediaTimeLabel(v*target->mediaDurationSeconds());
+			mediaTimeFieldReplaceOnType=false;return;
+		}
+		if(key==OF_KEY_RETURN||key=='\r')
+		{
+			float n=0; if(parseMediaTime(mediaTimeFieldBuffer,target->mediaDurationSeconds(),target->mediaFrameCount(),n))
+			{
+				n=ofClamp(n,0.0f,1.0f);
+				if(mediaTimeFieldFocus==1){s.rangeIn=n;if(n>s.rangeOut)s.rangeOut=n;}
+				else{s.rangeOut=n;if(n<s.rangeIn)s.rangeIn=n;}
+				markCueDraftDirty(cueSelectedIndex());
+			}
+			mediaTimeFieldFocus=0;return;
+		}
+		if(key==OF_KEY_BACKSPACE)
+		{
+			if(mediaTimeFieldReplaceOnType)mediaTimeFieldBuffer.clear();
+			else if(!mediaTimeFieldBuffer.empty())mediaTimeFieldBuffer.pop_back();
+			mediaTimeFieldReplaceOnType=false;
+		}
+		else if((key>='0'&&key<='9')||key==':'||key=='.'||key=='f'||key=='F')
+		{
+			if(mediaTimeFieldReplaceOnType)mediaTimeFieldBuffer.clear();
+			mediaTimeFieldReplaceOnType=false;
+			mediaTimeFieldBuffer.push_back((char)key);
+		}
+		return;
+	}
 	if (!tabRenaming)
 		return;
 

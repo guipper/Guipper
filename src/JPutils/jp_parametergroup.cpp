@@ -752,6 +752,25 @@ JPParameter *JPParameterGroup::getJParameter(int _index)
 {
 	return parameters.at(_index);
 }
+int JPParameterGroup::indexOfName(const string &_name) const
+{
+	if (_name.empty()) return -1;
+	for (int i = 0; i < (int)parameters.size(); ++i)
+		if (parameters[i] != nullptr && parameters[i]->name == _name)
+			return i;
+	return -1;
+}
+
+int JPParameterGroup::resolveLoadIndex(const string &_name,
+	int _positionalIndex) const
+{
+	const int byName = indexOfName(_name);
+	if (byName >= 0) return byName;
+	if (_positionalIndex >= 0 && _positionalIndex < (int)parameters.size())
+		return _positionalIndex;
+	return -1;
+}
+
 string JPParameterGroup::getName(int _index)
 {
 	if (getSize() >= _index)

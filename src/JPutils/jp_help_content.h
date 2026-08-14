@@ -138,6 +138,10 @@ namespace jp_help
 			"Scrollea la lista debajo del puntero: esta pantalla, IMPORT, MIDI, SETTINGS"),
 		N("Drag files onto the window to load them. Several at once are laid out in a grid where you dropped them. Takes .frag, .xml, images and videos.",
 			"Arrastra archivos a la ventana para cargarlos. Varios a la vez se acomodan en grilla donde los soltaste. Acepta .frag, .xml, imagenes y videos."),
+		N("PNG and GIF transparency is preserved. Drag the media layout slider to choose Custom, Fit, Fill, Stretch or Original. Offset and X/Y scale remain available in every mode; Scale Ratio zooms uniformly while preserving the current aspect ratio.",
+			"Se conserva la transparencia de PNG y GIF. Arrastra el selector de layout para elegir Custom, Fit, Fill, Stretch u Original. Offset y escala X/Y siguen disponibles en todos los modos; Scale Ratio aplica zoom uniforme conservando la proporcion actual."),
+		N("Animated GIF and video inspectors include transport, IN/OUT range, Once/Loop/Ping-pong, speed and direction. Videos start muted.",
+			"Los inspectores de GIF animado y video incluyen transporte, rango IN/OUT, Once/Loop/Ping-pong, velocidad y direccion. Los videos empiezan silenciados."),
 		GAP(),
 
 		// ------------------------------------------------------------------

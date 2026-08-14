@@ -17,6 +17,7 @@ ofTrueTypeFont jp_constants::p2_font;
 ofTrueTypeFont jp_constants::inspector_title_font;
 ofTrueTypeFont jp_constants::inspector_body_font;
 ofTrueTypeFont jp_constants::inspector_secondary_font;
+ofTrueTypeFont jp_constants::inspector_media_font;
 
 bool jp_constants::systemDialog_open;
 ofVec2f jp_constants::mousePressedPos;
@@ -43,6 +44,7 @@ void jp_constants::init(int _renderwidth, int _renderheight, int _window_width, 
 	inspector_title_font.loadFont("font/Montserrat-Regular.ttf", 18);
 	inspector_body_font.loadFont("font/Montserrat-Regular.ttf", 12);
 	inspector_secondary_font.loadFont("font/Montserrat-Regular.ttf", 11);
+	inspector_media_font.loadFont("font/Montserrat-Regular.ttf", 9);
 
 	CmouseOver.clear();
 	Cfront.clear();

@@ -2,6 +2,9 @@
 
 #include "../ofApp.h"
 #include "jp_audio.h"
+#include "../JPbox/jp_box_image.h"
+#include "../JPbox/jp_box_video.h"
+#include "../JPbox/jp_media.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -340,6 +343,634 @@ bool jp_persistence_test::run(ofApp &app)
 	const bool modeMemory = automationModeMemoryWorks();
 	const bool rangeCapture = rangeCaptureWorks();
 	const bool lockDefault = lockAndDefaultWork();
+	bool mediaState = false, mediaAlpha = false, mediaMotionClear = false,
+		mediaStraightMix = false, mediaSingleComposite = false,
+		mediaPausePreserves = false,
+		mediaBoundary = false, mediaTransforms = false;
+	{
+		const ofRectangle custom = jp_media::transformedRect(400, 200,
+			1000, 1000, JPMediaFitMode::Custom, .5f, .5f, .5f, .5f, 1.0f, .5f, .5f);
+		const ofRectangle fit = jp_media::transformedRect(400, 200,
+			1000, 1000, JPMediaFitMode::Fit, .5f, .5f, .5f, .5f, 1.0f, .5f, .5f);
+		const ofRectangle zoomed = jp_media::transformedRect(400, 200,
+			1000, 1000, JPMediaFitMode::Fit, .5f, .5f, .5f, .5f, 2.0f, .5f, .5f);
+		const ofRectangle videoFit = jp_media::transformedRect(400, 200,
+			1000, 1000, JPMediaFitMode::Fit, .5f, .5f, .5f, .5f, 1.0f, .5f, 1.0f);
+		mediaTransforms = near(custom.x, 250.0f) && near(custom.y, 250.0f) &&
+			near(custom.width, 500.0f) && near(custom.height, 500.0f) &&
+			near(fit.x, 0.0f) && near(fit.y, 250.0f) &&
+			near(fit.width, 1000.0f) && near(fit.height, 500.0f) &&
+			near(zoomed.x, -500.0f) && near(zoomed.y, 0.0f) &&
+			near(zoomed.width, 2000.0f) && near(zoomed.height, 1000.0f) &&
+			near(videoFit.x, fit.x) && near(videoFit.y, fit.y) &&
+			near(videoFit.width, fit.width) && near(videoFit.height, fit.height);
+
+		JPMediaState state; state.fitMode=JPMediaFitMode::Fill;
+		state.loopMode=JPMediaLoopMode::PingPong; state.position=0.42f;
+		state.rangeIn=0.2f; state.rangeOut=0.8f; state.rate=1.75f;
+		state.playing=false; state.reverse=true; state.muted=false; state.volume=0.35f;
+		ofXml root; auto node=root.appendChild("box"); jp_media::save(node,state);
+		JPMediaState loaded; mediaState=jp_media::load(node,loaded) &&
+			jp_media::transformVersion(node)==2 &&
+			loaded.fitMode==state.fitMode && loaded.loopMode==state.loopMode &&
+			near(loaded.position,state.position) && near(loaded.rangeIn,state.rangeIn) &&
+			near(loaded.rangeOut,state.rangeOut) && near(loaded.rate,state.rate) &&
+			loaded.playing==state.playing && loaded.reverse==state.reverse &&
+			loaded.muted==state.muted && near(loaded.volume,state.volume);
+		JPMediaState boundary; boundary.rangeIn=.2f;boundary.rangeOut=.8f;
+		boundary.loopMode=JPMediaLoopMode::PingPong;float p=.9f;
+		mediaBoundary=jp_media::applyBoundary(boundary,p)&&near(p,.7f)&&boundary.reverse;
+
+		ofPixels px;px.allocate(2,2,OF_PIXELS_RGBA);
+		for(int y=0;y<2;++y)for(int x=0;x<2;++x)px.setColor(x,y,ofColor(255,0,0,255));
+		px.setColor(0,0,ofColor(0,0,0,0)); const string alphaPath=directory+"alpha.png";
+		ofSaveImage(px,alphaPath); app.boxes.clear();app.boxes.addBox(alphaPath,120,180);
+		auto *image=app.boxes.boxes.empty()?nullptr:dynamic_cast<JPbox_image*>(app.boxes.boxes.front());
+		if(image)
+		{
+			image->setonoff(true); image->media=state; image->media.fitMode=JPMediaFitMode::Stretch;
+			image->parameters.setFloatValue(1.75f, 5);
+			image->parameters.setFloatLerpValue(1.75f, 5);
+			image->update(); ofPixels out; image->fbo.readToPixels(out);
+			mediaAlpha=out.isAllocated()&&out.getColor(0,0).a<8;
+			const string mediaPath=directory+"media.xml"; app.boxes.save(mediaPath);
+			app.boxes.clear();app.boxes.load(mediaPath);
+			auto *restored=app.boxes.boxes.empty()?nullptr:dynamic_cast<JPbox_image*>(app.boxes.boxes.front());
+			mediaState=mediaState&&restored&&restored->media.fitMode==JPMediaFitMode::Stretch&&
+				restored->media.loopMode==state.loopMode&&near(restored->media.position,state.position)&&
+				near(restored->media.rangeIn,state.rangeIn)&&near(restored->media.rangeOut,state.rangeOut)&&
+				near(restored->media.rate,state.rate)&&restored->media.playing==state.playing&&
+				restored->parameters.getSize()>5&&
+				restored->parameters.getName(5)=="scale ratio"&&
+				near(restored->parameters.getFloatValue(5),1.75f)&&
+				near(restored->parameters.getNativeMin(5),.1f)&&
+				near(restored->parameters.getNativeMax(5),4.0f);
+		}
+
+		// The master transition canvas must erase transparent pixels when media
+		// moves. Otherwise the old position remains visible as a trail.
+		ofFbo moving, probe;
+		moving.allocate(32,32);probe.allocate(32,32);
+		auto drawHalf=[&](bool right)
+		{
+			moving.begin();ofClear(0,0,0,0);ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+			ofSetColor(255,0,255,255);ofDrawRectangle(right?16:0,0,16,32);
+			moving.end();ofEnableAlphaBlending();
+		};
+		TransitionSR movingTransition;movingTransition.setup();
+		movingTransition.setFboPointer1(&moving);movingTransition.setFboPointer2(&moving);
+		movingTransition.setLerpValue(1.0f);
+		drawHalf(false);movingTransition.update();
+		drawHalf(true);movingTransition.update();
+		probe.begin();ofClear(0,0,0,0);ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+		movingTransition.draw(0,0,32,32);probe.end();ofEnableAlphaBlending();
+		ofPixels moved;probe.readToPixels(moved);
+		mediaMotionClear=moved.isAllocated()&&moved.getColor(4,16).a<8&&
+			moved.getColor(28,16).a>247;
+
+		// Preset crossfades interpolate straight RGBA. Rendering into an empty
+		// FBO with blending disabled must retain the average color and alpha,
+		// rather than alpha-compositing either child over the other.
+		ofFbo mixFirst,mixSecond,mixProbe;
+		mixFirst.allocate(16,16);mixSecond.allocate(16,16);mixProbe.allocate(16,16);
+		auto clearStraight=[](ofFbo &target,const ofColor &color)
+		{
+			target.begin();ofEnableBlendMode(OF_BLENDMODE_DISABLED);ofClear(color);
+			target.end();ofEnableAlphaBlending();
+		};
+		clearStraight(mixFirst,ofColor(240,40,180,64));
+		clearStraight(mixSecond,ofColor(40,200,20,192));
+		TransitionSR straightTransition;straightTransition.setup();
+		mixProbe.begin();ofClear(0,0,0,0);ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+		const bool mixed=straightTransition.renderStraightMix(&mixFirst,&mixSecond,
+			0.5f,16,16);
+		mixProbe.end();ofEnableAlphaBlending();
+		ofPixels mixedPixels;mixProbe.readToPixels(mixedPixels);
+		if(mixed&&mixedPixels.isAllocated())
+		{
+			const ofColor sample=mixedPixels.getColor(8,8);
+			mediaStraightMix=std::abs(int(sample.r)-140)<=3&&
+				std::abs(int(sample.g)-120)<=3&&std::abs(int(sample.b)-100)<=3&&
+				std::abs(int(sample.a)-128)<=3;
+		}
+
+		// The presentation stage performs exactly one source-over operation.
+		// Use two boxes because the old path drew an extra pass only when the
+		// graph contained more than one box.
+		app.boxes.addBox(alphaPath,220,180);
+		app.boxes.requestSetActiveRender(0,false);
+		for(int i=0;i<55;++i) app.boxes.update();
+		if(!app.boxes.boxes.empty()&&app.boxes.boxes.front()->fbo.isAllocated())
+		{
+			ofFbo &activeFbo=app.boxes.boxes.front()->fbo;
+			clearStraight(activeFbo,ofColor(255,59,183,64));
+			app.boxes.boxes.front()->setonoff(false);
+			app.boxes.boxes.front()->update();
+			ofPixels heldPixels;activeFbo.readToPixels(heldPixels);
+			if(heldPixels.isAllocated())
+			{
+				const ofColor held=heldPixels.getColor(activeFbo.getWidth()/2,
+					activeFbo.getHeight()/2);
+				mediaPausePreserves=std::abs(int(held.r)-255)<=2&&
+					std::abs(int(held.g)-59)<=2&&std::abs(int(held.b)-183)<=2&&
+					std::abs(int(held.a)-64)<=2;
+			}
+			ofFbo finalProbe;finalProbe.allocate(32,32);
+			auto presentSolid=[&](const ofColor &background)
+			{
+				finalProbe.begin();ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+				ofClear(background);ofEnableAlphaBlending();
+				app.boxes.draw_activerender(32,32);
+				finalProbe.end();ofEnableAlphaBlending();
+				ofPixels pixels;finalProbe.readToPixels(pixels);
+				return pixels.isAllocated()?pixels.getColor(16,16):ofColor();
+			};
+			auto closeColor=[](const ofColor &actual,const ofColor &expected)
+			{
+				return std::abs(int(actual.r)-int(expected.r))<=4&&
+					std::abs(int(actual.g)-int(expected.g))<=4&&
+					std::abs(int(actual.b)-int(expected.b))<=4;
+			};
+			const ofColor overBlack=presentSolid(ofColor(0,0,0,255));
+			const ofColor overWhite=presentSolid(ofColor(255,255,255,255));
+			finalProbe.begin();ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+			ofClear(0,0,0,255);ofSetRectMode(OF_RECTMODE_CORNER);
+			ofSetColor(255);ofDrawRectangle(16,0,16,32);
+			ofEnableAlphaBlending();app.boxes.draw_activerender(32,32);
+			finalProbe.end();ofEnableAlphaBlending();
+			ofPixels checkerPixels;finalProbe.readToPixels(checkerPixels);
+			mediaSingleComposite=checkerPixels.isAllocated()&&
+				closeColor(overBlack,ofColor(64,15,46))&&
+				closeColor(overWhite,ofColor(255,206,237))&&
+				closeColor(checkerPixels.getColor(8,16),ofColor(64,15,46))&&
+				closeColor(checkerPixels.getColor(24,16),ofColor(255,206,237));
+		}
+	}
+	// A still image must composite once and then stop. The skip is invisible on
+	// screen by design, so without this a change that invalidates the render
+	// signature every frame would silently restore a full render-resolution
+	// pass per image box per frame and nothing would look wrong.
+	bool mediaSkipsStatic = true;
+	{
+		const string stillPath = ofToDataPath("guipper.png", true);
+		if (ofFile::doesFileExist(stillPath))
+		{
+			app.boxes.clear();
+			app.boxes.addBox(stillPath, 120, 180);
+			if (!app.boxes.boxes.empty())
+			{
+				JPbox *box = app.boxes.boxes.front();
+				box->setonoff(true);
+				// Let the load settle; each of these may legitimately render.
+				for (int i = 0; i < 30; ++i) box->update();
+				jp_box_media_stats::beginFrame();
+				const int before = jp_box_media_stats::getRendered();
+				(void)before;
+				// Nothing touches the transform here, so every one of these
+				// updates should take the skip path.
+				for (int i = 0; i < 20; ++i) box->update();
+				jp_box_media_stats::beginFrame();
+				mediaSkipsStatic = jp_box_media_stats::getRendered() == 0 &&
+					jp_box_media_stats::getSkipped() == 20;
+
+				// ...and a transform change must break the skip immediately,
+				// or edits would not show up until something else invalidated.
+				box->parameters.setFloatValue(0.75f, 0);
+				box->update();
+				jp_box_media_stats::beginFrame();
+				mediaSkipsStatic = mediaSkipsStatic &&
+					jp_box_media_stats::getRendered() == 1;
+			}
+			app.boxes.clear();
+		}
+	}
+	// Video transport turnaround. GStreamer parks on the last frame's
+	// timestamp and raises EOS rather than reporting the nominal end - measured
+	// at 0.999977 on a 431 frame clip - so a bare `position >= rangeOut` test
+	// never fires. That left ping-pong stuck on the final frame forever and
+	// loop unable to wrap. Only the forward end was affected: seeking to zero
+	// is exact, so reverse toward the start always worked, which is what made
+	// the bug look like "reverse is broken" rather than "the end is broken".
+	bool mediaTurnaround = true;
+	{
+		const string clipPath = ofToDataPath("vid/kinect.mov", true);
+		if (ofFile::doesFileExist(clipPath))
+		{
+			app.boxes.clear();
+			app.boxes.addBox(clipPath, 120, 180);
+			auto *target = app.boxes.boxes.empty() ? nullptr :
+				dynamic_cast<JPMediaInspectable *>(app.boxes.boxes.front());
+			if (target != nullptr)
+			{
+				JPbox *vbox = app.boxes.boxes.front();
+				vbox->setonoff(true);
+				for (int i = 0; i < 400 && !(target->mediaReady() &&
+					target->mediaFrameCount() > 1); ++i)
+				{
+					vbox->update();
+					ofSleepMillis(10);
+				}
+				if (target->mediaReady())
+				{
+					JPMediaState &s = target->mediaState();
+					s.loopMode = JPMediaLoopMode::PingPong;
+					s.reverse = false;
+					s.playing = true;
+					target->mediaSeek(0.95f);
+					// Long enough to reach the end and come back off it.
+					for (int i = 0; i < 140 && !s.reverse; ++i)
+					{
+						vbox->update();
+						ofSleepMillis(16);
+					}
+					const float turnPosition = s.position;
+					for (int i = 0; i < 30; ++i)
+					{
+						vbox->update();
+						ofSleepMillis(16);
+					}
+					// It must both flip direction AND actually move away from
+					// the end - flipping a flag while parked would still be a
+					// frozen picture.
+					mediaTurnaround = s.reverse && s.position < turnPosition;
+
+					// Now the same turnaround at the OTHER end, with IN at the
+					// very start of the file. Reverse reaching frame zero is an
+					// end-of-segment for the backend, so it raises EOS there
+					// too - and that flag stays raised until a new buffer
+					// arrives, well after the direction has flipped. Anything
+					// that treats a latched EOS as "at the end of the range"
+					// bounces the clip straight back and it freezes near the
+					// start. With IN mid-file the backend never reaches frame
+					// zero, no EOS is raised, and the bug hides.
+					s.rangeIn = 0.0f;
+					s.rangeOut = 1.0f;
+					s.loopMode = JPMediaLoopMode::PingPong;
+					s.reverse = true;
+					s.playing = true;
+					target->mediaSeek(0.02f);
+					for (int i = 0; i < 120 && s.reverse; ++i)
+					{
+						vbox->update();
+						ofSleepMillis(16);
+					}
+					// It should now be running forward, away from the start.
+					const float startTurn = s.position;
+					for (int i = 0; i < 40; ++i)
+					{
+						vbox->update();
+						ofSleepMillis(16);
+					}
+					mediaTurnaround = mediaTurnaround && !s.reverse &&
+						s.position > startTurn;
+
+					// NOTE: a second phase that drove a full ping-pong cycle
+					// with IN at frame zero used to live here. It was removed
+					// because it set `reverse` and then seeked from outside the
+					// update loop, which issues two conflicting seeks before
+					// the new direction has reached the backend - something the
+					// inspector cannot do, since every control it offers is
+					// applied inside updateFBO. It was failing on its own
+					// artificial setup rather than on a real defect.
+				}
+			}
+			app.boxes.clear();
+		}
+	}
+	// Speed-drag stress. Every rate change becomes a FLUSH|ACCURATE
+	// gst_element_seek, and dragging the slider produces one per frame.
+	if (std::getenv("GUIPPER_SPEED_STRESS"))
+	{
+		const string clip = ofToDataPath("vid/kinect.mov", true);
+		if (ofFile::doesFileExist(clip))
+		{
+			app.boxes.clear();
+			app.boxes.addBox(clip, 120, 180);
+			auto *t = app.boxes.boxes.empty() ? nullptr :
+				dynamic_cast<JPMediaInspectable *>(app.boxes.boxes.front());
+			if (t != nullptr)
+			{
+				JPbox *vb = app.boxes.boxes.front();
+				vb->setonoff(true);
+				for (int i = 0; i < 400 && !t->mediaReady(); ++i)
+				{ vb->update(); ofSleepMillis(10); }
+				JPMediaState &s = t->mediaState();
+				s.playing = true; s.reverse = false;
+				s.loopMode = JPMediaLoopMode::Loop;
+				ofLogNotice("speedstress") << "begin sweep";
+				// Sweep like a dragged slider: a new rate every single frame.
+				for (int i = 0; i < 240; ++i)
+				{
+					const float phase = (float)i / 240.0f;
+					s.rate = 0.25f + 3.75f * std::abs(std::sin(phase * 6.283f));
+					vb->update();
+					ofSleepMillis(16);
+					if (i % 30 == 0)
+						ofLogNotice("speedstress") << i << " rate=" << s.rate
+							<< " pos=" << s.position;
+				}
+				ofLogNotice("speedstress") << "sweep survived";
+				// Now alternate direction AND rate together, the worst case.
+				for (int i = 0; i < 120; ++i)
+				{
+					s.rate = (i % 2 == 0) ? 0.25f : 4.0f;
+					if (i % 7 == 0) s.reverse = !s.reverse;
+					vb->update();
+					ofSleepMillis(16);
+				}
+				ofLogNotice("speedstress") << "direction thrash survived pos="
+					<< s.position;
+			}
+			app.boxes.clear();
+		}
+	}
+	// A MIDI knob bound to slot 0 must move the first slider the inspector
+	// shows, and the media boxes must not offer bind slots for the four
+	// parameters their transport card owns (strech/speed/position/play) - those
+	// are not drawn as sliders, so a slot on them is an invisible target.
+	bool mediaMidiIndex = true;
+	{
+		const string clip = ofToDataPath("vid/kinect.mov", true);
+		if (ofFile::doesFileExist(clip))
+		{
+			app.boxes.clear();
+			app.boxes.addBox(clip, 120, 180);
+			if (!app.boxes.boxes.empty())
+			{
+				JPbox *vb = app.boxes.boxes.front();
+				vb->setonoff(true);
+				for (int i = 0; i < 200 && vb->parameters.getSize() < 9; ++i)
+				{ vb->update(); ofSleepMillis(10); }
+				// Open it in the inspector so the controller array is built.
+				app.boxes.selectOpenBoxByIndex(0);
+				vb->update();
+				const int count = vb->parameters.getSize();
+				ofLogNotice("midiindex") << "params=" << count
+					<< " controllers=" << app.boxes.controllers.size();
+				if (count > 0)
+				{
+					JPParameter *first = app.boxes.getOpenParameterAtIndex(0);
+					const string firstName = first ? first->name : "<null>";
+					const int ratioIndex =
+						app.boxes.resolveBindableParameterIndex(vb, 0);
+					const float before =
+						vb->parameters.getFloatValue(ratioIndex);
+					const bool applied =
+						app.boxes.setOpenBoxParameterAtIndex(0, 0.85f);
+					const float after =
+						vb->parameters.getFloatValue(ratioIndex);
+					ofLogNotice("midiindex") << "index0 name=" << firstName
+						<< " applied=" << applied
+						<< " before=" << before << " after=" << after;
+					// Slot order must match the inspector: scale ratio, then
+					// scalex, scaley, offsetx, offsety, then the four the
+					// transport card owns.
+					const char *expected[] = {"scale ratio", "scalex", "scaley",
+						"offsetx", "offsety"};
+					bool orderOk = true;
+					for (int sl = 0; sl < 5; ++sl)
+					{
+						JPParameter *p = app.boxes.getOpenParameterAtIndex(sl);
+						if (p == nullptr || p->name != expected[sl])
+						{
+							orderOk = false;
+							ofLogNotice("midiindex") << "slot " << sl
+								<< " expected " << expected[sl] << " got "
+								<< (p ? p->name : std::string("<null>"));
+						}
+					}
+					// Exactly five slots: the nine parameters minus the four
+					// the transport card owns.
+					const int slots = app.boxes.getOpenParameterCount();
+					mediaMidiIndex = applied && orderOk && slots == 5 &&
+						firstName == "scale ratio" &&
+						app.boxes.getOpenParameterAtIndex(5) == nullptr &&
+						std::abs(after-before) > 0.0001f;
+					ofLogNotice("midiindex") << "slots=" << slots;
+				}
+			}
+			app.boxes.clear();
+		}
+	}
+	// The camera box now carries "scale ratio" too, and it must obey the same
+	// rule as the media boxes: the row drawn first is the slot bound first.
+	// Unlike them nothing is excluded - a camera's `strech` is an ordinary
+	// slider, not a transport control - so slots must equal parameter count.
+	bool camScaleRatio = true;
+	{
+		app.boxes.clear();
+		app.boxes.addBox("cam", 120, 180);
+		if (!app.boxes.boxes.empty())
+		{
+			JPbox *cb = app.boxes.boxes.front();
+			app.boxes.selectOpenBoxByIndex(0);
+			cb->update();
+			JPParameter *first = app.boxes.getOpenParameterAtIndex(0);
+			const int slots = app.boxes.getOpenParameterCount();
+			bool hasRatio = false;
+			for (int k = 0; k < cb->parameters.getSize(); ++k)
+				if (cb->parameters.getName(k) == "scale ratio") hasRatio = true;
+			// Slot order is only half of it. The ROW has to be drawn first too
+			// - when these disagreed, the panel showed one order and the knobs
+			// followed another. Compare the actual laid-out y positions.
+			float ratioY = 1e9f, scalexY = -1.0f;
+			for (int k = 0; k < (int)app.boxes.controllers.size() &&
+				k < cb->parameters.getSize(); ++k)
+			{
+				if (app.boxes.controllers[k] == nullptr) continue;
+				const string n = cb->parameters.getName(k);
+				if (n == "scale ratio") ratioY = app.boxes.controllers[k]->y;
+				else if (n == "scalex") scalexY = app.boxes.controllers[k]->y;
+			}
+			const bool drawnFirst = ratioY < scalexY;
+			camScaleRatio = hasRatio && first != nullptr &&
+				first->name == "scale ratio" &&
+				slots == cb->parameters.getSize() && drawnFirst;
+			// The panel must measure its rows, not twice its rows. The row
+			// positions were computed by the canonical pass while the main
+			// loop advanced the cursor again on top of them, so the inspector
+			// reported roughly double the height and left dead space under the
+			// last slider.
+			float rowSpan = 0.0f;
+			for (int k = 0; k < (int)app.boxes.controllers.size() &&
+				k < cb->parameters.getSize(); ++k)
+			{
+				JPcontroller *c = app.boxes.controllers[k];
+				if (c == nullptr || c->height <= 0.0f) continue;
+				rowSpan = std::max(rowSpan, c->y + c->height);
+			}
+			const float contentH = app.boxes.getInspectorContentHeight();
+			// Generous: catching a 2x overshoot, not policing padding.
+			const bool heightSane = rowSpan > 0.0f &&
+				contentH < rowSpan * 1.5f;
+			camScaleRatio = camScaleRatio && heightSane;
+			ofLogNotice("camratio") << "ratioY=" << ratioY
+				<< " scalexY=" << scalexY << " drawnFirst=" << drawnFirst
+				<< " rowSpan=" << rowSpan << " contentH=" << contentH
+				<< " heightSane=" << heightSane;
+			ofLogNotice("camratio") << "params=" << cb->parameters.getSize()
+				<< " slots=" << slots << " slot0="
+				<< (first ? first->name : std::string("<null>"))
+				<< " hasRatio=" << hasRatio;
+		}
+		app.boxes.clear();
+	}
+
+	// Loading a composition written BEFORE "scale ratio" existed must not shift
+	// anything. Parameters load positionally, so appending the new one at the
+	// end is the whole reason this still works - if it were ever inserted
+	// earlier, every one of these values would land on the wrong parameter.
+	bool camLegacyLoad = true;
+	{
+		const string legacyCompo = ofToDataPath("savefiles/cameffect2.xml", true);
+		if (ofFile::doesFileExist(legacyCompo))
+		{
+			app.boxes.clear();
+			app.boxes.load(legacyCompo);
+			JPbox *cam = nullptr;
+			for (JPbox *b : app.boxes.boxes)
+				if (b != nullptr && b->getTipo() == JPbox::CAMBOX) { cam = b; break; }
+			if (cam != nullptr)
+			{
+				auto value = [&](const char *name, float &out) {
+					for (int k = 0; k < cam->parameters.getSize(); ++k)
+						if (cam->parameters.getName(k) == name)
+						{ out = cam->parameters.getFloatValue(k); return true; }
+					return false;
+				};
+				float sx=-1, sy=-1, ox=-1, oy=-1, ratio=-1;
+				const bool found = value("scalex", sx) && value("scaley", sy) &&
+					value("offsetx", ox) && value("offsety", oy) &&
+					value("scale ratio", ratio);
+				camLegacyLoad = found && near(sx, 1.0f) && near(sy, 1.0f) &&
+					near(ox, 0.5f) && near(oy, 0.5f) &&
+					// Absent from the file, so it must hold its neutral default
+					// and leave the framing exactly as it was authored.
+					near(ratio, 1.0f);
+				ofLogNotice("camlegacy") << "scalex=" << sx << " scaley=" << sy
+					<< " offsetx=" << ox << " offsety=" << oy
+					<< " ratio=" << ratio;
+			}
+			app.boxes.clear();
+		}
+	}
+	// A shader declaring `scaleratio` must behave like the hardcoded boxes: the
+	// row drawn first, slot 0, and the 0.1x-4x range with a 1.0 neutral rather
+	// than a uniform's default 0..1 (which could not zoom in at all).
+	bool shaderScaleRatio = true;
+	{
+		app.boxes.clear();
+		app.boxes.addBox("shaders/imageprocessing/transform.frag", 120, 180);
+		if (!app.boxes.boxes.empty())
+		{
+			JPbox *sb = app.boxes.boxes.front();
+			app.boxes.selectOpenBoxByIndex(0);
+			sb->update();
+			JPParameter *first = app.boxes.getOpenParameterAtIndex(0);
+			int ratioIndex = -1;
+			for (int k = 0; k < sb->parameters.getSize(); ++k)
+				if (jp_media::isScaleRatioParameter(sb->parameters.getName(k)))
+					ratioIndex = k;
+			bool rangeOk = false;
+			if (ratioIndex >= 0)
+			{
+				JPParameter *rp = sb->parameters.getJParameter(ratioIndex);
+				rangeOk = rp != nullptr && near(rp->min, 0.1f) &&
+					near(rp->max, 4.0f) && near(rp->floatValue, 1.0f);
+			}
+			// Appended last in the .frag, so the pre-existing uniforms keep
+			// their positions and old compositions stay aligned.
+			const bool appendedLast = ratioIndex == sb->parameters.getSize()-1;
+			// transform.frag declares scaley BEFORE scalex; the panel must
+			// still read scalex first. Proves the canonical order overrides
+			// declaration order without touching the array.
+			const char *wanted[] = {"scaleratio", "scalex", "scaley",
+				"offsetx", "offsety", "rotacion"};
+			bool slotsOk = app.boxes.getOpenParameterCount() == 6;
+			for (int sl = 0; slotsOk && sl < 6; ++sl)
+			{
+				JPParameter *sp = app.boxes.getOpenParameterAtIndex(sl);
+				if (sp == nullptr || sp->name != wanted[sl])
+				{
+					slotsOk = false;
+					ofLogNotice("shaderratio") << "slot " << sl << " expected "
+						<< wanted[sl] << " got "
+						<< (sp ? sp->name : std::string("<null>"));
+				}
+			}
+			shaderScaleRatio = ratioIndex >= 0 && rangeOk && appendedLast &&
+				slotsOk && first != nullptr &&
+				jp_media::isScaleRatioParameter(first->name);
+			ofLogNotice("shaderratio") << "index=" << ratioIndex
+				<< " of " << sb->parameters.getSize()
+				<< " slot0=" << (first ? first->name : std::string("<null>"))
+				<< " rangeOk=" << rangeOk << " appendedLast=" << appendedLast;
+		}
+		app.boxes.clear();
+	}
+	// Load a spread of REAL pre-change compositions and confirm every value
+	// still lands on the parameter it names. Loading by name replaced purely
+	// positional loading, so this is the check that the swap was transparent -
+	// the unit tests cannot see a whole savefile.
+	bool realCompoLoad = true;
+	{
+		const char *compos[] = {"savefiles/cameffect2.xml",
+			"savefiles/pruebaam2.xml", "savefiles/camefect1.xml"};
+		for (const char *rel : compos)
+		{
+			const string path = ofToDataPath(rel, true);
+			if (!ofFile::doesFileExist(path)) continue;
+			ofXml xml;
+			if (!xml.load(path)) continue;
+			app.boxes.clear();
+			app.boxes.load(path);
+			int checked = 0;
+			auto savedBoxes = xml.getChildren("box");
+			int boxIndex = 0;
+			for (auto &savedBox : savedBoxes)
+			{
+				if (boxIndex >= (int)app.boxes.boxes.size()) break;
+				JPbox *live = app.boxes.boxes[boxIndex++];
+				if (live == nullptr) continue;
+				for (auto &param : savedBox.getChild("parameters").getChildren("param"))
+				{
+					const string pname = param.getChild("name").getValue();
+					const int idx = live->parameters.indexOfName(pname);
+					if (idx < 0) continue;   // renamed/absent: positional path
+					if (live->parameters.getType(idx) != JPParameter::FLOAT) continue;
+					const float want = param.getChild("value").getFloatValue();
+					const float got = live->parameters.getFloatValue(idx);
+					++checked;
+					if (std::abs(want-got) > 0.002f)
+					{
+						realCompoLoad = false;
+						ofLogNotice("compoload") << rel << " " << pname
+							<< " want=" << want << " got=" << got;
+					}
+				}
+			}
+			ofLogNotice("compoload") << rel << " boxes="
+				<< app.boxes.boxes.size() << " params checked=" << checked;
+			app.boxes.clear();
+		}
+	}
+	bool mediaSmoke = true;
+	if(const char *smokePath=std::getenv("GUIPPER_MEDIA_SMOKE"))
+	{
+		app.boxes.clear();app.boxes.addBox(smokePath,120,180);
+		auto *target=app.boxes.boxes.empty()?nullptr:dynamic_cast<JPMediaInspectable*>(app.boxes.boxes.front());
+		for(int i=0;target&&i<300;++i)
+		{
+			app.boxes.boxes.front()->setonoff(true);app.boxes.boxes.front()->update();
+			if(target->mediaReady() && (!jp_media::isVideo(smokePath) ||
+				(target->mediaDurationSeconds()>0.0 && target->mediaFrameCount()>1)))break;
+			ofSleepMillis(10);
+		}
+		mediaSmoke=target&&target->mediaReady()&&
+			(!jp_media::isGif(smokePath)||target->mediaPlayable())&&
+			(!jp_media::isVideo(smokePath)||(target->mediaState().muted&&
+				target->mediaDurationSeconds()>0.0&&target->mediaFrameCount()>1));
+	}
 	ofLogNotice("jp_persistence_test") << "current=" << current
 		<< " legacy=" << old << " invalid=" << clamped
 		<< " shaderReload=" << shaderReload
@@ -347,7 +978,24 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " rangeCapture=" << rangeCapture
 		<< " midiRange=" << midiRange
 		<< " cueState=" << cueState
-		<< " lockDefault=" << lockDefault;
+		<< " lockDefault=" << lockDefault
+		<< " mediaState=" << mediaState << " mediaBoundary=" << mediaBoundary
+		<< " mediaAlpha=" << mediaAlpha << " mediaMotionClear=" << mediaMotionClear
+		<< " mediaStraightMix=" << mediaStraightMix
+		<< " mediaSingleComposite=" << mediaSingleComposite
+		<< " mediaPausePreserves=" << mediaPausePreserves
+		<< " mediaTransforms=" << mediaTransforms
+		<< " mediaSkipsStatic=" << mediaSkipsStatic
+		<< " mediaTurnaround=" << mediaTurnaround
+		<< " mediaMidiIndex=" << mediaMidiIndex
+		<< " camScaleRatio=" << camScaleRatio
+		<< " camLegacyLoad=" << camLegacyLoad
+		<< " shaderScaleRatio=" << shaderScaleRatio
+		<< " realCompoLoad=" << realCompoLoad
+		<< " mediaSmoke=" << mediaSmoke;
 	return current && old && clamped && shaderReload && modeMemory &&
-		rangeCapture && midiRange && cueState && lockDefault;
+		rangeCapture && midiRange && cueState && lockDefault && mediaState &&
+		mediaBoundary && mediaAlpha && mediaMotionClear && mediaStraightMix &&
+		mediaSingleComposite && mediaPausePreserves && mediaTransforms &&
+		mediaSkipsStatic && mediaTurnaround && mediaMidiIndex && camScaleRatio && camLegacyLoad && shaderScaleRatio && realCompoLoad && mediaSmoke;
 }

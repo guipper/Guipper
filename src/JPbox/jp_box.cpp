@@ -53,6 +53,7 @@ void JPbox::reloadShaderonly() {}
 void JPbox::reload() {}
 void JPbox::setup(ofTrueTypeFont &_font)
 {
+	isactiverender = false;
 	padding_top = 30;
 	padding_leftright = 15;
 	padding_bottom = 5;
@@ -96,6 +97,7 @@ void JPbox::setup(ofTrueTypeFont &_font)
 }
 void JPbox::setup(string _directory, string _name)
 {
+	isactiverender = false;
 	padding_top = 30;
 	padding_leftright = 15;
 	padding_bottom = 5;
@@ -313,17 +315,9 @@ void JPbox::draw()
 }
 void JPbox::updateFBO()
 {
-	ofSetRectMode(OF_RECTMODE_CORNER);
-	fbo.begin();
-
-	ofSetColor(COL_TEXT_PRIMARY);
-	// ofDrawRectangle(0, 0, fbo.getWidth(), fbo.getHeight());
-	fbo.draw(0, 0, fbo.getWidth(), fbo.getHeight());
-	// ofSetColor(255, 0, 0);
-	// ofNoFill();
-	// ofDrawEllipse(fbo.getWidth() / 2, fbo.getHeight() / 2,500,500);
-	// ofFill();
-	fbo.end();
+	// Paused boxes hold their last rendered frame. Drawing an FBO into itself
+	// is undefined feedback and, with alpha blending enabled, repeatedly
+	// premultiplies soft edges and tints them with the UI text color.
 }
 void JPbox::draw_outlet()
 {
@@ -450,11 +444,16 @@ bool JPbox::tryPassThroughFBO()
 	{
 		if (fbohandlergroup.getisPointerSet(i))
 		{
+			ofPushStyle();
 			ofSetRectMode(OF_RECTMODE_CORNER);
-			ofSetColor(COL_TEXT_PRIMARY);
+			ofSetColor(255, 255, 255, 255);
 			fbo.begin();
+			ofClear(0, 0, 0, 0);
+			ofEnableBlendMode(OF_BLENDMODE_DISABLED);
 			fbohandlergroup.getFboPointer(i).draw(0, 0, fbo.getWidth(), fbo.getHeight());
 			fbo.end();
+			ofEnableAlphaBlending();
+			ofPopStyle();
 			return true;
 		}
 	}

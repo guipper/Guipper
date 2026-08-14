@@ -3,6 +3,7 @@
 #include "defines.h"
 #include "ofMain.h"
 #include "jp_box.h"
+#include "jp_media_state.h"
 #include "../JPutils/jp_parametergroup.h"
 #include "../JPutils/jp_fbohandler.h"
 #include <array>

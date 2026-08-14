@@ -12,6 +12,10 @@ public:
 	void setup(ofFbo * _fbo1, ofFbo * _fbo2);
 	void advance();
 	void update();
+	// Renders a straight-RGBA interpolation into the currently bound target.
+	// The caller owns target clearing and blend state.
+	bool renderStraightMix(ofFbo *first, ofFbo *second, float mixValue,
+		float width, float height);
 	void setLerpValue(float _val);
 	void setLerpValue();
 	void reload();
@@ -41,6 +45,7 @@ public:
 	ofFbo dummyfbo;
 	//void update(Shaderrender * _Sh, Shaderrender * _Sh2);
 private:
+	bool ensureShader();
 
 	float x;
 	float y;

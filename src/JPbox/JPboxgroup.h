@@ -30,6 +30,7 @@ class JPShaderEditor; // forward declaration
 #include "../JPgui/jp_bang.h"
 #include "../JPgui/jp_toogle.h"
 #include "../JPgui/jp_complexslider.h"
+#include "jp_media.h"
 #include "../JPgui/jp_exposebutton.h"
 // Esta clase como que va a manejar todos los shaderboxs y esas cosas:
 #include "../JPutils/jp_constants.h"
@@ -125,6 +126,7 @@ public:
 	void deleteSelectedShader();
 	void keyPressed(int key); // For inline tab renaming
 	bool handleInspectorRangeShortcut(int key);
+	bool handleMediaInspectorClick();
 	void commitTabRename();
 	void cancelTabRename();
 
@@ -210,6 +212,21 @@ public:
 	int getMaxParameterCount() const;
 	int getOpenParameterCount() const;
 	JPParameter *getOpenParameterAtIndex(int parameterIndex) const;
+	// Maps a bind slot (what the MIDI panel calls "parameter N", counting from
+	// the top of the inspector) onto an index into the box's parameter array.
+	//
+	// These are not the same thing for media boxes. The inspector deliberately
+	// lays "scale ratio" out first, ahead of scalex, but the parameter array
+	// keeps it last so saved compositions stay readable in order. Binding
+	// straight to the array index therefore pointed knob 1 at the SECOND row on
+	// screen. Slots now follow what you see.
+	//
+	// Order is: visible rows top to bottom, then any parameter the inspector
+	// hides behind the transport card (speed/position/play/strech). Appending
+	// rather than dropping them keeps those bindable instead of silently
+	// removing four slots.
+	vector<int> getBindableParameterOrder(JPbox *box) const;
+	int resolveBindableParameterIndex(JPbox *box, int slot) const;
 	bool setOpenBoxParameterAtIndex(int parameterIndex, float value);
 	// Drive one named box directly. Used as the fallback when no inspector is
 	// open, so a parameter bind still moves the box it was made against.
@@ -537,6 +554,21 @@ private:
 	ofRectangle inspectorInputsHeaderBounds;
 	bool inspectorInputsExpanded = true;
 	vector<InspectorInputRow> inspectorInputRows;
+	struct MediaInspectorLayout
+	{
+		ofRectangle card, fit, restart, previous, play, next, direction,
+			loop, speed, timeline, inButton, inField, outButton, outField,
+			mute, volume;
+		void clear() { *this = MediaInspectorLayout(); }
+	} mediaInspector;
+	bool mediaInspectorPlayableBuilt = false;
+	int mediaTimeFieldFocus = 0;
+	string mediaTimeFieldBuffer;
+	bool mediaTimeFieldReplaceOnType = false;
+	bool mediaTimelineDragging = false;
+	int mediaRangeDragging = 0;
+	void layoutMediaInspector(JPMediaInspectable *media, float &cursorY);
+	void drawMediaInspector(JPMediaInspectable *media);
 	struct InspectorParameterGroupHeader
 	{
 		int layerIndex = -1;

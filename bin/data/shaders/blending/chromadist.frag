@@ -16,15 +16,15 @@ void main()
 	vec4 t2 =  texture(textura2, gl_FragCoord.xy/resolution);
 	
 	vec3 col1 = vec3(chromared,chromagreen,chromablue);
-	vec3 fin = t1.rgb;
+	vec4 fin = t1;
 	
 	if(distance(col1,t1.rgb) < umbral){
-		 fin = mix(t2.rgb,t1.rgb,distance(col1,t1.rgb)*diststr*15.0);
+	 float amount = clamp(distance(col1,t1.rgb)*diststr*15.0, 0.0, 1.0);
+	 fin = mix(t2,t1,amount);
 	}
 	
-	fragColor = vec4(fin,1.0); 
+	fragColor = fin;
 }
-
 
 
 

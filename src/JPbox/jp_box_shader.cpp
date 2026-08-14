@@ -386,9 +386,14 @@ void JPbox_shader::updateFBO()
 					rebuildAdvancedMappingMask(layerIndex);
 			}
 		}
+		ofPushStyle();
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		ofSetColor(255, 255);
 		fbo.begin();
+		// A fragment shader already produces the complete destination pixel.
+		// Alpha-blending that result over the box's previous frame accumulates
+		// transparent media and creates duplicated silhouettes/backgrounds.
+		ofEnableBlendMode(OF_BLENDMODE_DISABLED);
 		shader.begin();
 		update_globalUniforms();
 		update_NonglobalUniforms();
@@ -404,6 +409,8 @@ void JPbox_shader::updateFBO()
 		
 		shader.end();
 		fbo.end();
+		ofEnableAlphaBlending();
+		ofPopStyle();
 
 		fbo.begin();
 		//ofSetColor(255, 0, 0);
@@ -513,6 +520,23 @@ void JPbox_shader::setUniforms(JPParameterGroup &_parameters,
 				if (!jp_shader_globals::isNewGlobalName(frase[2]))
 				{
 					_parameters.addFloatValue(value, frase[2], true);
+					// A uniform named `scaleratio` is the shader-side spelling
+					// of the uniform zoom the camera and media boxes carry (a
+					// GLSL identifier cannot contain a space). Give it the same
+					// 0.1x-4x range and 1.0 neutral so it reads and behaves
+					// identically wherever it appears, instead of being pinned
+					// to the default 0..1 and unable to zoom in at all.
+					if (jp_media::isScaleRatioParameter(frase[2]))
+					{
+						JPParameter *ratio = _parameters.getJParameter(
+							_parameters.getSize()-1);
+						if (ratio != nullptr)
+						{
+							ratio->nativeMin = ratio->min = 0.1f;
+							ratio->nativeMax = ratio->max = 4.0f;
+							ratio->defaultFloatValue = 1.0f;
+						}
+					}
 				}
 			}
 			else if (linesOfTheFile[l].find("sampler2DRect") != std::string::npos)

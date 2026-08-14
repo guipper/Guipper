@@ -20,6 +20,7 @@
 //#include "JPbox/Shaderrender.h"
 #include "JPutils/jp_fileloader.h"
 #include "JPutils/jp_constants.h"
+#include "JPutils/jp_media_stats.h"
 #include "JPutils/jp_tooltip.h"
 #include "JPutils/jp_help_content.h"
 #include "JPutils/jp_audio.h"

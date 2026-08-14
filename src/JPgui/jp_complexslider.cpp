@@ -399,6 +399,25 @@ bool JPComplexSlider::setRangeHandleFromMouse(int handle, float mouseX)
 	return std::abs(previous - next) > 0.000001f;
 }
 
+bool JPComplexSlider::valueSliderContains(float mouseX,float mouseY) const
+{
+	return parameters!=nullptr && slider_value.width>0 && slider_value.height>0 &&
+		mouseX>=slider_value.x-slider_value.width*0.5f &&
+		mouseX<=slider_value.x+slider_value.width*0.5f &&
+		mouseY>=slider_value.y-slider_value.height*0.5f &&
+		mouseY<=slider_value.y+slider_value.height*0.5f;
+}
+
+float JPComplexSlider::valueFromMouse(float mouseX) const
+{
+	if(parameters==nullptr || slider_value.width<=0) return value;
+	const float mapped=ofMap(mouseX,
+		slider_value.x-slider_value.width*0.5f,
+		slider_value.x+slider_value.width*0.5f,
+		parameters->nativeMin,parameters->nativeMax,true);
+	return ofClamp(mapped,parameters->effectiveMin(),parameters->effectiveMax());
+}
+
 void JPComplexSlider::setup(float _x, float _y, float _width, float _height, JPParameter *_parameters)
 {
 	parameters = _parameters;

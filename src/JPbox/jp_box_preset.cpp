@@ -1,4 +1,5 @@
 #include "jp_box_preset.h"
+#include "jp_media.h"
 
 namespace
 {
@@ -77,18 +78,11 @@ void JPbox_preset::setup(string _directory, string _name)
 		{
 			bx = new JPbox_shader();
 		}
-		else if (directory.getValue().find(".jpg") != std::string::npos ||
-				 directory.getValue().find(".png") != std::string::npos ||
-				 directory.getValue().find(".jpeg") != std::string::npos)
+		else if (jp_media::isImage(directory.getValue()))
 		{
 			bx = new JPbox_image();
 		}
-		else if (directory.getValue().find(".mov") != std::string::npos ||
-				 directory.getValue().find(".mkv") != std::string::npos ||
-				 directory.getValue().find(".mp4") != std::string::npos ||
-				 directory.getValue().find(".flv") != std::string::npos ||
-				 directory.getValue().find(".vob") != std::string::npos ||
-				 directory.getValue().find(".avi") != std::string::npos)
+		else if (jp_media::isVideo(directory.getValue()))
 		{
 			bx = new JPbox_video();
 		}
@@ -395,6 +389,7 @@ void JPbox_preset::updateFBO()
 	{
 		for (int i = boxes.size() - 1; i >= 0; i--)
 		{
+			boxes[i]->isactiverender = isactiverender && i == activeRender;
 			boxes[i]->update();
 			// Do NOT force onoff - user can toggle PAUSE freely in group view.
 			// Initial onoff state is loaded from XML (defaults to true if not found).
@@ -439,18 +434,21 @@ void JPbox_preset::renderActiveRender()
 	}
 
 	ofPushStyle();
-	ofEnableAlphaBlending();
 	fbo.begin();
 	ofClear(0, 0, 0, 0);
+	ofEnableBlendMode(OF_BLENDMODE_DISABLED);
 	if (activeRenderTransitionRunning)
 	{
 		activeRenderTransition.advance();
 		float progress = activeRenderTransition.getLerpValue();
 		float easedProgress = progress * progress * (3.0f - 2.0f * progress);
-		ofSetColor(255, 255, 255, 255);
-		boxes[lastCompositedActiveRender]->fbo.draw(0, 0, fbo.getWidth(), fbo.getHeight());
-		ofSetColor(255, 255, 255, (unsigned char)(255.0f * easedProgress));
-		boxes[targetIndex]->fbo.draw(0, 0, fbo.getWidth(), fbo.getHeight());
+		if (!activeRenderTransition.renderStraightMix(
+			&boxes[lastCompositedActiveRender]->fbo,
+			&boxes[targetIndex]->fbo, easedProgress,
+			fbo.getWidth(), fbo.getHeight()))
+		{
+			boxes[targetIndex]->fbo.draw(0, 0, fbo.getWidth(), fbo.getHeight());
+		}
 	}
 	else
 	{
@@ -458,6 +456,7 @@ void JPbox_preset::renderActiveRender()
 		boxes[targetIndex]->fbo.draw(0, 0, fbo.getWidth(), fbo.getHeight());
 	}
 	fbo.end();
+	ofEnableAlphaBlending();
 	ofPopStyle();
 
 	if (activeRenderTransitionRunning && activeRenderTransition.getLerpValue() >= 1.0f)

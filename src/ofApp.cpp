@@ -317,6 +317,9 @@ void ofApp::registerSurfaces()
 }
 void ofApp::update() {
 	const auto updateStart = ProfileClock::now();
+	// Publishes last frame's media pass totals before this frame's boxes start
+	// counting, so the overlay always reads a complete frame.
+	jp_box_media_stats::beginFrame();
 	boxes.setProfilingEnabled(isDebug);
 	jp_uishot::update(*this);
 	// Arming a learn from the canvas (Map mode) brings its screen up, so the
@@ -532,6 +535,13 @@ void ofApp::draw_debugInfo() {
 		"  OSC " + ofToString(frameProfile.oscMs, 2), 30, posy -= sepy);
 	font_p.drawString("CPU draw: " + ofToString(frameProfile.drawMs, 2) +
 		" ms  peak " + ofToString(frameProfile.drawPeakMs, 2), 30, posy -= sepy);
+	// Media FBO passes performed vs skipped. A skip is invisible by design, so
+	// without this a regression that re-renders every frame would look fine.
+	// Static images should settle at 0 rendered.
+	font_p.drawString("Media passes: " +
+		ofToString(jp_box_media_stats::getRendered()) + " drawn  " +
+		ofToString(jp_box_media_stats::getSkipped()) + " skipped",
+		30, posy -= sepy);
 	const JPboxgroup::ProfileSnapshot &graph = boxes.getProfileSnapshot();
 	font_p.drawString("Graph: params " + ofToString(graph.parametersMs, 2) +
 		" group " + ofToString(graph.groupViewMs, 2) +

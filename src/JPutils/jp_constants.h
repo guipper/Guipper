@@ -114,6 +114,7 @@ public:
 	static ofTrueTypeFont inspector_title_font;
 	static ofTrueTypeFont inspector_body_font;
 	static ofTrueTypeFont inspector_secondary_font;
+	static ofTrueTypeFont inspector_media_font;
 
 	// Aca tal vez convendr�a pasar todo esto a tipo, otra clase? Algo especifico para manejar los colores? vamos a dejarlo aca pora ahora
 	static vector<ofColor> CmouseOver; // Color para cuando el mouse esta por arriba :

@@ -122,6 +122,20 @@ public:
 	void clear();
 	void coutData();
 	string getName(int _index);
+	// Index of a parameter by name, or -1.
+	int indexOfName(const string &_name) const;
+	// Where a saved <param> should be written: the parameter it names if the
+	// box still has one, otherwise the position it appeared at.
+	//
+	// Loading used to be purely positional, which froze the parameter arrays -
+	// reordering, or inserting anywhere but the end, silently shifted every
+	// value in every saved composition. Matching on name first lifts that. The
+	// positional fallback keeps the old behaviour for a renamed shader uniform,
+	// which would otherwise lose its value entirely.
+	//
+	// Same rule JPboxgroup::copyParametersByNameOrIndex has always used for cue
+	// drafts. Returns -1 when neither resolves in range.
+	int resolveLoadIndex(const string &_name, int _positionalIndex) const;
 	// GETTERS :
 	int getSize();
 	int getType(int _index);

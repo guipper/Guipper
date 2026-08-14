@@ -22,3 +22,5 @@ bin/data/groups/
 bin/data/shader_favorites.xml
 tests/audio_core_tests
 tests/audio_core_tests_tsan
+tests/media_core_tests
+tests/media_core_tests_tsan

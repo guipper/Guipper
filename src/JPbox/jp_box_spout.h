@@ -2,6 +2,7 @@
 #include "defines.h"
 #include "ofMain.h"
 #include "jp_box.h"
+#include "jp_media_state.h"
 //#include "ofxSpout2Receiver.h"
 #include "../JPutils/jp_parametergroup.h"
 #include "../JPutils/jp_fbohandler.h"
@@ -13,6 +14,11 @@
 
 class JPbox_spout : public JPbox {
 public:
+
+	// Index of the uniform-zoom parameter. Resolved once in setup rather than
+	// hardcoded, since it is appended after a different number of parameters in
+	// each of these boxes.
+	int scaleRatioIndex = -1;
 	JPbox_spout();// constructor declared
 	~JPbox_spout();
 

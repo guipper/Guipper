@@ -25,6 +25,18 @@ void JPbox_ndi::setup(string _dir, string _name)
 	parameters.addFloatValue(0.5, "offsety");
 	parameters.addBoolValue(true, "strech");
 	parameters.addFloatValue(0.0, "reciever");
+	// Appended LAST on purpose: JPboxgroup::load fills parameters positionally,
+	// so inserting anywhere else would shift every parameter in every saved
+	// composition. Files written before this existed simply stop short and the
+	// zoom keeps its neutral 1.0.
+	parameters.addFloatValue(1.0, "scale ratio");
+	if (JPParameter *ratio = parameters.getJParameter(parameters.getSize()-1))
+	{
+		ratio->nativeMin = ratio->min = 0.1f;
+		ratio->nativeMax = ratio->max = 4.0f;
+		ratio->defaultFloatValue = 1.0f;
+	}
+	scaleRatioIndex = parameters.getSize()-1;
 	tipo = NDIBOX;
 
 	/************************************************************************************/
@@ -87,15 +99,14 @@ void JPbox_ndi::updateFBO()
 
 	if (onoff.boolValue)
 	{
-		float mscalex = ofMap(parameters.getFloatValue(0), 0.0, 1.0, 0.0, jp_constants::renderWidth);
-		float mscaley = ofMap(parameters.getFloatValue(1), 0.0, 1.0, 0.0, jp_constants::renderHeight);
-		float moffsetx = ofMap(parameters.getFloatValue(2), 0.0, 1.0,
-							   -jp_constants::renderWidth / 2 - mscalex / 2,
-							   jp_constants::renderWidth / 2 + mscalex / 2);
-
-		float moffsety = ofMap(parameters.getFloatValue(3), 0.0, 1.0,
-							   -jp_constants::renderHeight / 2 - mscaley / 2,
-							   jp_constants::renderHeight / 2 + mscaley / 2);
+		// Shared with the camera box: identical transform, one implementation.
+		// At ratio 1.0 this reproduces the previous ofMap maths exactly.
+		const float zoom = scaleRatioIndex >= 0 ?
+			parameters.getFloatValue(scaleRatioIndex) : 1.0f;
+		const jp_media::JPMediaRect r = jp_media::legacyTransformRect(
+			parameters.getFloatValue(0), parameters.getFloatValue(1),
+			parameters.getFloatValue(2), parameters.getFloatValue(3),
+			zoom, jp_constants::renderWidth, jp_constants::renderHeight);
 
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		ofSetColor(255, 255);
@@ -106,14 +117,16 @@ void JPbox_ndi::updateFBO()
 			ofSetColor(0, 255);
 			ofDrawRectangle(0, 0, jp_constants::renderWidth, jp_constants::renderHeight);
 			ofSetColor(255, 255);
-			myTexture.draw(jp_constants::renderWidth / 2 - mscalex / 2 + moffsetx,
-						   jp_constants::renderHeight / 2 - mscaley / 2 + moffsety,
-						   mscalex,
-						   mscaley);
+			myTexture.draw(r.x, r.y, r.width, r.height);
 		}
 		else
 		{
-			myTexture.draw(0, 0, jp_constants::renderWidth, jp_constants::renderHeight);
+			// Stretch fills the canvas, but the uniform zoom still applies -
+			// same as Stretch in the media boxes' transformedRect.
+			const float sw = jp_constants::renderWidth * zoom;
+			const float sh = jp_constants::renderHeight * zoom;
+			myTexture.draw((jp_constants::renderWidth - sw) * 0.5f,
+				(jp_constants::renderHeight - sh) * 0.5f, sw, sh);
 		}
 		// ofSetColor(255, 0, 0);
 		// ofDrawEllipse(fbo.getWidth() / 2, fbo.getHeight() / 2, 200, 200);

@@ -51,7 +51,8 @@ void JPbox_framedifference::updateFBO()
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		ofSetColor(COL_TEXT_PRIMARY, 255);
 		fbo.begin();
-		// ofClear(0, 255);
+		ofClear(0, 0, 0, 0);
+		ofEnableBlendMode(OF_BLENDMODE_DISABLED);
 		if (fbohandlergroup.getisPointerSet(0))
 		{
 			shader.begin();
@@ -66,14 +67,21 @@ void JPbox_framedifference::updateFBO()
 			ofDrawEllipse(fbo.getWidth() / 2, fbo.getHeight() / 2, 200, 200);
 		}
 		fbo.end();
+		ofEnableAlphaBlending();
 
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		ofSetColor(COL_TEXT_PRIMARY, 255);
 		if (fbohandlergroup.getisPointerSet(0))
 		{
+			ofPushStyle();
 			frameAnterior.begin();
+			ofClear(0, 0, 0, 0);
+			ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+			ofSetColor(255, 255, 255, 255);
 			fbohandlergroup.getFboPointer(0).draw(0, 0, fbo.getWidth(), fbo.getHeight());
 			frameAnterior.end();
+			ofEnableAlphaBlending();
+			ofPopStyle();
 		}
 	}
 	else
