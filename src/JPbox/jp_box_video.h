@@ -19,6 +19,11 @@ public:
 	~JPbox_video();
 
 	ofVideoPlayer movie;
+	// Whether play() has been issued against a movie that was actually loaded.
+	// setup() cannot do it: it calls play() one line after loadAsync().
+	bool playbackStarted = false;
+	// Rate limit for GUIPPER_VIDEO_TRACE.
+	uint64_t nextTraceMs = 0;
 	JPMediaState media;
 	JPMediaState &mediaState() override { return media; }
 	const JPMediaState &mediaState() const override { return media; }

@@ -15,7 +15,10 @@ void JPbox_video::setup(string _dir, string _nombre) {
 	movie.loadAsync(_dir);
 	movie.setLoopState(OF_LOOP_NONE);
 	movie.setVolume(0.0f);
-	movie.play();
+	// NOT play() here - the load is asynchronous and cannot have finished by
+	// this line. updateFBO starts playback on the first frame the movie is
+	// genuinely loaded. See playbackStarted.
+	playbackStarted = false;
 	sourceDuration = 0.0;
 	sourceFrames = 0;
 	nextMetadataQueryMs = 0;
@@ -83,6 +86,36 @@ void JPbox_video::updateFBO() {
 	if (onoff.boolValue) {
 		movie.update();
 		seekedThisFrame = false;
+		// GUIPPER_VIDEO_TRACE=1 reports what the video backend is actually
+		// doing, once a second per box. The backend differs per platform -
+		// GStreamer on Linux, AVFoundation on macOS, DirectShow on Windows -
+		// and they disagree about isLoaded/isPaused/getTotalNumFrames timing,
+		// so "the video does not work" is only diagnosable with these values
+		// from the machine that shows the problem.
+		static const bool trace = std::getenv("GUIPPER_VIDEO_TRACE") != nullptr;
+		if (trace)
+		{
+			const uint64_t now = ofGetElapsedTimeMillis();
+			if (now >= nextTraceMs)
+			{
+				nextTraceMs = now + 1000;
+				ofLogNotice("videotrace")
+					<< name
+					<< " loaded=" << movie.isLoaded()
+					<< " playing=" << (movie.isPlaying() ? 1 : 0)
+					<< " paused=" << (movie.isPaused() ? 1 : 0)
+					<< " started=" << playbackStarted
+					<< " size=" << movie.getWidth() << "x" << movie.getHeight()
+					<< " frames=" << movie.getTotalNumFrames()
+					<< " dur=" << movie.getDuration()
+					<< " pos=" << movie.getPosition()
+					<< " done=" << (movie.getIsMovieDone() ? 1 : 0)
+					<< " gen=" << sourceGeneration
+					<< " mediaPlaying=" << (media.playing ? 1 : 0)
+					<< " rate=" << media.rate
+					<< " dir=" << dir;
+			}
+		}
 		// Everything from here to the FBO block is state, not pixels: decoder
 		// pumping, loop/boundary handling and the legacy parameter write-back
 		// the inspector reads. It must run every frame even when the render is
@@ -98,6 +131,25 @@ void JPbox_video::updateFBO() {
 				sourceFrames=std::max(sourceFrames,movie.getTotalNumFrames());
 				nextMetadataQueryMs=now+250;
 			}
+			// Playback has to be STARTED once, here, rather than in setup().
+			// setup() issues play() one line after loadAsync(), when the asset
+			// cannot possibly be ready: a backend that queues the state change
+			// until preroll honours it, one that requires a loaded asset drops
+			// it on the floor. Nothing afterwards recovers, because the pause
+			// management below only acts when isPaused() DISAGREES with the
+			// target - and a player that was never started can report itself
+			// as not paused, which agrees, so it sits on frame one forever.
+			//
+			// Gated on mediaReady(), NOT isLoaded(). Measured with
+			// GUIPPER_VIDEO_TRACE: isLoaded() goes true a good two seconds
+			// before the movie has any dimensions or duration - 720x480 arrives
+			// long after loaded=1 - and starting inside that window repeats the
+			// original mistake, just later. mediaReady() is the existing
+			// "metadata has actually arrived" test the inspector already uses.
+			//
+			// The setPaused call below runs later in this same update, so a box
+			// restored in a paused state never advances a frame.
+			if(!playbackStarted && mediaReady()){playbackStarted=true;movie.play();}
 			if(mediaSeekPending){movie.setPosition(media.position);mediaSeekPending=false;}
 			const float legacySpeed=parameters.getFloatValue(5);
 			const float legacyPosition=parameters.getFloatValue(6);
