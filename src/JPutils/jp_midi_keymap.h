@@ -309,8 +309,6 @@ private:
 	string getActionName(Action action) const;
 	string actionToXml(Action action) const;
 	Action actionFromXml(string value) const;
-	static void beginColumnClip(const ofRectangle &r);
-	static void endColumnClip();
 	static const vector<float> &headerSlotWidths();
 	void drawPanelHeader(float x, float y, float w);
 	void drawBoxSelector(float x, float y, float w);

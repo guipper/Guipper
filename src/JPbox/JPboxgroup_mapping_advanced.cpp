@@ -1,4 +1,5 @@
 #include "JPboxgroup.h"
+#include "../JPgui/jp_gl_state.h"
 
 #include "../JPutils/jp_tooltip.h"
 
@@ -1176,41 +1177,25 @@ void JPboxgroup::drawAdvancedMappingPanel()
 		mappingPanelY + kAdvancedPanelTop,
 		mappingPanelW - 2.0f,
 		mappingPanelH - kAdvancedPanelTop - 1.0f);
-	GLint previousScissor[4];
-	GLint viewport[4];
-	const GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
-	glGetIntegerv(GL_SCISSOR_BOX, previousScissor);
-	glGetIntegerv(GL_VIEWPORT, viewport);
-	// Pixels per screen coordinate, read from the live viewport rather than
-	// assumed to be 1, so this stays correct on a hidpi surface.
-	const float pixelScale = ofGetHeight() > 0 ?
-		viewport[3] / static_cast<float>(ofGetHeight()) : 1.0f;
-	glEnable(GL_SCISSOR_TEST);
-	glScissor(viewport[0] + static_cast<GLint>(std::floor(clip.x * pixelScale)),
-		viewport[1] + static_cast<GLint>(std::floor(
-			(ofGetHeight() - (clip.y + clip.height)) * pixelScale)),
-		std::max(0, static_cast<GLint>(std::ceil(clip.width * pixelScale))),
-		std::max(0, static_cast<GLint>(std::ceil(clip.height * pixelScale))));
-
-	if (state->guideVisible && box->hasAdvancedMappingGuide())
 	{
-		ofSetColor(255);
-		box->getAdvancedMappingGuide()->draw(canvas);
-		ofSetColor(255, static_cast<int>(255.0f *
-			(1.0f - state->guideOpacity * 0.55f)));
-	}
-	else
-	{
-		ofSetColor(255);
-	}
-	box->fbo.draw(canvas);
+		jp_gl::ScopedScissor mappingClip(clip);
 
-	drawAdvancedMappingOverlay(preview.x, preview.y,
-		preview.width, preview.height, mappingGuidesVisible, true);
+		if (state->guideVisible && box->hasAdvancedMappingGuide())
+		{
+			ofSetColor(255);
+			box->getAdvancedMappingGuide()->draw(canvas);
+			ofSetColor(255, static_cast<int>(255.0f *
+				(1.0f - state->guideOpacity * 0.55f)));
+		}
+		else
+		{
+			ofSetColor(255);
+		}
+		box->fbo.draw(canvas);
 
-	glScissor(previousScissor[0], previousScissor[1],
-		previousScissor[2], previousScissor[3]);
-	if (!scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
+		drawAdvancedMappingOverlay(preview.x, preview.y,
+			preview.width, preview.height, mappingGuidesVisible, true);
+	}
 
 	ofSetColor(COL_ACCENT_CYAN, 200);
 	ofDrawLine(mappingPanelX + mappingPanelW - 18.0f,

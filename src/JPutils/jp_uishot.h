@@ -33,6 +33,10 @@ namespace jp_uishot
 	// default composition, which the harness has to clobber.
 	void setup(ofApp &app);
 
+	// Test-only stale state injection. Called immediately before the production
+	// window-state reset, after all offscreen updates have finished.
+	void poisonWindowStateForTest();
+
 	// First line of ofApp::update(), so state is armed before boxes.update()
 	// runs rebuildControllersIfLayoutStale().
 	void update(ofApp &app);

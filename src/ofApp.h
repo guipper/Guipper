@@ -17,6 +17,7 @@
 #include "JPutils/jp_pointer.h"
 #include "JPgui/jp_surfacestack.h"
 #include "JPgui/jp_screen.h"
+#include "JPgui/jp_gl_state.h"
 //#include "JPbox/Shaderrender.h"
 #include "JPutils/jp_fileloader.h"
 #include "JPutils/jp_constants.h"
@@ -495,9 +496,17 @@ public:
 		ofRectangle audioGateSlider;
 		ofRectangle audioMeter;
 		float labelX = 0.0f;
+		float labelWidth = 0.0f;
 		float rowH = 28.0f;
 	};
 	SettingsLayout getSettingsLayout() const;
+	// Width of the SETTINGS panel, measured from its own widest label rather
+	// than assumed. getLiveOutputSettingsLayout places the OUTPUTS panel
+	// immediately to the right of this one, so both must read the same number:
+	// two independent constants is how they end up overlapping.
+	float getSettingsPanelWidth() const;
+	float getSettingsPanelHeight() const;
+	bool settingsUseTwoColumns() const;
 	// Audio device dropdown state (SETTINGS). Registered with SURFACE_DROPDOWN
 	// so it blocks the rows it covers.
 	bool audioMenuOpen = false;

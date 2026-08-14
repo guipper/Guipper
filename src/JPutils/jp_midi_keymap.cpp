@@ -1,4 +1,5 @@
 #include "jp_midi_keymap.h"
+#include "../JPgui/jp_gl_state.h"
 #include "jp_tooltip.h"
 #include "../JPgui/jp_screen.h"
 #include "../JPgui/jp_button.h"
@@ -1554,20 +1555,6 @@ JPMidiKeymap::Action JPMidiKeymap::actionFromXml(string value) const
 	return BYPASS;
 }
 
-void JPMidiKeymap::beginColumnClip(const ofRectangle &r)
-{
-	// Same primitive the target-box dropdown already uses. Window coords, so
-	// it assumes points == pixels, which holds everywhere this app runs.
-	glEnable(GL_SCISSOR_TEST);
-	glScissor((int)r.x, (int)(ofGetHeight() - (r.y + r.height)),
-		(int)r.width, (int)r.height);
-}
-
-void JPMidiKeymap::endColumnClip()
-{
-	glDisable(GL_SCISSOR_TEST);
-}
-
 void JPMidiKeymap::draw()
 {
 	jp_pointer::Scope pointerScope(jp_pointer::kMidiBody);
@@ -1601,11 +1588,12 @@ void JPMidiKeymap::draw()
 
 	// LEFT COLUMN - the lists you bind from. Clipped so a scrolled row cannot
 	// paint over the header or spill past the frame.
-	beginColumnClip(layout.leftCol);
-	drawParameterIndexSelector(layout.innerX, layout.paramY, layout.innerW);
-	drawGlobalFunctionsSelector(layout.innerX, layout.globalY, layout.innerW);
-	drawAddShaderSelector(layout.innerX, layout.addShaderY, layout.innerW);
-	endColumnClip();
+	{
+		jp_gl::ScopedScissor leftClip(layout.leftCol);
+		drawParameterIndexSelector(layout.innerX, layout.paramY, layout.innerW);
+		drawGlobalFunctionsSelector(layout.innerX, layout.globalY, layout.innerW);
+		drawAddShaderSelector(layout.innerX, layout.addShaderY, layout.innerW);
+	}
 
 	// RIGHT COLUMN - context stays pinned, the bindings list scrolls.
 	ofSetColor(COL_TEXT_PRIMARY);
@@ -1642,11 +1630,12 @@ void JPMidiKeymap::draw()
 			layout.rightX + SELECT_LABEL_W,
 			layout.learnY - SELECT_FIELD_Y_OFFSET, 200.0f, ROW_H);
 	}
-	beginColumnClip(ofRectangle(layout.rightCol.x,
-		layout.actionY + ROW_H + 8.0f, layout.rightCol.width,
-		layout.rightCol.getMaxY() - (layout.actionY + ROW_H + 8.0f)));
-	drawBindings(layout.rightX, layout.bindingsY, layout.rightW);
-	endColumnClip();
+	{
+		jp_gl::ScopedScissor bindingsClip(ofRectangle(layout.rightCol.x,
+			layout.actionY + ROW_H + 8.0f, layout.rightCol.width,
+			layout.rightCol.getMaxY() - (layout.actionY + ROW_H + 8.0f)));
+		drawBindings(layout.rightX, layout.bindingsY, layout.rightW);
+	}
 
 	if (conflictPromptOpen)
 	{
@@ -1750,13 +1739,9 @@ void JPMidiKeymap::draw()
 		// Clamp scroll offset
 		targetBoxScrollY = ofClamp(targetBoxScrollY, 0.0f, dropdown.maxScrollY);
 
-		// Draw option buttons inside scissor viewport
-		glEnable(GL_SCISSOR_TEST);
-		int scissorX = dropdown.x;
-		int scissorY = ofGetHeight() - (dropdown.y + dropdown.h);
-		int scissorW = dropdown.w;
-		int scissorH = dropdown.h;
-		glScissor(scissorX, scissorY, scissorW, scissorH);
+		// Draw option buttons inside the dropdown viewport.
+		jp_gl::ScopedScissor dropdownClip(ofRectangle(
+			dropdown.x, dropdown.y, dropdown.w, dropdown.h));
 
 		for (int i = 0; i < names.size(); i++)
 		{
@@ -1790,8 +1775,6 @@ void JPMidiKeymap::draw()
 			ofSetColor(COL_TEXT_PRIMARY);
 			jp_constants::p_font.drawString(optionLabel, dropdown.x + 10, optionY + ROW_H - 7);
 		}
-
-		glDisable(GL_SCISSOR_TEST);
 
 		// Draw scrollbar
 		if (dropdown.showScrollbar)

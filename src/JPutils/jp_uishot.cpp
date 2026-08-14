@@ -15,6 +15,10 @@ namespace
 	// only lands in the same place if the window does.
 	struct Resolution { int width; int height; };
 	const Resolution kResolutions[] = {{1440, 810}, {1600, 1000}};
+	// The layout regression needs one width below the measured two-column
+	// minimum and one above it. Keeping this separate avoids changing the
+	// established inspector baselines.
+	const Resolution kLayoutResolutions[] = {{1024, 768}, {1440, 810}};
 	// Captured column: the panel is [W-450, W]; 20px of canvas margin makes any
 	// overflow past the panel edge visible instead of cropped.
 	constexpr int kShotW = 470;
@@ -29,14 +33,20 @@ namespace
 	bool gActive = false;
 	int gState = 0;
 	int gFrames = 0;
+	float gArmTime = 0.0f;
 	int gResolution = 0;
 	bool gDone = false;
+	bool gLayoutOnly = false;
+	int gFirstState = 0;
+	int gStateLimit = 0;
 
 	enum Arm
 	{
 		ARM_COLLAPSED = 0, ARM_RANGE, ARM_AUTOMATED, ARM_BPM, ARM_AUDIO, ARM_AUDIOSHAPE,
 		ARM_MIXED, ARM_BOOL, ARM_INPUTS, ARM_INPUTS_COLLAPSED, ARM_LONG_TITLE,
-		ARM_MEDIA, ARM_MEDIA_TRANSPORT, ARM_SCROLL_TOP, ARM_SCROLL_MIDDLE, ARM_SCROLL_BOTTOM, ARM_COUNT
+		ARM_MEDIA, ARM_MEDIA_TRANSPORT, ARM_SCROLL_TOP, ARM_SCROLL_MIDDLE, ARM_SCROLL_BOTTOM,
+		ARM_WINDOW_SELECTED, ARM_WINDOW_UNSELECTED, ARM_SETTINGS_TOP,
+		ARM_SETTINGS_BOTTOM, ARM_SCREEN_HELP, ARM_SCREEN_MIDI, ARM_COUNT
 	};
 	struct StateDef { const char *name; const char *fixture; Arm arm; };
 	const StateDef kStates[ARM_COUNT] = {
@@ -56,7 +66,37 @@ namespace
 		{"scroll_top",       kFixtureScroll, ARM_SCROLL_TOP},
 		{"scroll_middle",    kFixtureScroll, ARM_SCROLL_MIDDLE},
 		{"scroll_bottom",    kFixtureScroll, ARM_SCROLL_BOTTOM},
+		{"window_selected",  "",             ARM_WINDOW_SELECTED},
+		{"window_unselected","",             ARM_WINDOW_UNSELECTED},
+		{"settings_top",     "",             ARM_SETTINGS_TOP},
+		{"settings_bottom",  "",             ARM_SETTINGS_BOTTOM},
+		{"screen_help",      "",             ARM_SCREEN_HELP},
+		{"screen_midi",      "",             ARM_SCREEN_MIDI},
 	};
+	constexpr int kLayoutFirstState = ARM_WINDOW_SELECTED;
+
+	bool isWindowLayoutState(Arm arm)
+	{
+		return arm >= ARM_WINDOW_SELECTED;
+	}
+
+	bool isSettingsState(Arm arm)
+	{
+		return arm == ARM_SETTINGS_TOP || arm == ARM_SETTINGS_BOTTOM;
+	}
+
+	const Resolution &currentResolution()
+	{
+		return gLayoutOnly ? kLayoutResolutions[gResolution] :
+			kResolutions[gResolution];
+	}
+
+	int resolutionCount()
+	{
+		return gLayoutOnly ?
+			(int)(sizeof(kLayoutResolutions) / sizeof(kLayoutResolutions[0])) :
+			(int)(sizeof(kResolutions) / sizeof(kResolutions[0]));
+	}
 
 	std::string shotDir()
 	{
@@ -103,8 +143,27 @@ namespace
 
 	void armState(ofApp &app, const StateDef &def)
 	{
+		gArmTime = ofGetElapsedTimef();
 		app.boxes.clear();
-		if(def.arm==ARM_MEDIA || def.arm==ARM_MEDIA_TRANSPORT)
+		if (isWindowLayoutState(def.arm))
+		{
+			// An opaque, non-black fixture makes a stale viewport/scissor visible
+			// at a glance and lets the sidecar verify uncovered edge pixels.
+			const string path = shotDir() + "window_fixture.frag";
+			ofBuffer fixtureShader;
+			fixtureShader.set(
+				"#version 330\n"
+				"out vec4 fragColor;\n"
+				"void main(){fragColor=vec4(37.0/255.0,91.0/255.0,"
+				"143.0/255.0,1.0);}\n");
+			ofBufferToFile(path, fixtureShader);
+			app.boxes.addBox(path, 120.0f, 200.0f);
+			if (!app.boxes.boxes.empty())
+			{
+				app.boxes.boxes[0]->setonoff(true);
+			}
+		}
+		else if(def.arm==ARM_MEDIA || def.arm==ARM_MEDIA_TRANSPORT)
 		{
 			string path;
 			if(def.arm==ARM_MEDIA_TRANSPORT && std::getenv("GUIPPER_UISHOT_VIDEO"))
@@ -174,14 +233,32 @@ namespace
 		default: break;
 		}
 
-		app.boxes.selectOpenBoxForCurrentView(0);
+		app.pantallaActiva = def.arm == ARM_SCREEN_HELP ? ofApp::TUTORIAL :
+			(def.arm == ARM_SCREEN_MIDI ? ofApp::MIDI_KEYMAP :
+				(isSettingsState(def.arm) ? ofApp::OPCIONES : ofApp::NODOS));
+		if (def.arm == ARM_WINDOW_UNSELECTED || isSettingsState(def.arm) ||
+			def.arm == ARM_SCREEN_HELP || def.arm == ARM_SCREEN_MIDI)
+		{
+			app.boxes.openguinumber = -1;
+		}
+		else
+		{
+			app.boxes.selectOpenBoxForCurrentView(0);
+		}
+		app.settingsScroll = 0.0f;
+		if (def.arm == ARM_SETTINGS_BOTTOM)
+		{
+			app.settingsScroll = 100000.0f;
+			app.clampSettingsScroll();
+		}
 		if (def.arm == ARM_SCROLL_MIDDLE)
 			app.boxes.setInspectorScrollNormalized(0.5f);
 		else if (def.arm == ARM_SCROLL_BOTTOM)
 			app.boxes.setInspectorScrollNormalized(1.0f);
 	}
 
-	void writeSidecar(ofApp &app, const std::string &state)
+	void writeSidecar(ofApp &app, const std::string &state,
+		const ofImage &shot, bool fullWindow)
 	{
 		std::ofstream out(shotDir() + state + ".txt");
 		if (!out) return;
@@ -192,6 +269,127 @@ namespace
 		};
 
 		out << "window=" << ofGetWidth() << "," << ofGetHeight() << "\n";
+		if (state.find("window_") != std::string::npos)
+		{
+			GLint viewport[4] = {0, 0, 0, 0};
+			glGetIntegerv(GL_VIEWPORT, viewport);
+			out << "viewport=" << viewport[0] << "," << viewport[1] << ","
+				<< viewport[2] << "," << viewport[3] << "\n";
+			out << "scissorEnabled=" << (int)glIsEnabled(GL_SCISSOR_TEST) << "\n";
+			out << "assert.fullViewport=" <<
+				(viewport[0] == 0 && viewport[1] == 0 &&
+				 viewport[2] == ofGetWidth() && viewport[3] == ofGetHeight()) << "\n";
+			auto fixtureAt = [&](int x, int y) {
+				if (!fullWindow || !shot.isAllocated()) return false;
+				const ofColor pixel = shot.getColor(
+					ofClamp(x, 0, shot.getWidth() - 1),
+					ofClamp(y, 0, shot.getHeight() - 1));
+				return std::abs((int)pixel.r - 37) <= 2 &&
+					std::abs((int)pixel.g - 91) <= 2 &&
+					std::abs((int)pixel.b - 143) <= 2;
+			};
+			const int width = shot.getWidth();
+			const int height = shot.getHeight();
+			const bool selected = state.find("window_selected") != std::string::npos;
+			const bool reachesVisibleEdges =
+				fixtureAt(2, height - 3) &&
+				fixtureAt(width / 2, height - 3) &&
+				fixtureAt(width / 2, 70) &&
+				(selected || fixtureAt(width - 3, height / 2));
+			out << "assert.renderReachesVisibleEdges=" << reachesVisibleEdges << "\n";
+			return;
+		}
+		if (state.find("screen_") != std::string::npos)
+		{
+			GLint viewport[4] = {0, 0, 0, 0};
+			glGetIntegerv(GL_VIEWPORT, viewport);
+			out << "scissorEnabled=" << (int)glIsEnabled(GL_SCISSOR_TEST) << "\n";
+			out << "assert.noClipOrViewportLeak=" <<
+				(!glIsEnabled(GL_SCISSOR_TEST) && viewport[0] == 0 &&
+				 viewport[1] == 0 && viewport[2] == ofGetWidth() &&
+				 viewport[3] == ofGetHeight()) << "\n";
+			return;
+		}
+		if (state.find("settings_") != std::string::npos)
+		{
+			const ofApp::SettingsLayout settings = app.getSettingsLayout();
+			const ofApp::LiveOutputSettingsLayout outputs =
+				app.getLiveOutputSettingsLayout();
+			r("settings.panel", settings.panel);
+			r("outputs.panel", outputs.panel);
+			out << "twoColumns=" << outputs.twoColumns << "\n";
+			out << "settingsScroll=" << app.settingsScroll << "\n";
+			const bool labelClear = settings.fields[0].x >=
+				settings.labelX + settings.labelWidth + 13.9f;
+			const bool separated = outputs.twoColumns ?
+				outputs.panel.x >= settings.panel.getRight() + 15.9f :
+				outputs.panel.y >= settings.panel.getBottom() + 15.9f;
+			const bool horizontalContainment =
+				settings.panel.getRight() <= ofGetWidth() - jp_screen::kMarginX + 0.1f &&
+				outputs.panel.getRight() <= ofGetWidth() - jp_screen::kMarginX + 0.1f;
+			const ofRectangle settingsControls[] = {
+				settings.fields[0], settings.fields[1], settings.fields[2],
+				settings.fields[3], settings.fields[4], settings.fields[5],
+				settings.fields[6], settings.autoTapButton, settings.browseButton,
+				settings.saveButton, settings.audioEnableButton,
+				settings.audioDeviceField, settings.audioGainSlider,
+				settings.audioDivButton, settings.audioAutoGainButton,
+				settings.audioChannelButton, settings.audioCalibrateButton,
+				settings.audioGateSlider, settings.audioMeter
+			};
+			bool controlsContained = true;
+			for (const ofRectangle &control : settingsControls)
+			{
+				if (control.width <= 0.0f || control.height <= 0.0f) continue;
+				controlsContained = controlsContained &&
+					settings.panel.inside(control.getTopLeft()) &&
+					settings.panel.inside(control.getBottomRight());
+			}
+			const ofRectangle outputControls[] = {
+				outputs.list, outputs.addButton, outputs.deleteButton,
+				outputs.enabledToggle, outputs.sourceButton, outputs.monitorButton,
+				outputs.windowModeButton, outputs.fullscreenModeButton,
+				outputs.widthField, outputs.heightField, outputs.tiledToggle,
+				outputs.modeToggle, outputs.viewToggle, outputs.patternToggle,
+				outputs.splitColsField, outputs.splitRowsField, outputs.splitButton,
+				outputs.bezelSignButton, outputs.matchAspectButton,
+				outputs.matchResolutionButton, outputs.preview
+			};
+			for (const ofRectangle &control : outputControls)
+			{
+				if (control.width <= 0.0f || control.height <= 0.0f) continue;
+				controlsContained = controlsContained &&
+					outputs.panel.inside(control.getTopLeft()) &&
+					outputs.panel.inside(control.getBottomRight());
+			}
+			for (const ofRectangle &control : outputs.tabs)
+				controlsContained = controlsContained &&
+					outputs.panel.inside(control.getTopLeft()) &&
+					outputs.panel.inside(control.getBottomRight());
+			for (const ofRectangle &control : outputs.rows)
+				controlsContained = controlsContained &&
+					outputs.panel.inside(control.getTopLeft()) &&
+					outputs.panel.inside(control.getBottomRight());
+			for (int i = 0; i < ofApp::LO_FIELD_COUNT; ++i)
+			{
+				const ofRectangle &control = outputs.fieldRects[i];
+				if (control.width <= 0.0f || control.height <= 0.0f) continue;
+				controlsContained = controlsContained &&
+					outputs.panel.inside(control.getTopLeft()) &&
+					outputs.panel.inside(control.getBottomRight());
+			}
+			const float maxScroll = std::max(0.0f,
+				app.getSettingsContentHeight() - ofGetHeight());
+			const bool correctScroll = state.find("settings_bottom") == std::string::npos ?
+				std::abs(app.settingsScroll) < 0.1f :
+				maxScroll > 0.0f && std::abs(app.settingsScroll - maxScroll) < 0.1f;
+			out << "assert.labelsClearFields=" << labelClear << "\n";
+			out << "assert.panelsSeparated=" << separated << "\n";
+			out << "assert.horizontalContainment=" << horizontalContainment << "\n";
+			out << "assert.settingsControlsContained=" << controlsContained << "\n";
+			out << "assert.scrollPosition=" << correctScroll << "\n";
+			return;
+		}
 		r("panel", app.boxes.getInspectorBounds());
 		r("header", app.boxes.getInspectorHeaderBounds());
 		r("bodyViewport", app.boxes.getInspectorBodyViewport());
@@ -322,8 +520,12 @@ void jp_uishot::setup(ofApp &app)
 	if (tag == nullptr) return;
 	gActive = true;
 	gTag = tag;
+	gLayoutOnly = gTag == "layout";
+	gFirstState = gLayoutOnly ? kLayoutFirstState : 0;
+	gStateLimit = gLayoutOnly ? ARM_COUNT : kLayoutFirstState;
+	gState = gFirstState;
 
-	ofSetWindowShape(kResolutions[0].width, kResolutions[0].height);
+	ofSetWindowShape(currentResolution().width, currentResolution().height);
 	ofSetWindowPosition(0, 0);
 	ofDirectory::createDirectory(shotDir(), true, true);
 
@@ -344,14 +546,17 @@ void jp_uishot::update(ofApp &app)
 	// X11 applies the window shape asynchronously, and windowResized()
 	// recomputes inspectorwindow_x. Wait for it rather than capturing a panel
 	// positioned for the old width.
-	const Resolution resolution = kResolutions[gResolution];
+	const Resolution resolution = currentResolution();
 	if (ofGetWidth() != resolution.width || ofGetHeight() != resolution.height)
 	{
 		ofSetWindowShape(resolution.width, resolution.height);
 		return;
 	}
 
-	app.pantallaActiva = ofApp::NODOS;
+	const Arm arm = kStates[gState].arm;
+	app.pantallaActiva = arm == ARM_SCREEN_HELP ? ofApp::TUTORIAL :
+		(arm == ARM_SCREEN_MIDI ? ofApp::MIDI_KEYMAP :
+			(isSettingsState(arm) ? ofApp::OPCIONES : ofApp::NODOS));
 
 	// BPM rows read getBeatPhase(), which is elapsed-time based, so each state
 	// was captured at a different point in the beat. Re-origin every frame:
@@ -368,6 +573,17 @@ void jp_uishot::update(ofApp &app)
 	JPdragobject::setMouseOverride(ofVec2f(-10000.0f, -10000.0f));
 }
 
+void jp_uishot::poisonWindowStateForTest()
+{
+	if (!gActive || gDone || !isWindowLayoutState(kStates[gState].arm)) return;
+	// Reproduce the render-sized state that originally escaped an offscreen
+	// pass. This runs after box updates, so the fixture FBO itself stays valid.
+	glViewport(0, 0, jp_constants::renderWidth, jp_constants::renderHeight);
+	glEnable(GL_SCISSOR_TEST);
+	glScissor(0, 0, std::max(1, jp_constants::renderWidth / 2),
+		std::max(1, jp_constants::renderHeight / 2));
+}
+
 void jp_uishot::draw(ofApp &app)
 {
 	if (!gActive || gDone) return;
@@ -377,29 +593,38 @@ void jp_uishot::draw(ofApp &app)
 	// reach the inspector. Other cards remain fast and deterministic.
 	const int settleFrames = def.arm == ARM_MEDIA_TRANSPORT ? 240 : kSettleFrames;
 	if (gFrames <= settleFrames) return;
+	// The graph transition object can retain its allocated canvas after the
+	// harness clears the loaded composition. Wait past its normal transition
+	// duration so the edge assertion measures the active FBO, not that fixture
+	// teardown artifact.
+	if (isWindowLayoutState(def.arm) &&
+		ofGetElapsedTimef() - gArmTime < 1.5f) return;
 	ofImage shot;
-	shot.grabScreen(ofGetWidth() - kShotW, 0, kShotW, ofGetHeight());
+	const bool fullWindow = isWindowLayoutState(def.arm);
+	shot.grabScreen(fullWindow ? 0 : ofGetWidth() - kShotW, 0,
+		fullWindow ? ofGetWidth() : kShotW, ofGetHeight());
 	const std::string prefix = ofToString(ofGetWidth()) + "x" +
 		ofToString(ofGetHeight()) + "_" + def.name;
 	shot.save(shotDir() + prefix + ".png");
-	writeSidecar(app, prefix);
+	writeSidecar(app, prefix, shot, fullWindow);
 	ofLogNotice("jp_uishot") << "  " << def.name;
 
 	gState++;
 	gFrames = 0;
-	if (gState >= ARM_COUNT)
+	if (gState >= gStateLimit)
 	{
-		gState = 0;
+		gState = gFirstState;
 		gResolution++;
-		if (gResolution < 2)
+		if (gResolution < resolutionCount())
 		{
-			ofSetWindowShape(kResolutions[gResolution].width,
-				kResolutions[gResolution].height);
+			const Resolution next = currentResolution();
+			ofSetWindowShape(next.width, next.height);
 			return;
 		}
 		gDone = true;
 		JPdragobject::clearMouseOverride();
-		ofLogNotice("jp_uishot") << "done: " << ARM_COUNT * 2 << " captures";
+		ofLogNotice("jp_uishot") << "done: " <<
+			(gStateLimit - gFirstState) * resolutionCount() << " captures";
 		ofExit();
 	}
 }

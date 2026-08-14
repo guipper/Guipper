@@ -1,4 +1,5 @@
 #include "JPboxgroup.h"
+#include "../JPgui/jp_gl_state.h"
 #include "jp_media.h"
 #include "../JPutils/jp_pointer.h"
 #include "../JPutils/jp_audio.h"
@@ -3022,18 +3023,11 @@ void JPboxgroup::draw_paramswindow()
 		rebuildControllersIfLayoutStale();
 		// The inspector owns its surface. Preserve any upstream clip, but draw
 		// the sticky panel/header unclipped before applying the body viewport.
-		GLint previousInspectorScissor[4];
-		GLint inspectorViewport[4];
-		const GLboolean inspectorScissorWasEnabled =
-			glIsEnabled(GL_SCISSOR_TEST);
-		glGetIntegerv(GL_SCISSOR_BOX, previousInspectorScissor);
-		glGetIntegerv(GL_VIEWPORT, inspectorViewport);
+		jp_gl::ScopedScissor inspectorClip;
 		// Use an explicit full-viewport clip rather than disabling scissor. Some
 		// OF render paths cache the enabled state and can otherwise reinstate a
 		// stale body clip before the title glyphs are submitted.
-		glEnable(GL_SCISSOR_TEST);
-		glScissor(inspectorViewport[0], inspectorViewport[1],
-			inspectorViewport[2], inspectorViewport[3]);
+		inspectorClip.setFullViewport();
 		/*//CUADRADO VERDE
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		ofSetColor(255, 255);
@@ -3163,19 +3157,7 @@ void JPboxgroup::draw_paramswindow()
 			placeHeaderAction(mappingbutton, mappingActionWidth);
 		}
 
-		const float inspectorPixelScale = ofGetHeight() > 0 ?
-			inspectorViewport[3] / static_cast<float>(ofGetHeight()) : 1.0f;
-		glEnable(GL_SCISSOR_TEST);
-		glScissor(
-			inspectorViewport[0] + static_cast<GLint>(std::floor(
-				inspectorBodyViewport.x * inspectorPixelScale)),
-			inspectorViewport[1] + static_cast<GLint>(std::floor(
-				(ofGetHeight() - inspectorBodyViewport.getBottom()) *
-				inspectorPixelScale)),
-			std::max(0, static_cast<GLint>(std::ceil(
-				inspectorBodyViewport.width * inspectorPixelScale))),
-			std::max(0, static_cast<GLint>(std::ceil(
-				inspectorBodyViewport.height * inspectorPixelScale))));
+		inspectorClip.set(inspectorBodyViewport);
 		const bool suppressBodyPointer = !inspectorBodyContains(
 			ofGetMouseX(), ofGetMouseY());
 		if (suppressBodyPointer)
@@ -3327,9 +3309,7 @@ void JPboxgroup::draw_paramswindow()
 		// Paint the sticky header last. Besides giving it the correct z-order,
 		// this protects it from renderers that leave a stale FBO scissor active
 		// before the inspector is entered.
-		glEnable(GL_SCISSOR_TEST);
-		glScissor(inspectorViewport[0], inspectorViewport[1],
-			inspectorViewport[2], inspectorViewport[3]);
+		inspectorClip.setFullViewport();
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		ofSetColor(COL_BG_PANEL);
 		ofDrawRectangle(inspectorHeaderBounds);
@@ -3394,11 +3374,6 @@ void JPboxgroup::draw_paramswindow()
 				ofColor(COL_TEXT_MUTED, 210));
 			ofDrawRectRounded(inspectorScrollbarThumb, 2.0f);
 		}
-		if (inspectorScissorWasEnabled)
-			glScissor(previousInspectorScissor[0], previousInspectorScissor[1],
-				previousInspectorScissor[2], previousInspectorScissor[3]);
-		else
-			glDisable(GL_SCISSOR_TEST);
 }
 }
 void JPboxgroup::draw_conections()
@@ -4136,6 +4111,14 @@ bool JPboxgroup::handleMediaInspectorClick()
 	if(target==nullptr || !mediaInspector.card.inside(ofGetMouseX(),ofGetMouseY()))return false;
 	JPMediaState&s=target->mediaState(); const ofVec2f m(ofGetMouseX(),ofGetMouseY());
 	if(!target->mediaReady() && !mediaInspector.fit.inside(m))return true;
+	// Click-away releases the IN/OUT time field. It used to persist until ESC
+	// or Enter, which was invisible while nothing routed keys to it - now that
+	// something does, a focus left set swallows every keystroke.
+	if(!mediaInspector.inField.inside(m) && !mediaInspector.outField.inside(m))
+	{
+		mediaTimeFieldFocus=0;
+		mediaTimeFieldBuffer.clear();
+	}
 	bool changed=true;
 	if(mediaInspector.fit.inside(m)){mediaRangeDragging=5;s.fitMode=(JPMediaFitMode)ofClamp((int)((m.x-mediaInspector.fit.x)/mediaInspector.fit.width*5.0f),0,4);}
 	else if(mediaInspector.restart.inside(m))target->mediaRestart();

@@ -465,6 +465,11 @@ void ofApp::update() {
 }
 void ofApp::draw() {
 	const auto drawStart = ProfileClock::now();
+	jp_uishot::poisonWindowStateForTest();
+	// FBO updates and shared output-window contexts may finish with a render-
+	// sized viewport or clip. Window drawing must never inherit either state.
+	jp_gl::resetWindowDrawState(ofGetWidth(), ofGetHeight());
+	ofClear(0, 0, 0, 255);
 	if (pantallaActiva == NODOS) {
 		boxes.drawNodeEditorBackground(ofGetWidth(), ofGetHeight());
 		drawScreenTabs();
@@ -733,12 +738,7 @@ void ofApp::draw_instrucciones() {
 	// Clip to the body so a partially scrolled row is cut at the frame edge
 	// instead of painting over the header rule. Same primitive the MIDI panel
 	// uses (jp_midi_keymap.cpp:1521).
-	const GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
-	GLint previousScissor[4] = {0, 0, 0, 0};
-	glGetIntegerv(GL_SCISSOR_BOX, previousScissor);
-	glEnable(GL_SCISSOR_TEST);
-	glScissor((int)L.body.x, (int)(ofGetHeight() - (L.body.y + L.body.height)),
-		(int)L.body.width, (int)L.body.height);
+	jp_gl::ScopedScissor helpClip(L.body);
 
 	for (size_t i = 0; i < L.rows.size(); i++)
 	{
@@ -819,32 +819,80 @@ void ofApp::draw_instrucciones() {
 		ofSetColor(over ? COL_BORDER_HOVER : COL_BORDER_DEFAULT);
 		ofDrawRectRounded(L.scrollThumb, 3.0f);
 	}
-	if (scissorWasEnabled)
-	{
-		glEnable(GL_SCISSOR_TEST);
-		glScissor(previousScissor[0], previousScissor[1],
-			previousScissor[2], previousScissor[3]);
-	}
-	else
-	{
-		glDisable(GL_SCISSOR_TEST);
-	}
 	ofPopStyle();
 }
+namespace
+{
+	// Every string drawn in the SETTINGS label column, in one place, because
+	// the column's width is measured from them.
+	//
+	// The column used to be a hardcoded 175px gutter. "Graph Render Height:"
+	// renders at 166px against the 160px of usable column that left, so it
+	// overran the input field beside it. Measuring means a label can be
+	// renamed or translated without anyone recomputing a magic number - but
+	// only if it is listed HERE as well as at its draw site.
+	const char *const kSettingsLabels[] = {
+		"OSC Port In:", "OSC Port Out:", "Graph Render Width:",
+		"Graph Render Height:", "BPM:", "Spout Output", "NDI Output",
+		"OSC IP Out:", "Default Compo:", "Active Compo:", "AUDIO IN",
+		"Device", "Gain", "Noise gate",
+	};
+	// Shared by the width calculation and the layout itself, so the panel can
+	// never be narrower than the controls it has to hold.
+	constexpr float kSettingsGutter = 15.0f;     // panel edge to label
+	constexpr float kSettingsColumnGap = 14.0f;  // label column to field
+	constexpr float kSettingsFieldW = 200.0f;
+	constexpr float kSettingsActionBtnW = 100.0f;
+	constexpr float kSettingsControlGap = 10.0f; // field to action button
+}
+
+float ofApp::getSettingsPanelWidth() const
+{
+	float labelColumnW = 0.0f;
+	for (const char *label : kSettingsLabels)
+		labelColumnW = std::max(labelColumnW, font_p.stringWidth(label));
+	// gutter + labels + gap + field + gap + action button + gutter
+	return std::max(500.0f,
+		kSettingsGutter + labelColumnW + kSettingsColumnGap +
+		kSettingsFieldW + kSettingsControlGap + kSettingsActionBtnW +
+		kSettingsGutter);
+}
+
+float ofApp::getSettingsPanelHeight() const
+{
+	const float rowSpacing = 40.0f;
+	const int totalRows = FIELD_OSC_IP_OUT + 13;
+	return jp_screen::kHeaderH + totalRows * rowSpacing + 25.0f;
+}
+
+bool ofApp::settingsUseTwoColumns() const
+{
+	constexpr float panelGap = 16.0f;
+	constexpr float minimumOutputWidth = 500.0f;
+	return ofGetWidth() >= jp_screen::kMarginX * 2.0f +
+		getSettingsPanelWidth() + panelGap + minimumOutputWidth;
+}
+
 ofApp::SettingsLayout ofApp::getSettingsLayout() const
 {
 	SettingsLayout l;
-	const float panelW = 500.0f;
+	const float panelW = getSettingsPanelWidth();
 	const float sepy = 40.0f;
-	const int totalRows = FIELD_OSC_IP_OUT + 13;
 	l.rowH = 28.0f;
 	l.panel.set(jp_screen::kMarginX, jp_screen::kTop - settingsScroll, panelW,
-		jp_screen::kHeaderH + totalRows * sepy + 25.0f);
-	l.labelX = l.panel.x + 15.0f;
+		getSettingsPanelHeight());
+	l.labelX = l.panel.x + kSettingsGutter;
 
-	const float fieldX = l.panel.x + 175.0f;
-	const float fieldW = 200.0f;
-	const float actionBtnW = 100.0f;
+	// Fields begin after the widest label, not at a fixed offset from the
+	// panel edge. Derived from the same measurement the panel width uses, so
+	// the two cannot disagree.
+	float labelColumnW = 0.0f;
+	for (const char *label : kSettingsLabels)
+		labelColumnW = std::max(labelColumnW, font_p.stringWidth(label));
+	l.labelWidth = labelColumnW;
+	const float fieldX = l.labelX + labelColumnW + kSettingsColumnGap;
+	const float fieldW = kSettingsFieldW;
+	const float actionBtnW = kSettingsActionBtnW;
 	// Row 0 sits one header-gap below the header rule, like every screen.
 	auto row = [&](int index) {
 		return l.panel.y + jp_screen::kHeaderH + (float)index * sepy;
@@ -896,6 +944,18 @@ ofApp::SettingsLayout ofApp::getSettingsLayout() const
 }
 
 void ofApp::draw_opciones() {
+	// Clip to the area below the tab bar. Both panels on this screen offset
+	// their y by settingsScroll, and one wheel notch is 36px against a tab bar
+	// that occupies y 8..36 - so a single scroll used to paint the panel and
+	// its output list straight up through the tabs. drawScreenTabs() repaints
+	// the tabs afterwards, which is why the tabs stayed readable and the bleed
+	// showed up as a slab of panel floating behind them.
+	//
+	// Same primitive draw_instrucciones uses for exactly the same reason.
+	const ofRectangle clip(0.0f, jp_screen::kTop,
+		(float)ofGetWidth(), (float)ofGetHeight() - jp_screen::kTop);
+	jp_gl::ScopedScissor settingsClip(clip);
+
 	const SettingsLayout L = getSettingsLayout();
 	const float panelX = L.panel.x;
 	const float panelY = L.panel.y;
@@ -928,7 +988,7 @@ void ofApp::draw_opciones() {
 
 		// Label
 		ofSetColor(COL_TEXT_SECONDARY);
-		font_p.drawString(labels[i], panelX + 15, rowY + rowH - 7);
+		font_p.drawString(labels[i], L.labelX, rowY + rowH - 7);
 
 		// Field background
 		ofSetColor(focusedOptionsField == i ? COL_BG_HOVER : COL_BG_INPUT);
@@ -978,7 +1038,7 @@ void ofApp::draw_opciones() {
 	{
 		const float rowY = L.spoutToggle.y;
 		ofSetColor(COL_TEXT_SECONDARY);
-		font_p.drawString("Spout Output", panelX + 15, rowY + rowH - 7);
+		font_p.drawString("Spout Output", L.labelX, rowY + rowH - 7);
 
 		float btnX = fieldX;
 		bool isOn = spoutActive;
@@ -996,7 +1056,7 @@ void ofApp::draw_opciones() {
 	{
 		const float rowY = L.ndiToggle.y;
 		ofSetColor(COL_TEXT_SECONDARY);
-		font_p.drawString("NDI Output", panelX + 15, rowY + rowH - 7);
+		font_p.drawString("NDI Output", L.labelX, rowY + rowH - 7);
 
 		float btnX = fieldX;
 		bool isOn = ndiActive;
@@ -1013,7 +1073,7 @@ void ofApp::draw_opciones() {
 	{
 		const float rowY = L.fields[FIELD_OSC_IP_OUT].y;
 		ofSetColor(COL_TEXT_SECONDARY);
-		font_p.drawString("OSC IP Out:", panelX + 15, rowY + rowH - 7);
+		font_p.drawString("OSC IP Out:", L.labelX, rowY + rowH - 7);
 
 		int fieldIdx = FIELD_OSC_IP_OUT;
 		// Field background
@@ -1046,7 +1106,7 @@ void ofApp::draw_opciones() {
 	{
 		const float rowY = L.fields[FIELD_DEFAULT_COMPO].y;
 		ofSetColor(COL_TEXT_SECONDARY);
-		font_p.drawString("Default Compo:", panelX + 15, rowY + rowH - 7);
+		font_p.drawString("Default Compo:", L.labelX, rowY + rowH - 7);
 
 		int fieldIdx = FIELD_DEFAULT_COMPO;
 		// Field background
@@ -1085,7 +1145,7 @@ void ofApp::draw_opciones() {
 	{
 		const float rowY = L.activeCompoRow.y;
 		ofSetColor(COL_ACCENT_CYAN);
-		font_p.drawString("Active Compo:", panelX + 15, rowY + rowH - 7);
+		font_p.drawString("Active Compo:", L.labelX, rowY + rowH - 7);
 
 		// Show just the filename portion, or full path if short
 		string activeName = ofFilePath::getFileName(savedirectory);
@@ -1397,17 +1457,21 @@ ofApp::LiveOutputSettingsLayout
 ofApp::getLiveOutputSettingsLayout() const
 {
 	LiveOutputSettingsLayout layout;
-	const float margin = 30.0f;
-	const float generalPanelW = 500.0f;
-	const float generalPanelH = getLiveOutputPanelHeight(LO_TAB_OUTPUTS);
-	layout.twoColumns = ofGetWidth() >= 1080;
+	const float margin = jp_screen::kMarginX;
+	const float panelGap = 16.0f;
+	// Asked for, not assumed. This used to be its own 500.0f literal beside the
+	// SETTINGS panel's 500.0f; the moment that one moved, this panel sat on top
+	// of it.
+	const float generalPanelW = getSettingsPanelWidth();
+	const float generalPanelH = getSettingsPanelHeight();
+	layout.twoColumns = settingsUseTwoColumns();
 	layout.panel.x = layout.twoColumns ?
-		margin + generalPanelW + 16.0f : margin;
+		margin + generalPanelW + panelGap : margin;
 	layout.panel.y = layout.twoColumns ?
-		44.0f : 44.0f + generalPanelH + 16.0f;
+		jp_screen::kTop : jp_screen::kTop + generalPanelH + panelGap;
 	layout.panel.y -= settingsScroll;
 	layout.panel.width = layout.twoColumns ?
-		std::max(500.0f, ofGetWidth() - layout.panel.x - margin) :
+		ofGetWidth() - layout.panel.x - margin :
 		std::max(500.0f, ofGetWidth() - margin * 2.0f);
 	layout.panel.height = getLiveOutputPanelHeight(liveOutputTab);
 
@@ -3381,9 +3445,9 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 
 float ofApp::getLiveOutputPanelHeight(LiveOutputSettingsTab tab) const
 {
-	// The general settings panel's height, which the outputs tab matches.
-	const float generalPanelH =
-		jp_screen::kHeaderH + (FIELD_OSC_IP_OUT + 6) * 40.0f + 25.0f;
+	// Keep adjacent panels aligned and never calculate scrolling from a shorter
+	// proxy than the SETTINGS panel actually draws.
+	const float generalPanelH = getSettingsPanelHeight();
 	if (tab != LO_TAB_WALL) return generalPanelH;
 	// The wall tab carries a room/canvas preview under its fields.
 	return std::max(generalPanelH, 640.0f);
@@ -3391,14 +3455,16 @@ float ofApp::getLiveOutputPanelHeight(LiveOutputSettingsTab tab) const
 
 float ofApp::getSettingsContentHeight() const
 {
-	const float generalPanelH = getLiveOutputPanelHeight(LO_TAB_OUTPUTS);
+	const float generalPanelH = getSettingsPanelHeight();
 	const float outputPanelH = getLiveOutputPanelHeight(liveOutputTab);
-	if (ofGetWidth() >= 1080)
+	if (settingsUseTwoColumns())
 	{
 		// Side by side: the taller of the two panels sets the content height.
-		return 44.0f + std::max(generalPanelH, outputPanelH) + 30.0f;
+		return jp_screen::kTop + std::max(generalPanelH, outputPanelH) +
+			jp_screen::kMarginBottom;
 	}
-	return 44.0f + generalPanelH + 16.0f + outputPanelH + 30.0f;
+	return jp_screen::kTop + generalPanelH + 16.0f + outputPanelH +
+		jp_screen::kMarginBottom;
 }
 
 void ofApp::clampSettingsScroll()
@@ -4448,7 +4514,11 @@ void ofApp::keyPressed(int key) {
 	// time fields. Gating this on tabRenaming alone meant the time fields were
 	// unreachable: JPboxgroup::keyPressed handles them, but nothing ever called
 	// it while they had focus, so typing an in-point silently did nothing.
-	if (boxes.wantsKeyCapture()) {
+	// Gated on the node screen, where both surfaces are actually drawn. Without
+	// it a focus left set behind would swallow the keyboard on SETTINGS or MIDI
+	// - including the 1-6 screen switches - with no visible field to explain
+	// why and no way back except ESC.
+	if (pantallaActiva == NODOS && boxes.wantsKeyCapture()) {
 		boxes.keyPressed(key);
 		return;
 	}
@@ -6340,6 +6410,7 @@ void ofApp::window_drawRender(ofEventArgs & args) {
 	const LiveOutputConfig &config = liveOutputs[index].config;
 	const float width = liveOutputs[index].window->getWidth();
 	const float height = liveOutputs[index].window->getHeight();
+	jp_gl::resetWindowDrawState(width, height);
 	ofClear(0, 0, 0, 255);
 	ofSetColor(255);
 	if (config.testPattern)
