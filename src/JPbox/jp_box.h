@@ -102,6 +102,12 @@ public:
 	bool activeFlag;
 	bool outletActiveFlag;
 	bool mouseOverOutlet();
+	// The rect mouseOverOutlet tests. Shared with the GUIPPER_HITBOX overlay so
+	// the outline and the hit test can never drift apart.
+	ofRectangle outletBounds() const;
+	// Outlines the box's selectable area, its texture OUT and every texture IN,
+	// when GUIPPER_HITBOX is set. No-op otherwise.
+	void drawHitboxDebug();
 
 	enum type
 	{
@@ -144,7 +150,7 @@ public:
 	//
 	// Empty only between construction and the first mint/load. Unique across a
 	// whole composition, nested group children included - JPboxgroup owns that
-	// guarantee, see mintUid/adoptUid.
+	// guarantee, see repairBoxUids.
 	string uid;
 	// Whether this box may be picked as a live-output source. Opt-in: the
 	// picker used to list every box in the graph, which was noise, and it

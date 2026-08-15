@@ -149,6 +149,13 @@ public:
 	{
 		return fbohandlers[_index].mouseOver();
 	}
+	// The rect actually hit-tested for this inlet, for the GUIPPER_HITBOX
+	// overlay. Comes from the handler itself so the outline cannot disagree
+	// with what responds.
+	ofRectangle getHitBounds(int _index)
+	{
+		return fbohandlers[_index].hitBounds();
+	}
 	bool getisPointerSet(int _index)
 	{
 		return fbohandlers[_index].isPointerSet;

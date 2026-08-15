@@ -6,7 +6,11 @@ JPHandler::JPHandler() {}
 JPHandler::~JPHandler() {}
 
 namespace {
-constexpr bool kShowInspectorClickBounds = false;
+// Shares the one GUIPPER_HITBOX switch; was constexpr false and unusable.
+inline bool kShowInspectorClickBoundsEnabled()
+{
+	return jp_hitbox::debugEnabled();
+}
 
 std::string blendModeNameFromValue(float normalizedValue)
 {
@@ -58,7 +62,7 @@ std::string fitAutomationLabel(std::string text, float maxWidth)
 
 void drawClickBounds(JPdragobject &control, bool enabled = true)
 {
-	if (!kShowInspectorClickBounds)
+	if (!kShowInspectorClickBoundsEnabled())
 	{
 		return;
 	}

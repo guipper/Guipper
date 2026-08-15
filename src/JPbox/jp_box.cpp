@@ -163,6 +163,15 @@ void JPbox::update()
 	bypass.height = topButtonSize;
 	onoff.setPos(rightButtonX, topButtonY);
 	bypass.setPos(rightButtonX - topButtonSize - topButtonGap, topButtonY);
+	// The squares stay 12.6px; only the clickable area grows.
+	//
+	// Horizontally that is capped at HALF the gap between them - any more and
+	// the two hit rects overlap, making which button you hit depend on the
+	// order they happen to be tested in. Vertically there is no neighbour, so
+	// it can be generous, and vertical slop is what a small target needs most
+	// once the canvas is zoomed out.
+	onoff.hitPaddingX = bypass.hitPaddingX = topButtonGap * 0.5f;
+	onoff.hitPaddingY = bypass.hitPaddingY = topButtonSize * 0.5f;
 	// updateFBO();
 
 	outlet_x = x + width / 2 - outlet_size / 2;
@@ -399,25 +408,50 @@ void JPbox::clear()
 	fbo.destroy();
 	// fbo = nullptr;
 }
+ofRectangle JPbox::outletBounds() const
+{
+	// Centred on the DOT, which draw_outlet puts at outlet_x + outlet_size/2 -
+	// not at outlet_x. The original inline test used outlet_x, so the clickable
+	// region sat half an outlet to the LEFT of the thing being aimed at: it
+	// still covered the dot, but with no margin at all on its outer side and
+	// 45px of dead area reaching back into the box, where it competed with the
+	// box's own drag area.
+	const float centreX = outlet_x + outlet_size * 0.5f;
+	// Comfortably larger than the dot without reaching so far past the box edge
+	// that it starts catching clicks meant for a neighbouring box's inlet -
+	// boxes are dropped about 112px apart.
+	const float half = outlet_size * 0.75f;
+	return ofRectangle(centreX - half, outlet_y - half, half * 2.0f, half * 2.0f);
+}
+
 bool JPbox::mouseOverOutlet()
 {
 	// Does not go through mouseOver(), so it needs the same occlusion guard.
 	if (!jp_pointer::available()) return false;
+	return outletBounds().inside(
+		JPdragobject::getMouseX(), JPdragobject::getMouseY());
+}
 
-	float auxoutletsize = outlet_size ;
-
-	float mouseX = JPdragobject::getMouseX();
-	float mouseY = JPdragobject::getMouseY();
-	if (mouseX > outlet_x - auxoutletsize &&
-		mouseX < outlet_x + auxoutletsize &&
-		mouseY > outlet_y - auxoutletsize &&
-		mouseY < outlet_y + auxoutletsize)
+void JPbox::drawHitboxDebug()
+{
+	if (!jp_hitbox::debugEnabled()) return;
+	// Drawn from JPboxgroup AFTER the box has painted itself, so the outlines
+	// sit on top of the dots and squares they describe rather than under them.
+	//
+	// The box's own selectable/draggable area.
+	jp_hitbox::draw(hitBounds(), mouseOver());
+	// The two top-right toggles.
+	jp_hitbox::draw(bypass.hitBounds(), bypass.mouseOver());
+	jp_hitbox::draw(onoff.hitBounds(), onoff.mouseOver());
+	// Texture OUT.
+	jp_hitbox::draw(outletBounds(), mouseOverOutlet());
+	// Texture IN, one per inlet. Drawn from the base class because the dots
+	// themselves are drawn by each box type - repeating this in every one of
+	// them is how an overlay ends up missing exactly the box you are debugging.
+	for (int i = 0; i < fbohandlergroup.getSize(); i++)
 	{
-		return true;
-	}
-	else
-	{
-		return false;
+		jp_hitbox::draw(fbohandlergroup.getHitBounds(i),
+			fbohandlergroup.mouseOver(i));
 	}
 }
 int JPbox::getTipo()

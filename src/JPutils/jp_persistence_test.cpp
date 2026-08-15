@@ -1164,6 +1164,81 @@ bool jp_persistence_test::run(ofApp &app)
 		}
 		app.boxes.clear();
 	}
+	// Box button hit areas: bigger than the squares they belong to, and never
+	// overlapping each other.
+	//
+	// The overlap invariant is the one worth a test. If the two hit rects ever
+	// touch, which button a click lands on depends on the order they happen to
+	// be tested in - a bug that looks like "sometimes it toggles the wrong one"
+	// and is miserable to track down from a bug report.
+	bool boxHitboxes = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			boxHitboxes = false;
+			ofLogNotice("hitbox") << why;
+		};
+		app.boxes.clear();
+		app.boxes.addBox("shaders/imageprocessing/feedback_advance.frag", 300, 300);
+		if (app.boxes.boxes.empty()) fail("no box to measure");
+		else
+		{
+			JPbox *box = app.boxes.boxes.front();
+			box->update();
+			const ofRectangle onHit = box->onoff.hitBounds();
+			const ofRectangle byHit = box->bypass.hitBounds();
+
+			if (onHit.width <= box->onoff.width ||
+				onHit.height <= box->onoff.height)
+				fail("onoff hit area is not larger than the drawn square");
+			if (byHit.width <= box->bypass.width ||
+				byHit.height <= box->bypass.height)
+				fail("bypass hit area is not larger than the drawn square");
+			// Vertical slop is what a 12.6px target needs most on a zoomable
+			// canvas, and nothing sits above or below to constrain it.
+			if (onHit.height <= onHit.width)
+				fail("expected more vertical than horizontal slop");
+			if (onHit.intersects(byHit))
+				fail("onoff and bypass hit areas overlap");
+			// The padded rect must still be centred on the square it belongs
+			// to, or the outline drawn from it would sit off target.
+			if (std::abs(onHit.getCenter().x - box->onoff.x) > 0.01f ||
+				std::abs(onHit.getCenter().y - box->onoff.y) > 0.01f)
+				fail("hit area is not centred on its control");
+			// And it must actually accept a click the bare square would miss.
+			const float justOutside = box->onoff.y - box->onoff.height * 0.5f - 1.0f;
+			if (!onHit.inside(box->onoff.x, justOutside))
+				fail("a point just above the square is not clickable");
+
+			// The texture OUT hit area must be centred on the DOT. draw_outlet
+			// translates to outlet_x + outlet_size/2 before drawing, while the
+			// original hit test used outlet_x - half an outlet to the left of
+			// the dot. That offset is the bug this asserts against.
+			const ofRectangle outlet = box->outletBounds();
+			const float drawnCentreX =
+				box->outlet_x + box->outlet_size * 0.5f;
+			if (std::abs(outlet.getCenter().x - drawnCentreX) > 0.01f)
+				fail("outlet hit area is not centred on the drawn dot: centre " +
+					ofToString(outlet.getCenter().x) + " vs dot " +
+					ofToString(drawnCentreX));
+			if (std::abs(outlet.getCenter().y - box->outlet_y) > 0.01f)
+				fail("outlet hit area is off vertically");
+			if (outlet.width <= box->outlet_size ||
+				outlet.height <= box->outlet_size)
+				fail("outlet hit area is not larger than the dot");
+			// Symmetric about the dot: the outer side is the one you actually
+			// aim at, and it used to have no margin whatsoever.
+			const float outerMargin = outlet.getRight() - drawnCentreX;
+			const float innerMargin = drawnCentreX - outlet.getLeft();
+			if (std::abs(outerMargin - innerMargin) > 0.01f)
+				fail("outlet hit area is lopsided: outer " +
+					ofToString(outerMargin) + " inner " +
+					ofToString(innerMargin));
+			if (!box->outletBounds().inside(drawnCentreX, box->outlet_y))
+				fail("the dot centre is not inside its own hit area");
+		}
+		app.boxes.clear();
+	}
 	bool mediaSmoke = true;
 	if(const char *smokePath=std::getenv("GUIPPER_MEDIA_SMOKE"))
 	{
@@ -1204,6 +1279,7 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " realCompoLoad=" << realCompoLoad
 		<< " boxIdentity=" << boxIdentity
 		<< " outputBinding=" << outputBinding
+		<< " boxHitboxes=" << boxHitboxes
 		<< " saveKeepsDefault=" << saveKeepsDefaultCompo
 		<< " mediaSmoke=" << mediaSmoke;
 	return current && old && clamped && shaderReload && modeMemory &&
@@ -1211,5 +1287,5 @@ bool jp_persistence_test::run(ofApp &app)
 		mediaBoundary && mediaAlpha && mediaMotionClear && mediaStraightMix &&
 		mediaSingleComposite && mediaPausePreserves && mediaTransforms &&
 		mediaSkipsStatic && mediaTurnaround && mediaMidiIndex && camScaleRatio && camLegacyLoad && shaderScaleRatio && realCompoLoad &&
-		saveKeepsDefaultCompo && boxIdentity && outputBinding && mediaSmoke;
+		saveKeepsDefaultCompo && boxIdentity && outputBinding && boxHitboxes && mediaSmoke;
 }

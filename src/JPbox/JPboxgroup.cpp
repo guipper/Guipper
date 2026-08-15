@@ -101,7 +101,12 @@ namespace
 		ofEnableAlphaBlending();
 		ofPopStyle();
 	}
-	constexpr bool kShowInspectorClickBounds = false;
+	// Was constexpr false, so nobody could ever switch it on without a rebuild.
+	// Now shares the one GUIPPER_HITBOX switch with the box buttons.
+	inline bool kShowInspectorClickBoundsEnabled()
+	{
+		return jp_hitbox::debugEnabled();
+	}
 
 	string fitInspectorLabel(string text, float maxWidth)
 	{
@@ -123,7 +128,7 @@ namespace
 
 	void drawInspectorClickBounds(const ofRectangle &bounds, bool enabled = true)
 	{
-		if (!kShowInspectorClickBounds || bounds.width <= 0.0f ||
+		if (!kShowInspectorClickBoundsEnabled() || bounds.width <= 0.0f ||
 			bounds.height <= 0.0f)
 		{
 			return;
@@ -851,6 +856,11 @@ void JPboxgroup::draw()
 			// No cue targets this graph: plain draw.
 			activeBoxes[i]->draw();
 		}
+
+		// GUIPPER_HITBOX=1: outline the box's selectable area, its two toggles,
+		// its texture OUT and every texture IN. Here rather than inside
+		// JPbox::draw so it paints over the controls, not beneath them.
+		activeBoxes[i]->drawHitboxDebug();
 
 		// Cyan outline: multi-selected box (shared)
 		if (isBoxSelected(i))
