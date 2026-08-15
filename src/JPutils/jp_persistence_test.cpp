@@ -1239,6 +1239,79 @@ bool jp_persistence_test::run(ofApp &app)
 		}
 		app.boxes.clear();
 	}
+	// A group composites its active child 1:1 into its own FBO, so the two must
+	// come out pixel-identical.
+	//
+	// Rect mode is global and renderActiveRender runs during update(), so it
+	// inherits whatever drew last. This forces the hostile value -
+	// OF_RECTMODE_CENTER - which is exactly the state that left the group
+	// holding a full-scale crop in its top-left quadrant. When that group is
+	// the ACTIVE RENDER, the quarter-filled FBO paints a quarter-filled canvas,
+	// and it read as intermittent because it depended on what drew last.
+	bool groupComposite = true;
+	{
+		const string groupPath = "data/groups/group_2026-07-27-18-30-48-181.xml";
+		app.boxes.clear();
+		app.boxes.addBox(groupPath, 120, 120);
+		JPbox_preset *group = app.boxes.boxes.empty() ? nullptr :
+			dynamic_cast<JPbox_preset *>(app.boxes.boxes.front());
+		if (group == nullptr || group->boxes.empty())
+		{
+			ofLogNotice("groupcomposite") << "group fixture unavailable - skipped";
+		}
+		else
+		{
+			group->setonoff(true);
+			ofSetRectMode(OF_RECTMODE_CENTER);   // the hostile inherited state
+			for (int i = 0; i < 8; ++i) group->update();
+
+			JPbox *child = (group->activeRender >= 0 &&
+				group->activeRender < (int)group->boxes.size()) ?
+				group->boxes[group->activeRender] : nullptr;
+			if (child == nullptr || !group->fbo.isAllocated() ||
+				!child->fbo.isAllocated())
+			{
+				groupComposite = false;
+				ofLogNotice("groupcomposite") << "no allocated child to compare";
+			}
+			else
+			{
+				ofPixels groupPixels, childPixels;
+				group->fbo.readToPixels(groupPixels);
+				child->fbo.readToPixels(childPixels);
+				const int w = (int)groupPixels.getWidth();
+				const int h = (int)groupPixels.getHeight();
+				int mismatches = 0, sampled = 0;
+				for (int gy = 1; gy < 8; ++gy)
+				{
+					for (int gx = 1; gx < 8; ++gx)
+					{
+						const int px = w * gx / 8;
+						const int py = h * gy / 8;
+						if (px >= w || py >= h) continue;
+						++sampled;
+						const ofColor a = groupPixels.getColor(px, py);
+						const ofColor b = childPixels.getColor(px, py);
+						if (std::abs((int)a.r - (int)b.r) > 8 ||
+							std::abs((int)a.g - (int)b.g) > 8 ||
+							std::abs((int)a.b - (int)b.b) > 8)
+						{
+							++mismatches;
+						}
+					}
+				}
+				if (sampled == 0 || mismatches > 0)
+				{
+					groupComposite = false;
+					ofLogNotice("groupcomposite")
+						<< "group FBO does not match its active child: "
+						<< mismatches << "/" << sampled << " samples differ";
+				}
+			}
+			ofSetRectMode(OF_RECTMODE_CORNER);
+		}
+		app.boxes.clear();
+	}
 	bool mediaSmoke = true;
 	if(const char *smokePath=std::getenv("GUIPPER_MEDIA_SMOKE"))
 	{
@@ -1280,6 +1353,7 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " boxIdentity=" << boxIdentity
 		<< " outputBinding=" << outputBinding
 		<< " boxHitboxes=" << boxHitboxes
+		<< " groupComposite=" << groupComposite
 		<< " saveKeepsDefault=" << saveKeepsDefaultCompo
 		<< " mediaSmoke=" << mediaSmoke;
 	return current && old && clamped && shaderReload && modeMemory &&
@@ -1287,5 +1361,5 @@ bool jp_persistence_test::run(ofApp &app)
 		mediaBoundary && mediaAlpha && mediaMotionClear && mediaStraightMix &&
 		mediaSingleComposite && mediaPausePreserves && mediaTransforms &&
 		mediaSkipsStatic && mediaTurnaround && mediaMidiIndex && camScaleRatio && camLegacyLoad && shaderScaleRatio && realCompoLoad &&
-		saveKeepsDefaultCompo && boxIdentity && outputBinding && boxHitboxes && mediaSmoke;
+		saveKeepsDefaultCompo && boxIdentity && outputBinding && boxHitboxes && groupComposite && mediaSmoke;
 }

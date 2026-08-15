@@ -2264,6 +2264,41 @@ void JPboxgroup::drawLiveOutput(float x, float y, float w, float h,
 		return;
 	}
 
+	// GUIPPER_RENDER_TRACE=1 reports what the active-render draw is actually
+	// given, once a second.
+	//
+	// The node background is drawn at ofGetWidth()/ofGetHeight() with
+	// OF_RECTMODE_CORNER, so on paper it always fills. When it does not, the
+	// lie is in one of the values below - the size asked for, the viewport it
+	// lands in, or the FBO behind it - and which one it is cannot be guessed
+	// from a screenshot.
+	if (std::getenv("GUIPPER_RENDER_TRACE"))
+	{
+		static uint64_t nextTrace = 0;
+		const uint64_t now = ofGetElapsedTimeMillis();
+		if (now >= nextTrace)
+		{
+			nextTrace = now + 1000;
+			GLint vp[4] = {0, 0, 0, 0};
+			glGetIntegerv(GL_VIEWPORT, vp);
+			const ofRectangle current = ofGetCurrentViewport();
+			ofFbo &traced = boxes[*activerender]->fbo;
+			ofLogNotice("rendertrace")
+				<< "frame=" << ofGetFrameNum()
+				<< " asked=" << w << "x" << h
+				<< " ofGet=" << ofGetWidth() << "x" << ofGetHeight()
+				<< " glViewport=" << vp[0] << "," << vp[1] << " "
+				<< vp[2] << "x" << vp[3]
+				<< " ofViewport=" << current.x << "," << current.y << " "
+				<< current.width << "x" << current.height
+				<< " fbo=" << traced.getWidth() << "x" << traced.getHeight()
+				<< " alloc=" << traced.isAllocated()
+				<< " activerender=" << *activerender
+				<< " boxes=" << (int)boxes.size()
+				<< " transitionSrc=" << transition.isSourceAllocated()
+				<< " lerp=" << transition.getLerpValue();
+		}
+	}
 	const bool whole = srcNorm.x <= 0.0f && srcNorm.y <= 0.0f &&
 		srcNorm.width >= 1.0f && srcNorm.height >= 1.0f;
 	const bool transitioning = transition.getLerpValue() < 1.0f &&

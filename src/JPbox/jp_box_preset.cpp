@@ -443,6 +443,25 @@ void JPbox_preset::renderActiveRender()
 	}
 
 	ofPushStyle();
+	// Rect mode is global and this runs during update(), so it inherits
+	// whatever the last draw left behind. Under OF_RECTMODE_CENTER a quad drawn
+	// at (0,0) spans (-w/2,-h/2) to (w/2,h/2), so only its bottom-right quarter
+	// lands inside the FBO - the group ends up holding a full-scale crop in its
+	// top-left corner and nothing else.
+	//
+	// That is invisible in the group's own thumbnail but ruins the whole screen
+	// when the group is the ACTIVE RENDER: the node background is drawn from
+	// this FBO, so a quarter-filled FBO paints a quarter-filled canvas. It
+	// looked intermittent because it depends on what happened to draw last -
+	// clicking any box changes the sequence and the next composite comes out
+	// right.
+	//
+	// Every sibling that composites one FBO into another already does this:
+	// JPbox::tryPassThroughFBO, drawSourceInto, drawNodeEditorBackground.
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	// Set here rather than only in the else branch below, so the transition's
+	// fallback draw cannot composite through a stale colour.
+	ofSetColor(255, 255, 255, 255);
 	fbo.begin();
 	ofClear(0, 0, 0, 0);
 	ofEnableBlendMode(OF_BLENDMODE_DISABLED);
