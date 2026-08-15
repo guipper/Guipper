@@ -720,6 +720,20 @@ public:
 	// Default composition path (loaded at startup)
 	string defaultCompoPath;
 
+	// Which GPU the GL context actually landed on. Queried once - these strings
+	// are fixed for the life of a context - and logged at startup as well as
+	// shown in the debug overlay, so a report from another machine carries it
+	// without needing the overlay open.
+	//
+	// Worth having: on a hybrid-graphics laptop the driver can hand the app the
+	// integrated GPU while a discrete one sits idle, which looks like "the app
+	// is slow" and nothing else.
+	string gpuVendor;
+	string gpuRenderer;
+	string gpuGlVersion;
+	string gpuGlslVersion;
+	void queryGpuInfo();
+
 	// Ctrl+S / Cmd+S. Opens the OS save dialog so a composition can be written
 	// anywhere on disk, not only into bin/data/savefiles. Never writes
 	// defaultCompoPath - which composition the app opens at startup is a

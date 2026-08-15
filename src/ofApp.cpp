@@ -52,6 +52,11 @@ void ofApp::setup() {
 	ofSetEscapeQuitsApp(false);
 	isDebug = std::getenv("GUIPPER_PROFILE") != nullptr;
 
+	// Before anything else touches GL, so the log line lands above whatever a
+	// failing shader or FBO prints later - that is exactly the context you want
+	// when reading someone else's crash log.
+	queryGpuInfo();
+
 	font_p.loadFont("font/Montserrat-Regular.ttf", 11); // Inicio fuente.
 
 	// Modal font - loaded at readable size for the save dialog
@@ -519,10 +524,38 @@ void ofApp::draw() {
 	recordProfileValue(frameProfile.drawMs, frameProfile.drawPeakMs,
 		elapsedProfileMs(drawStart));
 }
+void ofApp::queryGpuInfo() {
+	// glGetString returns a pointer owned by the driver that stays valid for
+	// the life of the context, and returns null if called with no context
+	// current or with an unsupported enum - so every one is guarded.
+	auto glString = [](GLenum name) -> string {
+		const GLubyte *value = glGetString(name);
+		return value != nullptr ?
+			string(reinterpret_cast<const char *>(value)) : string("unknown");
+	};
+	gpuVendor = glString(GL_VENDOR);
+	gpuRenderer = glString(GL_RENDERER);
+	gpuGlVersion = glString(GL_VERSION);
+	gpuGlslVersion = glString(GL_SHADING_LANGUAGE_VERSION);
+
+	// Logged as well as drawn: the overlay needs GUIPPER_PROFILE and someone
+	// looking at the screen, whereas a bug report from another machine usually
+	// arrives as a console log and nothing else.
+	ofLogNotice("gpu") << "renderer: " << gpuRenderer;
+	ofLogNotice("gpu") << "vendor:   " << gpuVendor;
+	ofLogNotice("gpu") << "gl:       " << gpuGlVersion;
+	ofLogNotice("gpu") << "glsl:     " << gpuGlslVersion;
+}
+
 void ofApp::draw_debugInfo() {
 
 	float sepy = 20;
 	float posy = ofGetHeight();
+	// Directly under FPS on purpose: when the frame rate is disappointing, the
+	// GPU actually being driven is the first thing worth ruling out.
+	font_p.drawString("GPU : " + gpuRenderer, 30, posy -= sepy);
+	font_p.drawString("  " + gpuVendor + "  |  GL " + gpuGlVersion,
+		30, posy -= sepy);
 	font_p.drawString("Active Render :" + ofToString(activerender), 30, posy -= sepy);
 	font_p.drawString("FPS :" + ofToString(ofGetFrameRate()), 30, posy -= sepy);
 	font_p.drawString("Boxes size : " + ofToString(boxes.getBoxesSize()), 30, posy -= sepy);
