@@ -44,7 +44,16 @@ namespace
 	}
 }
 
-JPbox::JPbox() {}
+std::string jp_boxuid::mint()
+{
+	// Function-local statics: no static-initialisation-order problem, and the
+	// salt is fixed for the process.
+	static const uint64_t salt = (uint64_t)ofGetSystemTimeMillis();
+	static uint64_t counter = 0;
+	return "b" + ofToString(salt) + "_" + ofToString(++counter);
+}
+
+JPbox::JPbox() { uid = jp_boxuid::mint(); }
 JPbox::~JPbox() {}
 void JPbox::saveCustomState(ofXml &boxNode) const {}
 void JPbox::loadCustomState(const ofXml &boxNode) {}
@@ -433,6 +442,14 @@ void JPbox::setBypass(bool _val)
 bool JPbox::getBypass()
 {
 	return bypass.boolValue;
+}
+void JPbox::setOutputCandidate(bool _val)
+{
+	outputCandidate = _val;
+}
+bool JPbox::getOutputCandidate() const
+{
+	return outputCandidate;
 }
 bool JPbox::tryPassThroughFBO()
 {

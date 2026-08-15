@@ -71,7 +71,7 @@ public:
 	// receives the rect actually sampled after the inset and clamping - the
 	// mapping overlay needs that, not the raw request.
 	bool drawLiveOutputSource(bool followMainActive,
-		const string &sourceBoxName, float _width, float _height,
+		const string &sourceBoxUid, float _width, float _height,
 		const ofRectangle &normCrop = ofRectangle(0.0f, 0.0f, 1.0f, 1.0f),
 		float bezelCanvasPx = 0.0f,
 		ofRectangle *outEffectiveNorm = nullptr);
@@ -79,10 +79,9 @@ public:
 	// normalized crop into pixels; nothing reallocates render FBOs at runtime,
 	// so these can differ from jp_constants::renderWidth/Height.
 	ofVec2f getMasterCanvasSize() const;
-	ofVec2f getBoxFboSize(const string &boxName) const;
 	void drawMappingOverlay(float _x, float _y, float _width, float _height);
 	void drawMappingOverlayForSource(bool followMainActive,
-		const string &sourceBoxName, float _x, float _y,
+		const string &sourceBoxUid, float _x, float _y,
 		float _width, float _height);
 	void drawNodeEditorBackground(float _width, float _height);
 	bool isMappingEditActive() const;
@@ -152,6 +151,29 @@ public:
 	float getDurationGalleryMs() const;
 	vector<string> getBoxNames() const;
 	bool hasBoxName(string boxName) const;
+
+	// A box the user has marked "TO OUTPUT", addressed by uid rather than name
+	// so a rename cannot break a live output bound to it.
+	struct OutputCandidate
+	{
+		string uid;
+		// Path-qualified for display, e.g. "gusanos / mirrorquad".
+		string label;
+	};
+	// Marked boxes anywhere in the composition, group children included.
+	vector<OutputCandidate> getOutputCandidates() const;
+	// These walk the whole tree, unlike their name-based counterparts which are
+	// top-level-only and have callers that rely on that.
+	JPbox *findBoxByUid(const string &boxUid) const;
+	bool hasBoxUid(const string &boxUid) const;
+	ofVec2f getBoxFboSizeByUid(const string &boxUid) const;
+	// Re-mint any uid that is empty or duplicated, shallowest box wins. Call
+	// after load and after paste, where a shared group file can arrive carrying
+	// identities that already exist in this composition.
+	void repairBoxUids();
+	// Top-level lookup by name. Public only so the live-output config can heal a
+	// legacy name-based binding into a uid once, on first resolve.
+	JPbox *findTopLevelBoxByName(const string &boxName) const;
 	bool toggleBypassForBox(string boxName);
 	bool togglePauseForBox(string boxName);
 	bool setBypassForBox(string boxName, bool value);
@@ -592,6 +614,7 @@ private:
 	JPBang editbutton;                   // Boton EDIT para abrir el shader en el editor de codigo
 	JPBang mappingbutton;                // Enters the corner-pin mapping editor
 	JPBang camerarefreshbutton;          // Re-enumerates camera capture devices
+	JPBang tooutputbutton;               // Marks the box selectable as a live output source
 	std::array<ofRectangle, 3> kinectStreamButtons;
 	float inspectorwindow_setactivesize; // Para el size del setactive:
 

@@ -19,6 +19,22 @@ inline std::string jp_normalizePath(std::string p) {
 	return p;
 }
 
+// Stable box identity, minted in JPbox's constructor so it is never empty.
+//
+// Minting by default is the safe default: a creation path nobody remembered to
+// think about produces a FRESH identity - a binding breaks, visibly - rather
+// than a DUPLICATE one, which silently points a live output at the wrong box.
+// Preserving identity is therefore always explicit and greppable
+// (`dst->uid = src->uid`), and there are only two such places: the cue draft
+// clone and its preset-tree mirror.
+//
+// Salted per process, so a uid minted now cannot collide with one already
+// stored in a file written by an earlier session.
+namespace jp_boxuid
+{
+	std::string mint();
+}
+
 // Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
 
 class JPbox : public JPdragobject
@@ -120,6 +136,22 @@ public:
 	bool getBypass();
 	bool tryPassThroughFBO();
 	JPToogle bypass;
+
+	// Identity that survives a rename. `name` cannot serve: renaming is a bare
+	// assignment that never consults makeUniqueBoxName, so two boxes can share
+	// one, and anything holding a name silently rebinds or breaks. Live-output
+	// source selection holds this instead.
+	//
+	// Empty only between construction and the first mint/load. Unique across a
+	// whole composition, nested group children included - JPboxgroup owns that
+	// guarantee, see mintUid/adoptUid.
+	string uid;
+	// Whether this box may be picked as a live-output source. Opt-in: the
+	// picker used to list every box in the graph, which was noise, and it
+	// could not reach group children at all.
+	void setOutputCandidate(bool _val);
+	bool getOutputCandidate() const;
+	bool outputCandidate = false;
 
 	//SHOWCODE
 	bool showCode = false;

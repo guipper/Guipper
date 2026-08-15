@@ -994,6 +994,176 @@ bool jp_persistence_test::run(ofApp &app)
 		app.savedirectory = originalDir;
 		app.boxes.clear();
 	}
+	// Box identity: it must survive a save/load round trip, reach inside
+	// groups, and never be shared by two boxes.
+	//
+	// Identity is what live-output source selection binds to, so every failure
+	// here is silent at the point it happens and only shows up later as an
+	// output following the wrong box or going dark.
+	bool boxIdentity = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			boxIdentity = false;
+			ofLogNotice("boxuid") << why;
+		};
+		const string uidPath = directory + "uids.xml";
+
+		app.boxes.clear();
+		app.boxes.addBox("shaders/imageprocessing/feedback_advance.frag", 40, 40);
+		app.boxes.addBox("shaders/imageprocessing/feedback_advance.frag", 90, 40);
+		if (app.boxes.boxes.size() < 2) fail("could not build two boxes");
+		else
+		{
+			JPbox *a = app.boxes.boxes[0];
+			JPbox *b = app.boxes.boxes[1];
+			// Constructor-minted, so never empty and never shared.
+			if (a->uid.empty() || b->uid.empty()) fail("ctor left a uid empty");
+			if (a->uid == b->uid) fail("two fresh boxes share a uid");
+
+			a->setOutputCandidate(true);
+			const string keptUid = a->uid;
+			const string otherUid = b->uid;
+
+			// Renaming must not disturb identity - that is the whole point.
+			a->name = "renamed_after_marking";
+			if (a->uid != keptUid) fail("rename changed the uid");
+
+			app.boxes.save(uidPath);
+			app.boxes.clear();
+			app.boxes.load(uidPath);
+
+			if (app.boxes.boxes.size() < 2) fail("round trip lost a box");
+			else
+			{
+				if (app.boxes.boxes[0]->uid != keptUid)
+					fail("uid did not survive save/load");
+				if (app.boxes.boxes[1]->uid != otherUid)
+					fail("second uid did not survive save/load");
+				if (!app.boxes.boxes[0]->getOutputCandidate())
+					fail("tooutput flag did not survive save/load");
+				if (app.boxes.boxes[1]->getOutputCandidate())
+					fail("tooutput flag leaked onto an unmarked box");
+				// Resolution is by uid, and finds the box even though its name
+				// changed before it was ever saved.
+				if (app.boxes.findBoxByUid(keptUid) != app.boxes.boxes[0])
+					fail("findBoxByUid did not resolve a top-level box");
+				if (app.boxes.findBoxByUid("no-such-uid") != nullptr)
+					fail("findBoxByUid invented a match");
+				// Only the marked box is offered as a source.
+				const auto candidates = app.boxes.getOutputCandidates();
+				if (candidates.size() != 1)
+					fail("expected exactly one marked candidate, got " +
+						ofToString((int)candidates.size()));
+				else if (candidates[0].uid != keptUid)
+					fail("candidate list returned the wrong box");
+			}
+		}
+
+		// Duplicates are repaired shallowest-first. A depth-first rule would
+		// let a nested child keep the uid and renumber the top-level box -
+		// exactly the box most likely to be driving an output.
+		app.boxes.clear();
+		app.boxes.addBox("shaders/imageprocessing/feedback_advance.frag", 40, 40);
+		if (!app.boxes.boxes.empty())
+		{
+			JPbox *top = app.boxes.boxes.front();
+			const string before = top->uid;
+			app.boxes.repairBoxUids();
+			if (top->uid != before)
+				fail("repair renumbered a box that was already unique");
+			// Force a clash and confirm it is broken up.
+			app.boxes.addBox("shaders/imageprocessing/feedback_advance.frag", 90, 40);
+			if (app.boxes.boxes.size() >= 2)
+			{
+				app.boxes.boxes[1]->uid = app.boxes.boxes[0]->uid;
+				app.boxes.repairBoxUids();
+				if (app.boxes.boxes[0]->uid != before)
+					fail("repair moved the shallower/earlier box's uid");
+				if (app.boxes.boxes[1]->uid == before)
+					fail("repair left a duplicate uid in place");
+				if (app.boxes.boxes[1]->uid.empty())
+					fail("repair produced an empty uid");
+			}
+		}
+		app.boxes.clear();
+	}
+	// Live-output binding: reaches into groups, survives a rename, heals a
+	// legacy name-only binding, and retires when the box is gone.
+	bool outputBinding = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			outputBinding = false;
+			ofLogNotice("outputbind") << why;
+		};
+		const string groupPath = "data/groups/group_2026-07-27-18-30-48-181.xml";
+		app.boxes.clear();
+		app.boxes.addBox(groupPath, 40, 40);
+		JPbox_preset *group = app.boxes.boxes.empty() ? nullptr :
+			dynamic_cast<JPbox_preset *>(app.boxes.boxes.front());
+		if (group == nullptr || group->boxes.empty())
+		{
+			ofLogNotice("outputbind") << "group fixture unavailable - skipped";
+		}
+		else
+		{
+			JPbox *child = group->boxes.front();
+			// A box inside a group is a legitimate source; a name lookup could
+			// never reach one, which is why the binding moved to uids at all.
+			child->setOutputCandidate(true);
+			bool foundChild = false;
+			for (const auto &candidate : app.boxes.getOutputCandidates())
+			{
+				if (candidate.uid != child->uid) continue;
+				foundChild = true;
+				// Path-qualified, so two groups each holding a "mask" stay
+				// tellable apart in the picker.
+				if (candidate.label.find(" / ") == string::npos)
+					fail("group child label is not path-qualified: " +
+						candidate.label);
+				if (candidate.label.find(child->name) == string::npos)
+					fail("group child label lost the box name: " +
+						candidate.label);
+			}
+			if (!foundChild) fail("marked group child is not offered as a source");
+			if (app.boxes.findBoxByUid(child->uid) != child)
+				fail("findBoxByUid cannot reach a group child");
+
+			ofApp::LiveOutputConfig config;
+			config.sourceMode = ofApp::LIVE_OUTPUT_FIXED_BOX;
+			config.sourceUid = child->uid;
+			if (app.resolveLiveOutputSource(config) != child)
+				fail("uid binding did not resolve");
+			// The entire point: renaming must not move the binding.
+			child->name = "renamed_child";
+			if (app.resolveLiveOutputSource(config) != child)
+				fail("binding broke when the box was renamed");
+
+			// Legacy settings name a TOP-LEVEL box and carry no uid. That must
+			// still resolve, and adopt the uid so it is rename-proof afterwards.
+			ofApp::LiveOutputConfig legacy;
+			legacy.sourceMode = ofApp::LIVE_OUTPUT_FIXED_BOX;
+			legacy.sourceBox = group->name;
+			if (app.resolveLiveOutputSource(legacy) != group)
+				fail("legacy name-only binding did not resolve");
+			if (legacy.sourceUid != group->uid)
+				fail("legacy binding did not adopt the uid");
+
+			// Box gone -> nothing resolves, which is what drives the caller to
+			// revert the output to MAIN Active.
+			const string goneUid = child->uid;
+			app.boxes.clear();
+			ofApp::LiveOutputConfig dangling;
+			dangling.sourceMode = ofApp::LIVE_OUTPUT_FIXED_BOX;
+			dangling.sourceUid = goneUid;
+			if (app.resolveLiveOutputSource(dangling) != nullptr)
+				fail("a deleted box still resolved");
+			if (app.boxes.hasBoxUid(goneUid))
+				fail("hasBoxUid still reports a deleted box");
+		}
+		app.boxes.clear();
+	}
 	bool mediaSmoke = true;
 	if(const char *smokePath=std::getenv("GUIPPER_MEDIA_SMOKE"))
 	{
@@ -1032,6 +1202,8 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " camLegacyLoad=" << camLegacyLoad
 		<< " shaderScaleRatio=" << shaderScaleRatio
 		<< " realCompoLoad=" << realCompoLoad
+		<< " boxIdentity=" << boxIdentity
+		<< " outputBinding=" << outputBinding
 		<< " saveKeepsDefault=" << saveKeepsDefaultCompo
 		<< " mediaSmoke=" << mediaSmoke;
 	return current && old && clamped && shaderReload && modeMemory &&
@@ -1039,5 +1211,5 @@ bool jp_persistence_test::run(ofApp &app)
 		mediaBoundary && mediaAlpha && mediaMotionClear && mediaStraightMix &&
 		mediaSingleComposite && mediaPausePreserves && mediaTransforms &&
 		mediaSkipsStatic && mediaTurnaround && mediaMidiIndex && camScaleRatio && camLegacyLoad && shaderScaleRatio && realCompoLoad &&
-		saveKeepsDefaultCompo && mediaSmoke;
+		saveKeepsDefaultCompo && boxIdentity && outputBinding && mediaSmoke;
 }

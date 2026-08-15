@@ -1222,7 +1222,7 @@ void JPboxgroup::draw_activerender(float _width, float _height)
 }
 
 bool JPboxgroup::drawLiveOutputSource(bool followMainActive,
-	const string &sourceBoxName, float _width, float _height,
+	const string &sourceBoxUid, float _width, float _height,
 	const ofRectangle &normCrop, float bezelCanvasPx,
 	ofRectangle *outEffectiveNorm)
 {
@@ -1278,7 +1278,9 @@ bool JPboxgroup::drawLiveOutputSource(bool followMainActive,
 		return true;
 	}
 
-	JPbox *source = findBoxByName(sourceBoxName);
+	// By uid, and therefore across the whole tree: a box nested in a group is
+	// a perfectly good output source and a name lookup could never reach one.
+	JPbox *source = findBoxByUid(sourceBoxUid);
 	if (source == nullptr || !source->fbo.isAllocated())
 	{
 		return false;
@@ -1816,7 +1818,7 @@ void JPboxgroup::drawMappingOverlay(float _x, float _y,
 }
 
 void JPboxgroup::drawMappingOverlayForSource(bool followMainActive,
-	const string &sourceBoxName, float _x, float _y,
+	const string &sourceBoxUid, float _x, float _y,
 	float _width, float _height)
 {
 	if (!mappingEditActive || mappingTargetIndex < 0)
@@ -1831,9 +1833,14 @@ void JPboxgroup::drawMappingOverlayForSource(bool followMainActive,
 		return;
 	}
 
+	// Matches the mapping target's TOP-LEVEL ancestor against the bound source,
+	// as before - just by identity now. A source nested inside a group does not
+	// draw this overlay; it also could not be a source at all until now, so
+	// nothing regresses.
+	JPbox *sourceBox = findBoxByUid(sourceBoxUid);
 	const bool sourceMatches = followMainActive ?
 		(activerender != nullptr && *activerender == topLevelIndex) :
-		boxes[topLevelIndex]->name == sourceBoxName;
+		(sourceBox != nullptr && sourceBox == boxes[topLevelIndex]);
 	if (sourceMatches)
 	{
 		drawMappingOverlay(_x, _y, _width, _height);
@@ -3074,19 +3081,34 @@ void JPboxgroup::draw_paramswindow()
 		const float mappingActionWidth = 48.0f;
 		const float editActionWidth = 48.0f;
 		const float cameraActionWidth = 48.0f;
+		// Every box owns an FBO, so any of them can drive a live output.
+		const bool hasToOutputAction = true;
+		// Measured, not guessed. drawHeaderAction centres the label on the
+		// button and never clips it, so a label wider than its box spills over
+		// the control to its left and past the panel edge - which is exactly
+		// what a hardcoded 72 did to "TO OUTPUT".
+		const string toOutputLabel = "TO OUTPUT";
+		const float toOutputActionWidth = std::max(72.0f,
+			jp_constants::inspector_secondary_font.stringWidth(toOutputLabel)
+				+ 16.0f);
 		const float headerActionHeight = 26.0f;
 		const float headerActionGap = 5.0f;
+		// Count and width are SEPARATE sums - the count only feeds the
+		// inter-button gaps. A button added to one and not the other shifts
+		// every control in the row by a gap width.
 		const int headerActionCount =
 			(hasRandomAction ? 3 : 0) +
 			(hasMappingAction ? 1 : 0) +
 			(hasCameraAction ? 1 : 0) +
-			(hasEditAction ? 1 : 0);
+			(hasEditAction ? 1 : 0) +
+			(hasToOutputAction ? 1 : 0);
 		const float headerActionWidth =
 			(hasRandomAction ? randomActionWidth : 0.0f) +
 			(hasRandomAction ? defaultActionWidth + saveDefaultActionWidth : 0.0f) +
 			(hasMappingAction ? mappingActionWidth : 0.0f) +
 			(hasCameraAction ? cameraActionWidth : 0.0f) +
 			(hasEditAction ? editActionWidth : 0.0f) +
+			(hasToOutputAction ? toOutputActionWidth : 0.0f) +
 			std::max(0, headerActionCount - 1) * headerActionGap;
 		const float headerActionRight = panelRight - 12.0f;
 		const float headerActionLeft =
@@ -3108,6 +3130,10 @@ void JPboxgroup::draw_paramswindow()
 		editbutton.height = 0.0f;
 		camerarefreshbutton.width = 0.0f;
 		camerarefreshbutton.height = 0.0f;
+		// Zero size means hidden AND unhittable, which is how visibility is
+		// expressed for every control in this row.
+		tooutputbutton.width = 0.0f;
+		tooutputbutton.height = 0.0f;
 
 		float titleX = panelLeft + 16.0f;
 		string title = name;
@@ -3155,6 +3181,11 @@ void JPboxgroup::draw_paramswindow()
 		if (hasMappingAction)
 		{
 			placeHeaderAction(mappingbutton, mappingActionWidth);
+		}
+
+		if (hasToOutputAction)
+		{
+			placeHeaderAction(tooutputbutton, toOutputActionWidth);
 		}
 
 		inspectorClip.set(inspectorBodyViewport);
@@ -3364,6 +3395,15 @@ void JPboxgroup::draw_paramswindow()
 		drawHeaderAction(mappingbutton, "MAP",
 			mappingEditActive ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY,
 			COL_ACCENT_CYAN, "Edit mapping corners");
+		// Same on/off treatment MAP uses: drawHeaderAction has no notion of a
+		// toggled state, so a lit idle colour is what carries it.
+		drawHeaderAction(tooutputbutton, toOutputLabel,
+			inspectorBox->getOutputCandidate() ?
+				COL_ACCENT_CYAN : COL_TEXT_SECONDARY,
+			COL_ACCENT_CYAN,
+			inspectorBox->getOutputCandidate() ?
+				"Available as a live output source - click to remove" :
+				"Make this box selectable as a live output source");
 
 		if (inspectorMaxScrollY > 0.0f)
 		{
@@ -4379,6 +4419,18 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			markCueDraftDirty(cueSelectedIndex());
 			if (isCueDraftMode()) updateCueDraftGraph();
 		}
+		if (tooutputbutton.mouseGrab())
+		{
+			// inspectorBox is the cue DRAFT during a cue and the preset child
+			// in group view, which is what makes a group child markable at all.
+			// The draft carries the live box's uid, so the binding stays put
+			// and the flag rides the normal draft->live commit.
+			inspectorBox->setOutputCandidate(
+				!inspectorBox->getOutputCandidate());
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode()) updateCueDraftGraph();
+			return;
+		}
 		if (camerarefreshbutton.mouseGrab() &&
 			inspectorBox->getTipo() == inspectorBox->CAMBOX)
 		{
@@ -4989,6 +5041,8 @@ void JPboxgroup::save(string outputPath)
 		data.appendChild("x").set(boxes[i]->x);
 		data.appendChild("y").set(boxes[i]->y);
 		data.appendChild("directory").set(boxes[i]->dir);
+		data.appendChild("uid").set(boxes[i]->uid);
+		data.appendChild("tooutput").set(boxes[i]->getOutputCandidate());
 		data.appendChild("onoff").set(boxes[i]->getonoff());
 		data.appendChild("bypass").set(boxes[i]->getBypass());
 		boxes[i]->saveCustomState(data);
@@ -5208,6 +5262,14 @@ void JPboxgroup::load(string _dirinput)
 		bx->setPos(x.getIntValue(), y.getIntValue());
 		bx->setonoff(onoff ? onoff.getBoolValue() : true);
 		bx->setBypass(bypass ? bypass.getBoolValue() : false);
+		// Adopt the stored identity; a composition written before uids existed
+		// simply keeps the one the constructor minted. Nothing is rewritten on
+		// disk here - the live-output binding heals itself by falling back to
+		// the box NAME, so a file the user never re-saves still resolves.
+		auto uidNode = box.getChild("uid");
+		if (uidNode && !uidNode.getValue().empty()) bx->uid = uidNode.getValue();
+		auto toOutput = box.getChild("tooutput");
+		bx->setOutputCandidate(toOutput ? toOutput.getBoolValue() : false);
 
 		int positionalIndex = 0;
 		auto parameters = box.getChild("parameters").getChildren();
@@ -5391,8 +5453,9 @@ void JPboxgroup::load(string _dirinput)
 	// activerender_loader.getIntValue();
 	// activerender = activerender_loader.getIntValue();
 
-
-
+	// Hand-edited XML, or the same group .xml placed twice, can deliver
+	// duplicate identities. Shallowest box keeps the uid; the rest are re-minted.
+	repairBoxUids();
 }
 vector<JPParameter *> JPboxgroup::getInspectorActionParameters() const
 {
@@ -6224,14 +6287,6 @@ ofVec2f JPboxgroup::getMasterCanvasSize() const
 	return ofVec2f(0.0f, 0.0f);
 }
 
-ofVec2f JPboxgroup::getBoxFboSize(const string &boxName) const
-{
-	JPbox *box = findBoxByName(boxName);
-	if (box == nullptr || !box->fbo.isAllocated())
-		return ofVec2f(0.0f, 0.0f);
-	return ofVec2f(box->fbo.getWidth(), box->fbo.getHeight());
-}
-
 JPbox *JPboxgroup::findBoxByName(string boxName) const
 {
 	int index = findBoxIndexByName(boxName);
@@ -6244,6 +6299,116 @@ JPbox *JPboxgroup::findBoxByName(string boxName) const
 bool JPboxgroup::hasBoxName(string boxName) const
 {
 	return findBoxByName(boxName) != nullptr;
+}
+
+JPbox *JPboxgroup::findTopLevelBoxByName(const string &boxName) const
+{
+	return findBoxByName(boxName);
+}
+
+namespace
+{
+	// Depth-first walk of a box list and every group nested inside it.
+	//
+	// The name-based lookups above are deliberately left alone: they are
+	// top-level-only and other callers depend on that. Anything reached through
+	// a uid instead walks the whole tree, which is what makes a box inside a
+	// group addressable at all.
+	void walkBoxTree(const vector<JPbox *> &list,
+		const std::function<void(JPbox *, const string &)> &visit,
+		const string &pathPrefix)
+	{
+		for (JPbox *box : list)
+		{
+			if (box == nullptr) continue;
+			visit(box, pathPrefix);
+			JPbox_preset *group = dynamic_cast<JPbox_preset *>(box);
+			if (group != nullptr)
+			{
+				walkBoxTree(group->boxes, visit,
+					pathPrefix.empty() ? box->name :
+						pathPrefix + " / " + box->name);
+			}
+		}
+	}
+}
+
+JPbox *JPboxgroup::findBoxByUid(const string &boxUid) const
+{
+	if (boxUid.empty()) return nullptr;
+	JPbox *found = nullptr;
+	walkBoxTree(boxes, [&](JPbox *box, const string &)
+	{
+		if (found == nullptr && box->uid == boxUid) found = box;
+	}, "");
+	return found;
+}
+
+bool JPboxgroup::hasBoxUid(const string &boxUid) const
+{
+	return findBoxByUid(boxUid) != nullptr;
+}
+
+ofVec2f JPboxgroup::getBoxFboSizeByUid(const string &boxUid) const
+{
+	JPbox *box = findBoxByUid(boxUid);
+	if (box == nullptr || !box->fbo.isAllocated())
+		return ofVec2f(0.0f, 0.0f);
+	return ofVec2f(box->fbo.getWidth(), box->fbo.getHeight());
+}
+
+vector<JPboxgroup::OutputCandidate> JPboxgroup::getOutputCandidates() const
+{
+	vector<OutputCandidate> candidates;
+	walkBoxTree(boxes, [&](JPbox *box, const string &pathPrefix)
+	{
+		if (!box->getOutputCandidate()) return;
+		OutputCandidate candidate;
+		candidate.uid = box->uid;
+		// Path-qualified, because two groups may each hold a box called
+		// "mask" and a bare name could not tell them apart.
+		candidate.label = pathPrefix.empty() ? box->name :
+			pathPrefix + " / " + box->name;
+		candidates.push_back(candidate);
+	}, "");
+	return candidates;
+}
+
+void JPboxgroup::repairBoxUids()
+{
+	// Breadth-by-depth: every box at depth 0, then depth 1, and so on. First
+	// occurrence keeps its uid; later duplicates and empties are re-minted.
+	//
+	// The ORDER is the load-bearing part. Under a depth-first walk a nested
+	// child can claim a uid before a shallower box is even visited, so the
+	// shallower one - the more likely live-output target, and the one the user
+	// can see without opening a group - would be the one silently renumbered.
+	// Shallowest wins instead.
+	//
+	// This fires for hand-edited XML and for the same group .xml being included
+	// twice in one composition, which paste reaches trivially: pasting a group
+	// box copies only its <directory>, so the children are re-read from the
+	// shared file carrying the originals' uids.
+	std::set<string> seen;
+	vector<JPbox *> current = boxes;
+	while (!current.empty())
+	{
+		vector<JPbox *> next;
+		for (JPbox *box : current)
+		{
+			if (box == nullptr) continue;
+			if (box->uid.empty() || !seen.insert(box->uid).second)
+			{
+				box->uid = jp_boxuid::mint();
+				seen.insert(box->uid);
+			}
+			JPbox_preset *group = dynamic_cast<JPbox_preset *>(box);
+			if (group != nullptr)
+				next.insert(next.end(), group->boxes.begin(),
+					group->boxes.end());
+		}
+		current.swap(next);
+	}
 }
 bool JPboxgroup::toggleBypassForBox(string boxName)
 {
@@ -7403,6 +7568,15 @@ JPbox *JPboxgroup::cloneBoxForCueDraft(int index)
 		copyPresetInternalState(draftPreset, sourcePreset);
 	}
 	draft->name = source->name;
+	// The draft is a staging view of the SAME box, not a new one: the inspector
+	// hands it out in place of the live box for the duration of the cue. Give it
+	// a separate identity and anything asking "which box is this output bound
+	// to" would see two identities alternate as the cue opens and closes.
+	//
+	// Note this is assigned HERE, by the caller. copyEditableBoxState and
+	// copyPresetInternalState must never copy uid - doing so would write the
+	// draft's identity onto the live box when the cue is applied.
+	draft->uid = source->uid;
 	return draft;
 }
 
@@ -7716,6 +7890,9 @@ bool JPboxgroup::synchronizeCuePresetStructure(
 			}
 			clone->setup(sourceBox->dir, cloneName);
 			clone->name = sourceBox->name;
+			// Mirrors the live child, so it carries the same identity - see the
+			// note in the draft clone above.
+			clone->uid = sourceBox->uid;
 			copyEditableBoxState(clone, sourceBox);
 			destination->boxes.push_back(clone);
 		}
@@ -9321,6 +9498,11 @@ void JPboxgroup::groupSelectedBoxes()
 		data.appendChild("x").set(box->x);
 		data.appendChild("y").set(box->y);
 		data.appendChild("directory").set(box->dir);
+		// Identity rides through grouping: the children below are deleted and
+		// rebuilt by JPbox_preset::setup from this XML, so without <uid> here
+		// grouping would silently break every output bound to a child.
+		data.appendChild("uid").set(box->uid);
+		data.appendChild("tooutput").set(box->getOutputCandidate());
 		data.appendChild("onoff").set(box->getonoff());
 		data.appendChild("bypass").set(box->getBypass());
 		box->saveCustomState(data);
@@ -9912,6 +10094,10 @@ void JPboxgroup::copySelectedBoxes()
 		data.appendChild("x").set((int)box->x);
 		data.appendChild("y").set((int)box->y);
 		data.appendChild("directory").set(box->dir);
+		// NO <uid> here, deliberately. Paste re-reads this XML, and a pasted
+		// duplicate that inherited the original's identity would silently steal
+		// any live output bound to it. The constructor's mint stands instead.
+		data.appendChild("tooutput").set(box->getOutputCandidate());
 		data.appendChild("onoff").set(box->getonoff());
 		data.appendChild("bypass").set(box->getBypass());
 		box->saveCustomState(data);
@@ -10021,6 +10207,7 @@ void JPboxgroup::pasteBoxes()
 		auto directory = box.getChild("directory");
 		auto onoff = box.getChild("onoff");
 		auto bypass = box.getChild("bypass");
+		auto toOutput = box.getChild("tooutput");
 
 		if (!nombre || !directory) continue;
 
@@ -10058,6 +10245,10 @@ void JPboxgroup::pasteBoxes()
 		// Restore onoff/bypass from copied state
 		if (onoff) bx->setonoff(onoff.getBoolValue());
 		if (bypass) bx->setBypass(bypass.getBoolValue());
+		// The flag is a property of the box and copies like any other. The
+		// IDENTITY does not: no <uid> was written to the clipboard, so bx keeps
+		// the one its constructor minted and the original keeps its outputs.
+		if (toOutput) bx->setOutputCandidate(toOutput.getBoolValue());
 
 		// Restore parameters (only if the child exists)
 		{
@@ -10217,6 +10408,12 @@ void JPboxgroup::pasteBoxes()
 		}
 		pasteIndex++;
 	}
+
+	// Pasting a GROUP box copies only its <directory>, so its children are
+	// re-read from the shared group file and arrive carrying the originals'
+	// identities. The clipboard deliberately omits <uid> for the top-level
+	// boxes, but it cannot reach inside a group file - this is what covers it.
+	repairBoxUids();
 
 	requestCueRebuild();
 	cout << "pasteBoxes: pasted " << newBoxes.size() << " box(es)" << endl;

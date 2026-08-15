@@ -147,6 +147,15 @@ void JPbox_preset::setup(string _directory, string _name)
 		{
 			bx->setBypass(bypassChild.getBoolValue());
 		}
+		// Same rule as the main graph: adopt a stored identity, otherwise keep
+		// the constructor's. JPboxgroup::repairBoxUids re-mints afterwards if
+		// this group file has already contributed these uids once - which it
+		// has, whenever the same group is placed twice.
+		auto uidChild = box.getChild("uid");
+		if (uidChild && !uidChild.getValue().empty()) bx->uid = uidChild.getValue();
+		auto toOutputChild = box.getChild("tooutput");
+		bx->setOutputCandidate(
+			toOutputChild ? toOutputChild.getBoolValue() : false);
 
 		int destinationIndex = 0;
 		auto parameters = box.getChild("parameters").getChildren();
@@ -925,6 +934,8 @@ void JPbox_preset::save()
 		data.appendChild("x").set(boxes[i]->x);
 		data.appendChild("y").set(boxes[i]->y);
 		data.appendChild("directory").set(boxes[i]->dir);
+		data.appendChild("uid").set(boxes[i]->uid);
+		data.appendChild("tooutput").set(boxes[i]->getOutputCandidate());
 		data.appendChild("onoff").set(boxes[i]->getonoff());
 		data.appendChild("bypass").set(boxes[i]->getBypass());
 		boxes[i]->saveCustomState(data);

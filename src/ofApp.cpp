@@ -337,14 +337,38 @@ void ofApp::update() {
 	jp_audio::update();
 	smoothProfileValue(frameProfile.audioMs, elapsedProfileMs(stageStart));
 	vector<string> requiredRenderSources;
-	for (const LiveOutputRuntime &output : liveOutputs)
+	// Resolving here does double duty: it keeps the scheduler marking the right
+	// box, and it is where a binding that no longer resolves gets retired.
+	//
+	// Guarded on a non-empty graph. Settings load before a composition does, so
+	// without this every binding would be retired at startup before the boxes
+	// it names have even been built.
+	const bool graphLoaded = !boxes.boxes.empty();
+	for (LiveOutputRuntime &output : liveOutputs)
 	{
-		if (output.config.enabled &&
-			output.config.sourceMode == LIVE_OUTPUT_FIXED_BOX &&
-			!output.config.sourceBox.empty())
+		if (output.config.sourceMode != LIVE_OUTPUT_FIXED_BOX) continue;
+		JPbox *source = resolveLiveOutputSource(output.config);
+		if (source == nullptr)
 		{
-			requiredRenderSources.push_back(output.config.sourceBox);
+			if (!graphLoaded) continue;
+			// The box was deleted, or this is a different composition that
+			// never had it. Fall back to MAIN Active so the output shows
+			// something rather than going dark, and say so once.
+			ofLogNotice("liveoutput")
+				<< output.config.id << ": source '"
+				<< (output.config.sourceBox.empty() ?
+					output.config.sourceUid : output.config.sourceBox)
+				<< "' is gone - reverting to MAIN Active";
+			output.config.sourceMode = LIVE_OUTPUT_MAIN_ACTIVE;
+			output.config.sourceUid.clear();
+			output.config.sourceBox.clear();
+			continue;
 		}
+		// The scheduler still marks by NAME, and only top-level boxes are ever
+		// throttled - JPbox_preset::update renders its children unconditionally
+		// - so passing the resolved box's current name covers every case that
+		// needs covering.
+		if (output.config.enabled) requiredRenderSources.push_back(source->name);
 	}
 	boxes.setRequiredRenderSources(requiredRenderSources);
 	stageStart = ProfileClock::now();
@@ -877,6 +901,44 @@ namespace
 	constexpr float kSettingsFieldW = 200.0f;
 	constexpr float kSettingsActionBtnW = 100.0f;
 	constexpr float kSettingsControlGap = 10.0f; // field to action button
+}
+
+string ofApp::liveOutputSourceLabel(const LiveOutputConfig &config) const
+{
+	// The path-qualified label from the candidate list, so a nested source
+	// reads as "gusanos / mirrorquad" rather than an ambiguous bare name. Falls
+	// back to the stored name when the box is gone, which is what makes the
+	// "Missing source" row still say WHICH box went missing.
+	for (const JPboxgroup::OutputCandidate &candidate :
+		boxes.getOutputCandidates())
+	{
+		if (candidate.uid == config.sourceUid) return candidate.label;
+	}
+	return config.sourceBox.empty() ? string("(none)") : config.sourceBox;
+}
+
+JPbox *ofApp::resolveLiveOutputSource(LiveOutputConfig &config)
+{
+	if (config.sourceMode != LIVE_OUTPUT_FIXED_BOX) return nullptr;
+	if (!config.sourceUid.empty())
+	{
+		JPbox *box = boxes.findBoxByUid(config.sourceUid);
+		if (box != nullptr) return box;
+	}
+	// Legacy binding: settings written before uids existed name the box. Heal
+	// it the first time it resolves, so the binding survives the next rename
+	// without anyone having to re-pick it. Top-level only, which is all a name
+	// could ever address anyway.
+	if (!config.sourceBox.empty())
+	{
+		JPbox *box = boxes.findTopLevelBoxByName(config.sourceBox);
+		if (box != nullptr)
+		{
+			config.sourceUid = box->uid;
+			return box;
+		}
+	}
+	return nullptr;
 }
 
 float ofApp::getSettingsPanelWidth() const
@@ -1479,11 +1541,32 @@ bool ofApp::handleAudioSettingsClick(int x, int y)
 
 vector<string> ofApp::getLiveOutputSourceOptions() const
 {
+	// Row 0 is always MAIN Active; the rest are the boxes marked TO OUTPUT, in
+	// tree order, path-qualified. This used to be every box in the graph, which
+	// was noise, and it could not reach a box inside a group at all.
 	vector<string> options;
 	options.push_back("MAIN Active");
-	const vector<string> boxNames = boxes.getBoxNames();
-	options.insert(options.end(), boxNames.begin(), boxNames.end());
+	for (const JPboxgroup::OutputCandidate &candidate :
+		boxes.getOutputCandidates())
+	{
+		options.push_back(candidate.label);
+	}
 	return options;
+}
+
+vector<string> ofApp::getLiveOutputSourceUids() const
+{
+	// Parallel to getLiveOutputSourceOptions: index 0 is MAIN Active and holds
+	// no uid, so the two vectors stay index-aligned and the click handler can
+	// map a row straight onto an identity.
+	vector<string> uids;
+	uids.push_back(string());
+	for (const JPboxgroup::OutputCandidate &candidate :
+		boxes.getOutputCandidates())
+	{
+		uids.push_back(candidate.uid);
+	}
+	return uids;
 }
 
 ofApp::LiveOutputSettingsLayout
@@ -1882,7 +1965,7 @@ void ofApp::drawWallRoomView(const LiveOutputSettingsLayout &layout)
 			ofSetColor(255);
 			boxes.drawLiveOutputSource(
 				config.sourceMode == LIVE_OUTPUT_MAIN_ACTIVE,
-				config.sourceBox, screen.width, screen.height, crop, bezel);
+				config.sourceUid, screen.width, screen.height, crop, bezel);
 			ofPopMatrix();
 		}
 
@@ -2259,7 +2342,7 @@ void ofApp::drawLiveOutputWallTab(const LiveOutputSettingsLayout &layout,
 		if (!other.cropEnabled) continue;
 		if (other.sourceMode != config.sourceMode) continue;
 		if (other.sourceMode == LIVE_OUTPUT_FIXED_BOX &&
-			other.sourceBox != config.sourceBox) continue;
+			other.sourceUid != config.sourceUid) continue;
 		peers.push_back(i);
 	}
 	for (size_t a = 0; a < peers.size(); a++)
@@ -2565,7 +2648,7 @@ void ofApp::drawLiveOutputSettings()
 			config.enabled ? "ON" : "OFF", config.enabled);
 		const string sourceLabel =
 			config.sourceMode == LIVE_OUTPUT_MAIN_ACTIVE ?
-				"MAIN Active" : config.sourceBox;
+				"MAIN Active" : liveOutputSourceLabel(config);
 		drawControl(layout.sourceButton,
 			sourceLabel + "  v", false);
 
@@ -2614,7 +2697,7 @@ void ofApp::drawLiveOutputSettings()
 
 		const bool sourceMissing =
 			config.sourceMode == LIVE_OUTPUT_FIXED_BOX &&
-			!boxes.hasBoxName(config.sourceBox);
+			!boxes.hasBoxUid(config.sourceUid);
 		string status = "Disabled";
 		ofColor statusColor = COL_TEXT_MUTED;
 		if (config.enabled && monitorIndex < 0 && !config.virtualMonitor)
@@ -2807,7 +2890,7 @@ ofVec2f ofApp::getLiveOutputCanvasSize(const LiveOutputConfig &config) const
 	// canvas and jp_constants disagree.
 	if (config.sourceMode == LIVE_OUTPUT_FIXED_BOX)
 	{
-		const ofVec2f size = boxes.getBoxFboSize(config.sourceBox);
+		const ofVec2f size = boxes.getBoxFboSizeByUid(config.sourceUid);
 		if (size.x >= 1.0f && size.y >= 1.0f) return size;
 	}
 	else
@@ -3103,10 +3186,20 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 				}
 				else if (optionIndex < (int)options.size())
 				{
+					const vector<string> uids =
+						getLiveOutputSourceUids();
 					output.config.sourceMode =
 						LIVE_OUTPUT_FIXED_BOX;
+					// Bind to identity. The label is path-qualified and would
+					// not survive a rename or match a nested box anyway.
+					if (optionIndex < (int)uids.size())
+						output.config.sourceUid = uids[optionIndex];
+					// Kept in step so a downgrade, or a settings file read by
+					// an older build, still points somewhere sensible.
+					JPbox *bound = boxes.findBoxByUid(
+						output.config.sourceUid);
 					output.config.sourceBox =
-						options[optionIndex];
+						bound != nullptr ? bound->name : string();
 				}
 			}
 			else if (optionIndex == 0)
@@ -6121,6 +6214,10 @@ void ofApp::loadSettings() {
 				LIVE_OUTPUT_FIXED_BOX : LIVE_OUTPUT_MAIN_ACTIVE;
 			output.config.sourceBox = stringValue(
 				outputNode, "source_box", "");
+			// Absent in settings written before uids existed; resolveLiveOutputSource
+			// then falls back to the name above and adopts the uid on the way.
+			output.config.sourceUid = stringValue(
+				outputNode, "source_uid", "");
 			output.config.monitorName = stringValue(
 				outputNode, "monitor_name", "");
 			output.config.monitorIndex = intValue(
@@ -6310,6 +6407,7 @@ void ofApp::saveSettings() {
 			config.sourceMode == LIVE_OUTPUT_FIXED_BOX ?
 				"fixed_box" : "main_active");
 		outputNode.appendChild("source_box").set(config.sourceBox);
+		outputNode.appendChild("source_uid").set(config.sourceUid);
 		outputNode.appendChild("monitor_name").set(config.monitorName);
 		outputNode.appendChild("monitor_index").set(config.monitorIndex);
 		outputNode.appendChild("width").set(config.width);
@@ -6457,7 +6555,7 @@ void ofApp::window_drawRender(ofEventArgs & args) {
 	const float bezel = config.cropEnabled ? (float)config.bezelPx : 0.0f;
 	ofRectangle effective(0.0f, 0.0f, 1.0f, 1.0f);
 	const bool sourceAvailable = boxes.drawLiveOutputSource(
-		followMain, config.sourceBox, width, height, crop, bezel, &effective);
+		followMain, config.sourceUid, width, height, crop, bezel, &effective);
 	if (sourceAvailable)
 	{
 		// The overlay is authored across the whole canvas, so hand it a virtual
@@ -6473,7 +6571,7 @@ void ofApp::window_drawRender(ofEventArgs & args) {
 			overlayX = -effective.x / effective.width * width;
 			overlayY = -effective.y / effective.height * height;
 		}
-		boxes.drawMappingOverlayForSource(followMain, config.sourceBox,
+		boxes.drawMappingOverlayForSource(followMain, config.sourceUid,
 			overlayX, overlayY, overlayW, overlayH);
 	}
 	else

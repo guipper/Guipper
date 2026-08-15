@@ -150,7 +150,13 @@ public:
 		string id;
 		bool enabled = false;
 		LiveOutputSourceMode sourceMode = LIVE_OUTPUT_MAIN_ACTIVE;
+		// Legacy binding, kept for migration and for downgrades. sourceUid is
+		// the source of truth; this is only consulted when the uid does not
+		// resolve, and the uid is adopted the moment it does.
 		string sourceBox;
+		// Stable identity of the bound box. Survives renaming, and reaches
+		// boxes nested inside groups, which a name never could.
+		string sourceUid;
 		string monitorName;
 		int monitorIndex = 0;
 		int width = 1280;
@@ -505,6 +511,13 @@ public:
 	// immediately to the right of this one, so both must read the same number:
 	// two independent constants is how they end up overlapping.
 	float getSettingsPanelWidth() const;
+	// The box a live output is bound to, or nullptr. Resolves by uid first and
+	// falls back to the legacy name, adopting the uid when the name resolves -
+	// so a composition saved before uids binds exactly as it used to and
+	// becomes rename-proof from that point on. Non-const: healing writes back.
+	JPbox *resolveLiveOutputSource(LiveOutputConfig &config);
+	vector<string> getLiveOutputSourceUids() const;
+	string liveOutputSourceLabel(const LiveOutputConfig &config) const;
 	float getSettingsPanelHeight() const;
 	bool settingsUseTwoColumns() const;
 	// Audio device dropdown state (SETTINGS). Registered with SURFACE_DROPDOWN
