@@ -4877,30 +4877,25 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		// Don't return yet — Ctrl+S also needs to save
 	}
 
-	// Ctrl+S (keycodes 46 or 19 depending on platform) -> save-as modal or save shader
-	if (e.key == 46 || e.key == 19) {
+	// Ctrl+S / Cmd+S -> save the composition. Shift opens the in-app modal.
+	//
+	// The old test was `e.key == 46 || e.key == 19` with NO modifier check.
+	// 19 is Ctrl+S folded to its control code, but 46 is a bare '.', so tapping
+	// the period key opened the save dialog. Modifiers were available all along
+	// - the copy/paste branch immediately below already reads hasModifier -
+	// this branch simply never asked for them.
+	const bool ctrlOrCmd = e.hasModifier(OF_KEY_CONTROL) ||
+		e.hasModifier(OF_KEY_SUPER);
+	const bool saveChord = e.key == 19 ||
+		(ctrlOrCmd && (e.key == 's' || e.key == 'S'));
+	if (saveChord) {
 		// If shader editor is visible, save the shader file instead
 		if (shaderEditor.wantsKeyCapture()) {
 			shaderEditor.saveCurrentTab();
 			return;
 		}
-		if (!saveModalActive) {
-			saveModalActive = true;
-			saveModalName = "";
-			// Pre-fill with the active session filename (from savedirectory)
-			{
-				string sessionFile = ofFilePath::getFileName(savedirectory);
-				if (!sessionFile.empty()) {
-					// Strip .xml extension for the text field
-					if (sessionFile.size() > 4 && sessionFile.substr(sessionFile.size() - 4) == ".xml") {
-						sessionFile = sessionFile.substr(0, sessionFile.size() - 4);
-					}
-					saveModalName = sessionFile;
-				}
-			}
-			saveModalCursor = saveModalName.size();
-			cout << "Save modal opened, name='" << saveModalName << "'" << endl;
-		}
+		if (e.hasModifier(OF_KEY_SHIFT)) openSaveModal();
+		else saveSessionAs();
 		return;
 	}
 
@@ -6691,6 +6686,52 @@ void ofApp::drawSaveModal() {
 	float cancelLabelW = modalFont.stringWidth(cancelLabel);
 	modalFont.drawString(cancelLabel, cancelBtnX + btnW / 2 - cancelLabelW / 2, btnY + btnH / 2 + 5);
 	jp_tooltip::draw("Close without saving", cancelBtnX, btnY, btnW, btnH);
+}
+
+void ofApp::saveSessionAs() {
+	// Suggest the file already open, so re-saving is one keystroke and Enter.
+	string suggested = ofFilePath::getFileName(savedirectory);
+	if (suggested.empty()) suggested = "composition.xml";
+
+	ofFileDialogResult result =
+		ofSystemSaveDialog(suggested, "Save composition");
+	// Cancel reports failure with an empty path, and is not an error.
+	if (!result.bSuccess || result.getPath().empty()) {
+		cout << "Save cancelled" << endl;
+		return;
+	}
+
+	string path = result.getPath();
+	// Typing a bare name in the dialog should still produce a composition, not
+	// an extensionless file the loader will not recognise.
+	if (ofFilePath::getFileExt(path).empty()) path += ".xml";
+
+	cout << "Save as: " << path << endl;
+	saveSession(path);
+	// The ACTIVE session follows the file just written, so a subsequent
+	// Ctrl+Shift+S -> UPDATE overwrites the right thing.
+	savedirectory = path;
+	// defaultCompoPath is deliberately NOT touched. Which composition the app
+	// opens at startup is a settings-screen decision persisted by
+	// saveSettings(); saving your work must never silently repoint it.
+}
+
+void ofApp::openSaveModal() {
+	if (saveModalActive) return;
+	saveModalActive = true;
+	saveModalName = "";
+	// Pre-fill with the active session filename (from savedirectory)
+	string sessionFile = ofFilePath::getFileName(savedirectory);
+	if (!sessionFile.empty()) {
+		// Strip .xml extension for the text field
+		if (sessionFile.size() > 4 &&
+			sessionFile.substr(sessionFile.size() - 4) == ".xml") {
+			sessionFile = sessionFile.substr(0, sessionFile.size() - 4);
+		}
+		saveModalName = sessionFile;
+	}
+	saveModalCursor = saveModalName.size();
+	cout << "Save modal opened, name='" << saveModalName << "'" << endl;
 }
 
 void ofApp::confirmSaveModal() {

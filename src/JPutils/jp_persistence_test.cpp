@@ -954,6 +954,46 @@ bool jp_persistence_test::run(ofApp &app)
 			app.boxes.clear();
 		}
 	}
+	// Saving a composition must never repoint what the app opens at startup.
+	//
+	// Ctrl+S writes wherever you choose and then follows that file with
+	// savedirectory, so a later overwrite hits the right thing. defaultCompoPath
+	// is a different decision entirely - it belongs to the SETTINGS screen and
+	// is persisted by saveSettings(). Nothing on the save path may touch it.
+	// This test exists so that adding `defaultCompoPath = path` to saveSession
+	// or saveSessionAs fails here rather than silently changing which set
+	// loads on the next launch.
+	bool saveKeepsDefaultCompo = true;
+	{
+		const string originalDefault = app.defaultCompoPath;
+		const string originalDir = app.savedirectory;
+		const string sentinel = "savefiles/__default_sentinel.xml";
+		app.defaultCompoPath = sentinel;
+		app.savedirectory = sentinel;
+
+		const string scratch = ofToDataPath("savefiles/__savetest.xml", true);
+		app.boxes.clear();
+		app.boxes.addBox("cam", 40, 40);
+		app.saveSession(scratch);
+		// What saveSessionAs does after a successful dialog.
+		app.savedirectory = scratch;
+
+		if (app.defaultCompoPath != sentinel)
+		{
+			saveKeepsDefaultCompo = false;
+			ofLogNotice("savedefault") << "defaultCompoPath changed to "
+				<< app.defaultCompoPath;
+		}
+		if (!ofFile::doesFileExist(scratch))
+		{
+			saveKeepsDefaultCompo = false;
+			ofLogNotice("savedefault") << "save produced no file at " << scratch;
+		}
+		ofFile::removeFile(scratch);
+		app.defaultCompoPath = originalDefault;
+		app.savedirectory = originalDir;
+		app.boxes.clear();
+	}
 	bool mediaSmoke = true;
 	if(const char *smokePath=std::getenv("GUIPPER_MEDIA_SMOKE"))
 	{
@@ -992,10 +1032,12 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " camLegacyLoad=" << camLegacyLoad
 		<< " shaderScaleRatio=" << shaderScaleRatio
 		<< " realCompoLoad=" << realCompoLoad
+		<< " saveKeepsDefault=" << saveKeepsDefaultCompo
 		<< " mediaSmoke=" << mediaSmoke;
 	return current && old && clamped && shaderReload && modeMemory &&
 		rangeCapture && midiRange && cueState && lockDefault && mediaState &&
 		mediaBoundary && mediaAlpha && mediaMotionClear && mediaStraightMix &&
 		mediaSingleComposite && mediaPausePreserves && mediaTransforms &&
-		mediaSkipsStatic && mediaTurnaround && mediaMidiIndex && camScaleRatio && camLegacyLoad && shaderScaleRatio && realCompoLoad && mediaSmoke;
+		mediaSkipsStatic && mediaTurnaround && mediaMidiIndex && camScaleRatio && camLegacyLoad && shaderScaleRatio && realCompoLoad &&
+		saveKeepsDefaultCompo && mediaSmoke;
 }

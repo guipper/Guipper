@@ -720,6 +720,17 @@ public:
 	// Default composition path (loaded at startup)
 	string defaultCompoPath;
 
+	// Ctrl+S / Cmd+S. Opens the OS save dialog so a composition can be written
+	// anywhere on disk, not only into bin/data/savefiles. Never writes
+	// defaultCompoPath - which composition the app opens at startup is a
+	// settings-screen decision, not a side effect of saving.
+	void saveSessionAs();
+	// Ctrl+Shift+S. The in-app modal, kept as a fallback: ofSystemSaveDialog is
+	// a GTK/Cocoa dialog this project has never shipped (the one other call,
+	// ofSystemLoadDialog, is commented out with a note asking whether it even
+	// works on Mac). If it misbehaves there, this is still a way to save.
+	void openSaveModal();
+
 	// Save-as modal state
 	bool saveModalActive = false;
 	string saveModalName = "";
