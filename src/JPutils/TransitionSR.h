@@ -11,7 +11,33 @@ public:
 	void setup();
 	void setup(ofFbo * _fbo1, ofFbo * _fbo2);
 	void advance();
+	// Elapsed seconds to advance by. Defaults to ofGetLastFrameTime(); the
+	// explicit form exists so a test can feed a fixed timestep.
+	void advance(float deltaSeconds);
 	void update();
+	// How long a full 0..1 transition takes. Was a fixed 0.02 per FRAME, which
+	// meant 833ms at 60fps and 2s at 25fps - the fade got slower exactly when
+	// the machine was struggling. 833 is that old 60fps figure, so nothing
+	// visibly changes until someone moves it.
+	void setDurationMs(float _durationMs);
+	float getDurationMs() const;
+
+	// Which shader blends the two frames. All of them share one uniform
+	// contract - textura1, textura2, mixst, resolution - so switching is a
+	// shader swap and nothing at the call sites changes.
+	//
+	// APPEND ONLY: the value is written into settings.xml, so inserting one
+	// would silently change what an existing configuration means.
+	enum Type
+	{
+		TYPE_MIX = 0,     // straight per-pixel crossfade, the original
+		TYPE_WARP,        // both frames displaced through one shared flow
+		TYPE_DITHER,      // ordered dither, no pixel is ever a mixture
+		TYPE_COUNT
+	};
+	void setType(int _type);
+	int getType() const;
+	static const char *typeLabel(int _type);
 	// Renders a straight-RGBA interpolation into the currently bound target.
 	// The caller owns target clearing and blend state.
 	bool renderStraightMix(ofFbo *first, ofFbo *second, float mixValue,
@@ -59,4 +85,6 @@ private:
 	string dir;
 
 	float lerpValue;
+	float durationMs = 833.0f;
+	int transitionType = TYPE_MIX;
 };

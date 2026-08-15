@@ -90,6 +90,26 @@ public:
 	float audioReleaseMs;
 	bool audioShapingOpen;
 
+	// Transition morph. While the MAIN crossfade runs, a parameter emits a
+	// blend of its own animated value and its counterpart in the other box, so
+	// the two looks interpolate into each other rather than cutting.
+	//
+	// Deliberately affects ONLY the emitted floatValue, never floatLerpValue:
+	// the automation modes keep their own accumulator and phase coherent, and
+	// nothing is written permanently. When morphAmount returns to 0 the
+	// parameter emits its own value again with no restore step - which is what
+	// stops the OUTGOING box from being left holding the incoming values.
+	float morphTarget = 0.0f;
+	float morphAmount = 0.0f;
+	// Armed is separate from amount on purpose. The OUTGOING box starts at
+	// amount 0 and climbs, so "is this parameter part of the current morph"
+	// cannot be inferred from the amount - deriving it from `> 0` left the
+	// outgoing side unarmed and therefore never advanced.
+	bool morphArmed = false;
+	bool isMorphing() const { return morphArmed; }
+	void setMorph(float target, float amount);
+	void clearMorph();
+
 	bool bpmEligible;
 	bool needsUpdate;
 	float getBpmMultiplier() const;

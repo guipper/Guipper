@@ -211,9 +211,37 @@ void JPParameter::update()
 		floatLerpValue = ofClamp(floatLerpValue, low, high);
 	}
 
-	floatValue = floatLerpValue;
+	// The one crossing from automation state to emitted value, so the morph
+	// belongs exactly here. Cheap early-out: this runs for every parameter of
+	// every box, every frame.
+	if (morphArmed && morphAmount > 0.0f)
+		floatValue = ofLerp(floatLerpValue, morphTarget,
+			ofClamp(morphAmount, 0.0f, 1.0f));
+	else
+		floatValue = floatLerpValue;
 	// floatLerpValue = ofRandom(1);
 	// floatValue = ofRandom(1);
+}
+
+void JPParameter::setMorph(float target, float amount)
+{
+	morphArmed = true;
+	morphTarget = target;
+	morphAmount = ofClamp(amount, 0.0f, 1.0f);
+}
+
+void JPParameter::clearMorph()
+{
+	morphArmed = false;
+	morphAmount = 0.0f;
+	morphTarget = 0.0f;
+	// Restore the emitted value HERE rather than waiting for the next update().
+	// Once disarmed, a STANDART parameter is skipped by the gate in
+	// JPParameterGroup::update() again, so nothing would ever tick it - and it
+	// would stay frozen at the last blended value, which for the OUTGOING box
+	// means permanently wearing the incoming look. That is precisely the
+	// corruption this design set out to avoid.
+	floatValue = floatLerpValue;
 }
 
 /*****************************************************************************/
@@ -301,7 +329,13 @@ void JPParameterGroup::update()
 {
 	for (int i = 0; i < parameters.size(); i++)
 	{
-		if (parameters[i]->movtype != 0 || parameters[i]->needsUpdate)
+		// isMorphing() is load-bearing, not belt-and-braces: a hand-set
+		// STANDART parameter has movtype 0 and needsUpdate false, so it is
+		// never ticked at all - and those are exactly the parameters most
+		// worth morphing. Without this the morph would appear to work on
+		// animated parameters and do nothing on static ones.
+		if (parameters[i]->movtype != 0 || parameters[i]->needsUpdate ||
+			parameters[i]->isMorphing())
 		{
 			parameters[i]->update();
 		}

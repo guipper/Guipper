@@ -321,6 +321,7 @@ void ofApp::registerSurfaces()
 	});
 }
 void ofApp::update() {
+
 	const auto updateStart = ProfileClock::now();
 	// Publishes last frame's media pass totals before this frame's boxes start
 	// counting, so the overlay always reads a complete frame.
@@ -893,6 +894,7 @@ namespace
 		"Graph Render Height:", "BPM:", "Spout Output", "NDI Output",
 		"OSC IP Out:", "Default Compo:", "Active Compo:", "AUDIO IN",
 		"Device", "Gain", "Noise gate",
+		"Transition:", "Transition type",
 	};
 	// Shared by the width calculation and the layout itself, so the panel can
 	// never be narrower than the controls it has to hold.
@@ -901,6 +903,10 @@ namespace
 	constexpr float kSettingsFieldW = 200.0f;
 	constexpr float kSettingsActionBtnW = 100.0f;
 	constexpr float kSettingsControlGap = 10.0f; // field to action button
+	// Transition duration range. 60ms is about four frames - fast enough to
+	// read as a cut; 4000ms is a slow morph you can watch.
+	constexpr float kTransitionMinMs = 60.0f;
+	constexpr float kTransitionMaxMs = 4000.0f;
 }
 
 string ofApp::liveOutputSourceLabel(const LiveOutputConfig &config) const
@@ -915,6 +921,16 @@ string ofApp::liveOutputSourceLabel(const LiveOutputConfig &config) const
 		if (candidate.uid == config.sourceUid) return candidate.label;
 	}
 	return config.sourceBox.empty() ? string("(none)") : config.sourceBox;
+}
+
+void ofApp::applyTransitionDurationFromMouse(float mouseX,
+	const SettingsLayout &L)
+{
+	const float t = ofClamp(
+		(mouseX - L.transitionDurationSlider.x) /
+			std::max(1.0f, L.transitionDurationSlider.width), 0.0f, 1.0f);
+	boxes.setTransitionDurationMs(
+		ofLerp(kTransitionMinMs, kTransitionMaxMs, t));
 }
 
 JPbox *ofApp::resolveLiveOutputSource(LiveOutputConfig &config)
@@ -956,7 +972,10 @@ float ofApp::getSettingsPanelWidth() const
 float ofApp::getSettingsPanelHeight() const
 {
 	const float rowSpacing = 40.0f;
-	const int totalRows = FIELD_OSC_IP_OUT + 13;
+	// +16, not +13: the AUDIO IN block is followed by a blank separator and the
+	// two transition rows. This count is the ONLY thing that sizes the panel,
+	// so a control added without touching it simply hangs off the bottom.
+	const int totalRows = FIELD_OSC_IP_OUT + 16;
 	return jp_screen::kHeaderH + totalRows * rowSpacing + 25.0f;
 }
 
@@ -1035,6 +1054,11 @@ ofApp::SettingsLayout ofApp::getSettingsLayout() const
 	l.audioGateSlider.set(fieldX, row(r), fieldW + actionBtnW + 10.0f, l.rowH);
 	r++;
 	l.audioMeter.set(fieldX, row(r), fieldW + actionBtnW + 10.0f, l.rowH);
+	r++;
+	r++;   // blank row as a separator
+	l.transitionDurationSlider.set(fieldX, row(r), fieldW, l.rowH);
+	r++;
+	l.transitionTypeButton.set(fieldX, row(r), actionBtnW, l.rowH);
 	return l;
 }
 
@@ -1391,6 +1415,32 @@ void ofApp::drawAudioSettings(const SettingsLayout &L)
 	font_p.drawString(ofToString(jp_audio::getNoiseGate(), 3),
 		L.audioGateSlider.x + 8.0f, L.audioGateSlider.getMaxY() - 8.0f);
 
+	// MAIN crossfade: how long a switch between active renders takes, and
+	// which shader blends the two frames.
+	ofSetColor(COL_TEXT_SECONDARY);
+	font_p.drawString("Transition:", L.labelX,
+		L.transitionDurationSlider.y + 19.0f);
+	const float durationMs = boxes.getTransitionDurationMs();
+	const float durationT = ofClamp(
+		(durationMs - kTransitionMinMs) / (kTransitionMaxMs - kTransitionMinMs),
+		0.0f, 1.0f);
+	ofSetColor(ofColor(COL_BG_INPUT, 220));
+	ofDrawRectRounded(L.transitionDurationSlider, 4.0f);
+	ofSetColor(ofColor(COL_ACCENT_CYAN, 170));
+	ofDrawRectRounded(L.transitionDurationSlider.x, L.transitionDurationSlider.y,
+		std::max(4.0f, L.transitionDurationSlider.width * durationT),
+		L.transitionDurationSlider.height, 4.0f);
+	ofSetColor(COL_TEXT_PRIMARY);
+	font_p.drawString(ofToString((int)durationMs) + " ms",
+		L.transitionDurationSlider.x + 8.0f,
+		L.transitionDurationSlider.getMaxY() - 8.0f);
+
+	ofSetColor(COL_TEXT_SECONDARY);
+	font_p.drawString("Transition type", L.labelX,
+		L.transitionTypeButton.y + 19.0f);
+	jp_button::draw(L.transitionTypeButton,
+		TransitionSR::typeLabel(boxes.getTransitionType()), false);
+
 	// Meter: spectrum, kick/snare flashes and the status line. This is the
 	// surface that tells you whether anything is actually being heard.
 	{
@@ -1519,6 +1569,20 @@ bool ofApp::handleAudioSettingsClick(int x, int y)
 	if (L.audioCalibrateButton.inside(m.x, m.y))
 	{
 		jp_audio::beginCalibration();
+		return true;
+	}
+	if (L.transitionDurationSlider.inside(m.x, m.y))
+	{
+		transitionDurationDragging = true;
+		applyTransitionDurationFromMouse(m.x, L);
+		return true;
+	}
+	if (L.transitionTypeButton.inside(m.x, m.y))
+	{
+		// Cycles rather than opening a menu: three values, and the label on the
+		// button already says which one you are on.
+		boxes.setTransitionType(
+			(boxes.getTransitionType() + 1) % TransitionSR::TYPE_COUNT);
 		return true;
 	}
 	if (L.audioGateSlider.inside(m.x, m.y))
@@ -5078,6 +5142,10 @@ void ofApp::mouseDragged(int x, int y, int button) {
 	}
 
 	if (pantallaActiva == OPCIONES) {
+		if (transitionDurationDragging) {
+			applyTransitionDurationFromMouse((float)x, getSettingsLayout());
+			return;
+		}
 		if (audioGateDragging) {
 			const SettingsLayout L = getSettingsLayout();
 			const float t = ofClamp(((float)x - L.audioGateSlider.x) /
@@ -5508,6 +5576,10 @@ void ofApp::mouseMoved(int x, int y) {
 	}
 }
 void ofApp::mouseReleased(int x, int y, int button) {
+	if (transitionDurationDragging) {
+		transitionDurationDragging = false;
+		saveSettings();
+	}
 	if (audioGateDragging) {
 		audioGateDragging = false;
 		saveSettings();
@@ -6116,6 +6188,8 @@ void ofApp::loadSettings() {
 	auto oscout1 = settings.getChild("oscout_mode1");
 	auto oscout2 = settings.getChild("oscout_mode2");
 	auto durationgallery = settings.getChild("durationgallery");
+	auto transitionDuration = settings.getChild("transitionduration");
+	auto transitionTypeNode = settings.getChild("transitiontype");
 	auto defaultCompoChild = settings.getChild("defaultcompo");
 	auto cuePanelX = settings.getChild("cue_panel_x");
 	auto cuePanelY = settings.getChild("cue_panel_y");
@@ -6141,6 +6215,12 @@ void ofApp::loadSettings() {
 	jp_constants::init(graphWidth, graphHeight, legacyWidth, legacyHeight);
 	boxes.setDurationGalleryMs(durationgallery ?
 		durationgallery.getFloatValue() : boxes.getDurationGalleryMs());
+	// Absent in settings written before transitions were configurable; the
+	// TransitionSR default (833ms, the old fixed 60fps feel) then stands.
+	if (transitionDuration)
+		boxes.setTransitionDurationMs(transitionDuration.getFloatValue());
+	if (transitionTypeNode)
+		boxes.setTransitionType(transitionTypeNode.getIntValue());
 	if (cuePanelX && cuePanelY && cuePanelW && cuePanelH) {
 		boxes.setCuePanelLayout(
 			24.0f, // siempre izquierda
@@ -6350,6 +6430,9 @@ void ofApp::saveSettings() {
 	settings.appendChild("renderwidth").set(jp_constants::renderWidth);
 	settings.appendChild("renderheight").set(jp_constants::renderHeight);
 	settings.appendChild("durationgallery").set(boxes.getDurationGalleryMs());
+	settings.appendChild("transitionduration").set(
+		boxes.getTransitionDurationMs());
+	settings.appendChild("transitiontype").set(boxes.getTransitionType());
 	settings.appendChild("cue_panel_x").set(cuePanelX);
 	settings.appendChild("cue_panel_y").set(cuePanelY);
 	settings.appendChild("cue_panel_w").set(cuePanelW);

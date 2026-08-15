@@ -149,6 +149,13 @@ public:
 	void listenToOsc(string _dir, float _val);
 	void setDurationGalleryMs(float _ms);
 	float getDurationGalleryMs() const;
+	// The MAIN crossfade. Duration is milliseconds for a full 0..1 fade; type
+	// selects which shader blends the two frames. Both are global settings, so
+	// the boxgroup only forwards them to its TransitionSR.
+	void setTransitionDurationMs(float _ms);
+	float getTransitionDurationMs() const;
+	void setTransitionType(int _type);
+	int getTransitionType() const;
 	vector<string> getBoxNames() const;
 	bool hasBoxName(string boxName) const;
 
@@ -851,6 +858,14 @@ private:
 
 	//PARA LO DEL SHADER 
 	TransitionSR transition;
+	// The two boxes whose parameters are currently morphing into each other,
+	// or nullptr. Raw pointers because they are boxes this group owns; every
+	// use re-checks membership so a deletion mid-fade cannot dangle.
+	JPbox *morphOutgoing = nullptr;
+	JPbox *morphIncoming = nullptr;
+	void armParameterMorph(JPbox *outgoing, JPbox *incoming);
+	void updateParameterMorph();
+	void clearParameterMorph();
 
 	//MODO SECUENCIA 
 

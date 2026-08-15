@@ -1312,6 +1312,287 @@ bool jp_persistence_test::run(ofApp &app)
 		}
 		app.boxes.clear();
 	}
+	// A transition must take the same WALL-CLOCK time regardless of framerate.
+	//
+	// It used to advance by a fixed 0.02 per frame, so a fade ran 833ms at
+	// 60fps and 2s at 25fps - it stretched exactly when the machine was already
+	// struggling, and no duration setting could mean anything while the unit
+	// was "frames" rather than milliseconds.
+	bool transitionClock = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			transitionClock = false;
+			ofLogNotice("transclock") << why;
+		};
+		// Elapsed seconds to reach 1.0, fed a fixed timestep.
+		auto elapsedFor = [](float durationMs, float frameSeconds)
+		{
+			TransitionSR t;
+			t.setDurationMs(durationMs);
+			t.setLerpValue(0.0f);
+			float elapsed = 0.0f;
+			// Generous bound: a stuck clock must fail the assert, not spin.
+			for (int i = 0; i < 100000 && t.getLerpValue() < 1.0f; ++i)
+			{
+				t.advance(frameSeconds);
+				elapsed += frameSeconds;
+			}
+			return elapsed;
+		};
+
+		const float atSixty = elapsedFor(800.0f, 1.0f / 60.0f);
+		const float atThirty = elapsedFor(800.0f, 1.0f / 30.0f);
+		const float atFifteen = elapsedFor(800.0f, 1.0f / 15.0f);
+		// Within one frame of the slowest rate.
+		if (std::abs(atSixty - 0.8f) > 0.07f)
+			fail("800ms at 60fps took " + ofToString(atSixty, 3) + "s");
+		if (std::abs(atThirty - 0.8f) > 0.07f)
+			fail("800ms at 30fps took " + ofToString(atThirty, 3) + "s");
+		if (std::abs(atFifteen - 0.8f) > 0.07f)
+			fail("800ms at 15fps took " + ofToString(atFifteen, 3) + "s");
+		// The point of the whole change: the rates agree with each other.
+		if (std::abs(atSixty - atThirty) > 0.07f ||
+			std::abs(atSixty - atFifteen) > 0.10f)
+			fail("framerate changes the duration: 60fps=" +
+				ofToString(atSixty, 3) + " 30fps=" + ofToString(atThirty, 3) +
+				" 15fps=" + ofToString(atFifteen, 3));
+		// And the duration is actually honoured, not just consistent.
+		const float longer = elapsedFor(2000.0f, 1.0f / 60.0f);
+		if (std::abs(longer - 2.0f) > 0.07f)
+			fail("2000ms took " + ofToString(longer, 3) + "s");
+		// A huge stall must not jump the whole fade in one frame.
+		{
+			TransitionSR t;
+			t.setDurationMs(800.0f);
+			t.setLerpValue(0.0f);
+			t.advance(5.0f);
+			if (t.getLerpValue() >= 1.0f)
+				fail("a single 5s stall completed the whole transition");
+		}
+	}
+	// Parameter morph: the MilkDrop half of the transition.
+	bool paramMorph = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			paramMorph = false;
+			ofLogNotice("parammorph") << why;
+		};
+		JPParameter p;
+		p.setup(0.20f, "scalex");          // STANDART, movtype 0
+		p.min = p.nativeMin = 0.0f;
+		p.max = p.nativeMax = 1.0f;
+
+		// Half way to a target of 0.80 should emit 0.50 - and crucially must
+		// NOT disturb floatLerpValue, which is the automation accumulator.
+		p.floatLerpValue = 0.20f;
+		p.setMorph(0.80f, 0.5f);
+		p.update();
+		if (std::abs(p.floatValue - 0.50f) > 0.001f)
+			fail("half morph emitted " + ofToString(p.floatValue, 4) +
+				" instead of 0.50");
+		if (std::abs(p.floatLerpValue - 0.20f) > 0.0001f)
+			fail("morph wrote floatLerpValue (" +
+				ofToString(p.floatLerpValue, 4) +
+				") - automation state must stay untouched");
+
+		// Ends: 0 emits its own value, 1 emits the counterpart's.
+		p.setMorph(0.80f, 0.0f);
+		p.update();
+		if (std::abs(p.floatValue - 0.20f) > 0.001f)
+			fail("amount 0 emitted " + ofToString(p.floatValue, 4));
+		p.setMorph(0.80f, 1.0f);
+		p.update();
+		if (std::abs(p.floatValue - 0.80f) > 0.001f)
+			fail("amount 1 emitted " + ofToString(p.floatValue, 4));
+
+		// Clearing restores the box's own value with no save/restore step.
+		// This is what stops the OUTGOING box being left wearing the incoming
+		// values once the fade completes.
+		p.clearMorph();
+		p.update();
+		if (std::abs(p.floatValue - 0.20f) > 0.001f)
+			fail("after clearMorph the parameter kept " +
+				ofToString(p.floatValue, 4) + " instead of its own 0.20");
+		if (p.isMorphing()) fail("isMorphing() still true after clearMorph");
+
+		// The gate: a STANDART parameter has movtype 0 and needsUpdate false,
+		// so JPParameterGroup::update() would skip it entirely and the morph
+		// would silently do nothing on hand-set sliders.
+		JPParameterGroup group;
+		group.addFloatValue(0.20f, "scalex");
+		JPParameter *gp = group.getJParameter(0);
+		if (gp == nullptr) fail("could not build a group parameter");
+		else
+		{
+			gp->movtype = JPParameter::STANDART;
+			gp->needsUpdate = false;
+			gp->floatLerpValue = 0.20f;
+			gp->setMorph(0.80f, 1.0f);
+			group.update();
+			if (std::abs(gp->floatValue - 0.80f) > 0.001f)
+				fail("a STANDART parameter did not morph: emitted " +
+					ofToString(gp->floatValue, 4) +
+					" - the update() gate is skipping it");
+		}
+	}
+
+	// Arming across two real boxes: both directions morph, name-only matching,
+	// and a clean release.
+	bool morphArming = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			morphArming = false;
+			ofLogNotice("morpharm") << why;
+		};
+		const string shaderA = "shaders/imageprocessing/transform.frag";
+		const string shaderB = "shaders/imageprocessing/feedback_advance.frag";
+
+		// CASE 1 - same shader twice, so every name matches.
+		app.boxes.clear();
+		app.boxes.addBox(shaderA, 40, 40);
+		app.boxes.addBox(shaderA, 120, 40);
+		if (app.boxes.boxes.size() < 2) fail("could not build two boxes");
+		else
+		{
+			JPbox *a = app.boxes.boxes[0];
+			JPbox *b = app.boxes.boxes[1];
+			const int idx = b->parameters.indexOfName("scalex");
+			if (idx < 0) fail("fixture shader lost its scalex");
+			else
+			{
+				// Distinct values so a blend is visible.
+				// Both, because update() ends with floatValue = floatLerpValue -
+				// setting only floatValue would be erased on the next tick.
+				const int aIdx = a->parameters.indexOfName("scalex");
+				a->parameters.setFloatValue(0.20f, aIdx);
+				a->parameters.setFloatLerpValue(0.20f, aIdx);
+				b->parameters.setFloatValue(0.80f, idx);
+				b->parameters.setFloatLerpValue(0.80f, idx);
+				JPParameter *ap = a->parameters.getJParameter(
+					aIdx);
+				JPParameter *bp = b->parameters.getJParameter(idx);
+
+				app.boxes.requestSetActiveRender(0);
+				app.boxes.requestSetActiveRender(1);   // arms the morph
+
+				if (ap == nullptr || bp == nullptr) fail("lost the parameter");
+				else
+				{
+					if (!bp->isMorphing()) fail("incoming box is not morphing");
+					if (!ap->isMorphing()) fail("outgoing box is not morphing");
+					// Incoming starts wearing the outgoing look.
+					if (std::abs(bp->morphTarget - 0.20f) > 0.001f)
+						fail("incoming aims at " +
+							ofToString(bp->morphTarget, 3) + ", expected 0.20");
+					// Outgoing leaves wearing the incoming one.
+					if (std::abs(ap->morphTarget - 0.80f) > 0.001f)
+						fail("outgoing aims at " +
+							ofToString(ap->morphTarget, 3) + ", expected 0.80");
+
+					for (int i = 0; i < 600 && (ap->isMorphing() ||
+						bp->isMorphing()); ++i)
+					{
+						app.boxes.update();
+					}
+					if (ap->isMorphing() || bp->isMorphing())
+						fail("morph never released after the transition ended");
+					// And each box is back to its own value, with no restore
+					// step - the outgoing box must NOT keep 0.80.
+					if (std::abs(ap->floatValue - 0.20f) > 0.02f)
+						fail("outgoing box kept " +
+							ofToString(ap->floatValue, 3) +
+							" instead of its own 0.20");
+					if (std::abs(bp->floatValue - 0.80f) > 0.02f)
+						fail("incoming box settled at " +
+							ofToString(bp->floatValue, 3) +
+							" instead of its own 0.80");
+				}
+			}
+		}
+
+		// CASE 2 - two shaders sharing NO parameter name. Nothing may morph.
+		// copyParametersByNameOrIndex would have paired these by array
+		// position; that fallback is right for cue drafts and wrong here.
+		app.boxes.clear();
+		app.boxes.addBox(shaderA, 40, 40);
+		app.boxes.addBox(shaderB, 120, 40);
+		if (app.boxes.boxes.size() >= 2)
+		{
+			JPbox *a = app.boxes.boxes[0];
+			JPbox *b = app.boxes.boxes[1];
+			int overlap = 0;
+			for (int i = 0; i < b->parameters.getSize(); ++i)
+				if (a->parameters.indexOfName(b->parameters.getName(i)) >= 0)
+					++overlap;
+			if (overlap > 0)
+				ofLogNotice("morpharm")
+					<< "fixtures share " << overlap
+					<< " name(s) - positional check skipped";
+			else
+			{
+				app.boxes.requestSetActiveRender(0);
+				app.boxes.requestSetActiveRender(1);
+				int morphing = 0;
+				for (int i = 0; i < b->parameters.getSize(); ++i)
+				{
+					JPParameter *q = b->parameters.getJParameter(i);
+					if (q != nullptr && q->isMorphing()) ++morphing;
+				}
+				for (int i = 0; i < a->parameters.getSize(); ++i)
+				{
+					JPParameter *q = a->parameters.getJParameter(i);
+					if (q != nullptr && q->isMorphing()) ++morphing;
+				}
+				if (morphing > 0)
+					fail(ofToString(morphing) + " parameters morphed between "
+						"shaders that share no name - matching fell back to "
+						"array position");
+			}
+		}
+		app.boxes.clear();
+	}
+	// Every transition shader must compile.
+	//
+	// TransitionSR falls back to mix.frag when a load fails, so a GLSL error in
+	// warp or dither would show up as "the transition type does nothing" rather
+	// than as an error - the sort of thing that survives a whole gig unnoticed.
+	bool transitionShaders = true;
+	{
+		const char *frags[] = {
+			"shaders/private/mix.frag",
+			"shaders/private/transition_warp.frag",
+			"shaders/private/transition_dither.frag"
+		};
+		for (const char *frag : frags)
+		{
+			if (!ofFile::doesFileExist(ofToDataPath(frag, true)))
+			{
+				transitionShaders = false;
+				ofLogNotice("transhader") << "missing: " << frag;
+				continue;
+			}
+			ofShader probe;
+			if (!probe.load("shaders/default.vert", frag))
+			{
+				transitionShaders = false;
+				ofLogNotice("transhader") << "failed to compile: " << frag;
+			}
+		}
+		// The enum is written into settings.xml, so the labels must cover every
+		// value - a gap would surface as a blank button.
+		for (int i = 0; i < TransitionSR::TYPE_COUNT; ++i)
+		{
+			const char *label = TransitionSR::typeLabel(i);
+			if (label == nullptr || label[0] == '\0')
+			{
+				transitionShaders = false;
+				ofLogNotice("transhader") << "no label for type " << i;
+			}
+		}
+	}
 	bool mediaSmoke = true;
 	if(const char *smokePath=std::getenv("GUIPPER_MEDIA_SMOKE"))
 	{
@@ -1354,6 +1635,10 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " outputBinding=" << outputBinding
 		<< " boxHitboxes=" << boxHitboxes
 		<< " groupComposite=" << groupComposite
+		<< " transitionClock=" << transitionClock
+		<< " paramMorph=" << paramMorph
+		<< " morphArming=" << morphArming
+		<< " transitionShaders=" << transitionShaders
 		<< " saveKeepsDefault=" << saveKeepsDefaultCompo
 		<< " mediaSmoke=" << mediaSmoke;
 	return current && old && clamped && shaderReload && modeMemory &&
@@ -1361,5 +1646,7 @@ bool jp_persistence_test::run(ofApp &app)
 		mediaBoundary && mediaAlpha && mediaMotionClear && mediaStraightMix &&
 		mediaSingleComposite && mediaPausePreserves && mediaTransforms &&
 		mediaSkipsStatic && mediaTurnaround && mediaMidiIndex && camScaleRatio && camLegacyLoad && shaderScaleRatio && realCompoLoad &&
-		saveKeepsDefaultCompo && boxIdentity && outputBinding && boxHitboxes && groupComposite && mediaSmoke;
+		saveKeepsDefaultCompo && boxIdentity && outputBinding && boxHitboxes && groupComposite && transitionClock &&
+		paramMorph && morphArming &&
+		transitionShaders && mediaSmoke;
 }

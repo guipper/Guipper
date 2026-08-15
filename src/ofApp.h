@@ -501,6 +501,10 @@ public:
 		ofRectangle audioCalibrateButton;
 		ofRectangle audioGateSlider;
 		ofRectangle audioMeter;
+		// MAIN crossfade controls. Global, so they live with the other
+		// app-wide settings rather than per box.
+		ofRectangle transitionDurationSlider;
+		ofRectangle transitionTypeButton;
 		float labelX = 0.0f;
 		float labelWidth = 0.0f;
 		float rowH = 28.0f;
@@ -515,6 +519,9 @@ public:
 	// falls back to the legacy name, adopting the uid when the name resolves -
 	// so a composition saved before uids binds exactly as it used to and
 	// becomes rename-proof from that point on. Non-const: healing writes back.
+	bool transitionDurationDragging = false;
+	void applyTransitionDurationFromMouse(float mouseX,
+		const SettingsLayout &L);
 	JPbox *resolveLiveOutputSource(LiveOutputConfig &config);
 	vector<string> getLiveOutputSourceUids() const;
 	string liveOutputSourceLabel(const LiveOutputConfig &config) const;

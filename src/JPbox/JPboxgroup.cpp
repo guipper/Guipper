@@ -3794,6 +3794,7 @@ void JPboxgroup::update(){
 	{
 		profileStageStart = ProfileClock::now();
 		transition.update(); //ACTUALIZO EL TRANSITION
+		updateParameterMorph();
 		if (profilingEnabled)
 		{
 			float unusedPeak = 0.0f;
@@ -4910,12 +4911,126 @@ void JPboxgroup::setInspectorScrollNormalized(float normalized)
 	inspectorScrollY = ofClamp(normalized, 0.0f, 1.0f) * inspectorMaxScrollY;
 	setControllers();
 }
+void JPboxgroup::armParameterMorph(JPbox *outgoing, JPbox *incoming)
+{
+	clearParameterMorph();
+	morphOutgoing = nullptr;
+	morphIncoming = nullptr;
+	if (outgoing == nullptr || incoming == nullptr || outgoing == incoming)
+		return;
+
+	// Name-only matching. copyParametersByNameOrIndex is the existing precedent
+	// but falls back to POSITION when a name is absent, which is right for cue
+	// drafts - same shader, same array - and wrong here: two different shaders
+	// would have unrelated uniforms paired by array index. A parameter with no
+	// counterpart simply does not morph; the image crossfade still covers it.
+	bool matchedAny = false;
+	for (int i = 0; i < incoming->parameters.getSize(); ++i)
+	{
+		if (incoming->parameters.getType(i) != JPParameter::FLOAT) continue;
+		const string name = incoming->parameters.getName(i);
+		const int outIndex = outgoing->parameters.indexOfName(name);
+		if (outIndex < 0) continue;
+		if (outgoing->parameters.getType(outIndex) != JPParameter::FLOAT)
+			continue;
+
+		JPParameter *inParam = incoming->parameters.getJParameter(i);
+		JPParameter *outParam = outgoing->parameters.getJParameter(outIndex);
+		if (inParam == nullptr || outParam == nullptr) continue;
+
+		// Each side aims at the other's CURRENT emitted value, captured now so
+		// a parameter that is also being animated does not chase a moving
+		// target for the length of the fade.
+		const float incomingValue = inParam->floatValue;
+		const float outgoingValue = outParam->floatValue;
+		// Incoming starts wearing the outgoing look and returns to its own;
+		// outgoing leaves wearing the incoming one. Amounts are set per frame.
+		inParam->setMorph(outgoingValue, 1.0f);
+		outParam->setMorph(incomingValue, 0.0f);
+		matchedAny = true;
+	}
+	if (!matchedAny) return;
+	morphOutgoing = outgoing;
+	morphIncoming = incoming;
+}
+
+void JPboxgroup::clearParameterMorph()
+{
+	// Returning the amount to 0 is the whole restore: nothing permanent was
+	// ever written, so both boxes emit their own values again from the next
+	// tick. Guarded against a box that has since been deleted.
+	auto clearOn = [this](JPbox *box)
+	{
+		if (box == nullptr) return;
+		if (std::find(boxes.begin(), boxes.end(), box) == boxes.end()) return;
+		for (int i = 0; i < box->parameters.getSize(); ++i)
+		{
+			JPParameter *parameter = box->parameters.getJParameter(i);
+			if (parameter != nullptr) parameter->clearMorph();
+		}
+	};
+	clearOn(morphOutgoing);
+	clearOn(morphIncoming);
+	morphOutgoing = nullptr;
+	morphIncoming = nullptr;
+}
+
+void JPboxgroup::updateParameterMorph()
+{
+	if (morphOutgoing == nullptr && morphIncoming == nullptr) return;
+	if (transition.getLerpValue() >= 1.0f)
+	{
+		clearParameterMorph();
+		return;
+	}
+	// The same eased progress the crossfade uses, so pixels and parameters
+	// stay in step rather than drifting apart mid-fade.
+	const float t = transition.getLerpValue();
+	const float eased = t * t * (3.0f - 2.0f * t);
+	auto setAmount = [this](JPbox *box, float amount)
+	{
+		if (box == nullptr) return;
+		if (std::find(boxes.begin(), boxes.end(), box) == boxes.end()) return;
+		for (int i = 0; i < box->parameters.getSize(); ++i)
+		{
+			JPParameter *parameter = box->parameters.getJParameter(i);
+			if (parameter != nullptr && parameter->isMorphing())
+				parameter->morphAmount = amount;
+		}
+	};
+	// Outgoing pulls toward the incoming look as it fades; incoming lets go of
+	// it as it arrives.
+	setAmount(morphOutgoing, eased);
+	setAmount(morphIncoming, 1.0f - eased);
+}
+
+void JPboxgroup::setTransitionDurationMs(float _ms)
+{
+	transition.setDurationMs(_ms);
+}
+
+float JPboxgroup::getTransitionDurationMs() const
+{
+	return transition.getDurationMs();
+}
+
+void JPboxgroup::setTransitionType(int _type)
+{
+	transition.setType(_type);
+}
+
+int JPboxgroup::getTransitionType() const
+{
+	return transition.getType();
+}
+
 void JPboxgroup::updateTransition(int _idx) {
 
 //	cout << "UPDATE TRANSITION " << endl;
 	if (boxes.size() >= 1) {
 		_idx = ofClamp(_idx, 0, int(boxes.size()) - 1);
 		bool activeRenderChanged = _idx != *activerender;
+		JPbox *outgoingBox = boxes[*activerender];
 		if (&boxes[*activerender]->fbo != 0) {
 			transition.setFboPointer1(&boxes[*activerender]->fbo);
 		}
@@ -4925,6 +5040,10 @@ void JPboxgroup::updateTransition(int _idx) {
 			transition.setFboPointer2(&boxes[*activerender]->fbo);
 		}
 		transition.setLerpValue(0);
+		if (activeRenderChanged)
+			armParameterMorph(outgoingBox, boxes[*activerender]);
+		else
+			clearParameterMorph();
 		if (activeRenderChanged)
 		{
 			requestCueRebuild();
@@ -9187,6 +9306,10 @@ void JPboxgroup::clear()
 	endMappingEdit();
 	clearSelection();
 	clearCue();
+	// Before the boxes go: clearParameterMorph only touches boxes still in the
+	// vector, so releasing it afterwards would leave a box that survives the
+	// clear emitting a blended value forever.
+	clearParameterMorph();
 	transition.setFboPointer1(nullptr);
 	transition.setFboPointer2(nullptr);
 	activeSequence = false;
