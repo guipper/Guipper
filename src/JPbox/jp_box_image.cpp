@@ -194,7 +194,7 @@ void JPbox_image::startGifLoad()
 	static std::mutex cacheMutex;
 	static std::unordered_map<string, std::shared_future<Result>> cache;
 	string key = path;
-	try { key += ":" + std::to_string(std::filesystem::last_write_time(path).time_since_epoch().count()); }
+	try { key += ":" + std::to_string((long long)std::filesystem::last_write_time(path).time_since_epoch().count()); }
 	catch (...) {}
 	std::lock_guard<std::mutex> lock(cacheMutex);
 	auto found = cache.find(key);

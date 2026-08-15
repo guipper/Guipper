@@ -10,10 +10,10 @@ void JPbox_video::setup(string _dir, string _nombre) {
 	//parameters.coutData();
 	name = _nombre;
 	dir = _dir;
-	//img.loadImage(_dir);
+	// img.loadImage(_dir);
 	movie.setPixelFormat(OF_PIXELS_RGBA);
-	movie.loadAsync(_dir);
-	movie.setLoopState(OF_LOOP_NONE);
+	movie.load(_dir);
+	movie.setLoopState(OF_LOOP_NORMAL);
 	movie.setVolume(0.0f);
 	// NOT play() here - the load is asynchronous and cannot have finished by
 	// this line. updateFBO starts playback on the first frame the movie is
@@ -128,7 +128,11 @@ void JPbox_video::updateFBO() {
 			if((sourceDuration<=0.0 || sourceFrames<=0) && now>=nextMetadataQueryMs)
 			{
 				sourceDuration=std::max(sourceDuration,(double)movie.getDuration());
-				sourceFrames=std::max(sourceFrames,movie.getTotalNumFrames());
+				int frames = movie.getTotalNumFrames();
+				if (frames <= 0 && sourceDuration > 0.0) {
+					frames = std::max(1, (int)std::round(sourceDuration * 30.0));
+				}
+				sourceFrames=std::max(sourceFrames, frames);
 				nextMetadataQueryMs=now+250;
 			}
 			// Playback has to be STARTED once, here, rather than in setup().
@@ -260,6 +264,14 @@ void JPbox_video::updateFBO() {
 							true);
 					}
 					movie.setPosition(p);
+					if (media.playing)
+					{
+						movie.play();
+					}
+				}
+				if (movie.getIsMovieDone() && media.playing)
+				{
+					movie.play();
 				}
 			}
 			media.position = p;
@@ -269,7 +281,6 @@ void JPbox_video::updateFBO() {
 
 		if (!movie.isLoaded() && auxpos != parameters.getFloatValue(6)) {
 			auxpos = parameters.getFloatValue(6);
-			movie.setPosition(parameters.getFloatValue(6));
 		}
 		parameters.setFloatValue(media.rate / 4.0f, 5);
 		parameters.setFloatValue(media.position, 6);
@@ -299,8 +310,11 @@ void JPbox_video::updateFBO() {
 		// would be identical to the one already in the FBO. A 30fps clip in a
 		// 60fps app hits this on every second frame; a paused one hits it
 		// always.
+		// Only skip render if video is paused, no transform changed, and no new frame
 		const bool unchanged = fbo.isAllocated() &&
-			signature.matches(lastRenderSignature);
+			signature.matches(lastRenderSignature) &&
+			!movie.isFrameNew() &&
+			!media.playing;
 		if (unchanged || !shouldRenderThisFrame())
 		{
 			jp_box_media_stats::countSkipped();
@@ -311,13 +325,32 @@ void JPbox_video::updateFBO() {
 
 		fbo.begin();
 		ofClear(0, 0, 0, 0);
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		ofSetColor(255, 255, 255, 255);
 		ofEnableBlendMode(OF_BLENDMODE_DISABLED);
 		ofRectangle r = jp_media::transformedRect(movie.getWidth(), movie.getHeight(),
 			jp_constants::renderWidth, jp_constants::renderHeight, media.fitMode,
 			parameters.getFloatValue(0), parameters.getFloatValue(1),
 			parameters.getFloatValue(2), parameters.getFloatValue(3),
 			parameters.getFloatValue(8), 0.5f, 1.0f);
-		movie.draw(r.x, r.y, r.width, r.height);
+		if (movie.isLoaded())
+		{
+			const ofPixels & pix = movie.getPixels();
+			if (pix.isAllocated() && pix.getWidth() > 0 && pix.getHeight() > 0)
+			{
+				if (!videoTexture.isAllocated() || videoTexture.getWidth() != pix.getWidth() || videoTexture.getHeight() != pix.getHeight())
+				{
+					videoTexture.allocate(pix);
+					videoTexture.setTextureMinMagFilter(GL_LINEAR, GL_LINEAR);
+				}
+				videoTexture.loadData(pix);
+				videoTexture.draw(r.x, r.y, r.width, r.height);
+			}
+			else if (movie.getTexture().isAllocated())
+			{
+				movie.getTexture().draw(r.x, r.y, r.width, r.height);
+			}
+		}
 		ofEnableAlphaBlending();
 		fbo.end();
 	} else {
@@ -342,7 +375,7 @@ void JPbox_video::mediaSeek(float normalized)
 }
 bool JPbox_video::mediaReady() const
 {
-	return movie.isLoaded() && sourceDuration>0.0 && sourceFrames>0;
+	return movie.isLoaded() && (sourceDuration > 0.0 || movie.getWidth() > 0);
 }
 string JPbox_video::mediaStatus() const
 {

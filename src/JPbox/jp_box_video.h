@@ -19,6 +19,7 @@ public:
 	~JPbox_video();
 
 	ofVideoPlayer movie;
+	ofTexture videoTexture;
 	// Whether play() has been issued against a movie that was actually loaded.
 	// setup() cannot do it: it calls play() one line after loadAsync().
 	bool playbackStarted = false;
