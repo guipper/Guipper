@@ -126,6 +126,23 @@ namespace
 
 bool jp_persistence_test::run(ofApp &app)
 {
+	// Several checks below probe the RENDERED output, which is drawn through
+	// the MAIN crossfader - so an in-flight transition blends the probe with
+	// whatever was on screen before and the colours come out wrong.
+	//
+	// The duration is a user setting persisted in settings.xml, so the harness
+	// cannot assume any particular value: a slider left at 1100ms made
+	// mediaSingleComposite fail on this machine and pass on a default one.
+	// Collapse it for the duration of the run so no test is ever at the mercy
+	// of a fade still running.
+	const float restoreTransitionMs = app.boxes.getTransitionDurationMs();
+	app.boxes.setTransitionDurationMs(1.0f);
+	struct TransitionDurationRestore
+	{
+		ofApp &app; float value;
+		~TransitionDurationRestore() { app.boxes.setTransitionDurationMs(value); }
+	} transitionDurationRestore{app, restoreTransitionMs};
+
 	if (std::getenv("GUIPPER_PERSISTENCE_TEST") == nullptr) return true;
 	const std::string directory = ofToDataPath("uishots/persistence/", true);
 	ofDirectory::createDirectory(directory, true, true);

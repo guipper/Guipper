@@ -491,6 +491,22 @@ void JPbox_kinect2::updateFBO()
 		JPbox::updateFBO();
 		return;
 	}
+	// Rect mode is global and this runs during update(), so it inherits
+	// whatever the last draw left behind. drawSourceTexture computes drawX/drawY
+	// as a TOP-LEFT corner, and ofTexture::draw honours the rect mode - under
+	// OF_RECTMODE_CENTER the frame is centred on that corner instead, leaving
+	// only its bottom-right quarter inside the FBO.
+	//
+	// Invisible in this box's own thumbnail, but when the kinect IS the active
+	// render the node background is drawn from this FBO, so a quarter-filled
+	// FBO paints a quarter-filled canvas. It reads as intermittent because it
+	// depends on what drew last: clicking any box changes the order and the
+	// next composite comes out right.
+	//
+	// Same defect 7f59ec0 fixed in JPbox_preset::renderActiveRender. An audit
+	// of every fbo.begin() in the box types found this as the only remaining
+	// one - the rest already set it (jp_box_cam.cpp:335 is the closest twin).
+	ofSetRectMode(OF_RECTMODE_CORNER);
 	fbo.begin();
 	ofClear(0, 0, 0, 255);
 	ofSetColor(255);
