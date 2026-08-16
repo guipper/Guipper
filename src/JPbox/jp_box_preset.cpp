@@ -94,6 +94,12 @@ void JPbox_preset::setup(string _directory, string _name)
 		{
 			bx = new JPbox_pointercloud();
 		}
+		// BEFORE the plain "cam" test: "camdepth" contains "cam", so the
+		// looser check would swallow it and build a CAMARITA instead.
+		else if (directory.getValue().find("camdepth") != std::string::npos)
+		{
+			bx = new JPbox_camdepth();
+		}
 		else if (directory.getValue().find("cam") != std::string::npos)
 		{
 			bx = new JPbox_cam();

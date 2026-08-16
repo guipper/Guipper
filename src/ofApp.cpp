@@ -4913,6 +4913,11 @@ void ofApp::keyPressed(int key) {
 		if (key == 'C') {
 			boxes.addBox("kinect2");
 		}
+		// Next to c/C, which are the camera and the Kinect - this is the third
+		// source of a depth-ish image.
+		if (key == 'D') {
+			boxes.addBox("camdepth");
+		}
 		if (key == 'P') {
 			boxes.addBox("pointercloud");
 		}

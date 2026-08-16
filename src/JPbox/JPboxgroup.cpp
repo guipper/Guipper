@@ -457,7 +457,13 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	nombre = nombre.substr(0, nombre.find(".frag"));
 	nombre = nombre.substr(0, nombre.find(".xml"));
 	*/
-	if (directory.find("cam") != std::string::npos)
+	if (directory.find("camdepth") != std::string::npos)
+	{
+		// Checked first for the same reason the box dispatch is: "camdepth"
+		// contains "cam", so the looser test below would name it CAMARITA.
+		nombre = "CAM DEPTH";
+	}
+	else if (directory.find("cam") != std::string::npos)
 	{
 		nombre = "CAMARITA";
 	}
@@ -514,6 +520,12 @@ JPbox *JPboxgroup::createBoxForDirectory(const string &directory, string &name) 
 	else if (directory.find("pointercloud") != std::string::npos)
 	{
 		bx = new JPbox_pointercloud();
+	}
+	// BEFORE the plain "cam" test: "camdepth" contains "cam", so the
+	// looser check would swallow it and build a CAMARITA instead.
+	else if (directory.find("camdepth") != std::string::npos)
+	{
+		bx = new JPbox_camdepth();
 	}
 	else if (directory.find("cam") != std::string::npos)
 	{
@@ -5385,6 +5397,13 @@ void JPboxgroup::load(string _dirinput)
 		else if (directory.getValue().find("pointercloud") != std::string::npos)
 		{
 			bx = new JPbox_pointercloud();
+		}
+		// BEFORE the plain "cam" test: "camdepth" contains "cam", so the looser
+		// check would swallow it and rebuild a CAMARITA on load - the box would
+		// create correctly and then come back as the wrong type after a save.
+		else if (directory.getValue().find("camdepth") != std::string::npos)
+		{
+			bx = new JPbox_camdepth();
 		}
 		else if (directory.getValue().find("cam") != std::string::npos)
 		{

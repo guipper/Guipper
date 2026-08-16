@@ -8,7 +8,33 @@
 #include "../JPutils/jp_fbohandler.h"
 //#include "Shaderrender.h"
 
-class JPCameraCaptureSource;
+// One open grabber per physical device, shared by every box that wants it.
+//
+// Defined here rather than inside jp_box_cam.cpp because JPbox_camdepth needs
+// the same camera: two ofVideoGrabbers on one /dev/video do not coexist, so the
+// refcounted map below is the only correct way for two box types to show the
+// same camera at once.
+class JPCameraCaptureSource
+{
+public:
+	JPCameraCaptureSource(int deviceId, int width, int height);
+	~JPCameraCaptureSource();
+
+	// Idempotent per frame: every box holding this source may call it, only the
+	// first one in a given frame actually pumps the grabber.
+	void updateOnce();
+	bool isInitialized() const;
+	void draw(float x, float y, float width, float height) const;
+	// For boxes that feed the frame to a shader rather than blitting it.
+	const ofTexture &getTexture() const;
+	bool hasTexture() const;
+
+private:
+	int deviceId = -1;
+	ofVideoGrabber grabber;
+	bool initialized = false;
+	uint64_t lastUpdateFrame;
+};
 
 //#include "JPbox/JPboxgroup.h"
 // Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
@@ -31,6 +57,15 @@ public:
 	// up. Static and generation counted: every camera box picks the new list up
 	// on its next update, not just the one whose button was clicked.
 	static void rescanCameraDevices();
+
+	// Shared camera access for other box types. JPbox_camdepth uses these so it
+	// can show the same device as a CAMARITA box without fighting it for the
+	// hardware.
+	static std::shared_ptr<JPCameraCaptureSource> acquireSharedCamera(
+		int deviceId, int width, int height);
+	static vector<int> availableCameraIds();
+	static string cameraLabel(int deviceId);
+	static uint64_t cameraRescanCount();
 
 	// METODOS HEREDADOS :
 	// void reload();

@@ -2,61 +2,61 @@
 #include <limits>
 #include <map>
 
-class JPCameraCaptureSource
+JPCameraCaptureSource::JPCameraCaptureSource(int deviceId, int width, int height)
+	: deviceId(deviceId), lastUpdateFrame(std::numeric_limits<uint64_t>::max())
 {
-public:
-	JPCameraCaptureSource(int deviceId, int width, int height)
-		: deviceId(deviceId)
+	grabber.setDeviceID(deviceId);
+	grabber.setDesiredFrameRate(60);
+	initialized = grabber.setup(width, height);
+	if (!initialized)
 	{
-		grabber.setDeviceID(deviceId);
-		grabber.setDesiredFrameRate(60);
-		initialized = grabber.setup(width, height);
-		if (!initialized)
-		{
-			ofLogWarning("CAMARITA")
-				<< "Unable to open camera device " << deviceId;
-		}
+		ofLogWarning("CAMARITA")
+			<< "Unable to open camera device " << deviceId;
 	}
+}
 
-	~JPCameraCaptureSource()
+JPCameraCaptureSource::~JPCameraCaptureSource()
+{
+	grabber.close();
+}
+
+void JPCameraCaptureSource::updateOnce()
+{
+	if (!initialized)
 	{
-		grabber.close();
+		return;
 	}
-
-	void updateOnce()
+	const uint64_t frame = ofGetFrameNum();
+	if (lastUpdateFrame == frame)
 	{
-		if (!initialized)
-		{
-			return;
-		}
-		const uint64_t frame = ofGetFrameNum();
-		if (lastUpdateFrame == frame)
-		{
-			return;
-		}
-		lastUpdateFrame = frame;
-		grabber.update();
+		return;
 	}
+	lastUpdateFrame = frame;
+	grabber.update();
+}
 
-	bool isInitialized() const
+bool JPCameraCaptureSource::isInitialized() const
+{
+	return initialized && grabber.isInitialized();
+}
+
+void JPCameraCaptureSource::draw(float x, float y, float width, float height) const
+{
+	if (isInitialized())
 	{
-		return initialized && grabber.isInitialized();
+		grabber.draw(x, y, width, height);
 	}
+}
 
-	void draw(float x, float y, float width, float height) const
-	{
-		if (isInitialized())
-		{
-			grabber.draw(x, y, width, height);
-		}
-	}
+const ofTexture &JPCameraCaptureSource::getTexture() const
+{
+	return grabber.getTexture();
+}
 
-private:
-	int deviceId = -1;
-	ofVideoGrabber grabber;
-	bool initialized = false;
-	uint64_t lastUpdateFrame = std::numeric_limits<uint64_t>::max();
-};
+bool JPCameraCaptureSource::hasTexture() const
+{
+	return isInitialized() && grabber.getTexture().isAllocated();
+}
 
 namespace
 {
@@ -230,6 +230,39 @@ void JPbox_cam::setup(string _dir, string _name)
 	parameters.setFloatLerpValue(defaultValue, 4);
 
 	tipo = CAMBOX;
+}
+
+std::shared_ptr<JPCameraCaptureSource> JPbox_cam::acquireSharedCamera(
+	int deviceId, int width, int height)
+{
+	// Straight through to the same refcounted map CAMARITA uses, so a depth box
+	// and a camera box pointed at one device share a single open grabber
+	// instead of the second one failing to open it.
+	return acquireCameraSource(deviceId, width, height);
+}
+
+vector<int> JPbox_cam::availableCameraIds()
+{
+	vector<int> ids;
+	for (const CameraDeviceInfo &device : discoverCameraDevices())
+	{
+		ids.push_back(device.id);
+	}
+	return ids;
+}
+
+string JPbox_cam::cameraLabel(int deviceId)
+{
+	for (const CameraDeviceInfo &device : discoverCameraDevices())
+	{
+		if (device.id == deviceId) return device.name;
+	}
+	return "no camera";
+}
+
+uint64_t JPbox_cam::cameraRescanCount()
+{
+	return cameraRescanGeneration();
 }
 
 void JPbox_cam::rescanCameraDevices()

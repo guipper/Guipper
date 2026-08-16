@@ -124,7 +124,8 @@ public:
 		// POINTCLOUDBOX was removed; the ordinal stays reserved because saved
 		// sessions store these as ints. Append only.
 		POINTCLOUDBOX_REMOVED,
-		POINTERCLOUDBOX
+		POINTERCLOUDBOX,
+		CAMDEPTHBOX
 	};
 
 	int getTipo();

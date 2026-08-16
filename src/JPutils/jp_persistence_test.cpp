@@ -1610,6 +1610,87 @@ bool jp_persistence_test::run(ofApp &app)
 			}
 		}
 	}
+	// The camera-depth box.
+	//
+	// The dispatch risk is specific and easy to get wrong: "camdepth" CONTAINS
+	// "cam", and the box dispatch, the preset loader and the auto-namer all test
+	// for "cam" with a substring search. If the camdepth branch is ever ordered
+	// after the cam one, this quietly builds a CAMARITA instead - same picture,
+	// no depth, no error anywhere.
+	bool camDepthBox = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			camDepthBox = false;
+			ofLogNotice("camdepth") << why;
+		};
+		const string frag = "shaders/private/camdepth.frag";
+		if (!ofFile::doesFileExist(ofToDataPath(frag, true)))
+			fail("missing shader: " + frag);
+		else
+		{
+			ofShader probe;
+			if (!probe.load("shaders/default.vert", frag))
+				fail("shader does not compile: " + frag);
+		}
+
+		app.boxes.clear();
+		app.boxes.addBox("camdepth", 40, 40);
+		if (app.boxes.boxes.empty()) fail("addBox(\"camdepth\") built nothing");
+		else
+		{
+			JPbox *box = app.boxes.boxes.front();
+			if (dynamic_cast<JPbox_camdepth *>(box) == nullptr)
+				fail("addBox(\"camdepth\") built the wrong type - the \"cam\" "
+					"substring test is winning");
+			if (box->getTipo() != JPbox::CAMDEPTHBOX)
+				fail("tipo is " + ofToString(box->getTipo()) + ", expected " +
+					ofToString((int)JPbox::CAMDEPTHBOX));
+			// The auto-namer has the same substring hazard.
+			if (box->name.find("CAMARITA") != string::npos)
+				fail("named CAMARITA - makeNameFromDirectory matched \"cam\" first");
+
+			// Every control the shader reads must exist, or updateFBO silently
+			// falls back to a default and the slider does nothing.
+			const char *needed[] = {"camaraindex", "peso foco", "peso brillo",
+				"peso vertical", "radio", "contraste", "cerca", "lejos",
+				"suavizado", "bordes", "curva", "invertir", "piso abajo",
+				"espejo"};
+			for (const char *n : needed)
+				if (box->parameters.indexOfName(n) < 0)
+					fail(string("missing parameter: ") + n);
+
+			// Values must round-trip like any other box.
+			const int focus = box->parameters.indexOfName("peso foco");
+			if (focus >= 0)
+			{
+				box->parameters.setFloatValue(0.23f, focus);
+				box->parameters.setFloatLerpValue(0.23f, focus);
+				const string path = directory + "camdepth.xml";
+				app.boxes.save(path);
+				app.boxes.clear();
+				app.boxes.load(path);
+				if (app.boxes.boxes.empty()) fail("round trip lost the box");
+				else
+				{
+					JPbox *back = app.boxes.boxes.front();
+					if (dynamic_cast<JPbox_camdepth *>(back) == nullptr)
+						fail("round trip rebuilt the wrong type");
+					const int idx = back->parameters.indexOfName("peso foco");
+					if (idx < 0 || std::abs(
+						back->parameters.getFloatValue(idx) - 0.23f) > 0.002f)
+						fail("parameter did not survive save/load");
+				}
+			}
+		}
+		// A plain camera box must still be a plain camera box.
+		app.boxes.clear();
+		app.boxes.addBox("cam", 40, 40);
+		if (!app.boxes.boxes.empty() &&
+			dynamic_cast<JPbox_camdepth *>(app.boxes.boxes.front()) != nullptr)
+			fail("addBox(\"cam\") built a camdepth box");
+		app.boxes.clear();
+	}
 	bool mediaSmoke = true;
 	if(const char *smokePath=std::getenv("GUIPPER_MEDIA_SMOKE"))
 	{
@@ -1656,6 +1737,7 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " paramMorph=" << paramMorph
 		<< " morphArming=" << morphArming
 		<< " transitionShaders=" << transitionShaders
+		<< " camDepthBox=" << camDepthBox
 		<< " saveKeepsDefault=" << saveKeepsDefaultCompo
 		<< " mediaSmoke=" << mediaSmoke;
 	return current && old && clamped && shaderReload && modeMemory &&
@@ -1665,5 +1747,5 @@ bool jp_persistence_test::run(ofApp &app)
 		mediaSkipsStatic && mediaTurnaround && mediaMidiIndex && camScaleRatio && camLegacyLoad && shaderScaleRatio && realCompoLoad &&
 		saveKeepsDefaultCompo && boxIdentity && outputBinding && boxHitboxes && groupComposite && transitionClock &&
 		paramMorph && morphArming &&
-		transitionShaders && mediaSmoke;
+		transitionShaders && camDepthBox && mediaSmoke;
 }

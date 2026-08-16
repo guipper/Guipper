@@ -216,6 +216,9 @@ namespace jp_help
 		E("h", "Spout input", "Entrada Spout", Scope::Nodes),
 #endif
 		E("Shift+C", "Kinect V2 input", "Entrada Kinect V2", Scope::Nodes),
+		E("Shift+D", "Camera depth: pseudo-depth from an ordinary camera",
+			"Camara profundidad: pseudo-profundidad desde una camara comun",
+			Scope::Nodes),
 		E("Shift+P", "PointerCloud: Kinect V2 point cloud",
 			"PointerCloud: nube de puntos del Kinect V2", Scope::Nodes),
 		GAP(),
