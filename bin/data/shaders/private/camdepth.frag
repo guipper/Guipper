@@ -22,6 +22,20 @@
 //      the far field and spends most of the range on what is close. The `curva`
 //      control applies that same bias.
 //
+// One thing here deliberately goes BEYOND what V2 does. V2 is strictly
+// single-image: it sees one frame and has no access to time. This box runs on
+// live video, so it can difference consecutive frames and read MOTION PARALLAX
+// - the only cue in the whole file that MEASURES geometry instead of inferring
+// it from appearance. A network that has learned what a face looks like is
+// still guessing; a pixel that moved twice as far genuinely is closer. Cue 4 is
+// that measurement, and it is the one to reach for when the footage defeats the
+// appearance cues.
+//
+// This pass always writes GREY. The heat ramp is a separate pass
+// (camdepth_show.frag) on purpose: the temporal smoothing below reads back this
+// box's own previous frame, and if the ramp were applied here that feedback
+// would be reading a colour channel instead of a depth value.
+//
 // Output convention matches JPbox_kinect2's own grey map: NEAR = BRIGHT, far =
 // black. That is what lets this box and a Kinect DEPTH box drive the same
 // downstream displacement shader interchangeably.
@@ -31,12 +45,15 @@
 
 uniform sampler2D camara;      // the live camera frame
 uniform sampler2D anterior;    // this box's previous output, for smoothing
+uniform sampler2D movimiento;  // quarter-res parallax buffer, .g = motion energy
 uniform vec2 resolution;
 
 // Cue weights. Summed and renormalised, so zeroing one does not darken the map.
 uniform float pesoFoco;        // structure / "is this a distinct surface"
 uniform float pesoBrillo;
 uniform float pesoVertical;
+uniform float pesoParalaje;    // motion parallax - the only geometric cue here
+uniform float pesoAire;        // aerial perspective / haze
 
 uniform float radio;        // base sampling radius, in pixels
 uniform float contraste;    // gamma on the result
@@ -58,13 +75,21 @@ float luma(vec3 c)
 
 void main()
 {
+	// Two spaces, deliberately kept apart.
+	//
+	// `uv` is OUTPUT space and is never mirrored; `cam` is where the camera is
+	// sampled. Mirroring only `cam` is what lets the buffers that live in output
+	// space - the previous depth frame and the parallax buffer - be read back at
+	// the coordinate they were written to. Flipping one shared `uv` instead made
+	// the temporal blend read its own previous frame REVERSED, ghosting a
+	// mirrored copy of the subject over the map whenever espejo and suavizado
+	// were both on.
 	vec2 uv = gl_FragCoord.xy / resolution;
-	// Mirrored before anything samples the camera, so the cues read the same
-	// pixels the output shows.
-	if (espejo > 0.5) uv.x = 1.0 - uv.x;
+	vec2 cam = uv;
+	if (espejo > 0.5) cam.x = 1.0 - cam.x;
 	vec2 texel = 1.0 / resolution;
 
-	vec3 centre = texture(camara, uv).rgb;
+	vec3 centre = texture(camara, cam).rgb;
 	float centreLuma = luma(centre);
 
 	float r = max(1.0, radio);
@@ -88,8 +113,8 @@ void main()
 	float edgeWeight = 0.0;
 	for (int i = 0; i < 8; i++)
 	{
-		vec3 nearSample = texture(camara, uv + ring[i] * r * texel).rgb;
-		vec3 farSample = texture(camara, uv + ring[i] * r * 4.0 * texel).rgb;
+		vec3 nearSample = texture(camara, cam + ring[i] * r * texel).rgb;
+		vec3 farSample = texture(camara, cam + ring[i] * r * 4.0 * texel).rgb;
 		float nearLuma = luma(nearSample);
 		fine += nearLuma;
 		coarse += luma(farSample);
@@ -123,8 +148,35 @@ void main()
 	// construction, which makes it a good stabiliser under the other two.
 	float verticalCue = pisoAbajo > 0.5 ? (1.0 - uv.y) : uv.y;
 
+	// --- Cue 4: motion parallax -------------------------------------------
+	// Under camera or subject motion a near surface sweeps more pixels than a
+	// far one, and that holds regardless of how the scene is lit - which is why
+	// this cue rescues the footage the others get wrong. A dark subject against
+	// a bright wall reads backwards on brightness and correctly here.
+	//
+	// Read in OUTPUT space with a plain bilinear fetch: the buffer is quarter
+	// resolution, so the hardware filter is already averaging four pixels at a
+	// time, which is exactly the spatial blur this cue wants.
+	//
+	// Reports zero on a still scene, and the renormalisation below then hands
+	// its share to the other cues rather than darkening the map.
+	float parallaxCue = clamp(texture(movimiento, uv).g, 0.0, 1.0);
+	// Square root: motion energy bunches up near zero, so a linear mapping
+	// leaves everything but the fastest edge looking equally far.
+	parallaxCue = sqrt(parallaxCue);
+
+	// --- Cue 5: aerial perspective ----------------------------------------
+	// Haze. Distance scatters light into the line of sight and washes colour
+	// out, so the far field is DESATURATED. The one classical cue here that is
+	// about colour rather than luminance, which keeps it informative on a flatly
+	// lit scene where brightness and structure have nothing to say.
+	float maxChannel = max(centre.r, max(centre.g, centre.b));
+	float minChannel = min(centre.r, min(centre.g, centre.b));
+	float aerialCue = maxChannel > 0.001 ?
+		(maxChannel - minChannel) / maxChannel : 0.0;
+
 	// --- Combine ----------------------------------------------------------
-	float total = pesoFoco + pesoBrillo + pesoVertical;
+	float total = pesoFoco + pesoBrillo + pesoVertical + pesoParalaje + pesoAire;
 	float depth;
 	if (total < 0.0001)
 	{
@@ -136,7 +188,9 @@ void main()
 	{
 		depth = (structureCue * pesoFoco +
 				 brightCue * pesoBrillo +
-				 verticalCue * pesoVertical) / total;
+				 verticalCue * pesoVertical +
+				 parallaxCue * pesoParalaje +
+				 aerialCue * pesoAire) / total;
 	}
 
 	// --- Disparity bias ---------------------------------------------------

@@ -10,8 +10,8 @@
 // A camera that outputs a pseudo-depth map instead of its picture.
 //
 // NOT a depth sensor: it reads monocular cues (local detail, brightness,
-// vertical position) out of a 2D frame, so a dark object close to the lens
-// reads as far. Anything needing real metric geometry - the point cloud - must
+// vertical position, motion parallax, haze) out of the video, so a dark object
+// close to the lens reads as far unless parallax is carrying the estimate. Anything needing real metric geometry - the point cloud - must
 // keep using the Kinect, which publishes millimetres.
 //
 // Shares the camera with CAMARITA through JPbox_cam::acquireSharedCamera: two
@@ -49,16 +49,32 @@ public:
 	int invertParam = -1;
 	int floorParam = -1;
 	int mirrorParam = -1;
+	int parallaxWeightParam = -1;
+	int aerialWeightParam = -1;
+	int parallaxHoldParam = -1;
+	int parallaxGainParam = -1;
+	int colourParam = -1;
 
 private:
 	void applyCameraIndexFromParameter(bool force = false);
 	bool ensureShader();
 	void ensureHistory();
+	void updateMotion();
 
 	ofShader shader;
+	ofShader motionShader;
+	ofShader showShader;
 	// Previous output, for the temporal smoothing the shader does. A separate
 	// target because a pass cannot read the FBO it is writing to.
 	ofFbo history;
+	// Motion-parallax buffers, ping-ponged because the pass differences against
+	// its own previous result. Kept at a QUARTER of the render size: a frame
+	// difference amplifies sensor noise more than any other operation in the
+	// box, and downsampling averages that away while costing 1/16th of the
+	// work. Parallax has no fine detail to lose.
+	ofFbo motion[2];
+	int motionWrite = 0;
+	static constexpr int kMotionDivisor = 4;
 	std::shared_ptr<JPCameraCaptureSource> cameraSource;
 	vector<int> availableDeviceIds;
 	int currentDeviceId = -1;

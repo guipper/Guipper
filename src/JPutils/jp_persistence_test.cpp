@@ -1617,6 +1617,206 @@ bool jp_persistence_test::run(ofApp &app)
 	// for "cam" with a substring search. If the camdepth branch is ever ordered
 	// after the cam one, this quietly builds a CAMARITA instead - same picture,
 	// no depth, no error anywhere.
+	// The parallax cue must actually MEASURE motion - report energy where the
+	// image changed and nothing where it did not.
+	//
+	// This is the one cue in the depth box that is geometry rather than a guess
+	// about appearance, so it is the one worth pinning down. Driven with
+	// synthetic frames rather than a camera: a real camera cannot be made to
+	// move a known amount, and sensor noise would put a floor under the "did
+	// not move" half of the check.
+	// The heat ramp must actually be a depth ramp: white near, yellow, red at
+	// middle distance, violet far - and darkening monotonically the whole way.
+	//
+	// Checking that "some colour came out" would pass for a greyscale copy or
+	// for turbo, which runs blue-to-red and reads this box's near = bright
+	// convention backwards. The checks below are the ones that separate THIS
+	// ramp from those: blue must overtake green at the far end, and green must
+	// overtake blue at three quarters.
+	bool camDepthRamp = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			camDepthRamp = false;
+			ofLogNotice("camdepthramp") << why;
+		};
+		const string frag = "shaders/private/camdepth_show.frag";
+		ofShader show;
+		if (!ofFile::doesFileExist(ofToDataPath(frag, true)))
+			fail("missing shader: " + frag);
+		else if (!show.load("shaders/default.vert", frag))
+			fail("shader does not compile: " + frag);
+		else
+		{
+			const int width = 256, height = 4;
+			// A grey ramp standing in for a depth map, 0 (far) to 255 (near).
+			ofFbo depth, coloured;
+			depth.allocate(width, height);
+			depth.begin();
+			ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+			ofClear(0, 0, 0, 255);
+			ofSetRectMode(OF_RECTMODE_CORNER);
+			for (int i = 0; i < width; ++i)
+			{
+				ofSetColor(i, i, i, 255);
+				ofDrawRectangle(i, 0, 1, height);
+			}
+			depth.end();
+			ofEnableAlphaBlending();
+
+			coloured.allocate(width, height);
+			ofSetRectMode(OF_RECTMODE_CORNER);
+			ofSetColor(255, 255, 255, 255);
+			coloured.begin();
+			ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+			show.begin();
+			show.setUniformTexture("profundidad", depth.getTexture(), 1);
+			show.setUniform2f("resolution", (float)width, (float)height);
+			ofDrawRectangle(0, 0, (float)width, (float)height);
+			show.end();
+			coloured.end();
+			ofEnableAlphaBlending();
+
+			ofPixels out;
+			coloured.readToPixels(out);
+			if (!out.isAllocated()) fail("could not read the ramp");
+			else
+			{
+				auto at = [&](int x) { return out.getColor(x, height / 2); };
+				const ofColor nearest = at(252);   // depth ~1.0
+				const ofColor yellow  = at(191);   // ~0.75
+				const ofColor red     = at(127);   // ~0.5
+				const ofColor violet  = at(63);    // ~0.25
+				const ofColor farthest = at(2);    // ~0.0
+
+				if (!(nearest.r > 230 && nearest.g > 230 && nearest.b > 220))
+					fail("near end is not white: " + ofToString(nearest));
+				if (!(yellow.r > 200 && yellow.g > 150 && yellow.b < 110))
+					fail("three-quarter mark is not yellow: " + ofToString(yellow));
+				if (!(red.r > 150 && red.g < 110 && red.b < 110))
+					fail("middle is not red: " + ofToString(red));
+				// The check a greyscale or turbo ramp cannot pass: at the far
+				// end blue has to lead green.
+				if (!(violet.b > violet.g + 30))
+					fail("quarter mark is not violet - blue does not lead "
+						"green: " + ofToString(violet));
+				if (!(yellow.g > yellow.b + 40))
+					fail("three-quarter mark has blue at or above green, so the "
+						"ramp is running the wrong way: " + ofToString(yellow));
+				if (!(farthest.r < 60 && farthest.g < 60))
+					fail("far end is not dark: " + ofToString(farthest));
+
+				// Luminance must fall from near to far, or a displacement
+				// shader downstream would read the ramp as folded terrain.
+				float previousLuma = 1e9f;
+				for (int x = width - 4; x >= 2; x -= 8)
+				{
+					const ofColor c = at(x);
+					const float l = 0.299f * c.r + 0.587f * c.g + 0.114f * c.b;
+					if (l > previousLuma + 6.0f)
+					{
+						fail("luminance rises toward the far end at x=" +
+							ofToString(x) + " - the ramp is not monotonic");
+						break;
+					}
+					previousLuma = l;
+				}
+			}
+		}
+	}
+	bool camDepthParallax = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			camDepthParallax = false;
+			ofLogNotice("camdepthparallax") << why;
+		};
+		const string frag = "shaders/private/camdepth_motion.frag";
+		ofShader motion;
+		if (!ofFile::doesFileExist(ofToDataPath(frag, true)))
+			fail("missing shader: " + frag);
+		else if (!motion.load("shaders/default.vert", frag))
+			fail("shader does not compile: " + frag);
+		else
+		{
+			const int size = 64;
+			// Two synthetic camera frames. The LEFT square jumps between them;
+			// the RIGHT square is identical in both, which is what makes the
+			// check discriminating rather than just "some output appeared".
+			ofFbo frames[2];
+			for (int f = 0; f < 2; ++f)
+			{
+				frames[f].allocate(size, size);
+				frames[f].begin();
+				ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+				ofClear(0, 0, 0, 255);
+				ofSetRectMode(OF_RECTMODE_CORNER);
+				ofSetColor(255);
+				ofDrawRectangle(f == 0 ? 4 : 24, 8, 16, 48);   // moves
+				ofDrawRectangle(40, 8, 16, 48);                // does not
+				frames[f].end();
+				ofEnableAlphaBlending();
+			}
+
+			ofFbo buffers[2];
+			for (int i = 0; i < 2; ++i)
+			{
+				buffers[i].allocate(size, size, GL_RGBA16F);
+				buffers[i].begin();
+				ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+				ofClear(0, 0, 0, 255);
+				buffers[i].end();
+				ofEnableAlphaBlending();
+			}
+
+			auto pass = [&](int frame, int read, int write)
+			{
+				ofSetRectMode(OF_RECTMODE_CORNER);
+				ofSetColor(255, 255, 255, 255);
+				buffers[write].begin();
+				ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+				motion.begin();
+				motion.setUniformTexture("camara", frames[frame].getTexture(), 1);
+				motion.setUniformTexture("anterior", buffers[read].getTexture(), 2);
+				motion.setUniform2f("resolution", (float)size, (float)size);
+				motion.setUniform1f("espejo", 0.0f);
+				// Retention OFF for the test. With the hold engaged, the first
+				// pass (which differences against an all-black buffer) would
+				// light up BOTH squares and leak into the second, so the
+				// static half could never read zero and the check would pass
+				// no matter what the shader did.
+				motion.setUniform1f("retencion", 0.0f);
+				motion.setUniform1f("ganancia", 4.0f);
+				ofDrawRectangle(0, 0, (float)size, (float)size);
+				motion.end();
+				buffers[write].end();
+				ofEnableAlphaBlending();
+			};
+			pass(0, 0, 1);   // prime: remembers frame A
+			pass(1, 1, 0);   // measure: frame B against frame A
+
+			ofFloatPixels result;
+			buffers[0].readToPixels(result);
+			if (!result.isAllocated()) fail("could not read the motion buffer");
+			else
+			{
+				// Centre of the square that jumped: white in A, black in B.
+				const float moved = result.getColor(12, 32).g;
+				// Centre of the square that never moved.
+				const float still = result.getColor(48, 32).g;
+				if (moved < 0.5f)
+					fail("no energy where the image changed (" +
+						ofToString(moved, 3) + ") - the cue is not measuring "
+						"motion at all");
+				if (still > 0.05f)
+					fail("energy where NOTHING moved (" + ofToString(still, 3) +
+						") - the cue is reporting brightness, not motion");
+				if (moved <= still)
+					fail("moved (" + ofToString(moved, 3) + ") is not above "
+						"static (" + ofToString(still, 3) + ")");
+			}
+		}
+	}
 	bool camDepthBox = true;
 	{
 		auto fail = [&](const string &why)
@@ -1655,7 +1855,8 @@ bool jp_persistence_test::run(ofApp &app)
 			const char *needed[] = {"camaraindex", "peso foco", "peso brillo",
 				"peso vertical", "radio", "contraste", "cerca", "lejos",
 				"suavizado", "bordes", "curva", "invertir", "piso abajo",
-				"espejo"};
+				"espejo", "peso paralaje", "peso aire", "retencion",
+				"ganancia mov", "colores"};
 			for (const char *n : needed)
 				if (box->parameters.indexOfName(n) < 0)
 					fail(string("missing parameter: ") + n);
@@ -1737,6 +1938,8 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " paramMorph=" << paramMorph
 		<< " morphArming=" << morphArming
 		<< " transitionShaders=" << transitionShaders
+		<< " camDepthRamp=" << camDepthRamp
+		<< " camDepthParallax=" << camDepthParallax
 		<< " camDepthBox=" << camDepthBox
 		<< " saveKeepsDefault=" << saveKeepsDefaultCompo
 		<< " mediaSmoke=" << mediaSmoke;
@@ -1747,5 +1950,5 @@ bool jp_persistence_test::run(ofApp &app)
 		mediaSkipsStatic && mediaTurnaround && mediaMidiIndex && camScaleRatio && camLegacyLoad && shaderScaleRatio && realCompoLoad &&
 		saveKeepsDefaultCompo && boxIdentity && outputBinding && boxHitboxes && groupComposite && transitionClock &&
 		paramMorph && morphArming &&
-		transitionShaders && camDepthBox && mediaSmoke;
+		transitionShaders && camDepthBox && camDepthParallax && camDepthRamp && mediaSmoke;
 }
