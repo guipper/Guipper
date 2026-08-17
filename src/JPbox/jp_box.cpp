@@ -53,7 +53,13 @@ std::string jp_boxuid::mint()
 	return "b" + ofToString(salt) + "_" + ofToString(++counter);
 }
 
-JPbox::JPbox() { uid = jp_boxuid::mint(); }
+JPbox::JPbox()
+{
+	uid = jp_boxuid::mint();
+	// In the constructor, not setup(): a box can be linked by load or paste
+	// before either setup overload runs, and &fbo is stable for its lifetime.
+	fbohandlergroup.setOwnerFbo(&fbo);
+}
 JPbox::~JPbox() {}
 void JPbox::saveCustomState(ofXml &boxNode) const {}
 void JPbox::loadCustomState(const ofXml &boxNode) {}

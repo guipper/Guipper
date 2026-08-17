@@ -126,10 +126,34 @@ public:
 	{
 		return fbohandlers[_index].y;
 	}
-	void setFboPointer(ofFbo *fbo, string *fboname, int _index)
+	// Set once by the owning JPbox so the guard below can recognise its own
+	// output. Nothing else may write it.
+	void setOwnerFbo(ofFbo *_ownerFbo) { ownerFbo = _ownerFbo; }
+
+	// Returns false when the link was refused.
+	//
+	// A box may not feed its own inlet. It is not merely useless: the box would
+	// bind its output texture as an input while rendering INTO that same
+	// texture, which OpenGL leaves undefined - the result is driver-dependent
+	// garbage rather than the feedback the gesture looks like it should give.
+	// Shader boxes already have a real feedback path (the `feedback` uniform,
+	// bound to the previous frame through jp_shader_globals), and that one is
+	// correct because it reads a COPY.
+	//
+	// The check lives here, at the single point where an inlet pointer is
+	// written, rather than at the ten call sites that reach it - the drag
+	// gesture, XML load, paste, duplicate, cue commit and the group make/break
+	// paths would each need their own copy, and a new path would silently miss
+	// it.
+	bool setFboPointer(ofFbo *fbo, string *fboname, int _index)
 	{
+		if (_index < 0 || _index >= getSize()) return false;
+		if (fbo != nullptr && fbo == ownerFbo) return false;
 		fbohandlers[_index].setFboPointer(fbo, fboname);
+		return true;
 	}
+	ofFbo *ownerFbo = nullptr;
+
 	bool swapConnections(int firstIndex, int secondIndex)
 	{
 		if (firstIndex < 0 || secondIndex < 0 ||

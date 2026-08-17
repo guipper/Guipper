@@ -4105,6 +4105,13 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 				if (activeBoxes[k]->fbohandlergroup.mouseOver(l) &&
 					activeBoxes[i]->outletActiveFlag)
 				{
+					// A box cannot feed its own inlet. JPFbohandlerGroup
+					// refuses this anyway, but stopping the gesture here keeps
+					// the drop from looking accepted and avoids a pointless
+					// cue rebuild - and in cue draft mode the draft and the
+					// real box own different FBOs, so the funnel guard cannot
+					// recognise the pair by pointer.
+					if (i == k) continue;
 					if (inputOwnerPreset != nullptr &&
 						inputOwnerPreset
 							->isExposedTextureInputTarget(

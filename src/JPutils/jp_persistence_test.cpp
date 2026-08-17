@@ -1633,6 +1633,59 @@ bool jp_persistence_test::run(ofApp &app)
 	// convention backwards. The checks below are the ones that separate THIS
 	// ramp from those: blue must overtake green at the far end, and green must
 	// overtake blue at three quarters.
+	// A box may not feed its own inlet.
+	//
+	// It is not just a useless patch: the box would bind its output texture as
+	// an input while rendering INTO that texture, which OpenGL leaves
+	// undefined - driver-dependent garbage, not the feedback the gesture looks
+	// like it should produce. Shader boxes already have a correct feedback path
+	// through the `feedback` uniform, which works because it reads a copy.
+	bool selfLink = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			selfLink = false;
+			ofLogNotice("selflink") << why;
+		};
+		const string shader = "shaders/imageprocessing/transform.frag";
+		app.boxes.clear();
+		app.boxes.addBox(shader, 40, 40);
+		app.boxes.addBox(shader, 140, 40);
+		if (app.boxes.boxes.size() < 2 ||
+			app.boxes.boxes[0]->fbohandlergroup.getSize() < 1)
+		{
+			ofLogNotice("selflink") << "fixture unavailable - skipped";
+		}
+		else
+		{
+			JPbox *self = app.boxes.boxes[0];
+			JPbox *other = app.boxes.boxes[1];
+
+			if (self->fbohandlergroup.setFboPointer(&self->fbo, &self->name, 0))
+				fail("setFboPointer accepted the box's own FBO");
+			if (self->fbohandlergroup.getisPointerSet(0))
+				fail("a self link was stored anyway");
+
+			// The half that stops a guard from passing by refusing everything.
+			if (!self->fbohandlergroup.setFboPointer(&other->fbo, &other->name, 0))
+				fail("the guard refused a legitimate link between two boxes");
+			if (self->fbohandlergroup.getFboPointerReference(0) != &other->fbo)
+				fail("a legitimate link did not land on the source FBO");
+
+			// A refused attempt must leave the existing patch alone - a guard
+			// written as clear-then-check would drop the good connection.
+			self->fbohandlergroup.setFboPointer(&self->fbo, &self->name, 0);
+			if (self->fbohandlergroup.getFboPointerReference(0) != &other->fbo)
+				fail("a refused self link clobbered the existing connection");
+
+			if (self->fbohandlergroup.setFboPointer(&other->fbo, &other->name,
+				self->fbohandlergroup.getSize() + 5))
+			{
+				fail("an out-of-range inlet index was accepted");
+			}
+		}
+		app.boxes.clear();
+	}
 	bool camDepthRamp = true;
 	{
 		auto fail = [&](const string &why)
@@ -1938,6 +1991,7 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " paramMorph=" << paramMorph
 		<< " morphArming=" << morphArming
 		<< " transitionShaders=" << transitionShaders
+		<< " selfLink=" << selfLink
 		<< " camDepthRamp=" << camDepthRamp
 		<< " camDepthParallax=" << camDepthParallax
 		<< " camDepthBox=" << camDepthBox
@@ -1950,5 +2004,5 @@ bool jp_persistence_test::run(ofApp &app)
 		mediaSkipsStatic && mediaTurnaround && mediaMidiIndex && camScaleRatio && camLegacyLoad && shaderScaleRatio && realCompoLoad &&
 		saveKeepsDefaultCompo && boxIdentity && outputBinding && boxHitboxes && groupComposite && transitionClock &&
 		paramMorph && morphArming &&
-		transitionShaders && camDepthBox && camDepthParallax && camDepthRamp && mediaSmoke;
+		transitionShaders && camDepthBox && camDepthParallax && camDepthRamp && selfLink && mediaSmoke;
 }
