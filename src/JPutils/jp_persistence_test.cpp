@@ -1643,6 +1643,158 @@ bool jp_persistence_test::run(ofApp &app)
 	// The shared scheduler. Both the top level and every group now route
 	// through jp_renderschedule::apply, so its rules are worth pinning down
 	// directly rather than only through the two callers.
+	// Tooltip placement.
+	//
+	// The box is drawn with OF_RECTMODE_CENTER, and the anchor the callers pass
+	// is the centre of the thing being labelled - so the tooltip centre belongs
+	// ON the anchor. It used to be anchorX + width / 2, which slid the box half
+	// its own width to the right: a couple of pixels on "Pause", and clean off
+	// the screen on a long box name, which is why it read as "tooltips are
+	// broken" rather than "tooltips are offset".
+	// Tooltip placement, transform resolution and truncation.
+	//
+	// Two implementations of jp_tooltip existed - one used by ~90 call sites and
+	// one added for the box titles - and they disagreed on the delay, the anchor
+	// convention and the rect mode. They are now one, so these checks guard the
+	// behaviour the whole program shares.
+	bool tooltipLayout = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			tooltipLayout = false;
+			ofLogNotice("tooltip") << why;
+		};
+		const float screenW = 1000.0f, screenH = 800.0f;
+		const float lineHeight = 14.0f;
+
+		// Centred over the anchor, and INDEPENDENT of the text width. That
+		// independence is the regression guard: the box version used to offset by
+		// half its own width, so a long name slid clean off the screen.
+		const ofRectangle widget(480.0f, 400.0f, 40.0f, 20.0f);
+		float previousCentre = -1.0f;
+		for (float textW : {20.0f, 120.0f, 300.0f})
+		{
+			const ofRectangle box = jp_tooltip::layout(widget, textW, lineHeight,
+				screenW, screenH);
+			const float centre = box.x + box.width / 2.0f;
+			if (std::abs(centre - 500.0f) > 0.51f)
+				fail("text width " + ofToString(textW) + " put the centre at " +
+					ofToString(centre) + ", expected 500 - the tooltip is being "
+					"offset by its own width");
+			if (previousCentre >= 0.0f && std::abs(centre - previousCentre) > 0.51f)
+				fail("the centre shifts with the text width");
+			previousCentre = centre;
+			if (box.y + box.height > widget.y)
+				fail("the tooltip is not above its widget");
+		}
+
+		// Clamped at both edges rather than clipped away.
+		const ofRectangle atRight = jp_tooltip::layout(
+			ofRectangle(screenW - 10.0f, 400.0f, 8.0f, 20.0f), 200.0f,
+			lineHeight, screenW, screenH);
+		if (atRight.x + atRight.width > screenW)
+			fail("a tooltip at the right edge runs off screen, right edge at " +
+				ofToString(atRight.x + atRight.width));
+		const ofRectangle atLeft = jp_tooltip::layout(
+			ofRectangle(2.0f, 400.0f, 8.0f, 20.0f), 200.0f, lineHeight,
+			screenW, screenH);
+		if (atLeft.x < 0.0f)
+			fail("a tooltip at the left edge runs off screen, left edge at " +
+				ofToString(atLeft.x));
+
+		// Near the top there is no room above, so it flips BELOW. Widgets parked
+		// at the top of the window are ordinary, not an edge case.
+		const ofRectangle widgetTop(500.0f, 2.0f, 40.0f, 20.0f);
+		const ofRectangle atTop = jp_tooltip::layout(widgetTop, 120.0f,
+			lineHeight, screenW, screenH);
+		if (atTop.y < 0.0f)
+			fail("a tooltip near the top runs off screen, top edge at " +
+				ofToString(atTop.y));
+		if (atTop.y < widgetTop.y + widgetTop.height)
+			fail("a tooltip near the top did not flip below its widget");
+
+		// Truncation. Without it an over-long string overflows however the box is
+		// placed, because the position clamp cannot shrink it.
+		auto measure = [](const string &t) { return (float)t.size() * 10.0f; };
+		const string fitted = jp_tooltip::fit(
+			"a very long tooltip that will never fit", 150.0f, measure);
+		if (measure(fitted) > 150.0f)
+			fail("fit() returned something wider than the limit: '" + fitted + "'");
+		if (fitted.size() >= 38)
+			fail("fit() did not shorten the text");
+		if (fitted.find("...") == string::npos)
+			fail("fit() dropped text without marking it with an ellipsis");
+		const string shortEnough = jp_tooltip::fit("ok", 150.0f, measure);
+		if (shortEnough != "ok")
+			fail("fit() altered a string that already fitted: '" + shortEnough + "'");
+	}
+	// The reported bug: with the canvas panned or zoomed, the tooltip landed far
+	// from the box. The request happens inside the canvas' ofTranslate/ofScale
+	// but the paint happens at the end of ofApp::draw, outside it.
+	//
+	// resolvePending takes the flush-time base as a parameter precisely so this
+	// can be checked here: the harness runs in ofApp::setup, where the base matrix
+	// is not the same as during draw, and the maths is RELATIVE so it must not
+	// depend on which base it is.
+	bool tooltipTransform = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			tooltipTransform = false;
+			ofLogNotice("tooltiptransform") << why;
+		};
+		const glm::mat4 base = ofGetCurrentMatrix(OF_MATRIX_MODELVIEW);
+		const ofRectangle widget(10.0f, 10.0f, 40.0f, 20.0f);
+
+		auto resolved = [&](std::function<void()> pushTransform)
+		{
+			ofPushMatrix();
+			pushTransform();
+			jp_tooltip::request("t", widget);
+			ofPopMatrix();
+			string text;
+			ofRectangle out;
+			if (!jp_tooltip::resolvePending(base, text, out))
+			{
+				fail("nothing pending after request()");
+				return ofRectangle();
+			}
+			return out;
+		};
+		auto near = [](float a, float b) { return std::abs(a - b) <= 0.51f; };
+
+		// No transform: a screen-space caller must pass straight through, which is
+		// what keeps the ~90 existing call sites working untouched.
+		const ofRectangle plain = resolved([]{});
+		if (!near(plain.x, 10.0f) || !near(plain.y, 10.0f) ||
+			!near(plain.width, 40.0f) || !near(plain.height, 20.0f))
+		{
+			fail("with no transform the anchor changed: " + ofToString(plain));
+		}
+
+		// Pan only.
+		const ofRectangle panned = resolved([]{ ofTranslate(100.0f, 50.0f); });
+		if (!near(panned.x, 110.0f) || !near(panned.y, 60.0f))
+			fail("pan not applied, got " + ofToString(panned));
+		if (!near(panned.width, 40.0f) || !near(panned.height, 20.0f))
+			fail("pan should not resize the anchor, got " + ofToString(panned));
+
+		// Pan and zoom together - the case in the report. The anchor must scale
+		// too, or the tooltip sits against where the box would be at zoom 1.
+		const ofRectangle zoomed = resolved([]{
+			ofTranslate(100.0f, 50.0f);
+			ofScale(2.0f, 2.0f);
+		});
+		if (!near(zoomed.x, 120.0f) || !near(zoomed.y, 70.0f))
+			fail("pan+zoom position wrong, got " + ofToString(zoomed));
+		if (!near(zoomed.width, 80.0f) || !near(zoomed.height, 40.0f))
+			fail("pan+zoom did not scale the anchor, got " + ofToString(zoomed));
+
+		// Zoomed out, the anchor shrinks - the tooltip should hug the small box.
+		const ofRectangle small = resolved([]{ ofScale(0.5f, 0.5f); });
+		if (!near(small.width, 20.0f) || !near(small.x, 5.0f))
+			fail("zoom out not applied, got " + ofToString(small));
+	}
 	bool renderSchedule = true;
 	{
 		auto fail = [&](const string &why)
@@ -2171,6 +2323,8 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " paramMorph=" << paramMorph
 		<< " morphArming=" << morphArming
 		<< " transitionShaders=" << transitionShaders
+		<< " tooltipLayout=" << tooltipLayout
+		<< " tooltipTransform=" << tooltipTransform
 		<< " renderSchedule=" << renderSchedule
 		<< " scheduleObeyed=" << scheduleObeyed
 		<< " selfLink=" << selfLink
@@ -2187,5 +2341,6 @@ bool jp_persistence_test::run(ofApp &app)
 		saveKeepsDefaultCompo && boxIdentity && outputBinding && boxHitboxes && groupComposite && transitionClock &&
 		paramMorph && morphArming &&
 		transitionShaders && camDepthBox && camDepthParallax && camDepthRamp && selfLink &&
-		renderSchedule && scheduleObeyed && mediaSmoke;
+		renderSchedule && scheduleObeyed && tooltipLayout &&
+		tooltipTransform && mediaSmoke;
 }

@@ -543,6 +543,10 @@ void ofApp::draw() {
 
 	drawSaveModal();
 
+	// Above every panel and modal: a tooltip that a later panel paints over is
+	// the bug this deferral exists to fix.
+	jp_tooltip::drawPending();
+
 	// LAST: grabScreen is glReadPixels on the back buffer, so it must run
 	// before the swap.
 	jp_uishot::draw(*this);

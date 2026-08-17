@@ -5,43 +5,6 @@
 
 namespace
 {
-	void updateHoverStart(bool isMouseOver, uint64_t &hoverStartMillis)
-	{
-		if (isMouseOver)
-		{
-			if (hoverStartMillis == 0)
-			{
-				hoverStartMillis = ofGetElapsedTimeMillis();
-			}
-		}
-		else
-		{
-			hoverStartMillis = 0;
-		}
-	}
-
-	bool shouldShowTooltip(uint64_t hoverStartMillis)
-	{
-		return hoverStartMillis != 0 && ofGetElapsedTimeMillis() - hoverStartMillis >= 1000;
-	}
-
-	void drawTooltip(const string &text, float anchorX, float anchorY)
-	{
-		float padX = 6;
-		float padY = 4;
-		float tooltipWidth = jp_constants::p_font.stringWidth(text) + padX * 2;
-		float tooltipHeight = jp_constants::p_font.stringHeight(text) + padY * 2;
-		float tooltipX = anchorX + tooltipWidth / 2;
-		float tooltipY = anchorY - tooltipHeight / 2 - 8;
-
-		ofSetRectMode(OF_RECTMODE_CENTER);
-		ofSetColor(COL_BG_INPUT, 230);
-		ofRectRounded(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 3);
-		ofSetColor(COL_TEXT_PRIMARY);
-		jp_constants::p_font.drawString(text,
-										tooltipX - tooltipWidth / 2 + padX,
-										tooltipY + jp_constants::p_font.stringHeight(text) / 2);
-	}
 }
 
 std::string jp_boxuid::mint()
@@ -150,9 +113,6 @@ void JPbox::setup(ofTrueTypeFont &_font)
 	bypass.value = false;
 	bypass.activeFlag = false;
 	bypass.paleta = 1;
-	titleHoverStartMillis = 0;
-	bypassHoverStartMillis = 0;
-	onoffHoverStartMillis = 0;
 	fbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
 }
 void JPbox::setup(string _directory, string _name)
@@ -191,9 +151,6 @@ void JPbox::setup(string _directory, string _name)
 	bypass.value = false;
 	bypass.activeFlag = false;
 	bypass.paleta = 1;
-	titleHoverStartMillis = 0;
-	bypassHoverStartMillis = 0;
-	onoffHoverStartMillis = 0;
 	fbo.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
 
 	name = _name;
@@ -309,11 +266,14 @@ void JPbox::draw()
 	float nameTextWidth = jp_constants::p_font.stringWidth(shortname);
 	float mouseX = JPdragobject::getMouseX();
 	float mouseY = JPdragobject::getMouseY();
-	bool titleMouseOver = mouseX >= nameX &&
-						  mouseX <= nameX + nameTextWidth &&
-						  mouseY >= titleY - jp_constants::p_font.stringHeight(shortname) &&
-						  mouseY <= titleY + 3;
-	updateHoverStart(titleMouseOver, titleHoverStartMillis);
+	// One rectangle for both the hover test and the tooltip anchor, so the label
+	// can never appear against a different area than the one that triggered it.
+	const float titleHeight = jp_constants::p_font.stringHeight(shortname);
+	const ofRectangle titleBounds(nameX, titleY - titleHeight,
+		nameTextWidth, titleHeight + 3.0f);
+	// Canvas space, not screen space: mouseX/mouseY here come from
+	// JPdragobject's mouse override, which is the pan/zoom inverse.
+	const bool titleMouseOver = titleBounds.inside(mouseX, mouseY);
 	ofSetColor(COL_TEXT_PRIMARY);
 	jp_constants::p_font.drawString(shortname,
 									nameX,
@@ -331,8 +291,6 @@ void JPbox::draw()
 	ofSetRectMode(OF_RECTMODE_CENTER);
 	bool bypassMouseOver = bypass.mouseOver();
 	bool onoffMouseOver = onoff.mouseOver();
-	updateHoverStart(bypassMouseOver, bypassHoverStartMillis);
-	updateHoverStart(onoffMouseOver, onoffHoverStartMillis);
 
 	bypass.draw();
 	ofSetRectMode(OF_RECTMODE_CENTER);
@@ -368,18 +326,28 @@ void JPbox::draw()
 		ofDrawRectangle(onoff.x, onoff.y, onoff.width, onoff.height);
 		ofFill();
 	}
-	if (shouldShowTooltip(titleHoverStartMillis))
-	{
-		drawTooltip(name, nameX + nameTextWidth / 2, titleY - 8);
-	}
-	if (shouldShowTooltip(bypassHoverStartMillis))
-	{
-		drawTooltip("Bypass", bypass.x, bypass.y - bypass.height / 2);
-	}
-	if (shouldShowTooltip(onoffHoverStartMillis))
-	{
-		drawTooltip("Pause", onoff.x, onoff.y - onoff.height / 2);
-	}
+	// Tooltips.
+	//
+	// drawFor rather than draw: these anchors are in CANVAS space and the hover
+	// tests above already account for the pan/zoom, whereas draw()'s own test is
+	// a screen-space rect check. jp_tooltip captures the matrix, so the anchors
+	// go in exactly as computed here.
+	//
+	// The key is the box uid, not the rectangle: panning the canvas moves the
+	// rectangle every frame, which would restart the hover timer forever and the
+	// tooltip would never appear while the view was being moved into place.
+	//
+	// JPdragobject keeps x/y at the CENTRE, so the toggles convert to the corner
+	// rect the tooltip API expects.
+	auto toggleBounds = [](const JPToogle &toggle) {
+		return ofRectangle(toggle.x - toggle.width * 0.5f,
+			toggle.y - toggle.height * 0.5f, toggle.width, toggle.height);
+	};
+	jp_tooltip::drawFor(name, titleBounds, titleMouseOver, uid + ":title");
+	jp_tooltip::drawFor("Bypass", toggleBounds(bypass), bypassMouseOver,
+		uid + ":bypass");
+	jp_tooltip::drawFor("Pause", toggleBounds(onoff), onoffMouseOver,
+		uid + ":pause");
 	ofSetColor(COL_TEXT_PRIMARY);
 }
 void JPbox::updateFBO()
