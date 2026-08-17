@@ -137,7 +137,10 @@ void JPbox_sequencer::update()
             slots[i]->update();
     }
 
-    updateFBO();
+    // The scheduler drops us to the staggered preview rate when nothing on
+    // screen depends on this box. The slot children above are updated either
+    // way, so their playback and timing keep running.
+    if (shouldRenderThisFrame()) updateFBO();
     frameNum++;
 }
 

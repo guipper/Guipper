@@ -244,6 +244,10 @@ void JPbox_camdepth::updateFBO()
 		return;
 	}
 	if (cameraSource) cameraSource->updateOnce();
+	// Gated here rather than around the call in update(): the grabber above
+	// must keep being pumped or frames pile up in the pipeline. Only the depth
+	// estimation is skipped, and the FBO keeps its last map.
+	if (!shouldRenderThisFrame()) return;
 	if (!ensureShader() || !cameraSource || !cameraSource->hasTexture())
 	{
 		// Nothing to estimate from. Leave the last good frame rather than

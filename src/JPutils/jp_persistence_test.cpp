@@ -1640,6 +1640,186 @@ bool jp_persistence_test::run(ofApp &app)
 	// undefined - driver-dependent garbage, not the feedback the gesture looks
 	// like it should produce. Shader boxes already have a correct feedback path
 	// through the `feedback` uniform, which works because it reads a copy.
+	// The shared scheduler. Both the top level and every group now route
+	// through jp_renderschedule::apply, so its rules are worth pinning down
+	// directly rather than only through the two callers.
+	bool renderSchedule = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			renderSchedule = false;
+			ofLogNotice("renderschedule") << why;
+		};
+		const string shader = "shaders/imageprocessing/transform.frag";
+		app.boxes.clear();
+		for (int i = 0; i < 8; ++i)
+			app.boxes.addBox(shader, 40.0f + i * 30.0f, 40.0f);
+		if (app.boxes.boxes.size() < 8 ||
+			app.boxes.boxes[1]->fbohandlergroup.getSize() < 1)
+		{
+			ofLogNotice("renderschedule") << "fixture unavailable - skipped";
+		}
+		else
+		{
+			vector<JPbox *> &bx = app.boxes.boxes;
+			// Chain: 0 feeds 1, 1 feeds 2. Root at 2 must pull in 1 and 0.
+			bx[1]->fbohandlergroup.setFboPointer(&bx[0]->fbo, &bx[0]->name, 0);
+			bx[2]->fbohandlergroup.setFboPointer(&bx[1]->fbo, &bx[1]->name, 0);
+
+			jp_renderschedule::apply(bx, {2}, 1, false);
+			for (int i : {0, 1, 2})
+				if (!bx[i]->shouldRenderThisFrame())
+					fail("box " + ofToString(i) + " is on the dependency path "
+						"of the root but was not scheduled");
+
+			// Off the path, only the staggered share may refresh. With eight
+			// boxes and an interval of four, three of the five off-path boxes
+			// must be idle on any given frame whatever the frame number.
+			// Probed on every phase, not just one: on a synchronised schedule
+			// there is always some frame where nothing is idle, and probing a
+			// single frame can miss it.
+			for (uint64_t f = 0; f < (uint64_t)jp_renderschedule::kPreviewInterval; ++f)
+			{
+				jp_renderschedule::apply(bx, {2}, f, false);
+				int offPathIdle = 0;
+				for (int i = 3; i < 8; ++i)
+					if (!bx[i]->shouldRenderThisFrame()) ++offPathIdle;
+				if (offPathIdle < 3)
+					fail("frame " + ofToString((int)f) + ": only " +
+						ofToString(offPathIdle) + " of 5 off-path boxes idle - "
+						"the preview rate is not being applied");
+			}
+
+			// Staggered, not synchronised.
+			//
+			// Counting refreshes per box is NOT enough: a shared phase also
+			// gives every box exactly one refresh per interval, it just puts
+			// them all on the SAME frame. What matters is which frame each one
+			// lands on, so this records the phase and requires the boxes to be
+			// spread across all of them - that is the whole point, since a
+			// shared phase spikes the entire preview cost onto one frame in
+			// four instead of levelling it.
+			const int interval = jp_renderschedule::kPreviewInterval;
+			vector<int> refreshes(8, 0);
+			vector<bool> phaseUsed(interval, false);
+			for (uint64_t f = 0; f < (uint64_t)interval; ++f)
+			{
+				jp_renderschedule::apply(bx, {}, f, false);
+				int refreshedThisFrame = 0;
+				for (int i = 0; i < 8; ++i)
+				{
+					if (!bx[i]->shouldRenderThisFrame()) continue;
+					++refreshes[i];
+					++refreshedThisFrame;
+				}
+				if (refreshedThisFrame > 0) phaseUsed[(int)f] = true;
+				// Eight boxes over four phases: two per frame, never a pile-up.
+				if (refreshedThisFrame > 8 / interval)
+					fail("frame " + ofToString((int)f) + " refreshed " +
+						ofToString(refreshedThisFrame) + " of 8 boxes - the "
+						"preview cost is spiking instead of spreading");
+			}
+			for (int i = 0; i < 8; ++i)
+				if (refreshes[i] != 1)
+					fail("box " + ofToString(i) + " refreshed " +
+						ofToString(refreshes[i]) + " times in " +
+						ofToString(interval) + " frames, expected exactly 1");
+			for (int f = 0; f < interval; ++f)
+				if (!phaseUsed[f])
+					fail("no box refreshes on phase " + ofToString(f) +
+						" - the stagger is not covering every frame");
+
+			// forceFullRate is what activeSequence uses; it must override.
+			jp_renderschedule::apply(bx, {}, 1, true);
+			for (int i = 0; i < 8; ++i)
+				if (!bx[i]->shouldRenderThisFrame())
+					fail("forceFullRate left box " + ofToString(i) + " idle");
+
+			// A root index that does not exist must be ignored, not crash or
+			// poison the pass - callers pass "nothing selected" sentinels.
+			jp_renderschedule::apply(bx, {-1, 99}, 1, false);
+
+			// A CYCLE must terminate. A box cannot feed itself any more, but
+			// two boxes feeding each other is still reachable, and the walk
+			// would recurse for ever without the visited check.
+			bx[4]->fbohandlergroup.setFboPointer(&bx[5]->fbo, &bx[5]->name, 0);
+			bx[5]->fbohandlergroup.setFboPointer(&bx[4]->fbo, &bx[4]->name, 0);
+			jp_renderschedule::apply(bx, {4}, 1, false);
+			if (!bx[4]->shouldRenderThisFrame() || !bx[5]->shouldRenderThisFrame())
+				fail("a two-box cycle was not scheduled");
+		}
+		app.boxes.clear();
+	}
+	// Every box type must actually OBEY the schedule. The flag was computed for
+	// all of them but honoured by only four types, so the boxes with live
+	// sources - camera, depth camera - rendered a full frame regardless.
+	//
+	// Deliberately excluded: kinect2 and pointercloud. Both already skip
+	// redundant work through their own frame/settings version checks, and
+	// gating them would delay a near/far slider repaint by up to four frames
+	// for about ten microseconds of saving.
+	bool scheduleObeyed = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			scheduleObeyed = false;
+			ofLogNotice("scheduleobeyed") << why;
+		};
+		auto fill = [](ofFbo &target, const ofColor &colour)
+		{
+			target.begin();
+			ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+			ofClear(colour);
+			target.end();
+			ofEnableAlphaBlending();
+		};
+		const char *types[] = {"cam", "camdepth",
+			"shaders/imageprocessing/transform.frag"};
+		for (const char *type : types)
+		{
+			app.boxes.clear();
+			app.boxes.addBox(type, 40, 40);
+			if (app.boxes.boxes.empty())
+			{
+				ofLogNotice("scheduleobeyed")
+					<< "could not build " << type << " - skipped";
+				continue;
+			}
+			JPbox *box = app.boxes.boxes.front();
+			box->setonoff(true);
+			// Let it settle first, so what follows is not just a slow start.
+			box->setRenderThisFrame(true);
+			for (int i = 0; i < 6; ++i) box->update();
+			if (!box->fbo.isAllocated())
+			{
+				ofLogNotice("scheduleobeyed")
+					<< type << " has no FBO - skipped";
+				continue;
+			}
+			const ofColor sentinel(17, 211, 89, 255);
+			fill(box->fbo, sentinel);
+			box->setRenderThisFrame(false);
+			for (int i = 0; i < 6; ++i) box->update();
+			ofPixels after;
+			box->fbo.readToPixels(after);
+			if (!after.isAllocated())
+			{
+				ofLogNotice("scheduleobeyed") << type << " unreadable - skipped";
+				continue;
+			}
+			const ofColor held = after.getColor((int)box->fbo.getWidth() / 2,
+				(int)box->fbo.getHeight() / 2);
+			if (std::abs((int)held.r - (int)sentinel.r) > 4 ||
+				std::abs((int)held.g - (int)sentinel.g) > 4 ||
+				std::abs((int)held.b - (int)sentinel.b) > 4)
+			{
+				fail(string(type) + " rendered while the schedule said not to: "
+					"expected " + ofToString(sentinel) + ", got " +
+					ofToString(held));
+			}
+		}
+		app.boxes.clear();
+	}
 	bool selfLink = true;
 	{
 		auto fail = [&](const string &why)
@@ -1991,6 +2171,8 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " paramMorph=" << paramMorph
 		<< " morphArming=" << morphArming
 		<< " transitionShaders=" << transitionShaders
+		<< " renderSchedule=" << renderSchedule
+		<< " scheduleObeyed=" << scheduleObeyed
 		<< " selfLink=" << selfLink
 		<< " camDepthRamp=" << camDepthRamp
 		<< " camDepthParallax=" << camDepthParallax
@@ -2004,5 +2186,6 @@ bool jp_persistence_test::run(ofApp &app)
 		mediaSkipsStatic && mediaTurnaround && mediaMidiIndex && camScaleRatio && camLegacyLoad && shaderScaleRatio && realCompoLoad &&
 		saveKeepsDefaultCompo && boxIdentity && outputBinding && boxHitboxes && groupComposite && transitionClock &&
 		paramMorph && morphArming &&
-		transitionShaders && camDepthBox && camDepthParallax && camDepthRamp && selfLink && mediaSmoke;
+		transitionShaders && camDepthBox && camDepthParallax && camDepthRamp && selfLink &&
+		renderSchedule && scheduleObeyed && mediaSmoke;
 }

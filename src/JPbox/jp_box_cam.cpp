@@ -349,7 +349,10 @@ void JPbox_cam::update()
 		cameraSource->updateOnce();
 	}
 
-	updateFBO();
+	// The scheduler drops us to the staggered preview rate when nothing on
+	// screen depends on this box. The source above is pumped either way - only
+	// the render is skipped, and the FBO keeps its last frame.
+	if (shouldRenderThisFrame()) updateFBO();
 }
 void JPbox_cam::updateFBO()
 {

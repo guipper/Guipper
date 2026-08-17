@@ -333,39 +333,16 @@ void JPboxgroup::recordProfileValue(float &average, float &peak,
 void JPboxgroup::scheduleTopLevelRenders()
 {
 	const int boxCount = (int)boxes.size();
-	vector<bool> fullRate(boxCount, activeSequence);
+	// Roots: everything the SCREEN depends on this frame. jp_renderschedule
+	// walks their inputs and drops the rest to the staggered preview rate.
+	vector<int> roots;
 
-	// Mark a box and every top-level FBO feeding its inputs. Pointer matching is
-	// used instead of names so duplicate display names cannot select the wrong
-	// dependency.
-	std::function<void(int)> markDependencies = [&](int index)
-	{
-		if (index < 0 || index >= boxCount || fullRate[index]) return;
-		fullRate[index] = true;
-		JPbox *consumer = boxes[index];
-		for (int inlet = 0; inlet < consumer->fbohandlergroup.getSize(); ++inlet)
-		{
-			if (!consumer->fbohandlergroup.getisPointerSet(inlet)) continue;
-			ofFbo *input = consumer->fbohandlergroup.getFboPointerReference(inlet);
-			for (int source = 0; source < boxCount; ++source)
-			{
-				if (&boxes[source]->fbo == input)
-				{
-					markDependencies(source);
-					break;
-				}
-			}
-		}
-	};
+	if (activerender != nullptr) roots.push_back(*activerender);
 
-	if (activerender != nullptr) markDependencies(*activerender);
 	// A normal CUE preview displays a real (usually non-active) graph box.
 	// Treat that preview exactly like a fixed live output so animation and all
 	// of its upstream inputs remain full-rate while the panel is open.
-	if (isCueNormalPreviewMode())
-	{
-		markDependencies(cueState.previewIndex);
-	}
+	if (isCueNormalPreviewMode()) roots.push_back(cueState.previewIndex);
 
 	// Keep both transition inputs live only for the crossfade. Once it reaches
 	// its target, the active render already covers the second input and the old
@@ -379,7 +356,7 @@ void JPboxgroup::scheduleTopLevelRenders()
 		{
 			for (int i = 0; input != nullptr && i < boxCount; ++i)
 			{
-				if (&boxes[i]->fbo == input) markDependencies(i);
+				if (&boxes[i]->fbo == input) roots.push_back(i);
 			}
 		}
 	}
@@ -391,20 +368,13 @@ void JPboxgroup::scheduleTopLevelRenders()
 		{
 			if (boxes[i]->name == name)
 			{
-				markDependencies(i);
+				roots.push_back(i);
 				break;
 			}
 		}
 	}
 
-	constexpr int kInactivePreviewInterval = 4;
-	const uint64_t frame = ofGetFrameNum();
-	for (int i = 0; i < boxCount; ++i)
-	{
-		const bool previewRefresh =
-			(frame + (uint64_t)i) % kInactivePreviewInterval == 0;
-		boxes[i]->setRenderThisFrame(fullRate[i] || previewRefresh);
-	}
+	jp_renderschedule::apply(boxes, roots, ofGetFrameNum(), activeSequence);
 }
 
 

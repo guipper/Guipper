@@ -53,6 +53,51 @@ std::string jp_boxuid::mint()
 	return "b" + ofToString(salt) + "_" + ofToString(++counter);
 }
 
+namespace jp_renderschedule
+{
+void apply(const std::vector<JPbox *> &boxes,
+		   const std::vector<int> &roots,
+		   uint64_t frame,
+		   bool forceFullRate)
+{
+	const int boxCount = (int)boxes.size();
+	std::vector<bool> fullRate(boxCount, forceFullRate);
+
+	std::function<void(int)> mark = [&](int index)
+	{
+		if (index < 0 || index >= boxCount) return;
+		if (fullRate[index]) return;          // also terminates cycles
+		if (boxes[index] == nullptr) return;
+		fullRate[index] = true;
+		JPbox *consumer = boxes[index];
+		for (int inlet = 0; inlet < consumer->fbohandlergroup.getSize(); ++inlet)
+		{
+			if (!consumer->fbohandlergroup.getisPointerSet(inlet)) continue;
+			ofFbo *input =
+				consumer->fbohandlergroup.getFboPointerReference(inlet);
+			for (int source = 0; source < boxCount; ++source)
+			{
+				if (boxes[source] != nullptr && &boxes[source]->fbo == input)
+				{
+					mark(source);
+					break;
+				}
+			}
+		}
+	};
+
+	for (int root : roots) mark(root);
+
+	for (int i = 0; i < boxCount; ++i)
+	{
+		if (boxes[i] == nullptr) continue;
+		const bool previewRefresh =
+			(frame + (uint64_t)i) % (uint64_t)kPreviewInterval == 0;
+		boxes[i]->setRenderThisFrame(fullRate[i] || previewRefresh);
+	}
+}
+}
+
 JPbox::JPbox()
 {
 	uid = jp_boxuid::mint();

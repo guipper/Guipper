@@ -37,6 +37,36 @@ namespace jp_boxuid
 
 // Esta caja la vamos a usar para ponerle objetos adentro. Con este template de caja despues hacemos las demas.
 
+class JPbox;
+
+// Render scheduling, shared by the top level and by groups.
+//
+// It lives here rather than in JPboxgroup because JPbox_preset needs the exact
+// same rule for its children: a group used to update every child at full rate
+// every frame, so putting a heavy shader inside a group silently opted it out
+// of all throttling. Two copies of a dependency walk would drift - this file
+// already carries the scars of one rule that got duplicated three times.
+namespace jp_renderschedule
+{
+	// One frame in four for anything off the dependency path.
+	constexpr int kPreviewInterval = 4;
+
+	// Marks every box in `roots`, plus everything feeding their inlets
+	// (recursively), to render this frame. The rest fall to kPreviewInterval,
+	// STAGGERED by index so the cost spreads across frames instead of spiking
+	// on every fourth one.
+	//
+	// Dependencies are matched by FBO POINTER, never by name: duplicate display
+	// names are legal and name matching would select the wrong producer.
+	//
+	// Out-of-range or negative root indices are ignored, so callers can pass a
+	// "nothing selected" sentinel without checking first.
+	void apply(const std::vector<JPbox *> &boxes,
+			   const std::vector<int> &roots,
+			   uint64_t frame,
+			   bool forceFullRate);
+}
+
 class JPbox : public JPdragobject
 {
 public:

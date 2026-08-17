@@ -173,7 +173,10 @@ void JPbox_spout::update()
 {
 	JPbox::update();
 	update_spout();
-	updateFBO();
+	// The scheduler drops us to the staggered preview rate when nothing on
+	// screen depends on this box. The source above is pumped either way - only
+	// the render is skipped, and the FBO keeps its last frame.
+	if (shouldRenderThisFrame()) updateFBO();
 	// movie.update();
 }
 void JPbox_spout::updateFBO()

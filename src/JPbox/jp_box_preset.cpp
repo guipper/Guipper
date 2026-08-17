@@ -402,6 +402,34 @@ void JPbox_preset::updateFBO()
 	// onoff.boolValue = true;
 	if (onoff.boolValue)
 	{
+		// Schedule the children the same way the top level schedules us.
+		//
+		// This loop used to update every child at full rate on every frame, so
+		// dropping a heavy shader inside a group silently opted it out of ALL
+		// throttling - the one place where the saving matters most, because a
+		// group is how you park a branch you are not currently showing.
+		//
+		// Roots are collected only when this group is itself rendering. When
+		// the group is off-frame its composite is skipped anyway, so keeping a
+		// child at full rate would produce a frame nobody reads; leaving the
+		// root list empty lets every child fall to its own staggered rate.
+		{
+			vector<int> roots;
+			if (shouldRenderThisFrame())
+			{
+				roots.push_back(activeRender);
+				// Mid-crossfade both ends have to stay live, exactly as the
+				// top-level scheduler keeps both transition inputs.
+				if (activeRenderTransitionRunning)
+					roots.push_back(lastCompositedActiveRender);
+			}
+			jp_renderschedule::apply(boxes, roots, ofGetFrameNum(), false);
+		}
+
+		// update() is called unconditionally, and only the RENDER is throttled.
+		// Skipping the call would stall whatever the child owns beyond its FBO
+		// - a video box advances playback here, a camera box pulls its frame -
+		// so a paused-looking group would also be a stopped-clock group.
 		for (int i = boxes.size() - 1; i >= 0; i--)
 		{
 			boxes[i]->isactiverender = isactiverender && i == activeRender;
@@ -414,7 +442,9 @@ void JPbox_preset::updateFBO()
 			onoff.boolValue = false;
 			return;
 		}
-		renderActiveRender();
+		// The composite is a full-resolution blit of the active child, so it
+		// obeys the group's own rate.
+		if (shouldRenderThisFrame()) renderActiveRender();
 	}
 	else
 	{
