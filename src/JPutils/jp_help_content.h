@@ -173,6 +173,16 @@ namespace jp_help
 			"de diseno. El arrastre medio y derecho siguen funcionando. Si el "
 			"space queda trabado despues de cambiar de ventana, tocalo una vez",
 			Scope::Nodes),
+		E("Ctrl+D",
+			"Advanced debug panel: which cameras, Kinect and NDI receivers are "
+			"open and how many boxes share each, FBO count and estimated VRAM, "
+			"render size, and the crossfade state. Replaces the plain 'd' "
+			"readout while it is open",
+			"Panel de debug avanzado: que camaras, Kinect y receptores NDI estan "
+			"abiertos y cuantas cajas comparten cada uno, cantidad de FBOs y "
+			"VRAM estimada, tamano de render, y el estado del crossfade. "
+			"Reemplaza el listado de la 'd' mientras esta abierto",
+			Scope::Nodes),
 		E("Ctrl+C / Ctrl+V", "Copy and paste the selected boxes",
 			"Copiar y pegar las cajas seleccionadas", Scope::Nodes),
 		E("DEL", "Delete all selected boxes",

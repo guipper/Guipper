@@ -23,6 +23,7 @@
 #include "JPutils/jp_constants.h"
 #include "JPutils/jp_media_stats.h"
 #include "JPutils/jp_tooltip.h"
+#include "JPutils/jp_debug_report.h"
 #include "JPutils/jp_help_content.h"
 #include "JPutils/jp_audio.h"
 #include "JPutils/jp_shader_globals.h"
@@ -47,6 +48,39 @@ public:
 	void draw();
 
 	void draw_debugInfo();
+	// One row of the debug readout: which section it belongs to, what it is
+	// called, and its value already formatted.
+	//
+	// STRUCTURED rather than pre-joined strings because the two views want
+	// different presentations of the same data - the plain readout prints
+	// "label : value" in one column, the advanced panel groups by section and
+	// aligns the values. Keeping one builder is what stops them drifting; the
+	// tooltips in this codebase already showed what two copies of the same
+	// content turn into.
+	struct DebugRow
+	{
+		string section;   // empty means "carry on in the previous section"
+		string label;
+		string value;
+		bool indent = false;
+		// Drawn in red: this row is reporting something wrong, not merely
+		// detailed. Its own field rather than reusing `indent`, which already
+		// means "sub-line of the row above" - one flag with two meanings is how
+		// a dead camera ends up looking like a nested label.
+		bool alert = false;
+	};
+	vector<DebugRow> buildDebugRows();
+
+	// Kept for the plain view: flattens the rows to the one-per-line form it has
+	// always drawn. Index 0 is the line it puts at the BOTTOM, because it walks
+	// upward from the window edge.
+	vector<string> buildDebugLines();
+	// The advanced panel, toggled with Ctrl+D. Replaces draw_debugInfo while it
+	// is open rather than sitting alongside it: tables need the room, and
+	// overlapping the plain readout made both unreadable.
+	void draw_debugAdvanced();
+	jp_debug::Report buildDebugReport();
+	bool advancedDebug = false;
 
 	void draw_instrucciones();
 

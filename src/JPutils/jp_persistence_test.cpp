@@ -1665,6 +1665,164 @@ bool jp_persistence_test::run(ofApp &app)
 	// interaction: an armed pan must not move boxes or open a marquee, which is
 	// the property that lets the gesture reuse viewportPanning instead of adding
 	// state of its own.
+	// The advanced debug panel's data.
+	//
+	// The estimate and the formatting are checked directly: a wrong multiplier
+	// turns the VRAM figure into a confidently-wrong number, which is worse than
+	// showing none. The gathering is checked against the real graph, because the
+	// whole point of the panel is telling you what is actually open.
+	bool debugReport = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			debugReport = false;
+			ofLogNotice("debugreport") << why;
+		};
+
+		// RGBA8: four bytes a pixel, times the count.
+		if (jp_debug::fboBytes(1920, 1080, 1) != 1920ull * 1080ull * 4ull)
+			fail("one 1920x1080 RGBA8 target is not w*h*4");
+		if (jp_debug::fboBytes(1920, 1080, 10) !=
+			jp_debug::fboBytes(1920, 1080, 1) * 10ull)
+			fail("the estimate does not scale with the count");
+		// Degenerate inputs must give zero, not a huge or negative number.
+		for (auto wh : {std::make_pair(0, 1080), std::make_pair(1920, 0)})
+			if (jp_debug::fboBytes(wh.first, wh.second, 4) != 0ull)
+				fail("a zero dimension did not give zero bytes");
+		if (jp_debug::fboBytes(1920, 1080, 0) != 0ull)
+			fail("a zero count did not give zero bytes");
+
+		if (jp_debug::formatBytes(512ull) != "512 B")
+			fail("small sizes are not printed in bytes: " +
+				jp_debug::formatBytes(512ull));
+		if (jp_debug::formatBytes(1024ull) != "1.0 KB")
+			fail("1024 did not become 1.0 KB: " + jp_debug::formatBytes(1024ull));
+		// Binary units, matching what GPU tools report.
+		if (jp_debug::formatBytes(1024ull * 1024ull) != "1.0 MB")
+			fail("a mebibyte did not become 1.0 MB: " +
+				jp_debug::formatBytes(1024ull * 1024ull));
+		if (jp_debug::formatBytes(1024ull * 1024ull * 1024ull) != "1.0 GB")
+			fail("a gibibyte did not become 1.0 GB");
+
+		// The lines both views share. Checking the CONTENT here covers the plain
+		// readout and the advanced panel at once, which is the point of having
+		// one builder: the advanced panel is a superset, and two copies of this
+		// text would drift the moment either gained a field.
+		{
+			const vector<string> lines = app.buildDebugLines();
+			if (lines.size() < 12)
+				fail("only " + ofToString((int)lines.size()) + " debug lines - "
+					"the shared builder lost fields");
+
+			// Sections are what make the panel readable, so at least the four
+			// headings must be there. The plain view ignores them; the panel
+			// cannot group without them.
+			const vector<ofApp::DebugRow> rows = app.buildDebugRows();
+			int headings = 0;
+			for (const ofApp::DebugRow &r : rows)
+				if (!r.section.empty()) ++headings;
+			if (headings < 4)
+				fail("only " + ofToString(headings) + " sections - the panel "
+					"falls back to one flat list, which is what it was fixed for");
+			// Every row must be readable on its own: a label, or a label with a
+			// value. A value with no label is an orphan number on screen.
+			for (const ofApp::DebugRow &r : rows)
+				if (r.label.empty())
+					fail("a debug row has a value with no label: '" + r.value + "'");
+			// The labels the panel groups under headings. Renaming one is fine;
+			// LOSING one is what this catches, and it catches it for both views
+			// at once because they share the builder.
+			const char *required[] = {"GPU", "render size", "compo", "boxes",
+				"active render", "active sequence", "transition", "update",
+				"draw", "fps", "parameters", "main graph", "media passes"};
+			for (const char *needle : required)
+			{
+				bool found = false;
+				for (const string &line : lines)
+				{
+					if (line.find(needle) != string::npos) { found = true; break; }
+				}
+				if (!found)
+					fail(string("the debug readout no longer reports '") +
+						needle + "' - both views lost it at once");
+			}
+		}
+
+		// Two-column balancing. The bug it prevents: the panel was one column,
+		// grew taller than the window, and clipped its last rows off the bottom
+		// edge - invisible until you looked for the row that was missing.
+		{
+			// Even sections split down the middle.
+			if (jp_debug::balanceSplit({100.0f, 100.0f, 100.0f, 100.0f}) != 2)
+				fail("four equal sections did not split in half, got " +
+					ofToString((int)jp_debug::balanceSplit(
+						{100.0f, 100.0f, 100.0f, 100.0f})));
+
+			// The real shape that overflowed: 108,108,108,144,126,72. Breaking at
+			// the first section past halfway gave 468 vs 198; balanced is 324/342.
+			const vector<float> real = {108.0f, 108.0f, 108.0f, 144.0f, 126.0f, 72.0f};
+			const size_t split = jp_debug::balanceSplit(real);
+			float left = 0.0f, right = 0.0f;
+			for (size_t i = 0; i < real.size(); ++i)
+				(i < split ? left : right) += real[i];
+			if (std::abs(left - right) > 60.0f)
+				fail("the columns came out " + ofToString(left) + " vs " +
+					ofToString(right) + " - unbalanced enough that the panel is "
+					"as tall as one column would have been");
+			// And the point of the whole exercise: the tallest column must be
+			// meaningfully shorter than the single-column total.
+			float total = 0.0f;
+			for (float h : real) total += h;
+			if (std::max(left, right) > total * 0.62f)
+				fail("the tallest column is " + ofToString(std::max(left, right)) +
+					" of " + ofToString(total) + " - two columns bought almost "
+					"nothing, so the panel will still overflow");
+
+			// Never zero: an empty left column would draw the whole readout in
+			// the right half.
+			if (jp_debug::balanceSplit({50.0f}) != 1)
+				fail("a single section did not report split 1");
+			if (jp_debug::balanceSplit({}) != 1)
+				fail("an empty list did not report split 1");
+			if (jp_debug::balanceSplit({10.0f, 500.0f}) < 1)
+				fail("a lopsided pair produced an empty left column");
+		}
+
+		// --- gathered against the real graph ---
+		const string shader = "shaders/imageprocessing/transform.frag";
+		app.boxes.clear();
+		{
+			const jp_debug::Report empty = app.buildDebugReport();
+			if (empty.boxCount != 0)
+				fail("an empty graph reported " + ofToString(empty.boxCount) +
+					" boxes");
+			if (empty.fboBytes != 0ull)
+				fail("an empty graph reported VRAM in use");
+		}
+		app.boxes.addBox(shader, 100.0f, 100.0f);
+		app.boxes.addBox(shader, 200.0f, 100.0f);
+		{
+			const jp_debug::Report two = app.buildDebugReport();
+			if (two.boxCount != 2)
+				fail("two boxes reported as " + ofToString(two.boxCount));
+			if (two.fboCount != 2)
+				fail("two allocated FBOs reported as " +
+					ofToString(two.fboCount) + " - the count walks allocated "
+					"targets, not boxes, so a mismatch means one never allocated");
+			// The figure must follow the render size, not a hardcoded one.
+			if (two.renderWidth != jp_constants::renderWidth ||
+				two.renderHeight != jp_constants::renderHeight)
+			{
+				fail("the report's render size does not match jp_constants");
+			}
+			if (two.fboBytes != jp_debug::fboBytes(two.renderWidth,
+				two.renderHeight, two.fboCount))
+			{
+				fail("the reported VRAM is not the estimate of its own counts");
+			}
+		}
+		app.boxes.clear();
+	}
 	// Colour swatch for RGB parameter triples.
 	//
 	// The channel is DECLARED in the shader (`// @color r`), never inferred from
@@ -2794,6 +2952,7 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " paramMorph=" << paramMorph
 		<< " morphArming=" << morphArming
 		<< " transitionShaders=" << transitionShaders
+		<< " debugReport=" << debugReport
 		<< " colorSwatch=" << colorSwatch
 		<< " multiSelect=" << multiSelect
 		<< " spacePan=" << spacePan
@@ -2818,5 +2977,5 @@ bool jp_persistence_test::run(ofApp &app)
 		transitionShaders && camDepthBox && camDepthParallax && camDepthRamp && selfLink &&
 		renderSchedule && scheduleObeyed && tooltipLayout &&
 		tooltipTransform &&
-		spacePan && groupPathAfterClear && multiSelect && colorSwatch && mediaSmoke;
+		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && mediaSmoke;
 }

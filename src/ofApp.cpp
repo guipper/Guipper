@@ -513,7 +513,10 @@ void ofApp::draw() {
 		boxes.draw();
 		ofSetColor(COL_TEXT_PRIMARY);
 		// outletimg.draw(ofGetWidth() / 2, ofGetHeight() / 2, 200, 200);
-		if (isDebug) {
+		if (advancedDebug) {
+			draw_debugAdvanced();
+		}
+		else if (isDebug) {
 			draw_debugInfo();
 		}
 	}
@@ -583,59 +586,387 @@ void ofApp::queryGpuInfo() {
 	ofLogNotice("gpu") << "glsl:     " << gpuGlslVersion;
 }
 
-void ofApp::draw_debugInfo() {
+jp_debug::Report ofApp::buildDebugReport()
+{
+	jp_debug::Report report;
+	report.renderWidth = jp_constants::renderWidth;
+	report.renderHeight = jp_constants::renderHeight;
+	report.boxCount = boxes.getBoxesSize();
 
-	float sepy = 20;
-	float posy = ofGetHeight();
-	// Directly under FPS on purpose: when the frame rate is disappointing, the
-	// GPU actually being driven is the first thing worth ruling out.
-	font_p.drawString("GPU : " + gpuRenderer, 30, posy -= sepy);
-	font_p.drawString("  " + gpuVendor + "  |  GL " + gpuGlVersion,
-		30, posy -= sepy);
-	font_p.drawString("Active Render :" + ofToString(activerender), 30, posy -= sepy);
-	font_p.drawString("FPS :" + ofToString(ofGetFrameRate()), 30, posy -= sepy);
-	font_p.drawString("Boxes size : " + ofToString(boxes.getBoxesSize()), 30, posy -= sepy);
-	font_p.drawString("Active Sequence : " + ofToString(boxes.activeSequence), 30, posy -= sepy);
-	// Active session file
-	string sessionName = ofFilePath::getFileName(savedirectory);
-	if (sessionName.empty()) sessionName = "none";
-	font_p.drawString("Active Compo : " + sessionName, 30, posy -= sepy);
-	font_p.drawString("CPU update: " + ofToString(frameProfile.updateMs, 2) +
-		" ms  peak " + ofToString(frameProfile.updatePeakMs, 2), 30, posy -= sepy);
-	font_p.drawString("  audio " + ofToString(frameProfile.audioMs, 2) +
-		"  graph " + ofToString(frameProfile.boxesMs, 2) +
-		"  MIDI " + ofToString(frameProfile.midiMs, 2), 30, posy -= sepy);
-	font_p.drawString("  outputs " + ofToString(frameProfile.outputsMs, 2) +
-		"  OSC " + ofToString(frameProfile.oscMs, 2), 30, posy -= sepy);
-	font_p.drawString("CPU draw: " + ofToString(frameProfile.drawMs, 2) +
-		" ms  peak " + ofToString(frameProfile.drawPeakMs, 2), 30, posy -= sepy);
-	// Media FBO passes performed vs skipped. A skip is invisible by design, so
-	// without this a regression that re-renders every frame would look fine.
-	// Static images should settle at 0 rendered.
-	font_p.drawString("Media passes: " +
-		ofToString(jp_box_media_stats::getRendered()) + " drawn  " +
-		ofToString(jp_box_media_stats::getSkipped()) + " skipped",
-		30, posy -= sepy);
+	// Every box owns one render-resolution FBO. Counting allocated ones rather
+	// than boxes, because a box whose FBO never allocated costs nothing and
+	// showing it would inflate the figure.
+	int allocated = 0;
+	for (JPbox *box : boxes.boxes)
+	{
+		if (box != nullptr && box->fbo.isAllocated()) ++allocated;
+	}
+	report.fboCount = allocated;
+	report.fboBytes = jp_debug::fboBytes(report.renderWidth,
+		report.renderHeight, allocated);
+
+	// Cameras: the pool is refcounted and shared between CAM and CAM DEPTH
+	// boxes, so the user count is the interesting number - it is what tells you
+	// two boxes are on one device rather than two devices being open.
+	for (const auto &entry : JPbox_cam::openCameraSources())
+	{
+		jp_debug::SourceRow row;
+		row.kind = "CAM";
+		row.label = "/dev/video" + ofToString(entry.first);
+		row.users = entry.second;
+		row.live = true;
+		report.sources.push_back(row);
+	}
+
+	// Kinect and NDI are read per box: their state lives on the box, not in a
+	// pool that can be enumerated.
+	for (JPbox *box : boxes.boxes)
+	{
+		if (box == nullptr) continue;
+		if (box->getTipo() == JPbox::KINECT2BOX)
+		{
+			jp_debug::SourceRow row;
+			row.kind = "KINECT";
+			row.label = box->name;
+			row.detail = JPbox_kinect2::isDriverAvailable() ?
+				"driver present" : "NO DRIVER";
+			row.users = -1;
+			row.live = JPbox_kinect2::isDriverAvailable();
+			report.sources.push_back(row);
+		}
+#ifdef NDI
+		else if (box->getTipo() == JPbox::NDIBOX)
+		{
+			JPbox_ndi *ndi = dynamic_cast<JPbox_ndi *>(box);
+			if (ndi != nullptr)
+			{
+				jp_debug::SourceRow row;
+				row.kind = "NDI";
+				row.label = box->name;
+				row.detail = ndi->bInitialized ?
+					string(ndi->SenderName) : string("not connected");
+				row.users = -1;
+				row.live = ndi->bInitialized;
+				report.sources.push_back(row);
+			}
+		}
+#endif
+	}
+
+	report.transitionLerp = boxes.getTransitionLerp();
+	report.transitionMs = boxes.getTransitionDurationMs();
+	report.transitionType = boxes.getTransitionType();
+	return report;
+}
+
+void ofApp::draw_debugAdvanced()
+{
+	const jp_debug::Report report = buildDebugReport();
+	// The same rows the plain view prints, from the same builder - the panel is a
+	// superset, not a second opinion.
+	vector<DebugRow> rows = buildDebugRows();
+
+	// Appended here rather than inside buildDebugRows so the plain view keeps the
+	// shape it has always had.
+	{
+		DebugRow r;
+		r.section = "SOURCES & MEMORY";
+		r.label = "FBOs";
+		r.value = ofToString(report.fboCount) + " allocated,  ~" +
+			jp_debug::formatBytes(report.fboBytes) + " VRAM";
+		rows.push_back(r);
+		if (report.sources.empty())
+		{
+			DebugRow none;
+			none.label = "sources";
+			none.value = "none open";
+			rows.push_back(none);
+		}
+		else
+		{
+			for (const jp_debug::SourceRow &srow : report.sources)
+			{
+				DebugRow sr;
+				sr.label = srow.kind;
+				sr.value = srow.label +
+					(srow.users >= 0 ? ("   shared by " + ofToString(srow.users))
+									 : string()) +
+					(srow.detail.empty() ? string() : ("   " + srow.detail));
+				sr.alert = !srow.live;
+				rows.push_back(sr);
+			}
+		}
+	}
+
+	// --- metrics -----------------------------------------------------------
+	const float padX = 18.0f;
+	const float padY = 16.0f;
+	const float lineH = 18.0f;
+	const float headingH = 22.0f;
+	const float sectionGap = 14.0f;
+	const float titleH = 30.0f;
+	const float labelGap = 16.0f;
+	const float colGap = 34.0f;
+
+	// A FIXED-WIDTH TABLE. NOTHING here is measured from live text.
+	//
+	// Measuring was the bug, twice over. First the values: "3.19" becoming
+	// "10.25" widened its column, which moved the panel edge and slid the whole
+	// right-hand column sideways. Then the labels, which looked safe because
+	// they are fixed strings - except the SLOWEST BOXES section's labels are BOX
+	// NAMES, so the panel jumped a whole column's width the moment the sort
+	// order brought "mixdisplacescalefalopa" into the top five.
+	//
+	// So every width is a reserve. 400 on the left because the GPU string is
+	// ~360px and at 320 it overflowed into the right column's labels.
+	const float valueWLeft = 400.0f;
+	const float valueWRight = 250.0f;
+	const float labelWNarrow = 150.0f;   // fixed labels: "active sequence", "outputs"
+	const float labelWNames = 215.0f;    // sections whose labels are box names
+
+	// Group into sections so a section is never split across the fold.
+	struct Section { string heading; vector<DebugRow> rows; float labelW = 0.0f; };
+	vector<Section> sections;
+	for (const DebugRow &r : rows)
+	{
+		if (!r.section.empty() || sections.empty())
+		{
+			Section sec;
+			sec.heading = r.section;
+			// The only section whose labels are not fixed strings gets the wider
+			// reserve. Declared by section rather than measured, so a long box
+			// name cannot move anything.
+			sec.labelW = r.section == "SLOWEST BOXES (CPU ms)" ?
+				labelWNames : labelWNarrow;
+			sections.push_back(sec);
+		}
+		sections.back().rows.push_back(r);
+	}
+	auto sectionHeight = [&](const Section &sec) {
+		return headingH + lineH * (float)sec.rows.size() + sectionGap;
+	};
+
+	// Two columns, because one is taller than the window at a readable line
+	// height - the single-column version clipped its last rows off the bottom.
+	vector<float> heights;
+	for (const Section &sec : sections) heights.push_back(sectionHeight(sec));
+	const size_t split = jp_debug::balanceSplit(heights);
+
+	auto columnHeight = [&](size_t from, size_t to) {
+		float h = 0.0f;
+		for (size_t i = from; i < to && i < sections.size(); ++i)
+			h += sectionHeight(sections[i]);
+		return h;
+	};
+	auto columnLabelW = [&](size_t from, size_t to) {
+		float w = labelWNarrow;
+		for (size_t i = from; i < to && i < sections.size(); ++i)
+			w = std::max(w, sections[i].labelW);
+		return w;
+	};
+	const float labelWLeftCol = columnLabelW(0, split);
+	const float labelWRightCol = columnLabelW(split, sections.size());
+	const float leftW = labelWLeftCol + valueWLeft;
+	const float rightW = labelWRightCol + valueWRight;
+	const float panelH = padY * 2.0f + titleH +
+		std::max(columnHeight(0, split),
+			columnHeight(split, sections.size())) - sectionGap;
+	float panelW = padX * 2.0f + leftW + colGap + rightW;
+
+	const float x = 20.0f;
+	// The FRAME is kept on screen. Text is never shortened, so on a narrow
+	// window a long value can still reach past this edge; the clamp only stops
+	// the panel itself being drawn mostly off-screen.
+	panelW = std::min(panelW, (float)ofGetWidth() - x * 2.0f);
+	const float y = std::max(12.0f, ofGetHeight() - panelH - 20.0f);
+
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofFill();
+	ofSetColor(ofColor(COL_BG_PANEL, 242));
+	ofDrawRectRounded(x, y, panelW, panelH, 6.0f);
+	ofNoFill();
+	ofSetColor(ofColor(COL_ACCENT_CYAN, 110));
+	ofDrawRectRounded(x, y, panelW, panelH, 6.0f);
+	ofFill();
+
+	float ty = y + padY + lineH * 0.7f;
+	ofSetColor(COL_ACCENT_CYAN);
+	font_p.drawString("DEBUG ADVANCED", x + padX, ty);
+	{
+		const string hint = "ctrl+D to close";
+		ofSetColor(COL_TEXT_MUTED);
+		font_p.drawString(hint, x + panelW - padX - font_p.stringWidth(hint), ty);
+	}
+
+	auto drawColumn = [&](size_t from, size_t to, float cx, float cw,
+		float colLabelW) {
+		float cy = y + padY + titleH;
+		// The rule between label and value is what makes it read as a table
+		// rather than two lists that happen to be near each other.
+		const float ruleX = cx + colLabelW - labelGap * 0.5f;
+		const float ruleTop = cy - lineH * 0.4f;
+		float ruleBottom = ruleTop;
+
+		for (size_t i = from; i < to && i < sections.size(); ++i)
+		{
+			const Section &sec = sections[i];
+			if (!sec.heading.empty())
+			{
+				ofSetColor(COL_ACCENT_CYAN);
+				font_p.drawString(sec.heading, cx, cy);
+				ofSetColor(ofColor(COL_ACCENT_CYAN, 55));
+				ofDrawLine(cx, cy + 6.0f, cx + cw, cy + 6.0f);
+			}
+			cy += headingH;
+			for (const DebugRow &r : sec.rows)
+			{
+				const float lx = cx + (r.indent ? 12.0f : 0.0f);
+				// Never truncated. The column was measured from the longest
+				// label, so every one fits by construction.
+				ofSetColor(COL_TEXT_MUTED);
+				font_p.drawString(r.label, lx, cy);
+				if (!r.value.empty())
+				{
+					const bool alarming =
+						(r.label == "active sequence" && boxes.activeSequence) ||
+						(r.label == "transition" &&
+							r.value.find("RUNNING") != string::npos);
+					ofSetColor(r.alert ? COL_ACCENT_RED :
+						(alarming ? COL_ACCENT_GOLD : COL_TEXT_SECONDARY));
+					// Always at the same x, whatever the value says.
+					font_p.drawString(r.value, cx + colLabelW, cy);
+				}
+				cy += lineH;
+			}
+			ruleBottom = cy - lineH * 0.6f;
+			cy += sectionGap;
+		}
+		ofSetColor(ofColor(COL_BORDER_MUTED, 90));
+		ofDrawLine(ruleX, ruleTop, ruleX, ruleBottom);
+	};
+	drawColumn(0, split, x + padX, leftW, labelWLeftCol);
+	drawColumn(split, sections.size(), x + padX + leftW + colGap, rightW,
+		labelWRightCol);
+	ofPopStyle();
+}
+
+vector<ofApp::DebugRow> ofApp::buildDebugRows()
+{
+	vector<DebugRow> rows;
+	auto row = [&](const string &section, const string &label,
+		const string &value, bool indent = false) {
+		DebugRow r;
+		r.section = section; r.label = label; r.value = value; r.indent = indent;
+		rows.push_back(r);
+	};
+
+	// --- SYSTEM: what is actually running the show --------------------------
+	// First because when the frame rate disappoints, the GPU actually being
+	// driven is the thing worth ruling out before anything else.
+	row("SYSTEM", "GPU", gpuRenderer);
+	row("", "driver", gpuVendor + "  |  GL " + gpuGlVersion, true);
+	row("", "render size", ofToString(jp_constants::renderWidth) + " x " +
+		ofToString(jp_constants::renderHeight));
+	row("", "compo", ofFilePath::getFileName(savedirectory).empty() ?
+		"none" : ofFilePath::getFileName(savedirectory));
+
+	// --- GRAPH: what is in the patch right now -----------------------------
+	row("GRAPH", "boxes", ofToString(boxes.getBoxesSize()));
+	// The index alone was unreadable - it is the box NAME people know.
+	string activeName = "none";
+	if (activerender >= 0 && activerender < (int)boxes.boxes.size() &&
+		boxes.boxes[activerender] != nullptr)
+	{
+		activeName = boxes.boxes[activerender]->name;
+	}
+	row("", "active render", "#" + ofToString(activerender) + "  " + activeName);
+	// A bool printed as 0/1 told you nothing about which way round it was.
+	row("", "active sequence", boxes.activeSequence ?
+		"ON - every box at full rate" : "off");
+	const char *typeNames[] = {"MIX", "WARP", "DITHER"};
+	const int ttype = boxes.getTransitionType();
+	const string typeName = (ttype >= 0 && ttype < 3) ? typeNames[ttype] :
+		("type " + ofToString(ttype));
+	const float lerp = boxes.getTransitionLerp();
+	row("", "transition", typeName + "  " +
+		ofToString(boxes.getTransitionDurationMs(), 0) + " ms  " +
+		(lerp < 1.0f ? ("RUNNING " + ofToString(lerp, 2)) : string("settled")));
+
+	// --- FRAME: where the milliseconds go ----------------------------------
+	// Every number here is CPU time for one frame, which is why the section
+	// says so once instead of every line repeating it.
+	row("FRAME (CPU ms)", "update", ofToString(frameProfile.updateMs, 2) +
+		"   peak " + ofToString(frameProfile.updatePeakMs, 2));
+	// One per row rather than a single crowded line: in a table the point is
+	// that every number sits in the same column, and five of them strung
+	// together on one line could not line up with anything.
+	row("", "audio", ofToString(frameProfile.audioMs, 2), true);
+	row("", "graph", ofToString(frameProfile.boxesMs, 2), true);
+	row("", "MIDI", ofToString(frameProfile.midiMs, 2), true);
+	row("", "outputs", ofToString(frameProfile.outputsMs, 2), true);
+	row("", "OSC", ofToString(frameProfile.oscMs, 2), true);
+	row("", "draw", ofToString(frameProfile.drawMs, 2) +
+		"   peak " + ofToString(frameProfile.drawPeakMs, 2));
+	// One decimal: the third was noise.
+	row("", "fps", ofToString(ofGetFrameRate(), 1) + "   budget 16.67 ms at 60");
+
 	const JPboxgroup::ProfileSnapshot &graph = boxes.getProfileSnapshot();
-	font_p.drawString("Graph: params " + ofToString(graph.parametersMs, 2) +
-		" group " + ofToString(graph.groupViewMs, 2) +
-		" main " + ofToString(graph.mainGraphMs, 2) +
-		" cue " + ofToString(graph.cueDraftMs, 2) +
-		" transition " + ofToString(graph.transitionMs, 2), 30, posy -= sepy);
+	row("GRAPH UPDATE (CPU ms)", "parameters", ofToString(graph.parametersMs, 2));
+	row("", "main graph", ofToString(graph.mainGraphMs, 2));
+	row("", "group view", ofToString(graph.groupViewMs, 2));
+	row("", "cue draft", ofToString(graph.cueDraftMs, 2));
+	row("", "transition", ofToString(graph.transitionMs, 2));
+	// A skip is invisible by design, so without this a regression that
+	// re-renders every frame would look perfectly fine.
+	row("", "media passes",
+		ofToString(jp_box_media_stats::getRendered()) + " drawn, " +
+		ofToString(jp_box_media_stats::getSkipped()) + " skipped");
+
+	// --- SLOWEST BOXES: the list had no heading and read as noise -----------
 	vector<JPboxgroup::ProfileEntry> slowBoxes = graph.boxes;
 	std::sort(slowBoxes.begin(), slowBoxes.end(),
 		[](const JPboxgroup::ProfileEntry &a,
 			const JPboxgroup::ProfileEntry &b) {
 			return a.averageMs > b.averageMs;
 		});
-	for (int i = 0; i < std::min(5, (int)slowBoxes.size()); ++i)
+	if (slowBoxes.empty())
 	{
-		const JPboxgroup::ProfileEntry &entry = slowBoxes[i];
-		font_p.drawString("  " + entry.name + ": " +
-			ofToString(entry.averageMs, 2) + " ms  peak " +
-			ofToString(entry.peakMs, 2), 30, posy -= sepy);
+		row("SLOWEST BOXES (CPU ms)", "none measured", "");
 	}
-	//font_p.drawString("DIALOG BOX : " + ofToString(jp_constants::systemDialog_open), 30, posy -= sepy);
+	else
+	{
+		for (int i = 0; i < std::min(5, (int)slowBoxes.size()); ++i)
+		{
+			const JPboxgroup::ProfileEntry &entry = slowBoxes[i];
+			row(i == 0 ? "SLOWEST BOXES (CPU ms)" : "", entry.name,
+				ofToString(entry.averageMs, 2) + "   peak " +
+				ofToString(entry.peakMs, 2));
+		}
+	}
+	return rows;
+}
+
+vector<string> ofApp::buildDebugLines()
+{
+	vector<string> lines;
+	for (const DebugRow &r : buildDebugRows())
+	{
+		lines.push_back(r.value.empty() ? r.label :
+			(string(r.indent ? "  " : "") + r.label + " : " + r.value));
+	}
+	return lines;
+}
+
+void ofApp::draw_debugInfo() {
+	// Unchanged on screen: walks upward from the window edge, so the first line
+	// built lands at the bottom.
+	float sepy = 20;
+	float posy = ofGetHeight();
+	for (const string &line : buildDebugLines())
+	{
+		font_p.drawString(line, 30, posy -= sepy);
+	}
 }
 // Greedy word wrap. Nothing in the codebase did this before: the old help
 // hard-wrapped its longest lines by hand inside the string array, so they never
@@ -4893,7 +5224,8 @@ void ofApp::keyPressed(int key) {
 	// their legacy key callback so Ctrl+C cannot also create a camera box.
 	if (pantallaActiva == NODOS &&
 		ofGetKeyPressed(OF_KEY_CONTROL) &&
-		(key == 'c' || key == 'C' || key == 'v' || key == 'V')) {
+		(key == 'c' || key == 'C' || key == 'v' || key == 'V' ||
+		 key == 'd' || key == 'D')) {
 		return;
 	}
 
@@ -5103,6 +5435,28 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		if (e.hasModifier(OF_KEY_SHIFT)) openSaveModal();
 		else saveSessionAs();
 		return;
+	}
+
+	// Ctrl+D opens the advanced debug panel. In keycodePressed because the
+	// legacy callback never sees modifiers, and bare 'd' already toggles the
+	// plain readout - without the swallow below one press would do both.
+	{
+		const bool ctrlOrCmd = e.hasModifier(OF_KEY_CONTROL) ||
+			e.hasModifier(OF_KEY_SUPER);
+		const bool debugChord = e.key == 4 ||
+			(ctrlOrCmd && (e.key == 'd' || e.key == 'D'));
+		if (debugChord)
+		{
+			if (shaderEditor.wantsKeyCapture()) return;
+			if (anyFieldFocused() || saveModalActive) return;
+			if (boxes.wantsKeyCapture()) return;
+			advancedDebug = !advancedDebug;
+			// The panel reads the profile snapshot's neighbours, and profiling
+			// is what fills them, so opening the panel turns it on.
+			if (advancedDebug) isDebug = true;
+			boxes.setProfilingEnabled(isDebug);
+			return;
+		}
 	}
 
 	const bool controlDown = e.hasModifier(OF_KEY_CONTROL);

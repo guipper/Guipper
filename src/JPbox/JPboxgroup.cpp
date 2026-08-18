@@ -5073,6 +5073,11 @@ void JPboxgroup::setTransitionType(int _type)
 	transition.setType(_type);
 }
 
+float JPboxgroup::getTransitionLerp() const
+{
+	return (float)transition.getLerpValue();
+}
+
 int JPboxgroup::getTransitionType() const
 {
 	return transition.getType();

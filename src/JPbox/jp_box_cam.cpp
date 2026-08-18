@@ -260,6 +260,21 @@ string JPbox_cam::cameraLabel(int deviceId)
 	return "no camera";
 }
 
+vector<pair<int, int>> JPbox_cam::openCameraSources()
+{
+	vector<pair<int, int>> open;
+	for (auto &entry : cameraSources())
+	{
+		// use_count on the LOCKED shared_ptr, minus the temporary this lock
+		// created, is how many boxes actually hold the device.
+		if (auto locked = entry.second.lock())
+		{
+			open.push_back({entry.first, (int)locked.use_count() - 1});
+		}
+	}
+	return open;
+}
+
 uint64_t JPbox_cam::cameraRescanCount()
 {
 	return cameraRescanGeneration();

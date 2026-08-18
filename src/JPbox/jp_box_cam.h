@@ -67,6 +67,15 @@ public:
 	static string cameraLabel(int deviceId);
 	static uint64_t cameraRescanCount();
 
+	// Which /dev/video devices currently have a live capture source, and how
+	// many boxes are sharing each one. Exposed for the debug panel: the pool is
+	// refcounted and file-local, so from outside there is no way to tell whether
+	// a black camera box means "device busy" or "graph not wired".
+	//
+	// pair is {deviceId, users}. Only live entries are reported; expired weak
+	// references are skipped rather than shown as zero-user devices.
+	static vector<pair<int, int>> openCameraSources();
+
 	// METODOS HEREDADOS :
 	// void reload();
 	void setup(ofTrueTypeFont &_font);

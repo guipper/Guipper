@@ -157,6 +157,8 @@ public:
 	float getTransitionDurationMs() const;
 	void setTransitionType(int _type);
 	int getTransitionType() const;
+	// How far the main crossfade has run, 0..1. 1 means settled.
+	float getTransitionLerp() const;
 	vector<string> getBoxNames() const;
 	bool hasBoxName(string boxName) const;
 
