@@ -3,9 +3,9 @@
 
 uniform sampler2D textura1;
 uniform sampler2D textura2;
-uniform float chromared;
-uniform float chromagreen;
-uniform float chromablue;
+uniform float chromared; // @color r
+uniform float chromagreen; // @color g
+uniform float chromablue; // @color b
 uniform float umbral;
 uniform float diststr;
 void main()

@@ -6,9 +6,9 @@ uniform float particlesbright;
 uniform float height;
 uniform float blur;
 uniform float opacity;
-uniform float watercolor_r;
-uniform float watercolor_g;
-uniform float watercolor_b;
+uniform float watercolor_r; // @color r
+uniform float watercolor_g; // @color g
+uniform float watercolor_b; // @color b
 uniform float colorvariation;
 
 #pragma include "kset2.frag" 

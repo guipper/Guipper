@@ -2,9 +2,9 @@
 
 uniform sampler2D textura1;
 uniform sampler2D textura2;
-uniform float mix_r;
-uniform float mix_b;
-uniform float mix_g;
+uniform float mix_r; // @color r
+uniform float mix_b; // @color b
+uniform float mix_g; // @color g
 void main()
 {
 	vec2 uv = gl_FragCoord.xy / resolution;

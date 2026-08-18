@@ -1,12 +1,12 @@
 #pragma include "../common.frag" //ESta linea tiene todas las definiciones de las funciones globales
 
-uniform float rojo1;
-uniform float verde1;
-uniform float azul1;
+uniform float rojo1; // @color r 1
+uniform float verde1; // @color g 1
+uniform float azul1; // @color b 1
 
-uniform float rojo2;
-uniform float verde2;
-uniform float azul2;
+uniform float rojo2; // @color r 2
+uniform float verde2; // @color g 2
+uniform float azul2; // @color b 2
 
 uniform float pattern;
 uniform float waveform;

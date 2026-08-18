@@ -4,9 +4,9 @@
 #define det .01
 
 uniform float size;
-uniform float color_r;
-uniform float color_g;
-uniform float color_b;
+uniform float color_r; // @color r
+uniform float color_g; // @color g
+uniform float color_b; // @color b
 uniform float brightness;
 
 mat2 rot(float a) {

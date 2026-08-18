@@ -1665,6 +1665,283 @@ bool jp_persistence_test::run(ofApp &app)
 	// interaction: an armed pan must not move boxes or open a marquee, which is
 	// the property that lets the gesture reuse viewportPanning instead of adding
 	// state of its own.
+	// Colour swatch for RGB parameter triples.
+	//
+	// The channel is DECLARED in the shader (`// @color r`), never inferred from
+	// declaration order. That is the point: mixonmix.frag declares mix_r, mix_b,
+	// mix_g in that order, so position lies about the channel, and
+	// faser/faseg/faseb in six other shaders are per-channel PHASE offsets, not
+	// a colour at all. A name-or-position heuristic gets both wrong.
+	bool colorSwatch = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			colorSwatch = false;
+			ofLogNotice("colorswatch") << why;
+		};
+
+		// --- the annotation parser ---
+		int channel = -1;
+		string group = "unset";
+		if (!JPParameter::parseColorAnnotation(
+			"uniform float chromared; // @color r", channel, group))
+			fail("a well-formed annotation was not recognised");
+		if (channel != JPParameter::COLOR_R) fail("channel r did not parse");
+		if (!group.empty()) fail("a group appeared where none was written");
+
+		if (!JPParameter::parseColorAnnotation(
+			"uniform float blue1; // @color b sun", channel, group))
+			fail("an annotation with a group was not recognised");
+		if (channel != JPParameter::COLOR_B) fail("channel b did not parse");
+		if (group != "sun") fail("the group name came out as '" + group + "'");
+
+		// A plain uniform must stay untouched, or every slider becomes a colour.
+		channel = -99; group = "untouched";
+		if (JPParameter::parseColorAnnotation("uniform float umbral;", channel, group))
+			fail("a line with no annotation was treated as a colour");
+		if (channel != -99 || group != "untouched")
+			fail("a non-annotated line wrote to its outputs anyway");
+
+		// An unknown channel letter is a typo, not a colour.
+		if (JPParameter::parseColorAnnotation("uniform float x; // @color q",
+			channel, group))
+			fail("an unknown channel letter was accepted");
+
+		// --- the colour itself ---
+		auto close = [](float a, float b) { return std::abs(a - b) <= 0.002f; };
+		const ofFloatColor black = JPParameter::swatchColor(0.0f, 0.0f, 0.0f);
+		if (!close(black.r, 0.0f) || !close(black.g, 0.0f) || !close(black.b, 0.0f))
+			fail("0,0,0 did not come out black");
+		const ofFloatColor red = JPParameter::swatchColor(1.0f, 0.0f, 0.0f);
+		if (!close(red.r, 1.0f) || !close(red.g, 0.0f) || !close(red.b, 0.0f))
+			fail("1,0,0 did not come out red");
+		// A user-enabled custom range reaches past 1.0; unclamped it wraps.
+		const ofFloatColor over = JPParameter::swatchColor(4.0f, -2.0f, 0.5f);
+		if (!close(over.r, 1.0f) || !close(over.g, 0.0f) || !close(over.b, 0.5f))
+			fail("an out-of-range value was not clamped, got " +
+				ofToString(over.r) + "," + ofToString(over.g) + "," +
+				ofToString(over.b));
+
+		// --- end to end, one row per annotated shader ---
+		//
+		// A table because the shaders are being annotated a couple at a time:
+		// adding a box to the feature is adding a row here, and every one added
+		// so far stays checked. `plain` is a slider in the same shader that must
+		// NOT be claimed as a colour.
+		struct ShaderColorCase
+		{
+			const char *path;
+			const char *r;
+			const char *g;
+			const char *b;
+			const char *plain;
+		};
+		const ShaderColorCase cases[] = {
+			{"shaders/blending/chromadist.frag",
+				"chromared", "chromagreen", "chromablue", "umbral"},
+			{"shaders/generative/solidcolor.frag",
+				"r", "g", "b", "mivariable"},
+			{"shaders/imageprocessing/chromakey.frag",
+				"chroma_red", "chroma_green", "chroma_blue", "threshold"},
+			// Declared r, B, G in the file. If the channel were taken from
+			// position, green and blue would come out swapped - this row is the
+			// whole reason the annotation names the channel.
+			// mixonmix has no plain float at all - only the three channels.
+			{"shaders/blending/mixonmix.frag",
+				"mix_r", "mix_g", "mix_b", nullptr},
+		};
+
+		for (const ShaderColorCase &c : cases)
+		{
+			app.boxes.clear();
+			app.boxes.addBox(c.path, 100.0f, 100.0f);
+			if (app.boxes.boxes.empty())
+			{
+				ofLogNotice("colorswatch") << c.path << " unavailable - skipped";
+				continue;
+			}
+			const string where = string(c.path) + ": ";
+			JPParameterGroup &params = app.boxes.boxes.front()->parameters;
+
+			auto channelOf = [&](const char *name) {
+				const int idx = params.indexOfName(name);
+				if (idx < 0) return -1;
+				JPParameter *p = params.getJParameter(idx);
+				return p == nullptr ? -1 : p->colorChannel;
+			};
+			auto checkChannel = [&](const char *name, int expected, const char *label) {
+				const int actual = channelOf(name);
+				if (actual < 0)
+					fail(where + name + " is not a parameter of this shader");
+				else if (actual != expected)
+					fail(where + name + " is not channel " + label + " (" +
+						ofToString(actual) + ")");
+			};
+			checkChannel(c.r, JPParameter::COLOR_R, "R");
+			checkChannel(c.g, JPParameter::COLOR_G, "G");
+			checkChannel(c.b, JPParameter::COLOR_B, "B");
+			// nullptr means the shader has no non-colour float to check.
+			if (c.plain != nullptr)
+			{
+				const int plainChannel = channelOf(c.plain);
+				if (plainChannel < 0)
+					fail(where + c.plain + " is not a parameter of this shader "
+						"- the row names a slider that does not exist");
+				else if (plainChannel != JPParameter::COLOR_NONE)
+					fail(where + c.plain + " was claimed as a colour channel");
+			}
+
+			app.boxes.openguinumber = 0;
+			app.boxes.setControllers();
+			if (app.boxes.inspectorColorSwatches.size() != 1)
+			{
+				fail(where + "expected exactly one swatch, got " +
+					ofToString((int)app.boxes.inspectorColorSwatches.size()) +
+					" - one per channel would mean the group is not being "
+					"closed on its last member");
+				continue;
+			}
+			const JPboxgroup::InspectorColorSwatch &sw =
+				app.boxes.inspectorColorSwatches.front();
+			if (sw.r == nullptr || sw.g == nullptr || sw.b == nullptr)
+			{
+				fail(where + "the swatch did not resolve all three channels");
+				continue;
+			}
+			// Bound by ANNOTATION, not by the order the uniforms appear in.
+			if (sw.r->name != c.r || sw.g->name != c.g || sw.b->name != c.b)
+			{
+				fail(where + "the swatch bound " + sw.r->name + "/" +
+					sw.g->name + "/" + sw.b->name + ", expected " + c.r + "/" +
+					c.g + "/" + c.b);
+			}
+			if (sw.bounds.width <= 0.0f || sw.bounds.height <= 0.0f)
+				fail(where + "the swatch has no area");
+			// Thinner than a parameter row, and still wide enough to read the
+			// colour across. A swatch that grew back to row height would crowd
+			// the sliders it describes.
+			if (sw.bounds.height >= 24.0f)
+				fail(where + "the swatch is " + ofToString(sw.bounds.height) +
+					"px tall, which is row height again rather than a strip");
+			if (sw.bounds.width < 100.0f)
+				fail(where + "the swatch is only " + ofToString(sw.bounds.width) +
+					"px wide");
+		}
+		app.boxes.clear();
+
+		// An annotation must not eat a uniform's DEFAULT VALUE.
+		//
+		// The scraper reads `uniform float x = 1.0;` by counting whitespace
+		// tokens on the line, so appending a comment changes the count. invert
+		// is the only annotated shader that declares defaults, which makes it
+		// the canary for the whole convention.
+		{
+			app.boxes.clear();
+			app.boxes.addBox("shaders/imageprocessing/invert.frag", 100.0f, 100.0f);
+			if (app.boxes.boxes.empty())
+			{
+				ofLogNotice("colorswatch") << "invert unavailable - skipped";
+			}
+			else
+			{
+				JPParameterGroup &params = app.boxes.boxes.front()->parameters;
+				for (const char *name : {"mixr", "mixg", "mixb"})
+				{
+					const int idx = params.indexOfName(name);
+					if (idx < 0) { fail(string("invert: missing ") + name); continue; }
+					JPParameter *p = params.getJParameter(idx);
+					if (p == nullptr) continue;
+					if (std::abs(p->floatValue - 1.0f) > 0.001f)
+						fail(string("invert: ") + name + " starts at " +
+							ofToString(p->floatValue) + ", not the 1.0 its "
+							"declaration gives it - the @color comment broke the "
+							"default-value parsing");
+				}
+			}
+			app.boxes.clear();
+		}
+
+		// --- consistency sweep over every annotated shader ---
+		//
+		// The table above proves the pipeline on a handful of boxes. This walks
+		// the whole shader tree instead, so a typo in any of the ~40 annotated
+		// files is caught: an unknown channel letter, a duplicated channel, or a
+		// group left with only two of its three channels. Reading the text is
+		// enough - building 40 boxes would mean 40 shader compiles.
+		{
+			ofDirectory shaderRoot(ofToDataPath("shaders", true));
+			shaderRoot.listDir();
+			vector<string> pending;
+			pending.push_back(shaderRoot.getAbsolutePath());
+			int annotatedFiles = 0;
+			int groupsChecked = 0;
+			while (!pending.empty())
+			{
+				ofDirectory dir(pending.back());
+				pending.pop_back();
+				dir.listDir();
+				for (int i = 0; i < (int)dir.size(); ++i)
+				{
+					const string path = dir.getPath(i);
+					if (ofDirectory::doesDirectoryExist(path))
+					{
+						pending.push_back(path);
+						continue;
+					}
+					if (ofFilePath::getFileExt(path) != "frag") continue;
+
+					ofBuffer buffer = ofBufferFromFile(path);
+					const string shown = ofFilePath::getFileName(path);
+					// group -> which channels were seen, and how many times
+					std::map<string, std::map<int, int>> seen;
+					bool any = false;
+					for (const auto &line : buffer.getLines())
+					{
+						const string text = line;
+						if (text.find("@color") == string::npos) continue;
+						int channel = JPParameter::COLOR_NONE;
+						string group;
+						if (!JPParameter::parseColorAnnotation(text, channel, group))
+						{
+							fail(shown + ": an @color line did not parse, so its "
+								"channel is silently dropped: " + text);
+							continue;
+						}
+						any = true;
+						seen[group][channel]++;
+					}
+					if (!any) continue;
+					++annotatedFiles;
+					for (const auto &entry : seen)
+					{
+						++groupsChecked;
+						const string where = shown + " group '" + entry.first + "'";
+						if (entry.second.size() != 3)
+							fail(where + " has " +
+								ofToString((int)entry.second.size()) +
+								" channels, expected 3 - an incomplete group "
+								"never draws a swatch and looks like the feature "
+								"is broken");
+						for (int channel : {JPParameter::COLOR_R,
+							JPParameter::COLOR_G, JPParameter::COLOR_B})
+						{
+							auto it = entry.second.find(channel);
+							if (it == entry.second.end())
+								fail(where + " is missing a channel");
+							else if (it->second != 1)
+								fail(where + " declares a channel " +
+									ofToString(it->second) + " times");
+						}
+					}
+				}
+			}
+			if (annotatedFiles < 30)
+				fail("only " + ofToString(annotatedFiles) + " annotated shaders "
+					"were found - the sweep is not reaching the tree");
+			ofLogNotice("colorswatch") << "sweep: " << annotatedFiles
+				<< " shaders, " << groupsChecked << " colour groups";
+		}
+	}
 	// Multi-select: shift-drag adds to the selection, ctrl-click toggles one box.
 	//
 	// The merge rule is checked directly because its invariant is not obvious:
@@ -2517,6 +2794,7 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " paramMorph=" << paramMorph
 		<< " morphArming=" << morphArming
 		<< " transitionShaders=" << transitionShaders
+		<< " colorSwatch=" << colorSwatch
 		<< " multiSelect=" << multiSelect
 		<< " spacePan=" << spacePan
 		<< " groupPathAfterClear=" << groupPathAfterClear
@@ -2540,5 +2818,5 @@ bool jp_persistence_test::run(ofApp &app)
 		transitionShaders && camDepthBox && camDepthParallax && camDepthRamp && selfLink &&
 		renderSchedule && scheduleObeyed && tooltipLayout &&
 		tooltipTransform &&
-		spacePan && groupPathAfterClear && multiSelect && mediaSmoke;
+		spacePan && groupPathAfterClear && multiSelect && colorSwatch && mediaSmoke;
 }

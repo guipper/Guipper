@@ -7,9 +7,9 @@ uniform float luna;
 uniform float sol;
 uniform sampler2D tex;
 uniform bool estrellas;
-uniform float colorsun_r;
-uniform float colorsun_g;
-uniform float colorsun_b;
+uniform float colorsun_r; // @color r
+uniform float colorsun_g; // @color g
+uniform float colorsun_b; // @color b
 uniform float contrastsun;
 uniform float rayfreq;
 uniform float rayamp;

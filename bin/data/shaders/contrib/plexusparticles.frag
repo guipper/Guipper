@@ -2,12 +2,12 @@
 
 uniform float speed ;
 
-uniform float r1 ;
-uniform float g1 ;
-uniform float b1 ;
-uniform float r2 ;
-uniform float g2 ; 
-uniform float b2 ; 
+uniform float r1 ; // @color r 1
+uniform float g1 ; // @color g 1
+uniform float b1 ; // @color b 1
+uniform float r2 ; // @color r 2
+uniform float g2 ; // @color g 2
+uniform float b2 ; // @color b 2
 
 float distLine(vec2 p, vec2 a, vec2 b) {
 	vec2 ap = p - a;

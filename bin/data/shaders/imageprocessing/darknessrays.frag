@@ -3,9 +3,9 @@
 uniform float rays_samples;
 uniform float ray_step;
 uniform float ray_fade;
-uniform float ray_r;
-uniform float ray_g;
-uniform float ray_b;
+uniform float ray_r; // @color r
+uniform float ray_g; // @color g
+uniform float ray_b; // @color b
 uniform float ray_brightness;
 uniform float brightness_threshold;
 uniform float orig_mix;

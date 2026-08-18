@@ -6,9 +6,9 @@ uniform float light_dir_y;
 uniform float light_dir_z;
 uniform float ambient;
 uniform float diffuse;
-uniform float specular_red;
-uniform float specular_green;
-uniform float specular_blue;
+uniform float specular_red; // @color r
+uniform float specular_green; // @color g
+uniform float specular_blue; // @color b
 
 uniform float specular_size;
 uniform sampler2D texture1;

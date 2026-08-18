@@ -3362,6 +3362,30 @@ void JPboxgroup::draw_paramswindow()
 				}
 			}
 		}
+		// Colour swatches. Inside the clipped span on purpose, so they scroll
+		// and clip with the rows instead of floating over the header.
+		for (const InspectorColorSwatch &swatch : inspectorColorSwatches)
+		{
+			if (swatch.r == nullptr || swatch.g == nullptr || swatch.b == nullptr)
+				continue;
+			if (!swatch.bounds.intersects(inspectorBodyViewport)) continue;
+
+			const ofFloatColor colour = JPParameter::swatchColor(
+				swatch.r->floatValue, swatch.g->floatValue, swatch.b->floatValue);
+
+			ofSetRectMode(OF_RECTMODE_CORNER);
+			ofFill();
+			ofSetColor(colour);
+			ofDrawRectRounded(swatch.bounds, 3.0f);
+			// Outline in the panel's own language, so a swatch that happens to
+			// be near-black still reads as a control rather than a hole.
+			ofNoFill();
+			ofSetLineWidth(1.0f);
+			ofSetColor(ofColor(COL_BORDER_DEFAULT, 200));
+			ofDrawRectRounded(swatch.bounds, 3.0f);
+			ofFill();
+		}
+
 		if (suppressBodyPointer) JPdragobject::clearMouseOverride();
 
 		// Paint the sticky header last. Besides giving it the correct z-order,
@@ -5688,6 +5712,7 @@ void JPboxgroup::setControllers(){
 	controllers.clear();
 	parameterLockButtons.clear();
 	parameterRangeButtons.clear();
+	inspectorColorSwatches.clear();
 
 	// Clean up expose buttons
 	for (int i = 0; i < exposeButtons.size(); i++)
@@ -5905,6 +5930,64 @@ void JPboxgroup::setControllers(){
 			// measuring the panel at roughly twice its content.
 			if (!usesCanonicalOrder)
 				layoutCursor += complexsliderheight + controllerRowGap;
+
+			// A colour triple gets a swatch in its own slot, directly under the
+			// last of its three channels. Its own slot because a row has no
+			// horizontal slack left: the card ends 7px short of the range
+			// button, which is 5px from the lock button, which is 4px from the
+			// panel edge.
+			//
+			// Placed when the THIRD channel of a group lands, so the swatch
+			// follows whichever channel comes last in the file rather than
+			// assuming r,g,b order.
+			JPParameter *justPlaced = inspectorBox->parameters.parameters[k];
+			if (!usesCanonicalOrder && justPlaced != nullptr &&
+				justPlaced->colorChannel != JPParameter::COLOR_NONE)
+			{
+				InspectorColorSwatch swatch;
+				for (int c = 0; c < inspectorBox->parameters.getSize(); ++c)
+				{
+					JPParameter *other = inspectorBox->parameters.parameters[c];
+					if (other == nullptr) continue;
+					if (other->colorGroup != justPlaced->colorGroup) continue;
+					if (other->colorChannel == JPParameter::COLOR_R) swatch.r = other;
+					else if (other->colorChannel == JPParameter::COLOR_G) swatch.g = other;
+					else if (other->colorChannel == JPParameter::COLOR_B) swatch.b = other;
+				}
+				// Only once the group is complete, and only when THIS parameter
+				// is the last of the three to have been laid out - otherwise a
+				// swatch would appear under each channel.
+				const bool complete = swatch.r != nullptr && swatch.g != nullptr &&
+					swatch.b != nullptr;
+				bool isLastOfGroup = complete;
+				for (int c = k + 1; c < inspectorBox->parameters.getSize() &&
+					isLastOfGroup; ++c)
+				{
+					JPParameter *other = inspectorBox->parameters.parameters[c];
+					if (other != nullptr &&
+						other->colorChannel != JPParameter::COLOR_NONE &&
+						other->colorGroup == justPlaced->colorGroup)
+					{
+						isLastOfGroup = false;
+					}
+				}
+				if (isLastOfGroup)
+				{
+					// Deliberately thinner than a parameter row. It is a strip
+					// to read, not a control to hit: nothing clicks it, and at
+					// full row height it competed with the sliders it belongs to.
+					// Full row WIDTH though - the colour is easier to judge
+					// across a wide band than a small square.
+					const float swatchHeight = 12.0f;
+					swatch.bounds.set(controllerX - controllerWidth * 0.5f,
+						layoutCursor, controllerWidth, swatchHeight);
+					inspectorColorSwatches.push_back(swatch);
+					// Advance by its own height, not a row's, or it leaves a gap
+					// the size of the difference. inspectorContentHeight and the
+					// scroll range are both derived from this cursor.
+					layoutCursor += swatchHeight + controllerRowGap;
+				}
+			}
 		}
 		else if (inspectorBox->parameters.getType(k) == inspectorBox->parameters.BOOL)
 		{

@@ -5,9 +5,9 @@
 uniform float cam;
 uniform float speed;
 
-uniform float r;
-uniform float g;
-uniform float b;
+uniform float r; // @color r
+uniform float g; // @color g
+uniform float b; // @color b
 float rand(vec2 n) {
   return fract(sin((n.x*1e2+n.y*1e4+1475.4526)*1e-4)*1e6);
 }

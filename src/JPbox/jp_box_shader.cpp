@@ -465,6 +465,18 @@ void JPbox_shader::setUniforms(JPParameterGroup &_parameters,
 				// cout << "FLOAT NAME : " << name << endl;
 				// Esta es la frase de entrada digamos.
 				string fraseEntrada = linesOfTheFile[l];
+				// Cut any trailing comment BEFORE the tokenising below, because
+				// the default-value branch keys off the token COUNT. Without
+				// this, `uniform float mixr = 1.0; // @color r` counted two
+				// tokens too many, missed its own default and fell back to a
+				// random start value - so annotating a uniform silently changed
+				// how the box behaves. Annotations are read off the raw line, so
+				// nothing is lost by cutting here.
+				const size_t commentStart = fraseEntrada.find("//");
+				if (commentStart != string::npos)
+				{
+					fraseEntrada = fraseEntrada.substr(0, commentStart);
+				}
 				// cout << "Frase entrada " << fraseEntrada<< endl;
 				// ESTO ES PARA FORMATEAR BIEN LA COSA :
 				for (int i = 0; i < fraseEntrada.length(); i++)
@@ -535,6 +547,27 @@ void JPbox_shader::setUniforms(JPParameterGroup &_parameters,
 							ratio->nativeMin = ratio->min = 0.1f;
 							ratio->nativeMax = ratio->max = 4.0f;
 							ratio->defaultFloatValue = 1.0f;
+						}
+					}
+					// `// @color r` marks this uniform as one channel of a
+					// colour, so the inspector can show a swatch of what the
+					// three add up to. Same annotation mechanism as @internal
+					// above.
+					//
+					// Purely additive: the parameter is still registered
+					// normally, in the same position, because saved
+					// compositions read their <param> blocks positionally.
+					int channel = JPParameter::COLOR_NONE;
+					string group;
+					if (JPParameter::parseColorAnnotation(linesOfTheFile[l],
+						channel, group))
+					{
+						JPParameter *added = _parameters.getJParameter(
+							_parameters.getSize()-1);
+						if (added != nullptr)
+						{
+							added->colorChannel = channel;
+							added->colorGroup = group;
 						}
 					}
 				}

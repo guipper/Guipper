@@ -237,6 +237,7 @@ public:
 	// Named predicates rather than inline ofGetKeyPressed calls because the main
 	// view and the group view both ask, and a mismatch between them would be
 	// invisible until someone used whichever one was wrong.
+	void setControllers();
 	void clearSelection();
 	bool selectionAddModifier() const;      // shift
 	bool selectionToggleModifier() const;   // ctrl
@@ -363,6 +364,22 @@ public:
 	JPComplexSlider *rangeDragSlider = nullptr;
 	int rangeDragHandle = 0;
 	vector<JPExposeButton *> exposeButtons; // Expose buttons for group view inspector
+	// One per colour triple on the inspected box: a swatch showing what its
+	// three 0..1 channels add up to. Built in setControllers beside the rows
+	// and painted in the same clipped loop, like the lock and range buttons.
+	//
+	// Holds POINTERS to the three parameters, not indices: setControllers
+	// reorders rows under usesCanonicalOrder, so controllers[i] does not
+	// correspond to parameter i and an index would drift.
+	struct InspectorColorSwatch
+	{
+		ofRectangle bounds;
+		JPParameter *r = nullptr;
+		JPParameter *g = nullptr;
+		JPParameter *b = nullptr;
+	};
+	vector<InspectorColorSwatch> inspectorColorSwatches;
+
 	vector<ofRectangle> parameterLockButtons;
 	vector<ofRectangle> parameterRangeButtons;
 	vector<JPbox *> boxes;				// TODOS LOS SHADERRENDERS QUE TIENE EL OBJETO.
@@ -457,7 +474,6 @@ private:
 	int *activerender;
 
 	void draw_cursorrect();
-	void setControllers();
 	vector<JPParameter *> getInspectorActionParameters() const;
 	void rebuildControllersIfLayoutStale();
 	void setupShaderRendersFromDataFolder(); // Esta es para que levante todos

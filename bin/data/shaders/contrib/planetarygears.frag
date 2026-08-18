@@ -2,9 +2,9 @@
 // Inspired by:
 //  http://cmdrkitten.tumblr.com/post/172173936860
 uniform float cnt;
-uniform float r;
-uniform float g;
-uniform float b;
+uniform float r; // @color r
+uniform float g; // @color g
+uniform float b; // @color b
 #define Pi 3.14159265359
 
 struct Gear

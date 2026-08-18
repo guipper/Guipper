@@ -4,9 +4,9 @@ uniform sampler2D texture1;
 
 uniform float force;
 
-uniform float r1;
-uniform float g1;
-uniform float b1;
+uniform float r1; // @color r
+uniform float g1; // @color g
+uniform float b1; // @color b
 uniform float umbral;
 const float max_rad=.05;
 const float it=150.;

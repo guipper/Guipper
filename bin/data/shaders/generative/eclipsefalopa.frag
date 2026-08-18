@@ -11,9 +11,9 @@ uniform float lunaspeed;
 uniform float lunaextrude;
 uniform float lunasurface;
 uniform float lunawater;
-uniform float color_r;
-uniform float color_g;
-uniform float color_b;
+uniform float color_r; // @color r
+uniform float color_g; // @color g
+uniform float color_b; // @color b
 
 float obj, td, luncol, eclipse, water = 0.;
 vec3 v1, v2;

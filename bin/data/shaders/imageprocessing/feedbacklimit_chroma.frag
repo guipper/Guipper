@@ -4,9 +4,9 @@ uniform sampler2D texture1;
 //uniform float feedbackst;
 //uniform float decay;
 uniform float limit;
-uniform float chromar;
-uniform float chromag;
-uniform float chromab;
+uniform float chromar; // @color r
+uniform float chromag; // @color g
+uniform float chromab; // @color b
 
 void main()
 {

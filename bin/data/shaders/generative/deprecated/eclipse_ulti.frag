@@ -8,9 +8,9 @@ uniform float sol;
 uniform sampler2DRect tex;
 uniform bool estrellas;
 uniform float lunaspeed;
-uniform float color_r;
-uniform float color_g;
-uniform float color_b;
+uniform float color_r; // @color r
+uniform float color_g; // @color g
+uniform float color_b; // @color b
 
 float obj, td, luncol, eclipse;
 vec3 v1, v2;

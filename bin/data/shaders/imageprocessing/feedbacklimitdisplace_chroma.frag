@@ -11,9 +11,9 @@ uniform float sctx1;
 uniform float scty1;
 uniform float ttx1;
 uniform float tty1;
-uniform float chromar;
-uniform float chromag;
-uniform float chromab;
+uniform float chromar; // @color r
+uniform float chromag; // @color g
+uniform float chromab; // @color b
 void main()
 {
 	vec2 uv = gl_FragCoord.xy / resolution;

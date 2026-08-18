@@ -1,8 +1,8 @@
 #pragma include "../common.frag" //ESta linea tiene todas las definiciones de las funciones globales
 
-uniform float r;
-uniform float g;
-uniform float b;
+uniform float r; // @color r
+uniform float g; // @color g
+uniform float b; // @color b
 uniform float mivariable;
 uniform sampler2D f1;
 

@@ -1,12 +1,12 @@
 #pragma include "../common.frag" //ESta linea tiene todas las definiciones de las funciones globales
 
 uniform sampler2D texture1;
-uniform float limitr;
-uniform float limitg;
-uniform float limitb;
-uniform float decr;
-uniform float decg;
-uniform float decb;
+uniform float limitr; // @color r limit
+uniform float limitg; // @color g limit
+uniform float limitb; // @color b limit
+uniform float decr; // @color r dec
+uniform float decg; // @color g dec
+uniform float decb; // @color b dec
 uniform float feedbackst_low;
 uniform float feedbackst_high;
 uniform float eforce;

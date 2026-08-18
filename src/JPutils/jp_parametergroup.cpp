@@ -816,3 +816,49 @@ string JPParameterGroup::getName(int _index)
 		return "ERROR IN GETTING NAME VALUE";
 	}
 }
+
+bool JPParameter::parseColorAnnotation(const string &line, int &channel,
+									   string &group)
+{
+	const size_t at = line.find("@color");
+	if (at == string::npos) return false;
+
+	// Everything after the marker, split on whitespace. The first token is the
+	// channel, the optional second is the group name.
+	string rest = line.substr(at + 6);
+	vector<string> tokens;
+	string current;
+	for (char c : rest)
+	{
+		if (isspace((unsigned char)c))
+		{
+			if (!current.empty()) { tokens.push_back(current); current.clear(); }
+		}
+		else
+		{
+			current += c;
+		}
+	}
+	if (!current.empty()) tokens.push_back(current);
+	if (tokens.empty()) return false;
+
+	string channelToken = ofToLower(tokens[0]);
+	if (channelToken == "r") channel = COLOR_R;
+	else if (channelToken == "g") channel = COLOR_G;
+	else if (channelToken == "b") channel = COLOR_B;
+	else return false;   // an unknown channel is a typo, not a colour
+
+	group = tokens.size() > 1 ? tokens[1] : string();
+	return true;
+}
+
+ofFloatColor JPParameter::swatchColor(float r, float g, float b)
+{
+	// Shader colour uniforms are 0..1 - JPParameter::setup pins min/max there
+	// and addFloatValue does no range work - so no /255 anywhere. The clamp is
+	// for a custom range: rangeEnabled lets a value reach 4.0, and ofFloatColor
+	// would carry that straight through to a wrapped or blown-out swatch.
+	return ofFloatColor(ofClamp(r, 0.0f, 1.0f),
+						ofClamp(g, 0.0f, 1.0f),
+						ofClamp(b, 0.0f, 1.0f));
+}

@@ -3,12 +3,12 @@
 
 uniform sampler2D textura1;
 uniform sampler2D textura2;
-uniform float chromared;
-uniform float chromagreen;
-uniform float chromablue;
-uniform float red;
-uniform float green;
-uniform float blue;
+uniform float chromared; // @color r chroma
+uniform float chromagreen; // @color g chroma
+uniform float chromablue; // @color b chroma
+uniform float red; // @color r main
+uniform float green; // @color g main
+uniform float blue; // @color b main
 uniform float umbral;
 uniform float textureblend;
 

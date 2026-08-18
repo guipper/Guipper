@@ -1,9 +1,9 @@
 #pragma include "../common.frag"
 
 uniform sampler2D input_texture;
-uniform float chroma_red;
-uniform float chroma_green;
-uniform float chroma_blue;
+uniform float chroma_red; // @color r
+uniform float chroma_green; // @color g
+uniform float chroma_blue; // @color b
 uniform float threshold;
 
 

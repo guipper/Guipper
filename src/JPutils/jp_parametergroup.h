@@ -66,6 +66,42 @@ public:
 	void captureDefaultValue();
 	void restoreDefaultValue();
 
+	// --- Colour swatch grouping ------------------------------------------
+	//
+	// Which channel of a colour this parameter is, declared in the shader as
+	// `// @color r`. Several shader boxes spell a colour as three separate 0..1
+	// sliders and there is no way to see what they add up to.
+	//
+	// DECLARED, never guessed. 49 shaders carry such triples across 18 naming
+	// conventions, and a name heuristic gets two cases wrong: mixonmix.frag
+	// declares mix_r, mix_b, mix_g in that order, so position lies about the
+	// channel; and faser/faseg/faseb in six files are per-channel PHASE offsets,
+	// not a colour at all.
+	//
+	// Re-derived from the .frag on every setup, so none of this is persisted -
+	// saved compositions read their <param> blocks positionally and must not be
+	// disturbed.
+	enum ColorChannel
+	{
+		COLOR_NONE = 0,
+		COLOR_R,
+		COLOR_G,
+		COLOR_B
+	};
+	int colorChannel = COLOR_NONE;
+	// Distinguishes several triples in one shader; recolor.frag and degrade.frag
+	// have two each. Empty is its own valid group.
+	string colorGroup;
+
+	// Reads `// @color <r|g|b> [group]` off a uniform declaration line. False,
+	// and both outputs untouched, when the line carries no annotation.
+	static bool parseColorAnnotation(const string &line, int &channel,
+									 string &group);
+
+	// The colour a triple forms. Clamped, because a user-enabled custom range
+	// can push a value past 1.0 and an unclamped component wraps to black.
+	static ofFloatColor swatchColor(float r, float g, float b);
+
 	float min;
 	float max;
 	// Native slider scale and optional remembered custom limits are separate.

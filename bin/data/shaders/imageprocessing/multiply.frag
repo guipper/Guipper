@@ -2,9 +2,9 @@
 
 uniform sampler2D textura1;
 
-uniform float r;
-uniform float g;
-uniform float b;
+uniform float r; // @color r
+uniform float g; // @color g
+uniform float b; // @color b
 
 void main()
 {	
