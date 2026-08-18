@@ -315,6 +315,13 @@ void ofApp::registerSurfaces()
 		return surfaces.blockedAt(x, y, SURFACE_MAPPING_PANEL);
 	});
 
+	// Space pans the canvas, but space is also a character. anyFieldFocused does
+	// not cover the save modal, so both are asked here rather than letting the
+	// canvas guess.
+	boxes.setExternalTextCaptureTest([this]() {
+		return anyFieldFocused() || saveModalActive;
+	});
+
 	// One pointer-owner rule for every control that opts into a layer.
 	jp_pointer::setOcclusionTest([this](float x, float y, int order) {
 		return surfaces.blockedAt(x, y, order);

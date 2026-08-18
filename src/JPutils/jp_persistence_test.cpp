@@ -1657,6 +1657,200 @@ bool jp_persistence_test::run(ofApp &app)
 	// one added for the box titles - and they disagreed on the delay, the anchor
 	// convention and the rect mode. They are now one, so these checks guard the
 	// behaviour the whole program shares.
+	// Space + drag pans the canvas.
+	//
+	// Two halves are worth pinning down. The suppression rule first: space is a
+	// pan gesture on the canvas but a printable character in a field, so panning
+	// while someone types a filename is the failure mode. Then the guard
+	// interaction: an armed pan must not move boxes or open a marquee, which is
+	// the property that lets the gesture reuse viewportPanning instead of adding
+	// state of its own.
+	// Multi-select: shift-drag adds to the selection, ctrl-click toggles one box.
+	//
+	// The merge rule is checked directly because its invariant is not obvious:
+	// the result must be duplicate-free. The multi-drag walks the selection and
+	// moves every entry, so a box that appears twice is moved twice and slides
+	// away from the group it was supposed to travel with.
+	bool multiSelect = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			multiSelect = false;
+			ofLogNotice("multiselect") << why;
+		};
+		auto show = [](const vector<int> &v)
+		{
+			string out;
+			for (int i : v) out += (out.empty() ? "" : ",") + ofToString(i);
+			return "[" + out + "]";
+		};
+
+		vector<int> merged;
+
+		// No base: the marquee replaces, which is the plain drag and must not
+		// have changed.
+		JPboxgroup::mergeSelection(merged, {}, {2, 5});
+		if (merged != vector<int>({2, 5}))
+			fail("a marquee with no base did not simply take its own hits: " +
+				show(merged));
+
+		// With a base: both, base first.
+		JPboxgroup::mergeSelection(merged, {1, 3}, {7});
+		if (merged != vector<int>({1, 3, 7}))
+			fail("shift-drag did not add to the existing selection: " +
+				show(merged));
+
+		// Overlap: kept once.
+		JPboxgroup::mergeSelection(merged, {1, 3}, {3, 4});
+		if (merged != vector<int>({1, 3, 4}))
+			fail("a box in both the base and the marquee was listed twice, so "
+				"the multi-drag would move it at double speed: " + show(merged));
+
+		// An empty marquee leaves a shift-drag's base intact rather than
+		// clearing it, which is what makes shift-dragging over nothing harmless.
+		JPboxgroup::mergeSelection(merged, {4, 8}, {});
+		if (merged != vector<int>({4, 8}))
+			fail("an empty marquee dropped the base selection: " + show(merged));
+
+		// --- ctrl+click toggling, against the real graph ---
+		const string shader = "shaders/imageprocessing/transform.frag";
+		app.boxes.clear();
+		for (int i = 0; i < 3; ++i)
+			app.boxes.addBox(shader, 100.0f + i * 60.0f, 100.0f);
+		if (app.boxes.boxes.size() != 3)
+		{
+			ofLogNotice("multiselect") << "fixture unavailable - skipped";
+		}
+		else
+		{
+			app.boxes.clearSelection();
+			app.boxes.toggleBoxSelection(0);
+			app.boxes.toggleBoxSelection(2);
+			if (!app.boxes.isBoxSelected(0) || !app.boxes.isBoxSelected(2))
+				fail("ctrl+click did not add boxes to the selection");
+			if (app.boxes.isBoxSelected(1))
+				fail("ctrl+click selected a box that was never clicked");
+
+			// Toggling again removes just that one and leaves the rest.
+			app.boxes.toggleBoxSelection(0);
+			if (app.boxes.isBoxSelected(0))
+				fail("ctrl+clicking a selected box did not deselect it");
+			if (!app.boxes.isBoxSelected(2))
+				fail("deselecting one box dropped the rest of the selection");
+			if (app.boxes.getSelectedBoxIndices().size() != 1)
+				fail("the selection has " +
+					ofToString((int)app.boxes.getSelectedBoxIndices().size()) +
+					" entries, expected 1");
+
+			// A negative index is ignored rather than poisoning the list - the
+			// click paths pass -1 for "nothing under the pointer".
+			app.boxes.toggleBoxSelection(-1);
+			if (app.boxes.getSelectedBoxIndices().size() != 1)
+				fail("a negative index was added to the selection");
+		}
+		app.boxes.clearSelection();
+		app.boxes.clear();
+	}
+	bool spacePan = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			spacePan = false;
+			ofLogNotice("spacepan") << why;
+		};
+
+		app.boxes.setExternalTextCaptureTest(nullptr);
+		const bool restoreRenaming = app.boxes.tabRenaming;
+		app.boxes.tabRenaming = false;
+		if (!app.boxes.spacePanAllowed())
+			fail("the gesture is off with nothing capturing text");
+
+		app.boxes.tabRenaming = true;
+		if (app.boxes.spacePanAllowed())
+			fail("the gesture stays on while a box name is being typed");
+		app.boxes.tabRenaming = restoreRenaming;
+
+		app.boxes.setExternalTextCaptureTest([]() { return true; });
+		if (app.boxes.spacePanAllowed())
+			fail("the gesture ignores ofApp's text fields - it would pan the "
+				"canvas while a filename is being typed");
+		app.boxes.setExternalTextCaptureTest([]() { return false; });
+		if (!app.boxes.spacePanAllowed())
+			fail("the gesture stays off when no field is focused");
+
+		const string shader = "shaders/imageprocessing/transform.frag";
+		app.boxes.clear();
+		app.boxes.addBox(shader, 200.0f, 200.0f);
+		if (app.boxes.boxes.empty())
+		{
+			ofLogNotice("spacepan") << "fixture unavailable - skipped";
+		}
+		else
+		{
+			JPbox *box = app.boxes.boxes.front();
+			const float startX = box->x, startY = box->y;
+			// What the arm site does when space is held.
+			app.boxes.viewportPanning = true;
+			for (int i = 0; i < 4; ++i)
+				app.boxes.update_mouseDragged(OF_MOUSE_BUTTON_LEFT);
+			if (std::abs(box->x - startX) > 0.01f ||
+				std::abs(box->y - startY) > 0.01f)
+			{
+				fail("a space-armed left drag moved a box, from (" +
+					ofToString(startX) + "," + ofToString(startY) + ") to (" +
+					ofToString(box->x) + "," + ofToString(box->y) + ")");
+			}
+			if (app.boxes.draw_SelectionRect)
+				fail("a space-armed left drag opened a selection rectangle");
+			app.boxes.viewportPanning = false;
+		}
+		app.boxes.clear();
+		// Leave the hook as ofApp wired it, or every later check runs with the
+		// canvas believing a field is focused.
+		app.boxes.setExternalTextCaptureTest([&app]() {
+			return app.anyFieldFocused() || app.saveModalActive;
+		});
+	}
+	// Loading a session while inside a group view used to read past the end of
+	// the box vector: clear() emptied the vector but left activeGroupPath, which
+	// is an index path INTO it, and getActivePreset trusted its first element.
+	// Reachable today through the OSC load command, so not hypothetical.
+	bool groupPathAfterClear = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			groupPathAfterClear = false;
+			ofLogNotice("grouppath") << why;
+		};
+		const string groupPath = "data/groups/group_2026-07-27-18-30-48-181.xml";
+		app.boxes.clear();
+		app.boxes.addBox(groupPath, 120, 120);
+		if (app.boxes.boxes.empty())
+		{
+			ofLogNotice("grouppath") << "group fixture unavailable - skipped";
+		}
+		else
+		{
+			// Stand inside the group, then pull the graph out from under it.
+			app.boxes.activeGroupPath.clear();
+			app.boxes.activeGroupPath.push_back(0);
+			app.boxes.clear();
+			if (!app.boxes.activeGroupPath.empty())
+				fail("clear() left the group path pointing into an empty vector");
+			if (app.boxes.getActivePreset() != nullptr)
+				fail("getActivePreset returned something after a clear");
+
+			// The bounds check itself. This one is a CONTRACT assertion, not a
+			// regression test: removing the check is undefined behaviour, which
+			// can silently appear to work, so it cannot be proven by reverting.
+			app.boxes.activeGroupPath.clear();
+			app.boxes.activeGroupPath.push_back(99);
+			if (app.boxes.getActivePreset() != nullptr)
+				fail("getActivePreset accepted an out-of-range first level");
+			app.boxes.activeGroupPath.clear();
+		}
+		app.boxes.clear();
+	}
 	bool tooltipLayout = true;
 	{
 		auto fail = [&](const string &why)
@@ -2323,6 +2517,9 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " paramMorph=" << paramMorph
 		<< " morphArming=" << morphArming
 		<< " transitionShaders=" << transitionShaders
+		<< " multiSelect=" << multiSelect
+		<< " spacePan=" << spacePan
+		<< " groupPathAfterClear=" << groupPathAfterClear
 		<< " tooltipLayout=" << tooltipLayout
 		<< " tooltipTransform=" << tooltipTransform
 		<< " renderSchedule=" << renderSchedule
@@ -2342,5 +2539,6 @@ bool jp_persistence_test::run(ofApp &app)
 		paramMorph && morphArming &&
 		transitionShaders && camDepthBox && camDepthParallax && camDepthRamp && selfLink &&
 		renderSchedule && scheduleObeyed && tooltipLayout &&
-		tooltipTransform && mediaSmoke;
+		tooltipTransform &&
+		spacePan && groupPathAfterClear && multiSelect && mediaSmoke;
 }

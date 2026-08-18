@@ -165,6 +165,14 @@ namespace jp_help
 		H("NODE GRAPH", "GRAFO DE NODOS"),
 		N("These keys only work on the NODES screen.",
 			"Estas teclas solo funcionan en la pantalla NODES.", Scope::Nodes),
+		E("Space + drag",
+			"Pan the canvas with the left button, as in any design program. "
+			"Middle and right drag still pan too. If space seems stuck after "
+			"switching windows, tap it once",
+			"Mover el lienzo con el boton izquierdo, como en cualquier programa "
+			"de diseno. El arrastre medio y derecho siguen funcionando. Si el "
+			"space queda trabado despues de cambiar de ventana, tocalo una vez",
+			Scope::Nodes),
 		E("Ctrl+C / Ctrl+V", "Copy and paste the selected boxes",
 			"Copiar y pegar las cajas seleccionadas", Scope::Nodes),
 		E("DEL", "Delete all selected boxes",
@@ -197,6 +205,15 @@ namespace jp_help
 			"Conectar la salida de una caja a la entrada de otra", Scope::Nodes),
 		E("Empty drag", "Draw a rectangle to select several boxes",
 			"Dibujar un rectangulo para seleccionar varias cajas", Scope::Nodes),
+		E("Shift + drag",
+			"Draw another rectangle and ADD what it touches to the current "
+			"selection instead of replacing it",
+			"Dibujar otro rectangulo y SUMAR lo que toca a la seleccion actual "
+			"en vez de reemplazarla", Scope::Nodes),
+		E("Ctrl + click",
+			"Add or remove one box from the selection, leaving the rest alone",
+			"Sumar o sacar una sola caja de la seleccion, sin tocar el resto",
+			Scope::Nodes),
 		E("Middle/right drag", "Pan the node canvas",
 			"Mover el canvas de nodos", Scope::Nodes),
 		E("Mouse wheel", "Zoom the node canvas around the pointer",

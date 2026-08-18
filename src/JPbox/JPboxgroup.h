@@ -228,6 +228,34 @@ public:
 	// Set by ofApp so the canvas also yields to surfaces this class does not
 	// own - the MIDI panel, the shader editor, the save modal, dropdowns.
 	void setExternalGuiHitTest(std::function<bool(float, float)> fn);
+	void setExternalTextCaptureTest(std::function<bool()> fn);
+
+	// --- Multi-select, the way every design program does it ----------------
+	//
+	// SHIFT while dragging a marquee ADDS to the selection instead of replacing
+	// it. CTRL clicking a box toggles that one box and leaves the rest alone.
+	// Named predicates rather than inline ofGetKeyPressed calls because the main
+	// view and the group view both ask, and a mismatch between them would be
+	// invisible until someone used whichever one was wrong.
+	void clearSelection();
+	bool selectionAddModifier() const;      // shift
+	bool selectionToggleModifier() const;   // ctrl
+	void toggleBoxSelection(int index);
+	bool isBoxSelected(int index) const;
+	const vector<int> &getSelectedBoxIndices() const { return selectedBoxIndices; }
+
+	// Union of what a shift-drag kept and what the marquee is touching now.
+	// Order-stable and DUPLICATE-FREE: the multi-drag walks this list and moves
+	// each entry, so a box listed twice travels at double speed and slides out
+	// of the group. Pure, so that invariant can be tested directly.
+	static void mergeSelection(vector<int> &target, const vector<int> &base,
+							   const vector<int> &marqueeHits);
+
+	// The suppression half of the space-pan rule, without reading the keyboard.
+	// Split out so it can be tested: whether space is physically down is trivial,
+	// but "is a text field eating the keyboard right now" is where this goes
+	// wrong, and panning the canvas while someone types a filename is the bug.
+	bool spacePanAllowed() const;
 	ofRectangle getCuePanelBounds();
 	ofRectangle getMappingPanelBounds() const;
 	void setMappingPanelLayout(float x, float y, float w, float h);
@@ -558,16 +586,27 @@ private:
 	bool mouseOverCueFullscreenIcon() const;
 	bool mouseOverCueApplyIcon() const;
 	bool mouseOverCueMonitorModeIcon() const;
-	void clearSelection();
 	void updateBoxSelection();
+
 	void zoomViewport(const ofVec2f &screenAnchor, float zoomFactor);
 	void panViewport(const ofVec2f &screenDelta);
 	bool boxIntersectsSelection(JPbox *box) const;
-	bool isBoxSelected(int index) const;
 	bool deleteBoxAtIndex(int index);
 	bool deleteSelectedBoxes();
 
 	std::function<bool(float, float)> externalGuiHitTest;
+
+	// Set by ofApp: "a text field owns the keyboard right now". The canvas needs
+	// it because SPACE is a pan gesture here but a printable character in a
+	// field, and JPboxgroup only knows about its own two fields
+	// (wantsKeyCapture) - the options, live-output, split, save-modal and shader
+	// search fields all live in ofApp.
+	std::function<bool()> externalTextCaptureTest;
+
+	// True when space+drag should pan instead of doing whatever that button
+	// normally does. Read only when a drag is ARMED, never mid-drag - see the
+	// comment at the arm site.
+	bool isSpacePanHeld() const;
 
 	float inspectorwindow_width;
 	float inspectorwindow_height;
@@ -850,6 +889,12 @@ private:
 	ofVec2f cuePanelResizeStartSize;
 	ofVec2f selectionEnd;
 	vector<int> selectedBoxIndices;
+	// What was selected when the current marquee started. Empty for a plain
+	// drag, so the marquee replaces; populated for a shift drag, so the marquee
+	// unions on top. It has to be remembered separately because
+	// updateBoxSelection runs every frame of the drag and rebuilds from the
+	// rectangle - there is nothing left to add to by then.
+	vector<int> selectionBase;
 
 	// Vamos a ver si podemos emular un doble click.
 	bool isDoubleClick;

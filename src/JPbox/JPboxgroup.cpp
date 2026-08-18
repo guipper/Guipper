@@ -4015,7 +4015,12 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 	}
 	vector<JPbox *> &activeBoxes = *activeBoxesPtr;
 
-	if (mousebutton == OF_MOUSE_BUTTON_MIDDLE || mousebutton == OF_MOUSE_BUTTON_RIGHT)
+	// viewportPanning first, so a space-armed LEFT drag pans. It is only ever
+	// set by the arm site and is cleared whenever the mouse is not pressed, so
+	// it means exactly "this drag is a pan".
+	if (viewportPanning ||
+		mousebutton == OF_MOUSE_BUTTON_MIDDLE ||
+		mousebutton == OF_MOUSE_BUTTON_RIGHT)
 	{
 		viewportPanning = true;
 		panViewport(screenMouse - previousScreenMouse);
@@ -4335,8 +4340,14 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 
 			if (hitBox && clickedIndex >= 0)
 			{
-				// Match main view behavior: only clear selection if clicking a non-selected box
-				if (!isBoxSelected(clickedIndex))
+				// Match main view behavior: ctrl toggles this one box, and
+				// otherwise clicking a box that is not part of the selection
+				// replaces it.
+				if (selectionToggleModifier())
+				{
+					toggleBoxSelection(clickedIndex);
+				}
+				else if (!isBoxSelected(clickedIndex))
 				{
 					clearSelection();
 				}
@@ -4356,7 +4367,12 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				groupInspectorIndex = -1;
 				groupPreviewBoxIndex = -1;
 				setControllers();
+				// Same rule as the main view; the two must not drift.
+				vector<int> keep;
+				if (selectionAddModifier()) keep = selectedBoxIndices;
 				clearSelection();
+				selectionBase = keep;
+				selectedBoxIndices = keep;
 				draw_SelectionRect = true;
 				lastMouseClick = canvasMouse;
 				selectionEnd = lastMouseClick;
@@ -4384,7 +4400,19 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		JPdragobject::clearMouseOverride();
 	}
 
-	if ((mouseButton == OF_MOUSE_BUTTON_MIDDLE || mouseButton == OF_MOUSE_BUTTON_RIGHT) && !mouseOverGui())
+	// Space + drag pans, as in every design program. Space is read HERE, when the
+	// drag is armed, and never again for the rest of the gesture: the drag path
+	// below keys off viewportPanning instead. Re-reading the key mid-drag would
+	// let a marquee that had already started turn into a pan, leaving
+	// draw_SelectionRect armed but no longer updated - so releasing would apply
+	// a stale selection.
+	//
+	// Reaching the same viewportPanning flag as the middle/right drag is what
+	// makes this small: box grabbing is already suppressed while it is set, and
+	// it is already cleared on release.
+	if ((mouseButton == OF_MOUSE_BUTTON_MIDDLE ||
+		mouseButton == OF_MOUSE_BUTTON_RIGHT ||
+		isSpacePanHeld()) && !mouseOverGui())
 	{
 		viewportPanning = true;
 		return;
@@ -4616,7 +4644,13 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			else if (boxes[i]->mouseOver())
 			{
 				arafue = true;
-				if (!isBoxSelected(i))
+				if (selectionToggleModifier())
+				{
+					// Ctrl click adds or removes this one box and leaves the
+					// rest of the selection alone.
+					toggleBoxSelection(i);
+				}
+				else if (!isBoxSelected(i))
 				{
 					clearSelection();
 				}
@@ -4640,11 +4674,18 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		openguinumber = -1;
 		if (mouseButton == OF_MOUSE_BUTTON_LEFT)
 		{
+			// Shift keeps what was already selected and the marquee adds to it.
+			// Without the modifier the drag replaces, which is the old
+			// behaviour and still the default.
+			const bool addToSelection = selectionAddModifier();
+			vector<int> keep;
+			if (addToSelection) keep = selectedBoxIndices;
 			clearSelection();
+			selectionBase = keep;
 			// Clear activeFlag on all boxes when deselecting
 			for (int i = 0; i < (int)boxes.size(); i++)
 			{
-				boxes[i]->activeFlag = false;
+				boxes[i]->activeFlag = addToSelection && isBoxSelected(i);
 			}
 			draw_SelectionRect = true;
 			lastMouseClick = canvasMouse;
@@ -9145,6 +9186,33 @@ void JPboxgroup::setExternalGuiHitTest(std::function<bool(float, float)> fn)
 	externalGuiHitTest = std::move(fn);
 }
 
+void JPboxgroup::setExternalTextCaptureTest(std::function<bool()> fn)
+{
+	externalTextCaptureTest = std::move(fn);
+}
+
+
+bool JPboxgroup::spacePanAllowed() const
+{
+	// Space is a pan gesture on the canvas but a printable character in a field,
+	// so the gesture has to stand down whenever anything is capturing text.
+	// JPboxgroup only knows its own two fields; the rest live in ofApp and are
+	// reported through the hook.
+	if (wantsKeyCapture()) return false;
+	if (externalTextCaptureTest && externalTextCaptureTest()) return false;
+	return true;
+}
+
+bool JPboxgroup::isSpacePanHeld() const
+{
+	// openFrameworks already tracks every held key, not just the modifiers -
+	// ofEvents inserts e.key on press and erases it on release - so this needs
+	// no key state of its own. ofApp::keyReleased is an empty body and the
+	// project has no held-key concept at all, which is what the naive version
+	// would have had to invent.
+	return ofGetKeyPressed(' ') && spacePanAllowed();
+}
+
 void JPboxgroup::closeInspector()
 {
 	openguinumber = -1;
@@ -9231,6 +9299,7 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 	bx->setonoff(true);
 	bx->setPos(_x, _y);
 	boxes.push_back(bx);
+
 	// Adding a box is a direct, permanent operation (not part of cue staging): it
 	// is kept whether the cue is applied or closed. Rebuild the draft so the new
 	// box is included and editable, but do NOT register it as cue-added (which
@@ -9327,12 +9396,43 @@ void JPboxgroup::clear()
 	*activerender = 0;
 	boxes.clear();
 	controllers.clear();
+	// The group view is an index PATH into the vector that was just emptied.
+	// Leaving it set meant that loading a session while inside a group left
+	// getActivePreset indexing past the end - reachable today through the OSC
+	// load command, not just from the UI.
+	activeGroupPath.clear();
 }
 
 void JPboxgroup::clearSelection()
 {
 	selectedBoxIndices.clear();
+	selectionBase.clear();
 	draw_SelectionRect = false;
+}
+
+bool JPboxgroup::selectionAddModifier() const
+{
+	return ofGetKeyPressed(OF_KEY_SHIFT);
+}
+
+bool JPboxgroup::selectionToggleModifier() const
+{
+	return ofGetKeyPressed(OF_KEY_CONTROL);
+}
+
+void JPboxgroup::toggleBoxSelection(int index)
+{
+	if (index < 0) return;
+	auto it = std::find(selectedBoxIndices.begin(), selectedBoxIndices.end(),
+		index);
+	if (it != selectedBoxIndices.end())
+	{
+		selectedBoxIndices.erase(it);
+	}
+	else
+	{
+		selectedBoxIndices.push_back(index);
+	}
 }
 
 bool JPboxgroup::boxIntersectsSelection(JPbox *box) const
@@ -9355,17 +9455,33 @@ bool JPboxgroup::boxIntersectsSelection(JPbox *box) const
 		   selectionBottom >= boxTop;
 }
 
-void JPboxgroup::updateBoxSelection()
+void JPboxgroup::mergeSelection(vector<int> &target, const vector<int> &base,
+								const vector<int> &marqueeHits)
 {
-	selectedBoxIndices.clear();
-	vector<JPbox *> &activeBoxes = isGroupViewActive() ? getActivePreset()->boxes : boxes;
-	for (int i = 0; i < (int)activeBoxes.size(); i++)
+	target = base;
+	for (int index : marqueeHits)
 	{
-		if (boxIntersectsSelection(activeBoxes[i]))
+		// The base may already hold it. A box listed twice is moved twice by the
+		// multi-drag, so it drifts away from the rest at double speed.
+		if (std::find(target.begin(), target.end(), index) == target.end())
 		{
-			selectedBoxIndices.push_back(i);
+			target.push_back(index);
 		}
 	}
+}
+
+void JPboxgroup::updateBoxSelection()
+{
+	// Built from selectionBase, NOT from empty. This runs on every frame of the
+	// drag and re-derives the rectangle from scratch, so anything a shift-drag
+	// meant to keep would be gone the moment the mouse moved.
+	vector<JPbox *> &activeBoxes = isGroupViewActive() ? getActivePreset()->boxes : boxes;
+	vector<int> hits;
+	for (int i = 0; i < (int)activeBoxes.size(); i++)
+	{
+		if (boxIntersectsSelection(activeBoxes[i])) hits.push_back(i);
+	}
+	mergeSelection(selectedBoxIndices, selectionBase, hits);
 }
 
 bool JPboxgroup::isBoxSelected(int index) const
@@ -10952,6 +11068,12 @@ JPbox_preset *JPboxgroup::getActivePreset() const
 {
 	if (activeGroupPath.empty()) return nullptr;
 
+	// Checked like every deeper level below. Only this first one was trusted,
+	// which is exactly the one that survives a clear() with a stale path.
+	if (activeGroupPath[0] < 0 || activeGroupPath[0] >= (int)boxes.size())
+	{
+		return nullptr;
+	}
 	JPbox *box = boxes[activeGroupPath[0]];
 	if (box == nullptr || box->getTipo() != JPbox::PRESETBOX) return nullptr;
 	JPbox_preset *preset = static_cast<JPbox_preset *>(box);
