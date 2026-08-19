@@ -1152,6 +1152,24 @@ void JPbox_paint::clearCel(int frameIndex, int layerIndex)
 	recordEdit(edit);
 }
 
+void JPbox_paint::replaceStrokes(int frameIndex, int layerIndex, const std::vector<JPPaintStroke> &newStrokes)
+{
+	if (frameIndex < 0 || frameIndex >= (int)doc.frames.size()) return;
+	if (layerIndex < 0 || layerIndex >= (int)doc.layers.size()) return;
+	const std::vector<JPPaintStroke> *list =
+		jp_paint::strokeListFor(doc, frameIndex, layerIndex);
+	if (list == nullptr) return;
+
+	JPPaintEdit edit;
+	edit.kind = JPPaintEdit::ReplaceStrokes;
+	edit.frameIndex = frameIndex;
+	edit.layerIndex = layerIndex;
+	edit.previousLayer.sharedStrokes = *list;
+	edit.layer.sharedStrokes = newStrokes;
+	if (!jp_paint::applyEdit(doc, edit)) return;
+	recordEdit(edit);
+}
+
 void JPbox_paint::toggleLayerBackground(int index)
 {
 	if (index < 0 || index >= (int)doc.layers.size()) return;

@@ -925,7 +925,6 @@ private:
 	{
 		PAINT_ACTION_UNDO = 0,
 		PAINT_ACTION_REDO,
-		PAINT_ACTION_CLEAR,
 		PAINT_ACTION_COUNT
 	};
 	enum PaintTransport
@@ -973,7 +972,15 @@ private:
 	ofRectangle getPaintTransportBounds(int slot) const;
 	ofRectangle getPaintSizeSliderBounds() const;
 	ofRectangle getPaintColorSwatchBounds() const;
+	ofRectangle getPaintQuickSwatchBounds(int index) const;
+	ofRectangle getPaintLayerDeleteBounds(int row) const;
 	ofRectangle getPaintPickerBounds() const;
+	void endSelectionDrawing(JPbox_paint *box);
+	void moveSelectedStrokes(JPbox_paint *box, const ofVec2f &offset);
+	void rotateSelectedStrokes(JPbox_paint *box, float angle);
+	void scaleSelectedStrokes(JPbox_paint *box, float scaleFactor);
+	void duplicateSelectedStrokes(JPbox_paint *box);
+	void deleteSelectedStrokes(JPbox_paint *box);
 	// The timeline: an Aseprite style grid with layers down the left gutter and
 	// frames across the grid. It replaced a separate filmstrip and layer column,
 	// which meant layer state read from two places at once.
@@ -1091,6 +1098,21 @@ private:
 	float paintPickerHue = 0.0f;
 	float paintPickerSat = 0.0f;
 	float paintPickerVal = 1.0f;
+
+	// Selection state
+	bool paintSelectionActive = false;
+	std::vector<ofVec2f> paintSelectionPath;
+	ofRectangle paintSelectionBounds;
+	std::vector<int> paintSelectedStrokeIndices;
+	bool paintSelectionDragging = false;
+	ofVec2f paintSelectionDragStartUv;
+	ofVec2f paintSelectionDragOffset;
+	bool paintSelectionRotating = false;
+	float paintSelectionRotation = 0.0f;
+	float paintSelectionRotateStartAngle = 0.0f;
+	bool paintSelectionScaling = false;
+	float paintSelectionScale = 1.0f;
+	float paintSelectionScaleStartDist = 1.0f;
 
 
 	// ofFbo boxesdrawing;

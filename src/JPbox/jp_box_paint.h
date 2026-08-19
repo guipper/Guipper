@@ -103,6 +103,7 @@ public:
 	// passed in rather than read from the document - what the timeline's
 	// right-click needs.
 	void clearCel(int frameIndex, int layerIndex);
+	void replaceStrokes(int frameIndex, int layerIndex, const std::vector<JPPaintStroke> &newStrokes);
 	int currentLayer() const;
 	void setCurrentLayer(int index);
 	void addLayer();

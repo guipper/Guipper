@@ -40,7 +40,9 @@ enum class JPPaintTool
 	Fill,
 	Eyedropper,
 	// Freehand that closes to its start point on release and fills.
-	Lasso
+	Lasso,
+	RectSelect,
+	LassoSelect
 };
 
 struct JPPaintPoint
@@ -666,7 +668,8 @@ struct JPPaintEdit
 		AddLayer,
 		DeleteLayer,
 		MoveLayer,
-		SetLayerProps
+		SetLayerProps,
+		ReplaceStrokes
 	};
 
 	int kind = AddStroke;
@@ -868,6 +871,15 @@ namespace jp_paint
 			bumpAllFrames(doc);
 			return true;
 		}
+		case JPPaintEdit::ReplaceStrokes:
+		{
+			std::vector<JPPaintStroke> *list =
+				strokeListFor(doc, edit.frameIndex, edit.layerIndex);
+			if (list == nullptr) return false;
+			*list = edit.layer.sharedStrokes;
+			touchLayer(doc, edit.frameIndex, edit.layerIndex);
+			return true;
+		}
 		default:
 			return false;
 		}
@@ -1005,6 +1017,15 @@ namespace jp_paint
 			target.background = edit.previousLayer.background;
 			target.sharedStrokes = edit.previousLayer.sharedStrokes;
 			bumpAllFrames(doc);
+			return true;
+		}
+		case JPPaintEdit::ReplaceStrokes:
+		{
+			std::vector<JPPaintStroke> *list =
+				strokeListFor(doc, edit.frameIndex, edit.layerIndex);
+			if (list == nullptr) return false;
+			*list = edit.previousLayer.sharedStrokes;
+			touchLayer(doc, edit.frameIndex, edit.layerIndex);
 			return true;
 		}
 		default:
