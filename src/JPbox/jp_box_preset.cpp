@@ -123,6 +123,10 @@ void JPbox_preset::setup(string _directory, string _name)
 		{
 			bx = new JPbox_framedifference();
 		}
+		else if (directory.getValue().find("paint") != std::string::npos)
+		{
+			bx = new JPbox_paint();
+		}
 		if (bx == nullptr)
 		{
 			// Nothing matched: a build without NDI/Spout, or a save that

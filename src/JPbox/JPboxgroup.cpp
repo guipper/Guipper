@@ -167,28 +167,36 @@ void JPboxgroup::layoutMediaInspector(JPMediaInspectable *media, float &cursorY)
 	const float w=inspectorBodyViewport.width-inspectorLayout.contentPadding*2.0f;
 	const bool playable=media->mediaPlayable() || !media->mediaReady();
 	mediaInspectorPlayableBuilt=playable;
-	const float h=playable?176.0f:42.0f;
+	// A paint canvas IS the render size, so it has nothing to fit itself to.
+	// Dropping the row rather than disabling it also reclaims its height, which
+	// is why every rect below is placed relative to transportTop.
+	const bool hasFit=media->mediaHasFit();
+	const float fitRow=hasFit?32.0f:0.0f;
+	const float h=(playable?176.0f:42.0f)-(32.0f-fitRow);
 	mediaInspector.card.set(x,cursorY,w,h);
 	const float gap=5.0f, button=24.0f, top=cursorY+9.0f;
-	mediaInspector.fit.set(x+8,top,w-16,button);
+	// Zero size is the codebase-wide "hidden AND unhittable" convention.
+	if(hasFit)mediaInspector.fit.set(x+8,top,w-16,button);
+	else mediaInspector.fit.set(0,0,0,0);
 	if(playable)
 	{
 		float bx=x+8;
-		const float transportTop=top+32;
+		const float transportTop=top+fitRow;
 		auto placeTransport=[&](ofRectangle&r,float width){r.set(bx,transportTop,width,button);bx+=width+gap;};
 		placeTransport(mediaInspector.restart,button);placeTransport(mediaInspector.previous,button);
 		placeTransport(mediaInspector.play,32);placeTransport(mediaInspector.next,button);placeTransport(mediaInspector.direction,button);
-		mediaInspector.loop.set(x+8,top+64,78,button);
-		mediaInspector.speed.set(x+91,top+64,76,button);
-		mediaInspector.mute.set(x+w-126,top+64,42,button);
-		mediaInspector.volume.set(x+w-79,top+64,71,button);
-		mediaInspector.timeline.set(x+8,top+100,w-16,18);
+		mediaInspector.loop.set(x+8,transportTop+32,78,button);
+		mediaInspector.speed.set(x+91,transportTop+32,76,button);
+		mediaInspector.mute.set(x+w-126,transportTop+32,42,button);
+		mediaInspector.volume.set(x+w-79,transportTop+32,71,button);
+		mediaInspector.timeline.set(x+8,transportTop+68,w-16,18);
 		const float rangeGroupWidth=108.0f,rangeButtonWidth=30.0f,rangeGap=3.0f;
-		mediaInspector.inButton.set(x+8,top+126,rangeButtonWidth,24);
-		mediaInspector.inField.set(mediaInspector.inButton.getRight()+rangeGap,top+126,
+		const float rangeTop=transportTop+94;
+		mediaInspector.inButton.set(x+8,rangeTop,rangeButtonWidth,24);
+		mediaInspector.inField.set(mediaInspector.inButton.getRight()+rangeGap,rangeTop,
 			rangeGroupWidth-rangeButtonWidth-rangeGap,24);
-		mediaInspector.outButton.set(x+w-116,top+126,rangeButtonWidth,24);
-		mediaInspector.outField.set(mediaInspector.outButton.getRight()+rangeGap,top+126,
+		mediaInspector.outButton.set(x+w-116,rangeTop,rangeButtonWidth,24);
+		mediaInspector.outField.set(mediaInspector.outButton.getRight()+rangeGap,rangeTop,
 			rangeGroupWidth-rangeButtonWidth-rangeGap,24);
 	}
 	else
@@ -266,6 +274,11 @@ void JPboxgroup::drawMediaInspector(JPMediaInspectable *target)
 	};
 	ofSetColor(ofColor(COL_BG_PANEL,245));ofDrawRectRounded(mediaInspector.card,4);
 	ofNoFill();ofSetColor(ofColor(COL_BORDER_MUTED,180));ofDrawRectRounded(mediaInspector.card,4);ofFill();
+	// Zero width means the source has no fit mode (a paint canvas). The rest of
+	// this function tests widths before drawing; this block predates that and
+	// would paint a five segment strip at the origin.
+	if(mediaInspector.fit.width>0)
+	{
 	static const char *fits[]={"CUSTOM","FIT","FILL","STRETCH","ORIGINAL"};
 	const int fitIndex=std::clamp((int)s.fitMode,0,4);
 	ofSetColor(COL_BG_INPUT);ofDrawRectRounded(mediaInspector.fit,3);
@@ -287,6 +300,7 @@ void JPboxgroup::drawMediaInspector(JPMediaInspectable *target)
 	ofNoFill();ofSetColor(COL_ACCENT_CYAN);ofDrawRectRounded(mediaInspector.fit,3);ofFill();
 	jp_tooltip::draw("Object fit",mediaInspector.fit.x,mediaInspector.fit.y,
 		mediaInspector.fit.width,mediaInspector.fit.height);
+	}
 	if(mediaInspector.play.width<=0)return;
 	iconButton(mediaInspector.restart,MediaIcon::Restart);
 	iconButton(mediaInspector.previous,MediaIcon::Previous);
@@ -455,6 +469,10 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	{
 		nombre = "frameDif";
 	}
+	else if (directory.find("paint") != std::string::npos)
+	{
+		nombre = "PAINT";
+	}
 #ifdef NDI
 	else if (directory.find("ndiReceiver") != std::string::npos)
 	{
@@ -510,6 +528,10 @@ JPbox *JPboxgroup::createBoxForDirectory(const string &directory, string &name) 
 	else if (directory.find("framedifference") != std::string::npos)
 	{
 		bx = new JPbox_framedifference();
+	}
+	else if (directory.find("paint") != std::string::npos)
+	{
+		bx = new JPbox_paint();
 	}
 #ifdef NDI
 	else if (directory.find("ndiReceiver") != std::string::npos)
@@ -613,6 +635,10 @@ void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 	inspectorwindow_height = 0; // Le tiro un valor solo para ver que onda.
 
 	setinspectorsetactiveparams();
+
+	// Per-user data, not composition data, so it loads once here rather than
+	// with a session.
+	loadPaintPalette();
 
 	// boxesdrawing.allocate(ofGetWidth(), ofGetHeight());
 
@@ -893,6 +919,7 @@ void JPboxgroup::draw()
 	// a panel that still swallowed their clicks.
 	drawCuePreview();
 	drawMappingPanel();
+	drawPaintPanel();
 
 }
 void JPboxgroup::drawCuePreview()
@@ -3099,6 +3126,7 @@ void JPboxgroup::draw_paramswindow()
 			inspectorBox->getTipo() == inspectorBox->SHADERBOX &&
 			shaderEditor != nullptr && !inspectorBox->dir.empty();
 		const bool hasMappingAction = isMappingShaderBox(inspectorBox);
+		const bool hasPaintAction = isPaintBox(inspectorBox);
 		const bool hasCameraAction =
 			inspectorBox->getTipo() == inspectorBox->CAMBOX ||
 			inspectorBox->getTipo() == inspectorBox->KINECT2BOX;
@@ -3106,6 +3134,7 @@ void JPboxgroup::draw_paramswindow()
 		const float defaultActionWidth = 42.0f;
 		const float saveDefaultActionWidth = 62.0f;
 		const float mappingActionWidth = 48.0f;
+		const float paintActionWidth = 52.0f;
 		const float editActionWidth = 48.0f;
 		const float cameraActionWidth = 48.0f;
 		// Every box owns an FBO, so any of them can drive a live output.
@@ -3126,6 +3155,7 @@ void JPboxgroup::draw_paramswindow()
 		const int headerActionCount =
 			(hasRandomAction ? 3 : 0) +
 			(hasMappingAction ? 1 : 0) +
+			(hasPaintAction ? 1 : 0) +
 			(hasCameraAction ? 1 : 0) +
 			(hasEditAction ? 1 : 0) +
 			(hasToOutputAction ? 1 : 0);
@@ -3133,6 +3163,7 @@ void JPboxgroup::draw_paramswindow()
 			(hasRandomAction ? randomActionWidth : 0.0f) +
 			(hasRandomAction ? defaultActionWidth + saveDefaultActionWidth : 0.0f) +
 			(hasMappingAction ? mappingActionWidth : 0.0f) +
+			(hasPaintAction ? paintActionWidth : 0.0f) +
 			(hasCameraAction ? cameraActionWidth : 0.0f) +
 			(hasEditAction ? editActionWidth : 0.0f) +
 			(hasToOutputAction ? toOutputActionWidth : 0.0f) +
@@ -3153,6 +3184,8 @@ void JPboxgroup::draw_paramswindow()
 		inspectorsavedefault.width = inspectorsavedefault.height = 0.0f;
 		mappingbutton.width = 0.0f;
 		mappingbutton.height = 0.0f;
+		paintbutton.width = 0.0f;
+		paintbutton.height = 0.0f;
 		editbutton.width = 0.0f;
 		editbutton.height = 0.0f;
 		camerarefreshbutton.width = 0.0f;
@@ -3208,6 +3241,11 @@ void JPboxgroup::draw_paramswindow()
 		if (hasMappingAction)
 		{
 			placeHeaderAction(mappingbutton, mappingActionWidth);
+		}
+
+		if (hasPaintAction)
+		{
+			placeHeaderAction(paintbutton, paintActionWidth);
 		}
 
 		if (hasToOutputAction)
@@ -3446,6 +3484,9 @@ void JPboxgroup::draw_paramswindow()
 		drawHeaderAction(mappingbutton, "MAP",
 			mappingEditActive ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY,
 			COL_ACCENT_CYAN, "Edit mapping corners");
+		drawHeaderAction(paintbutton, "PAINT",
+			paintEditActive ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY,
+			COL_ACCENT_CYAN, "Open the drawing and animation editor");
 		// Same on/off treatment MAP uses: drawHeaderAction has no notion of a
 		// toggled state, so a lit idle colour is what carries it.
 		drawHeaderAction(tooutputbutton, toOutputLabel,
@@ -3535,6 +3576,12 @@ void JPboxgroup::update(){
 	if (mappingEditActive && getMappingEditBox() == nullptr)
 	{
 		endMappingEdit();
+	}
+	// Same rule, same reason: the panel holds an index, so a deleted box or a
+	// changed selection makes it resolve to nothing rather than dangle.
+	if (paintEditActive && getPaintEditBox() == nullptr)
+	{
+		endPaintEdit();
 	}
 	ofVec2f canvasMouse = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
 	
@@ -3774,6 +3821,10 @@ void JPboxgroup::update(){
 		outlet_cualestaagarrado = -1;
 		draw_SelectionRect = false;
 		viewportPanning = false;
+		// Same reasoning as viewportPanning above: a release that never arrived
+		// (a window losing focus mid-drag) would otherwise leave the paint panel
+		// holding the pointer and swallowing every later gesture.
+		paintPanelPointerCaptured = false;
 		lastMouseClick = canvasMouse;
 	}
 	// ESTO HABLA DE LO MAL QUE PROGRAMAS : MIRA MIRA LO QUE ES ESTO SE FUE A LA MEIRDA EL CODIGO :
@@ -4039,12 +4090,15 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 	}
 	vector<JPbox *> &activeBoxes = *activeBoxesPtr;
 
-	// viewportPanning first, so a space-armed LEFT drag pans. It is only ever
-	// set by the arm site and is cleared whenever the mouse is not pressed, so
-	// it means exactly "this drag is a pan".
-	if (viewportPanning ||
-		mousebutton == OF_MOUSE_BUTTON_MIDDLE ||
-		mousebutton == OF_MOUSE_BUTTON_RIGHT)
+	// viewportPanning ONLY - never self-armed from the button here.
+	//
+	// This used to also fire on a bare MIDDLE or RIGHT button, which meant a drag
+	// could become a pan without ever passing the `!mouseOverGui()` check the arm
+	// site does. A right-drag that started inside the paint, mapping or cue panel
+	// therefore panned the graph behind it: the panel consumed the PRESS, then
+	// returned the drag, and this branch took it. The arm site already sets the
+	// flag for middle and right on the canvas, so nothing legitimate is lost.
+	if (viewportPanning)
 	{
 		viewportPanning = true;
 		panViewport(screenMouse - previousScreenMouse);
@@ -4229,8 +4283,8 @@ bool JPboxgroup::handleMediaInspectorClick()
 	else if(mediaInspector.previous.inside(m))target->mediaStep(-1);
 	else if(mediaInspector.play.inside(m))s.playing=!s.playing;
 	else if(mediaInspector.next.inside(m))target->mediaStep(1);
-	else if(mediaInspector.direction.inside(m))s.reverse=!s.reverse;
-	else if(mediaInspector.loop.inside(m))s.loopMode=(JPMediaLoopMode)(((int)s.loopMode+1)%3);
+	else if(mediaInspector.direction.inside(m))jp_media::toggleDirection(s);
+	else if(mediaInspector.loop.inside(m))jp_media::cycleLoopMode(s);
 	else if(mediaInspector.speed.inside(m)){mediaRangeDragging=3;s.rate=ofMap(m.x,mediaInspector.speed.x,mediaInspector.speed.getRight(),.25f,4.0f,true);}
 	else if(mediaInspector.mute.inside(m)&&target->mediaHasAudio())s.muted=!s.muted;
 	else if(mediaInspector.volume.inside(m)&&target->mediaHasAudio()){mediaRangeDragging=4;s.volume=ofMap(m.x,mediaInspector.volume.x,mediaInspector.volume.getRight(),0,1,true);}
@@ -4458,6 +4512,11 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		if (mappingbutton.mouseGrab() && isMappingShaderBox(inspectorBox))
 		{
 			toggleMappingEdit();
+			return;
+		}
+		if (paintbutton.mouseGrab() && isPaintBox(inspectorBox))
+		{
+			togglePaintEdit();
 			return;
 		}
 		if (inspectorsetactive.mouseGrab())
@@ -4900,6 +4959,10 @@ bool JPboxgroup::mouseScrolled(int x, int y, float scrollX, float scrollY)
 {
 	if (mappingEditActive &&
 		updateAdvancedMappingMouseScrolled(x, y, scrollY))
+	{
+		return true;
+	}
+	if (paintEditActive && update_paintMouseScrolled(x, y, scrollY))
 	{
 		return true;
 	}
@@ -5475,6 +5538,10 @@ void JPboxgroup::load(string _dirinput)
 		else if (directory.getValue().find("framedifference") != std::string::npos)
 		{
 			bx = new JPbox_framedifference();
+		}
+		else if (directory.getValue().find("paint") != std::string::npos)
+		{
+			bx = new JPbox_paint();
 		}
 
 		if (bx == nullptr)
@@ -7821,6 +7888,10 @@ JPbox *JPboxgroup::cloneBoxForCueDraft(int index)
 	const int type = source->getTipo();
 	if (type == source->SHADERBOX ||
 		type == source->FRAMEDIFFERENCEBOX ||
+		// A plain JPbox stand-in has no document, so a staged edit to a drawing
+		// would be silently dropped. copyEditableBoxState carries the strokes
+		// across via copyCustomStateFrom.
+		type == source->PAINTBOX ||
 		type == source->PRESETBOX)
 	{
 		string draftName = source->name + "_cue_draft";
@@ -8921,7 +8992,11 @@ void JPboxgroup::renderPresetDraftMirroringLive(JPbox_preset *draftPreset, JPbox
 			continue;
 		}
 		int t = l->getTipo();
-		if (t == JPbox::SHADERBOX || t == JPbox::FRAMEDIFFERENCEBOX)
+		if (t == JPbox::SHADERBOX || t == JPbox::FRAMEDIFFERENCEBOX ||
+			// A paint box has no device to re-open: it rasterizes its own
+			// document, so re-rendering is both cheap and the only way a staged
+			// stroke shows up in the preview.
+			t == JPbox::PAINTBOX)
 		{
 			// Re-render with staged params, reading its (draft internal) inputs.
 			d->update();
@@ -9337,6 +9412,7 @@ bool JPboxgroup::mouseOverGui()
 	const float my = ofGetMouseY();
 	// Surfaces this class owns...
 	if (getMappingPanelBounds().inside(mx, my)) return true;
+	if (getPaintPanelBounds().inside(mx, my)) return true;
 	if (getInspectorBounds().inside(mx, my)) return true;
 	if (getCuePanelBounds().inside(mx, my)) return true;
 	// ...plus everything stacked above the canvas that it does not own. This
@@ -11500,7 +11576,9 @@ void JPboxgroup::cancelTabRename()
 
 bool JPboxgroup::wantsKeyCapture() const
 {
-	return tabRenaming || mediaTimeFieldFocus != 0;
+	// The paint panel is in here so DEL reaches paintKeyPressed and deletes a
+	// CEL. Without it the key falls through to ofApp and deletes the box.
+	return tabRenaming || mediaTimeFieldFocus != 0 || paintWantsKeyCapture();
 }
 
 void JPboxgroup::keyPressed(int key)
@@ -11544,6 +11622,11 @@ void JPboxgroup::keyPressed(int key)
 			mediaTimeFieldReplaceOnType=false;
 			mediaTimeFieldBuffer.push_back((char)key);
 		}
+		return;
+	}
+	if (!tabRenaming && paintWantsKeyCapture())
+	{
+		paintKeyPressed(key);
 		return;
 	}
 	if (!tabRenaming)

@@ -22,6 +22,8 @@ class JPShaderEditor; // forward declaration
 #endif
 #include "jp_box_preset.h"
 #include "jp_box_framedifference.h"
+#include "jp_box_paint.h"
+#include "../JPutils/jp_viewtransform.h"
 
 #ifdef NDI
 #include "jp_box_ndi.h"
@@ -98,6 +100,48 @@ public:
 	void update_mouseDragged(int mousebutton); // Lo que hace cuando arrastras en la pantalla.
 	void update_mousePressed(int mouseButton); // Lo que hace cada vez que haces click(ponele).
 	void update_mouseReleased(int mouseButton);
+	// ---- paint editor (JPboxgroup_paint.cpp) ----
+	//
+	// The palette is public, unlike the rest of the panel's state, because it is
+	// USER data with its own file on disk rather than composition data - and
+	// because losing it silently is the failure worth a regression test.
+	vector<ofFloatColor> paintPalette;
+	void addPaintPaletteColor();
+	void removePaintPaletteColor(int index);
+	void loadPaintPalette();
+	void savePaintPalette() const;
+
+	bool isPaintEditActive() const;
+	bool togglePaintEdit();
+	void endPaintEdit();
+	// What ESC calls. Dismisses the colour picker if it is open, otherwise the
+	// whole panel, so one press peels one layer - the behaviour the picker would
+	// need its own surface and z-order constant for otherwise.
+	void dismissPaintTopLayer();
+	ofRectangle getPaintPanelBounds() const;
+	void drawPaintPanel();
+	bool update_paintMousePressed(int mouseButton);
+	bool update_paintMouseDragged(int mouseButton);
+	bool update_paintMouseReleased(int mouseButton);
+	bool update_paintMouseScrolled(int x, int y, float scrollY);
+	// True while the panel owns the keyboard. Without this the global DEL
+	// branch in ofApp deletes the box being drawn on.
+	bool paintWantsKeyCapture() const;
+	void paintKeyPressed(int key);
+	bool paintUndoShortcut(bool redo);
+	// True while a field in this panel owns the keyboard. Every tool shortcut has
+	// to stand down, or typing a hex digit would swap the brush - and ofApp reads
+	// it through anyFieldFocused so the global chords stand down too.
+	bool paintTextCaptureActive() const;
+	bool isPaintHelpOpen() const;
+	void closePaintHelp();
+	ofRectangle getPaintHelpRect() const;
+	// The HELP screen's language lives on ofApp, so the panel asks for it the way
+	// it asks for the text-capture state.
+	void setHelpLanguageProvider(std::function<int()> provider);
+	void setPaintPanelLayout(float x, float y, float w, float h);
+	void getPaintPanelLayout(float &x, float &y, float &w, float &h) const;
+
 	bool update_mappingMousePressed(int mouseButton);
 	bool update_mappingMouseDragged(int mouseButton);
 	bool update_mappingMouseReleased(int mouseButton);
@@ -678,6 +722,7 @@ private:
 	JPBang inspectorsavedefault;
 	JPBang editbutton;                   // Boton EDIT para abrir el shader en el editor de codigo
 	JPBang mappingbutton;                // Enters the corner-pin mapping editor
+	JPBang paintbutton;                  // Opens the paint canvas editor
 	JPBang camerarefreshbutton;          // Re-enumerates camera capture devices
 	JPBang tooutputbutton;               // Marks the box selectable as a live output source
 	std::array<ofRectangle, 3> kinectStreamButtons;
@@ -874,6 +919,179 @@ private:
 	int advancedMappingPendingDeleteNode = -1;
 	ofVec2f advancedMappingViewPanStartMouse;
 	ofVec2f advancedMappingViewPanStartCenter;
+
+	// ------------------------------------------------------------ paint editor
+	enum PaintAction
+	{
+		PAINT_ACTION_UNDO = 0,
+		PAINT_ACTION_REDO,
+		PAINT_ACTION_CLEAR,
+		PAINT_ACTION_COUNT
+	};
+	enum PaintTransport
+	{
+		PAINT_TRANSPORT_PREV = 0,
+		PAINT_TRANSPORT_PLAY,
+		PAINT_TRANSPORT_NEXT,
+		PAINT_TRANSPORT_DIRECTION,
+		PAINT_TRANSPORT_FPS,
+		PAINT_TRANSPORT_LOOP,
+		PAINT_TRANSPORT_ONION,
+		PAINT_TRANSPORT_REFERENCE,
+		PAINT_TRANSPORT_COUNT
+	};
+	// What a drag in flight is doing. One int rather than a bool per gesture,
+	// the same shape mediaRangeDragging uses.
+	enum PaintDrag
+	{
+		PAINT_DRAG_NONE = 0,
+		PAINT_DRAG_STROKE,
+		PAINT_DRAG_SIZE,
+		PAINT_DRAG_FPS,
+		PAINT_DRAG_CEL,
+		PAINT_DRAG_PICKER_SV,
+		PAINT_DRAG_PICKER_HUE,
+		PAINT_DRAG_PICKER_ALPHA,
+		PAINT_DRAG_LAYER,
+		PAINT_DRAG_LAYER_OPACITY
+	};
+
+	JPbox_paint *getPaintEditBox();
+	const JPbox_paint *getPaintEditBox() const;
+	bool isPaintBox(JPbox *box) const;
+	bool paintPanKeyHeld() const;
+	bool mouseOverPaintPanel() const;
+	bool mouseOverPaintPanelHeader() const;
+	bool mouseOverPaintPanelResizeHandle() const;
+	void setupDefaultPaintPanelLayout();
+	void clampPaintPanelLayout();
+	void clampPaintView();
+	JPViewTransform paintView() const;
+	ofRectangle getPaintCanvasArea() const;
+	ofRectangle getPaintToolBounds(int tool) const;
+	ofRectangle getPaintActionBounds(int action) const;
+	ofRectangle getPaintTransportBounds(int slot) const;
+	ofRectangle getPaintSizeSliderBounds() const;
+	ofRectangle getPaintColorSwatchBounds() const;
+	ofRectangle getPaintPickerBounds() const;
+	// The timeline: an Aseprite style grid with layers down the left gutter and
+	// frames across the grid. It replaced a separate filmstrip and layer column,
+	// which meant layer state read from two places at once.
+	float paintTimelineHeight() const;
+	float paintLayerRowsTop() const;
+	ofRectangle getPaintTimelineBounds() const;
+	ofRectangle getPaintTimelineGutterBounds() const;
+	ofRectangle getPaintTimelineGridBounds() const;
+	ofRectangle getPaintFrameHeaderBounds(int frame) const;
+	ofRectangle getPaintCompositeCellBounds(int frame) const;
+	ofRectangle getPaintCellBounds(int frame, int row) const;
+	// Visual row order: 0 is the TOP of the stack, which is the last document
+	// index. paintLayerAtRow converts back.
+	ofRectangle getPaintGutterRowBounds(int row) const;
+	ofRectangle getPaintLayerEyeBounds(int row) const;
+	ofRectangle getPaintLayerBadgeBounds(int row) const;
+	ofRectangle getPaintLayerOpacityBounds(int row) const;
+	ofRectangle getPaintLayerAddBounds() const;
+	ofRectangle getPaintLayerNameBounds(int row) const;
+	ofRectangle getPaintHexFieldBounds() const;
+	void commitPaintHex();
+	void cancelPaintHex();
+	void beginPaintLayerRename(int layerIndex);
+	void commitPaintLayerRename();
+	void cancelPaintLayerRename();
+	bool paintHandleTextKey(int key);
+	int paintLayerAtRow(int row) const;
+	int paintLayerRowAtScreen(const ofVec2f &mouse) const;
+	bool paintCellAtScreen(const ofVec2f &mouse, int &frame, int &row) const;
+	void drawPaintTimeline(JPbox_paint *box);
+	ofRectangle getPaintAddCelBounds() const;
+	ofRectangle getPaintPanelCloseBounds() const;
+	void drawPaintCanvas(JPbox_paint *box);
+	void drawPaintToolbar(JPbox_paint *box);
+	void drawPaintTransport(JPbox_paint *box);
+	void drawPaintPicker();
+	void drawPaintHelp();
+	ofRectangle getPaintHelpCloseBounds() const;
+	ofRectangle getPaintHelpIconBounds() const;
+	bool handlePaintPickerPressed(const ofVec2f &mouse);
+	void updatePaintPickerFromDrag(const ofVec2f &mouse);
+	void applyPaintPickerColor();
+	ofRectangle getPaintSwatchBounds(int index) const;
+	ofRectangle getPaintPaletteAddBounds() const;
+	void beginPaintStroke(JPbox_paint *box, const ofVec2f &uv);
+	void extendPaintStroke(JPbox_paint *box, const ofVec2f &uv);
+	void endPaintStroke(JPbox_paint *box);
+	void markPaintChanged();
+	int paintCelAtScreen(const ofVec2f &mouse) const;
+	void clampPaintTimelineScroll();
+
+	bool paintEditActive = false;
+	int paintTargetIndex = -1;
+	vector<int> paintTargetGroupPath;
+	float paintPanelX = 24.0f;
+	float paintPanelY = 96.0f;
+	float paintPanelW = 640.0f;
+	float paintPanelH = 520.0f;
+	bool paintPanelDragging = false;
+	bool paintPanelResizing = false;
+	bool paintPanelPointerCaptured = false;
+	ofVec2f paintPanelDragStartMouse;
+	ofVec2f paintPanelDragStartPos;
+	ofVec2f paintPanelResizeStartSize;
+	// Holds a JPPaintTool. There is no second tool enum: this used to shadow
+	// JPPaintTool and was assigned straight into the persisted stroke.tool, so
+	// the two could never be rearranged independently without corrupting saves.
+	int paintTool = (int)JPPaintTool::Brush;
+	// The bucket's region tolerance. The brush-size slider edits this instead of
+	// the size while the Fill tool is selected - one slider, two meanings, the
+	// way a paint program's context-sensitive slider works.
+	float paintFillTolerance = 0.12f;
+	ofFloatColor paintColor = ofFloatColor(1.0f, 1.0f, 1.0f, 1.0f);
+	float paintBrushSize = 0.012f;
+	bool paintReferenceVisible = true;
+	float paintViewZoom = 1.0f;
+	ofVec2f paintViewCenter = ofVec2f(0.5f, 0.5f);
+	bool paintViewPanning = false;
+	// Which button armed the pan. A pan must not be ended by a release of some
+	// other button, and Ctrl+drag pans on LEFT while middle-drag pans on MIDDLE,
+	// so "the matching button" is no longer a constant.
+	int paintViewPanButton = -1;
+	ofVec2f paintViewPanStartMouse;
+	ofVec2f paintViewPanStartCenter;
+	int paintDragMode = PAINT_DRAG_NONE;
+	int paintDragCelFrom = -1;
+	int paintDragCelTo = -1;
+	int paintDragLayerFrom = -1;
+	int paintDragLayerTo = -1;
+	// A shape tool needs the press point for its whole drag; the brush needs it
+	// only for the first sample.
+	ofVec2f paintStrokeStartUv;
+	// Horizontal scroll over frames, vertical over layers.
+	float paintFilmstripScroll = 0.0f;
+	float paintTimelineScrollY = 0.0f;
+	bool paintPickerOpen = false;
+	bool paintHelpOpen = false;
+	// The hex field and the layer rename are the only text entry in this panel.
+	// Both go through paintHandleTextKey, and both make paintTextCaptureActive
+	// true so the tool shortcuts stand down.
+	bool paintHexFocus = false;
+	string paintHexBuffer;
+	int paintHexCursor = 0;
+	bool paintHexSelectAll = false;
+	int paintRenamingLayer = -1;
+	string paintRenameBuffer;
+	int paintRenameCursor = 0;
+	bool paintRenameSelectAll = false;
+	// The panel consumes its own presses, so JPboxgroup::isDoubleClick never gets
+	// computed for them - it needs its own.
+	uint64_t paintLastClickMillis = 0;
+	int paintLastClickRow = -1;
+	float paintHelpScroll = 0.0f;
+	std::function<int()> helpLanguageProvider;
+	float paintPickerHue = 0.0f;
+	float paintPickerSat = 0.0f;
+	float paintPickerVal = 1.0f;
+
 
 	// ofFbo boxesdrawing;
 

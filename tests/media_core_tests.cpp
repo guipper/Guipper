@@ -88,6 +88,53 @@ namespace
 			!state.reverse, "Ping-pong folds large overshoot through a narrow custom range");
 	}
 
+	// Leaving PingPong used to keep playing backwards forever: applyBoundary flips
+	// `reverse` at every bounce, and cycling the loop mode only wrote loopMode, so
+	// `reverse` was left wherever the last bounce put it. This is a bug shared by
+	// video, GIF and the paint canvas - one struct, one handler.
+	void testDirectionIntent()
+	{
+		JPMediaState state;
+		state.loopMode = JPMediaLoopMode::PingPong;
+		state.rangeIn = 0.0f;
+		state.rangeOut = 1.0f;
+
+		// A bounce flips the live direction but must not touch the intent.
+		float position = 1.1f;
+		expect(jp_media::applyBoundary(state, position), "PingPong hits the end");
+		expect(state.reverse, "PingPong reverses on the bounce");
+		expect(!state.userReverse, "a bounce does not rewrite the user's intent");
+
+		// THE regression: leaving PingPong restores forward playback.
+		jp_media::cycleLoopMode(state);
+		expect(state.loopMode == JPMediaLoopMode::Once,
+			"cycling steps PingPong -> Once");
+		expect(!state.reverse, "leaving PingPong restores forward playback");
+
+		// An explicit direction choice survives every later mode change.
+		jp_media::toggleDirection(state);
+		expect(state.reverse && state.userReverse,
+			"the direction button sets both the live direction and the intent");
+		jp_media::cycleLoopMode(state);
+		jp_media::cycleLoopMode(state);
+		expect(state.reverse, "an explicit reverse survives mode changes");
+		expect(state.loopMode == JPMediaLoopMode::PingPong,
+			"three cycles return to PingPong");
+
+		// And a bounce out of that intent is still recoverable.
+		position = -0.1f;
+		expect(jp_media::applyBoundary(state, position), "reverse PingPong hits IN");
+		expect(!state.reverse, "the bounce flipped it forward");
+		jp_media::setLoopMode(state, JPMediaLoopMode::Loop);
+		expect(state.reverse, "leaving PingPong restores the chosen reverse");
+
+		// Toggling back to forward is symmetric.
+		jp_media::toggleDirection(state);
+		expect(!state.reverse && !state.userReverse, "direction toggles back");
+		jp_media::setLoopMode(state, JPMediaLoopMode::PingPong);
+		expect(!state.reverse, "forward intent is restored too");
+	}
+
 	void testRangeCapture()
 	{
 		JPMediaState state;
@@ -279,6 +326,7 @@ int main()
 	testOnce();
 	testLoop();
 	testPingPong();
+	testDirectionIntent();
 	testRangeCapture();
 	testTransformRank();
 	testLegacyTransform();

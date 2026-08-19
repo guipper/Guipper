@@ -24,3 +24,6 @@ tests/audio_core_tests
 tests/audio_core_tests_tsan
 tests/media_core_tests
 tests/media_core_tests_tsan
+tests/paint_core_tests
+tests/paint_core_tests_tsan
+bin/data/paint_palette.xml

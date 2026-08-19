@@ -23,6 +23,16 @@ struct JPMediaState
 	float volume = 1.0f;
 	bool playing = true;
 	bool reverse = false;
+	// The direction the USER chose, as distinct from the direction playback is
+	// currently running in.
+	//
+	// PingPong OWNS `reverse` - applyBoundary flips it at every boundary - so
+	// after a bounce or two `reverse` no longer records intent, it records where
+	// the bounce happened to leave it. Leaving PingPong therefore has to restore
+	// an intent that `reverse` cannot supply: without this, switching from
+	// PingPong to Loop mid-bounce loops backwards forever, and switching to Once
+	// snaps to the in-point and stops dead.
+	bool userReverse = false;
 	bool muted = true;
 };
 
@@ -195,6 +205,27 @@ namespace jp_media
 		s.rangeOut = std::clamp(s.position, 0.0f, 1.0f);
 		if (s.rangeOut < s.rangeIn) s.rangeIn = s.rangeOut;
 		normalize(s);
+	}
+
+	// The ONLY places that should write `reverse` from a user action. Both keep
+	// `userReverse` in step, which is what makes leaving PingPong recoverable.
+	inline void toggleDirection(JPMediaState &s)
+	{
+		s.reverse = !s.reverse;
+		s.userReverse = s.reverse;
+	}
+
+	inline void setLoopMode(JPMediaState &s, JPMediaLoopMode mode)
+	{
+		s.loopMode = mode;
+		// Restores the user's direction, discarding whatever PingPong's last
+		// bounce left behind.
+		s.reverse = s.userReverse;
+	}
+
+	inline void cycleLoopMode(JPMediaState &s)
+	{
+		setLoopMode(s, (JPMediaLoopMode)(((int)s.loopMode + 1) % 3));
 	}
 
 	inline bool applyBoundary(JPMediaState &s, float &position)

@@ -192,6 +192,9 @@ bool ofApp::anyFieldFocused() const
 {
 	return focusedOptionsField >= 0 || focusedLiveOutputField >= 0 ||
 		focusedSplitField >= 0 || boxes.tabRenaming ||
+		// The paint panel's hex field and layer rename. Listing them here is what
+		// keeps Ctrl+C, Ctrl+V and the space-pan gesture from firing mid-word.
+		boxes.paintTextCaptureActive() ||
 		(pantallaActiva == SHADER_INDEX && shaderSearchFocused);
 }
 
@@ -248,6 +251,28 @@ void ofApp::registerSurfaces()
 	s.isOpen = [this]() { return boxes.isMappingEditActive(); };
 	s.close = [this]() { boxes.endMappingEdit(); };
 	s.bounds = [this]() { return boxes.getMappingPanelBounds(); };
+	surfaces.add(s);
+
+	s = JPSurface();
+	s.id = s.order = SURFACE_PAINT_PANEL;
+	s.isOpen = [this]() { return boxes.isPaintEditActive(); };
+	// endPaintEdit dismisses the colour picker first when it is open, so ESC
+	// peels one layer at a time without the picker needing its own surface -
+	// and getPaintPanelBounds grows to cover the popover, so clicks behind it
+	// are blocked either way.
+	s.close = [this]() { boxes.dismissPaintTopLayer(); };
+	s.bounds = [this]() { return boxes.getPaintPanelBounds(); };
+	surfaces.add(s);
+
+	// The paint panel's shortcuts dialog, registered separately from the panel so
+	// the app-wide ESC rule closes it FIRST and its modality blocks the window
+	// while it is up - the same shape as the MIDI conflict prompt.
+	s = JPSurface();
+	s.id = s.order = SURFACE_PAINT_HELP;
+	s.modal = true;
+	s.isOpen = [this]() { return boxes.isPaintHelpOpen(); };
+	s.close = [this]() { boxes.closePaintHelp(); };
+	s.bounds = [this]() { return boxes.getPaintHelpRect(); };
 	surfaces.add(s);
 
 	s = JPSurface();
@@ -318,6 +343,7 @@ void ofApp::registerSurfaces()
 	// Space pans the canvas, but space is also a character. anyFieldFocused does
 	// not cover the save modal, so both are asked here rather than letting the
 	// canvas guess.
+	boxes.setHelpLanguageProvider([this]() { return language; });
 	boxes.setExternalTextCaptureTest([this]() {
 		return anyFieldFocused() || saveModalActive;
 	});
@@ -5249,6 +5275,11 @@ void ofApp::keyPressed(int key) {
 		if (key == 'i') {
 			boxes.addBox("framedifference");
 		}
+		// b for brush. The only box whose contents come from the user rather
+		// than from a file or a device.
+		if (key == 'b') {
+			boxes.addBox("paint");
+		}
 		if (key == 'c') {
 			// boxes.addCamBox();
 			boxes.addBox("cam");
@@ -5469,6 +5500,22 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		(controlDown &&
 			(e.keycode == GLFW_KEY_V || e.key == 'v' || e.key == 'V'));
 
+	// Undo lives here rather than in keyPressed for the same reason Ctrl+D and
+	// Ctrl+S do: the legacy character callback never sees modifiers.
+	const bool undoShortcut =
+		e.key == 26 ||
+		(controlDown &&
+			(e.keycode == GLFW_KEY_Z || e.key == 'z' || e.key == 'Z'));
+	if (undoShortcut && pantallaActiva == NODOS &&
+		!shaderEditor.wantsKeyCapture() && !anyFieldFocused() &&
+		!saveModalActive) {
+		// Shift makes it a redo. Tested BEFORE the clipboard chords so an undo
+		// can never be read as something else.
+		if (boxes.paintUndoShortcut(e.hasModifier(OF_KEY_SHIFT))) {
+			return;
+		}
+	}
+
 	// GLFW reports Ctrl+letter as a normal letter plus a modifier on Linux.
 	if (copyShortcut && pantallaActiva == NODOS) {
 		boxes.copySelectedBoxes();
@@ -5538,6 +5585,9 @@ void ofApp::mouseDragged(int x, int y, int button) {
 
 	if (pantallaActiva == NODOS) {
 		if (boxes.update_mappingMouseDragged(button)) {
+			return;
+		}
+		if (boxes.update_paintMouseDragged(button)) {
 			return;
 		}
 		if (boxes.update_cueMouseDragged(button)) {
@@ -5667,6 +5717,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 
 	if (pantallaActiva == NODOS) {
 		if (boxes.update_mappingMousePressed(button)) {
+			return;
+		}
+		if (boxes.update_paintMousePressed(button)) {
 			return;
 		}
 		if (boxes.update_cueMousePressed(button)) {
@@ -5971,6 +6024,10 @@ void ofApp::mouseReleased(int x, int y, int button) {
 		return;
 	}
 	if (pantallaActiva == NODOS) {
+		if (boxes.update_paintMouseReleased(button)) {
+			saveSettings();
+			return;
+		}
 		if (boxes.update_mappingMouseReleased(button)) {
 			saveSettings();
 			return;

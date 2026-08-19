@@ -36,6 +36,9 @@ namespace jp_help
 	{
 		Global,
 		Nodes,
+		// Live only while the paint editor panel is open. Its own scope so the
+		// panel's shortcuts modal can filter the table down to exactly these.
+		Paint,
 		Import,
 		Editor,
 		Midi,
@@ -80,6 +83,7 @@ namespace jp_help
 		switch (s)
 		{
 		case Scope::Nodes:    return "NODES";
+		case Scope::Paint:    return "PAINT";
 		case Scope::Import:   return "IMPORT";
 		case Scope::Editor:   return "EDITOR";
 		case Scope::Midi:     return "MIDI";
@@ -236,6 +240,9 @@ namespace jp_help
 			"Tambien solo en NODES. IMPORT (4) es la forma navegable de agregar shaders.", Scope::Nodes),
 		E("c", "Camera input", "Entrada de camara", Scope::Nodes),
 		E("i", "Frame difference", "Diferencia de cuadros", Scope::Nodes),
+		E("b", "Paint canvas: draw by hand, animate cel by cel",
+			"Lienzo de dibujo: dibuja a mano, anima cuadro por cuadro",
+			Scope::Nodes),
 #ifdef NDI
 		E("n", "NDI receiver", "Receptor NDI", Scope::Nodes),
 #endif
@@ -248,6 +255,75 @@ namespace jp_help
 			Scope::Nodes),
 		E("Shift+P", "PointerCloud: Kinect V2 point cloud",
 			"PointerCloud: nube de puntos del Kinect V2", Scope::Nodes),
+		GAP(),
+
+		// ------------------------------------------------------------------
+		H("PAINT CANVAS EDITOR", "EDITOR DEL LIENZO DE DIBUJO"),
+		N("Add a paint box with b, select it, then press PAINT in the inspector header. These keys are live only while that panel is open.",
+			"Agrega una caja paint con b, seleccionala y presiona PAINT en el encabezado del inspector. Estas teclas andan solo con ese panel abierto.",
+			Scope::Paint),
+		E("b / e", "Brush / eraser", "Pincel / goma", Scope::Paint),
+		E("l / r / o", "Line / rectangle / ellipse",
+			"Linea / rectangulo / elipse", Scope::Paint),
+		E("p", "Pen: draw an open sweep and it closes to its start point and fills on release",
+			"Pluma: dibuja un trazo abierto y al soltar se cierra con el punto inicial y se rellena",
+			Scope::Paint),
+		E("g", "Fill: click a region to flood it. The size slider becomes the tolerance while this tool is selected",
+			"Relleno: clic en una zona para rellenarla. El deslizador de tamano pasa a ser la tolerancia con esta herramienta",
+			Scope::Paint),
+		E("Alt+right click", "Eyedropper: samples the colour under the cursor without leaving the tool you are holding",
+			"Cuentagotas: toma el color bajo el cursor sin salir de la herramienta que tenes en la mano",
+			Scope::Paint),
+		E("Hex", "The field at the bottom of the colour picker takes #RGB, #RRGGBB or #RRGGBBAA. Enter applies, Esc cancels, and it shows the current colour when not being edited",
+			"El campo al pie del selector acepta #RGB, #RRGGBB o #RRGGBBAA. Enter aplica, Esc cancela, y muestra el color actual cuando no lo estas editando",
+			Scope::Paint),
+		E("[ / ]", "Brush size down / up",
+			"Reducir / aumentar el tamano del pincel", Scope::Paint),
+		E("Ctrl+Z", "Undo. Add Shift to redo",
+			"Deshacer. Con Shift, rehacer", Scope::Paint),
+		E(", / .", "Previous / next cel", "Cuadro anterior / siguiente",
+			Scope::Paint),
+		E("Space", "Play or pause the animation",
+			"Reproducir o pausar la animacion", Scope::Paint),
+		E("Direction", "The arrow in the transport row plays forwards or backwards. Ping-pong flips it as it bounces; changing the playback mode restores the direction you chose",
+			"La flecha en la fila de transporte reproduce hacia adelante o atras. Ping-pong la invierte al rebotar; al cambiar el modo se restaura la direccion que elegiste",
+			Scope::Paint),
+		E("n / d", "New cel / duplicate the current cel",
+			"Cuadro nuevo / duplicar el cuadro actual", Scope::Paint),
+		E("Del", "Delete the current cel, never the box",
+			"Borrar el cuadro actual, nunca la caja", Scope::Paint),
+		E("- / =", "Shorten or lengthen how long this cel is held",
+			"Acortar o alargar cuanto dura este cuadro", Scope::Paint),
+		E("Shift+O", "Cycle the onion skin range",
+			"Cambiar el rango del papel cebolla", Scope::Paint),
+		E("< / >", "Select the layer below / above",
+			"Seleccionar la capa de abajo / de arriba", Scope::Paint),
+		E("Double click", "On a layer's name, rename it. Enter applies, Esc cancels",
+			"Sobre el nombre de una capa, renombrarla. Enter aplica, Esc cancela",
+			Scope::Paint),
+		E("Timeline", "Rows are layers, columns are frames, like Aseprite. Click a cell to select that frame AND that layer; a filled marker means the layer has strokes there. All layers always share the same frames",
+			"Las filas son capas y las columnas cuadros, como en Aseprite. Clic en una celda selecciona ese cuadro Y esa capa; un marcador lleno indica que la capa tiene trazos ahi. Todas las capas comparten siempre los mismos cuadros",
+			Scope::Paint),
+		E("Drag", "A frame number reorders frames, a layer row reorders layers. The wheel scrolls frames over the grid and layers over the left gutter",
+			"Un numero de cuadro reordena cuadros, una fila de capa reordena capas. La rueda desplaza cuadros sobre la grilla y capas sobre la columna izquierda",
+			Scope::Paint),
+		E("BG", "Marks a layer as the background: it is drawn from one shared set of strokes on EVERY frame, so a static backdrop is drawn once instead of copied onto each frame. Its row shows as a single band rather than per-frame markers",
+			"Marca una capa como fondo: se dibuja desde un solo conjunto de trazos en TODOS los cuadros, asi un fondo fijo se dibuja una vez en lugar de copiarse en cada cuadro",
+			Scope::Paint),
+		E("?", "This list. Esc closes it, Esc again closes the panel",
+			"Esta lista. Esc la cierra, Esc otra vez cierra el panel", Scope::Paint),
+		E("Right click", "On a frame number, delete the frame. On a grid cell, clear just that cel. On a layer row, delete the layer. On a palette swatch, remove it",
+			"Sobre un numero de cuadro, borrar el cuadro. Sobre una celda, limpiar solo esa celda. Sobre una capa, borrarla. Sobre un color de la paleta, quitarlo",
+			Scope::Paint),
+		E("Palette", "Click the colour swatch to open the picker, then + to save the current colour. The palette is kept in data/paint_palette.xml and survives restarts",
+			"Clic en el color abre el selector, y + guarda el color actual. La paleta se guarda en data/paint_palette.xml y sobrevive reinicios",
+			Scope::Paint),
+		E("Ctrl+drag", "Pan the canvas. Middle drag does the same, scroll to zoom",
+			"Mover el lienzo. El boton del medio hace lo mismo, rueda para acercar",
+			Scope::Paint),
+		N("The texture input is a tracing reference: it shows in the editor and is never part of what the box outputs.",
+			"La entrada de textura es una referencia para calcar: se ve en el editor y nunca forma parte de lo que la caja saca.",
+			Scope::Paint),
 		GAP(),
 
 		// ------------------------------------------------------------------

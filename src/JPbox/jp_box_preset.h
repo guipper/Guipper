@@ -17,6 +17,7 @@
 #endif
 #include "jp_box_video.h"
 #include "jp_box_framedifference.h"
+#include "jp_box_paint.h"
 //#include "ofxSpout2Receiver.h"
 #include "../JPutils/jp_parametergroup.h"
 #include "../JPutils/jp_fbohandler.h"

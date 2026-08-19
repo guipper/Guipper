@@ -5,6 +5,7 @@
 #include "../JPbox/jp_box_image.h"
 #include "../JPbox/jp_box_video.h"
 #include "../JPbox/jp_media.h"
+#include "../JPbox/jp_box_paint.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -2906,6 +2907,505 @@ bool jp_persistence_test::run(ofApp &app)
 			fail("addBox(\"cam\") built a camdepth box");
 		app.boxes.clear();
 	}
+	// The paint box is the only box whose CONTENTS live in the savefile rather
+	// than in a file it points at, so a persistence bug here loses the user's
+	// drawing outright. Every other box would come back merely misconfigured.
+	bool paintBox = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			paintBox = false;
+			ofLogNotice("paint") << why;
+		};
+
+		app.boxes.clear();
+		app.boxes.addBox("paint", 40, 40);
+		if (app.boxes.boxes.empty()) fail("addBox(\"paint\") built nothing");
+		else
+		{
+			JPbox_paint *box = dynamic_cast<JPbox_paint *>(app.boxes.boxes.front());
+			if (box == nullptr) fail("addBox(\"paint\") built the wrong type");
+			else
+			{
+				if (box->getTipo() != JPbox::PAINTBOX)
+					fail("tipo is " + ofToString(box->getTipo()) + ", expected " +
+						ofToString((int)JPbox::PAINTBOX));
+				if (box->name.find("PAINT") == string::npos)
+					fail("makeNameFromDirectory did not name it PAINT");
+
+				const char *needed[] = {"opacity", "playhead", "scrub"};
+				for (const char *n : needed)
+					if (box->parameters.indexOfName(n) < 0)
+						fail(string("missing parameter: ") + n);
+
+				// A canvas is the render size, so the inspector must not offer
+				// it a fit mode - the row is laid out unconditionally otherwise.
+				auto *media = dynamic_cast<JPMediaInspectable *>(box);
+				if (media == nullptr) fail("not JPMediaInspectable - no transport UI");
+				else if (media->mediaHasFit()) fail("reports a fit mode");
+
+				// One inlet, and it is the tracing reference.
+				if (box->fbohandlergroup.getSize() != 1)
+					fail("expected exactly one inlet, got " +
+						ofToString(box->fbohandlergroup.getSize()));
+				else if (box->fbohandlergroup.getName(0) != "reference")
+					fail("inlet is named " + box->fbohandlergroup.getName(0));
+
+				// Build a two cel drawing: a stroke on each, a hold, a colour,
+				// an eraser and an off-canvas point.
+				JPPaintStroke first;
+				first.r = 1.0f; first.g = 0.25f; first.b = 0.0f; first.a = 0.75f;
+				first.size = 0.031f;
+				for (int i = 0; i < 40; ++i)
+					first.points.push_back({0.1f + i * 0.02f, 0.5f, 1.0f});
+				box->commitStroke(first);
+
+				box->addCel(false);
+				JPPaintStroke second;
+				second.erase = true;
+				// Deliberately outside 0..1: the encoded range overshoots the
+				// canvas so an overhanging stroke is not flattened onto the edge.
+				second.points.push_back({-0.2f, 0.5f, 0.5f});
+				second.points.push_back({1.2f, 0.5f, 1.5f});
+				box->commitStroke(second);
+				box->setCelHold(1, 4);
+				box->document().fps = 24.0f;
+				box->document().onionBefore = 2;
+				box->mediaState().loopMode = JPMediaLoopMode::PingPong;
+
+				if (box->document().frames.size() != 2)
+					fail("addCel did not produce a second cel");
+				if (jp_paint::tickCount(box->document()) != 5)
+					fail("tickCount is " +
+						ofToString(jp_paint::tickCount(box->document())) +
+						", expected 5 with a hold of 4");
+
+				const string path = directory + "paint.xml";
+				app.boxes.save(path);
+				app.boxes.clear();
+				app.boxes.load(path);
+				JPbox_paint *back = app.boxes.boxes.empty() ? nullptr :
+					dynamic_cast<JPbox_paint *>(app.boxes.boxes.front());
+				if (back == nullptr) fail("round trip lost the box or its type");
+				else
+				{
+					const JPPaintDocument &d = back->document();
+					if (d.frames.size() != 2) fail("round trip lost a cel");
+					else
+					{
+						if (d.frames[1].hold != 4) fail("round trip lost the hold");
+						if (d.frames[0].layers[0].strokes.size() != 1 ||
+							d.frames[1].layers[0].strokes.size() != 1)
+							fail("round trip lost a stroke");
+						else
+						{
+							const JPPaintStroke &a = d.frames[0].layers[0].strokes[0];
+							if (a.points.size() != first.points.size())
+								fail("round trip changed the point count");
+							if (std::abs(a.r - 1.0f) > 0.01f ||
+								std::abs(a.g - 0.25f) > 0.01f ||
+								std::abs(a.a - 0.75f) > 0.01f)
+								fail("round trip lost the stroke colour");
+							if (std::abs(a.size - 0.031f) > 0.0005f)
+								fail("round trip lost the stroke size");
+							if (!a.points.empty() &&
+								std::abs(a.points[0].x - 0.1f) > 0.001f)
+								fail("round trip moved a point");
+
+							const JPPaintStroke &b = d.frames[1].layers[0].strokes[0];
+							if (!b.erase) fail("round trip lost the eraser flag");
+							if (b.points.size() == 2 &&
+								(b.points[0].x > -0.19f || b.points[1].x < 1.19f))
+								fail("round trip clamped an off-canvas point");
+							if (b.points.size() == 2 &&
+								std::abs(b.points[1].width - 1.5f) > 0.02f)
+								fail("round trip lost a width multiplier above 1");
+						}
+						// Ids have to clear everything the file contained or two
+						// cels could share a raster cache slot.
+						int highest = 0;
+						for (const JPPaintFrame &f : d.frames)
+							highest = std::max(highest, f.id);
+						if (d.nextFrameId <= highest)
+							fail("nextFrameId did not clear the loaded ids");
+					}
+					if (std::abs(d.fps - 24.0f) > 0.01f) fail("round trip lost fps");
+					if (d.onionBefore != 2) fail("round trip lost the onion range");
+					if (back->mediaState().loopMode != JPMediaLoopMode::PingPong)
+						fail("round trip lost the loop mode");
+					// Undo describes a document that no longer exists.
+					if (back->canUndo()) fail("load left a stale undo history");
+
+					// Duplication, grouping and cue staging all go through this.
+					app.boxes.addBox("paint", 200, 40);
+					JPbox_paint *copy = app.boxes.boxes.size() < 2 ? nullptr :
+						dynamic_cast<JPbox_paint *>(app.boxes.boxes[1]);
+					if (copy == nullptr) fail("could not build a second paint box");
+					else
+					{
+						copy->copyCustomStateFrom(back);
+						if (copy->document().frames.size() != 2 ||
+							copy->document().frames[0].layers[0].strokes.size() != 1)
+							fail("copyCustomStateFrom did not carry the drawing");
+						if (copy->canUndo())
+							fail("copyCustomStateFrom inherited an undo history");
+					}
+				}
+
+				// Undo has to reach across cel structure, not just strokes.
+				app.boxes.clear();
+				app.boxes.addBox("paint", 40, 40);
+				JPbox_paint *fresh = app.boxes.boxes.empty() ? nullptr :
+					dynamic_cast<JPbox_paint *>(app.boxes.boxes.front());
+				if (fresh != nullptr)
+				{
+					JPPaintStroke mark;
+					mark.points.push_back({0.5f, 0.5f, 1.0f});
+					fresh->commitStroke(mark);
+					fresh->addCel(true);
+					if (fresh->document().frames.size() != 2)
+						fail("addCel(duplicate) did not add a cel");
+					else if (fresh->document().frames[1].layers[0].strokes.size() != 1)
+						fail("addCel(duplicate) did not copy the strokes");
+					if (!fresh->undo()) fail("undo refused the cel add");
+					else if (fresh->document().frames.size() != 1)
+						fail("undo did not remove the added cel");
+					if (!fresh->undo()) fail("undo refused the stroke");
+					else if (!fresh->document().frames[0].layers[0].strokes.empty())
+						fail("undo did not remove the stroke");
+					if (fresh->undo()) fail("undo ran past the start of history");
+					if (!fresh->redo() || !fresh->redo())
+						fail("redo did not replay both edits");
+					else if (fresh->document().frames.size() != 2)
+						fail("redo did not restore the cel");
+					// The last cel is load bearing: the editor assumes one exists.
+					app.boxes.clear();
+					app.boxes.addBox("paint", 40, 40);
+					JPbox_paint *single = dynamic_cast<JPbox_paint *>(
+						app.boxes.boxes.front());
+					single->deleteCel(0);
+					if (single->document().frames.size() != 1)
+						fail("deleted the only cel");
+				}
+			}
+		}
+		// Wiring the reference inlet used to take the program down: the panel
+		// asked JPFbohandlerGroup::getFboPointer for the producer's framebuffer,
+		// which returns an ofFbo BY VALUE, and kept a pointer into that
+		// temporary copy. The copy died at the end of the statement - and its
+		// destructor released GL handles the producing box was still using.
+		{
+			app.boxes.clear();
+			app.boxes.addBox("paint", 40, 40);
+			app.boxes.addBox("paint", 240, 40);
+			if (app.boxes.boxes.size() < 2) fail("could not build two paint boxes");
+			else
+			{
+				JPbox *producer = app.boxes.boxes[0];
+				JPbox_paint *consumer =
+					dynamic_cast<JPbox_paint *>(app.boxes.boxes[1]);
+				if (consumer == nullptr) fail("second box is not a paint box");
+				else
+				{
+					if (consumer->referenceFbo() != nullptr)
+						fail("an unwired reference inlet resolved to something");
+					consumer->fbohandlergroup.setFboPointer(
+						&producer->fbo, &producer->name, 0);
+					ofFbo *resolved = consumer->referenceFbo();
+					if (resolved == nullptr)
+						fail("a wired reference inlet resolved to nothing");
+					// THE regression: it has to be the producer's own
+					// framebuffer, not the address of a temporary copy of it.
+					else if (resolved != &producer->fbo)
+						fail("reference inlet handed back a copy, not the producer");
+					// The path that crashed, end to end.
+					consumer->setonoff(true);
+					consumer->update();
+					if (!producer->fbo.isAllocated())
+						fail("the producer's framebuffer was released by the lookup");
+					consumer->fbohandlergroup.deleteFboPointer(0);
+					if (consumer->referenceFbo() != nullptr)
+						fail("unlinking left the reference inlet resolving");
+				}
+			}
+			app.boxes.clear();
+		}
+
+		// The eyedropper. Worth its own case because it depends on two things
+		// this box has already got wrong once: the readback's row order, and the
+		// fact that cels are stored PREMULTIPLIED. Miss the divide and every
+		// sampled translucent colour comes back darkened.
+		{
+			app.boxes.clear();
+			app.boxes.addBox("paint", 40, 40);
+			JPbox_paint *box = dynamic_cast<JPbox_paint *>(app.boxes.boxes.front());
+			if (box == nullptr) fail("could not build a paint box to sample");
+			else
+			{
+				box->document().bgR = 0.25f; box->document().bgG = 0.5f;
+				box->document().bgB = 0.75f; box->document().bgA = 1.0f;
+				auto block = [&](float r, float g, float b, float a,
+					float x0, float x1)
+				{
+					JPPaintStroke st;
+					st.r = r; st.g = g; st.b = b; st.a = a;
+					st.tool = (int)JPPaintTool::Lasso;
+					// A rectangle in the TOP half, so a flipped row order would
+					// sample the background instead and be caught.
+					st.points.push_back(JPPaintPoint{x0, 0.05f, 1.0f});
+					st.points.push_back(JPPaintPoint{x1, 0.05f, 1.0f});
+					st.points.push_back(JPPaintPoint{x1, 0.40f, 1.0f});
+					st.points.push_back(JPPaintPoint{x0, 0.40f, 1.0f});
+					st.points.push_back(st.points.front());
+					box->commitStroke(st);
+				};
+				block(1.0f, 0.4f, 0.0f, 1.0f, 0.05f, 0.45f);   // opaque
+				block(0.0f, 0.8f, 1.0f, 0.5f, 0.55f, 0.95f);   // half alpha
+
+				ofFloatColor sampled;
+				if (!box->sampleColor(0.25f, 0.22f, sampled))
+					fail("sampling an opaque mark failed");
+				else if (std::abs(sampled.r - 1.0f) > 0.02f ||
+					std::abs(sampled.g - 0.4f) > 0.02f ||
+					std::abs(sampled.b - 0.0f) > 0.02f ||
+					std::abs(sampled.a - 1.0f) > 0.02f)
+					fail("an opaque mark sampled as " + ofToString(sampled.r, 2) +
+						"," + ofToString(sampled.g, 2) + "," +
+						ofToString(sampled.b, 2) + "," + ofToString(sampled.a, 2));
+
+				// THE regression: rgb must come back at full strength, not scaled
+				// by alpha.
+				if (!box->sampleColor(0.75f, 0.22f, sampled))
+					fail("sampling a translucent mark failed");
+				else
+				{
+					if (std::abs(sampled.a - 0.5f) > 0.03f)
+						fail("a half alpha mark sampled alpha " +
+							ofToString(sampled.a, 3));
+					if (std::abs(sampled.g - 0.8f) > 0.03f ||
+						std::abs(sampled.b - 1.0f) > 0.03f)
+						fail("a translucent sample was not un-premultiplied: got " +
+							ofToString(sampled.g, 3) + "," +
+							ofToString(sampled.b, 3));
+				}
+
+				// Bare canvas returns the background, which is what is on screen
+				// there.
+				if (!box->sampleColor(0.5f, 0.85f, sampled))
+					fail("sampling bare canvas failed");
+				else if (std::abs(sampled.r - 0.25f) > 0.02f ||
+					std::abs(sampled.b - 0.75f) > 0.02f)
+					fail("bare canvas did not sample the background colour");
+
+				// Off canvas is a refusal, not a guess.
+				if (box->sampleColor(-0.1f, 0.5f, sampled))
+					fail("sampling off the left edge returned a colour");
+				if (box->sampleColor(0.5f, 1.4f, sampled))
+					fail("sampling below the canvas returned a colour");
+			}
+			app.boxes.clear();
+		}
+
+		// Layers, and the path that matters most: a savefile written BEFORE
+		// layers existed has its strokes hanging straight off <frame>. If that
+		// does not land on layer 0, every drawing made in round one is lost.
+		{
+			const string legacyPath = directory + "paint_legacy.xml";
+			ofFile legacy(legacyPath, ofFile::WriteOnly);
+			legacy << "<activerender>0</activerender>\n";
+			legacy << "<box>\n";
+			legacy << "  <nombre>OLDPAINT</nombre>\n";
+			legacy << "  <x>40</x>\n  <y>40</y>\n";
+			legacy << "  <directory>paint</directory>\n";
+			legacy << "  <onoff>1</onoff>\n  <bypass>0</bypass>\n";
+			legacy << "  <paint>\n";
+			legacy << "    <fps>18</fps>\n";
+			legacy << "    <frame>\n      <hold>2</hold>\n      <id>0</id>\n";
+			// x 0.0 -> 16384, x 1.0 -> 49151 under the -0.5..1.5 encoding.
+			legacy << "      <stroke><color>1 0 0 1</color><size>0.02</size>"
+				"<erase>0</erase><tool>0</tool>"
+				"<pts>16384,16384,128 49151,49151,128</pts></stroke>\n";
+			legacy << "    </frame>\n";
+			legacy << "    <frame>\n      <hold>1</hold>\n      <id>1</id>\n";
+			legacy << "      <stroke><color>0 1 0 1</color><size>0.03</size>"
+				"<erase>1</erase><tool>1</tool>"
+				"<pts>20000,20000,128</pts></stroke>\n";
+			legacy << "    </frame>\n";
+			legacy << "  </paint>\n</box>\n";
+			legacy.close();
+
+			app.boxes.clear();
+			app.boxes.load(legacyPath);
+			JPbox_paint *old = app.boxes.boxes.empty() ? nullptr :
+				dynamic_cast<JPbox_paint *>(app.boxes.boxes.front());
+			if (old == nullptr) fail("a pre-layers savefile did not load");
+			else
+			{
+				const JPPaintDocument &d = old->document();
+				if (d.layers.size() != 1)
+					fail("a pre-layers file should produce exactly one layer");
+				if (d.frames.size() != 2) fail("legacy load lost a cel");
+				else
+				{
+					if (d.frames[0].layers.size() != 1 ||
+						d.frames[1].layers.size() != 1)
+						fail("legacy cels did not get a layer slot");
+					else if (d.frames[0].layers[0].strokes.size() != 1 ||
+						d.frames[1].layers[0].strokes.size() != 1)
+						fail("legacy strokes did not land on layer 0");
+					else
+					{
+						if (std::abs(d.frames[0].layers[0].strokes[0].r - 1.0f) > 0.01f)
+							fail("legacy stroke lost its colour");
+						if (!d.frames[1].layers[0].strokes[0].erase)
+							fail("legacy stroke lost its eraser flag");
+					}
+					if (d.frames[0].hold != 2) fail("legacy hold was lost");
+				}
+				if (std::abs(d.fps - 18.0f) > 0.01f) fail("legacy fps was lost");
+			}
+
+			// Now the round two schema, end to end: two layers, one of them a
+			// hidden background at 40%, strokes on both, saved and reloaded.
+			app.boxes.clear();
+			app.boxes.addBox("paint", 60, 60);
+			JPbox_paint *box = dynamic_cast<JPbox_paint *>(app.boxes.boxes.front());
+			if (box == nullptr) fail("could not build a paint box for layers");
+			else
+			{
+				JPPaintStroke mark;
+				mark.points.push_back(JPPaintPoint{0.4f, 0.4f, 1.0f});
+				mark.points.push_back(JPPaintPoint{0.6f, 0.6f, 1.0f});
+				box->commitStroke(mark);                      // layer 0
+				box->addLayer();                              // -> layer 1
+				if (box->currentLayer() != 1) fail("addLayer did not select it");
+				JPPaintStroke second;
+				second.r = 0.0f; second.b = 1.0f;
+				second.points.push_back(JPPaintPoint{0.2f, 0.8f, 1.0f});
+				box->commitStroke(second);                    // layer 1
+
+				// toggleLayerBackground, not a hand-built props change: the
+				// adoption of the cel's strokes is part of what is under test.
+				box->toggleLayerBackground(0);
+				JPPaintLayerInfo props = box->document().layers[0];
+				props.name = "backdrop";
+				props.visible = false;
+				props.opacity = 0.4f;
+				box->setLayerProps(0, props);
+				// A background layer's strokes are shared, so this write must be
+				// visible from every cel.
+				box->addCel(false);
+				box->setCurrentLayer(0);
+				JPPaintStroke shared;
+				shared.g = 1.0f;
+				shared.points.push_back(JPPaintPoint{0.5f, 0.1f, 1.0f});
+				box->commitStroke(shared);
+				if (box->document().layers[0].sharedStrokes.size() != 2)
+					fail("a background layer did not take the shared stroke");
+
+				const string path = directory + "paint_layers.xml";
+				app.boxes.save(path);
+				app.boxes.clear();
+				app.boxes.load(path);
+				JPbox_paint *back = app.boxes.boxes.empty() ? nullptr :
+					dynamic_cast<JPbox_paint *>(app.boxes.boxes.front());
+				if (back == nullptr) fail("layer round trip lost the box");
+				else
+				{
+					const JPPaintDocument &d = back->document();
+					if (d.layers.size() != 2) fail("layer round trip lost a layer");
+					else
+					{
+						if (d.layers[0].name != "backdrop")
+							fail("layer round trip lost the name");
+						if (d.layers[0].visible) fail("round trip lost visibility");
+						if (!d.layers[0].background)
+							fail("round trip lost the background flag");
+						if (std::abs(d.layers[0].opacity - 0.4f) > 0.01f)
+							fail("round trip lost the layer opacity");
+						if (d.layers[0].sharedStrokes.size() != 2)
+							fail("round trip lost the shared strokes");
+						if (d.layers[0].id == d.layers[1].id)
+							fail("two layers came back with the same id");
+					}
+					// The arity invariant everything else relies on.
+					for (const JPPaintFrame &frame : d.frames)
+					{
+						if (frame.layers.size() != d.layers.size())
+						{
+							fail("round trip broke the layer arity invariant");
+							break;
+						}
+					}
+					if (d.frames.size() == 2 &&
+						d.frames[0].layers[1].strokes.size() != 1)
+						fail("round trip lost a per-cel stroke on layer 1");
+				}
+			}
+			app.boxes.clear();
+		}
+
+		// The palette is the one piece of paint state that lives OUTSIDE the
+		// session, in its own file, so a broken round trip loses colours the
+		// user saved deliberately and nothing else would notice.
+		{
+			const string palettePath = ofToDataPath("paint_palette.xml");
+			// Preserve whatever the real user has, then restore it at the end -
+			// a test must not eat their palette.
+			vector<ofFloatColor> userPalette = app.boxes.paintPalette;
+
+			app.boxes.paintPalette.clear();
+			app.boxes.paintPalette.push_back(ofFloatColor(1.0f, 0.25f, 0.1f, 1.0f));
+			app.boxes.paintPalette.push_back(ofFloatColor(0.0f, 0.5f, 1.0f, 0.5f));
+			app.boxes.savePaintPalette();
+			if (!ofFile(palettePath).exists()) fail("saving the palette wrote no file");
+
+			app.boxes.paintPalette.clear();
+			app.boxes.loadPaintPalette();
+			if (app.boxes.paintPalette.size() != 2)
+				fail("palette round trip lost a colour");
+			else
+			{
+				const ofFloatColor &a = app.boxes.paintPalette[0];
+				const ofFloatColor &b = app.boxes.paintPalette[1];
+				if (std::abs(a.r - 1.0f) > 0.001f || std::abs(a.g - 0.25f) > 0.001f ||
+					std::abs(a.b - 0.1f) > 0.001f)
+					fail("palette round trip changed a colour");
+				// Alpha matters: a 50% swatch is a different swatch.
+				if (std::abs(b.a - 0.5f) > 0.001f)
+					fail("palette round trip lost alpha");
+			}
+
+			// Removal is also write-through.
+			app.boxes.removePaintPaletteColor(0);
+			app.boxes.paintPalette.clear();
+			app.boxes.loadPaintPalette();
+			if (app.boxes.paintPalette.size() != 1)
+				fail("removing a swatch did not persist");
+			app.boxes.removePaintPaletteColor(7);
+			if (app.boxes.paintPalette.size() != 1)
+				fail("an out of range removal changed the palette");
+
+			// A malformed file drops rows rather than loading garbage.
+			ofFile bad(palettePath, ofFile::WriteOnly);
+			bad << "<color>1 0</color>\n<color>0.2 0.3 0.4 1</color>\n";
+			bad.close();
+			app.boxes.loadPaintPalette();
+			if (app.boxes.paintPalette.size() != 1)
+				fail("a short <color> row was not skipped");
+
+			app.boxes.paintPalette = userPalette;
+            app.boxes.savePaintPalette();
+		}
+
+		// "paint" must not be swallowed by, or swallow, another dispatch branch.
+		app.boxes.clear();
+		app.boxes.addBox("framedifference", 40, 40);
+		if (!app.boxes.boxes.empty() &&
+			dynamic_cast<JPbox_paint *>(app.boxes.boxes.front()) != nullptr)
+			fail("addBox(\"framedifference\") built a paint box");
+		app.boxes.clear();
+	}
 	bool mediaSmoke = true;
 	if(const char *smokePath=std::getenv("GUIPPER_MEDIA_SMOKE"))
 	{
@@ -2966,6 +3466,7 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " camDepthParallax=" << camDepthParallax
 		<< " camDepthBox=" << camDepthBox
 		<< " saveKeepsDefault=" << saveKeepsDefaultCompo
+		<< " paintBox=" << paintBox
 		<< " mediaSmoke=" << mediaSmoke;
 	return current && old && clamped && shaderReload && modeMemory &&
 		rangeCapture && midiRange && cueState && lockDefault && mediaState &&
@@ -2977,5 +3478,5 @@ bool jp_persistence_test::run(ofApp &app)
 		transitionShaders && camDepthBox && camDepthParallax && camDepthRamp && selfLink &&
 		renderSchedule && scheduleObeyed && tooltipLayout &&
 		tooltipTransform &&
-		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && mediaSmoke;
+		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke;
 }

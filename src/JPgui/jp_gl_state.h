@@ -71,6 +71,45 @@ namespace jp_gl
 		GLint viewport[4] = {0, 0, 0, 0};
 	};
 
+	// Suspends the scissor test for an offscreen pass.
+	//
+	// A window space scissor set by a panel stays enabled across fbo.begin(),
+	// where it clips in a completely different coordinate system - and it clips
+	// the ofClear too, so part of the target keeps stale content from an earlier
+	// pass. Any code that binds a framebuffer to WRITE into it has to be immune
+	// to whatever clip its caller happened to leave set.
+	class ScopedNoScissor
+	{
+	public:
+		ScopedNoScissor()
+		{
+			wasEnabled = glIsEnabled(GL_SCISSOR_TEST);
+			if (wasEnabled)
+			{
+				glGetIntegerv(GL_SCISSOR_BOX, previousBox);
+				glDisable(GL_SCISSOR_TEST);
+			}
+		}
+
+		~ScopedNoScissor()
+		{
+			if (!wasEnabled) return;
+			glEnable(GL_SCISSOR_TEST);
+			glScissor(previousBox[0], previousBox[1],
+				previousBox[2], previousBox[3]);
+		}
+
+		ScopedNoScissor(const ScopedNoScissor &) = delete;
+		ScopedNoScissor &operator=(const ScopedNoScissor &) = delete;
+
+		// True when a clip WAS in force, i.e. when this guard did something.
+		bool suspended() const { return wasEnabled == GL_TRUE; }
+
+	private:
+		GLboolean wasEnabled = GL_FALSE;
+		GLint previousBox[4] = {0, 0, 0, 0};
+	};
+
 	inline void resetWindowDrawState(float width, float height)
 	{
 		// A box render is allowed to use arbitrary FBO dimensions. Window draw

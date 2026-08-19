@@ -155,7 +155,8 @@ public:
 		// sessions store these as ints. Append only.
 		POINTCLOUDBOX_REMOVED,
 		POINTERCLOUDBOX,
-		CAMDEPTHBOX
+		CAMDEPTHBOX,
+		PAINTBOX
 	};
 
 	int getTipo();

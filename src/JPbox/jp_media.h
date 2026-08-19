@@ -13,6 +13,10 @@ public:
 	virtual const JPMediaState &mediaState() const = 0;
 	virtual bool mediaPlayable() const = 0;
 	virtual bool mediaHasAudio() const = 0;
+	// Whether a fit mode means anything for this source. False for a paint
+	// canvas, which IS the render size and so has nothing to fit itself to.
+	// Defaulted rather than pure so the existing file-backed boxes are unchanged.
+	virtual bool mediaHasFit() const { return true; }
 	virtual bool mediaReady() const = 0;
 	virtual std::string mediaStatus() const = 0;
 	virtual double mediaDurationSeconds() const = 0;
@@ -60,6 +64,7 @@ namespace jp_media
 		media.appendChild("rate").set(s.rate);
 		media.appendChild("playing").set(s.playing);
 		media.appendChild("reverse").set(s.reverse);
+		media.appendChild("userreverse").set(s.userReverse);
 		media.appendChild("muted").set(s.muted);
 		media.appendChild("volume").set(s.volume);
 	}
@@ -81,6 +86,10 @@ namespace jp_media
 		setFloat("rangeout", s.rangeOut); setFloat("rate", s.rate); setFloat("volume", s.volume);
 		auto playing = media.getChild("playing"); if (playing) s.playing = playing.getBoolValue();
 		auto reverse = media.getChild("reverse"); if (reverse) s.reverse = reverse.getBoolValue();
+		// Absent in files written before the direction was tracked separately, and
+		// there the live direction IS the intent.
+		auto userReverse = media.getChild("userreverse");
+		s.userReverse = userReverse ? userReverse.getBoolValue() : s.reverse;
 		auto muted = media.getChild("muted"); if (muted) s.muted = muted.getBoolValue();
 		normalize(s);
 		return true;

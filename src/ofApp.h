@@ -372,6 +372,8 @@ public:
 		SURFACE_INSPECTOR = jp_pointer::kInspector,
 		SURFACE_CUE_PANEL = jp_pointer::kCuePanel,
 		SURFACE_MAPPING_PANEL = jp_pointer::kMappingPanel,
+		SURFACE_PAINT_PANEL = jp_pointer::kPaintPanel,
+		SURFACE_PAINT_HELP = jp_pointer::kPrompt,
 		SURFACE_SHADER_EDITOR = jp_pointer::kShaderEditor,
 		SURFACE_FIELD_EDIT = jp_pointer::kFieldEdit,
 		SURFACE_DROPDOWN = jp_pointer::kDropdown,

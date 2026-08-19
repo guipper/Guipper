@@ -26,6 +26,11 @@ namespace jp_pointer
 	constexpr int kInspector = 10;
 	constexpr int kCuePanel = 20;
 	constexpr int kMappingPanel = 30;
+	// The paint editor sits above mapping and below the shader editor. Its
+	// colour picker is NOT a separate layer: the panel's surface bounds grow to
+	// include the popover instead, so ESC still dismisses one thing at a time
+	// without a second z-order constant to keep in step.
+	constexpr int kPaintPanel = 35;
 	constexpr int kShaderEditor = 40;
 	constexpr int kFieldEdit = 60;
 	// The MIDI panel body sits just below its own dropdowns.
