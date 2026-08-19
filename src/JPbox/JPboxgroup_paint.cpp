@@ -1150,10 +1150,9 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 {
 	static const char *tooltips[] = {
-		"Brush (B)", "Eraser (E)", "Line (L)", "Rectangle (R)", "Ellipse (O)",
-		"Pen: closes and fills on release (P)",
-		"Fill a region - the slider sets its tolerance (G)",
-		"Select (S): freehand lasso, drag to move, drag top handle to rotate, DEL to delete, D/Alt+drag to duplicate"};
+		"Pincel (B)", "Borrador (E)", "Línea (L)", "Rectángulo (R)", "Elipse (O)",
+		"Pluma / Pen: cierra y rellena al soltar (P)",
+		"Rellenar región - el slider define la tolerancia (G)"};
 
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
@@ -1273,8 +1272,8 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 		fillSelected ? 3.0f
 			: ofClamp(paintBrushSize * 200.0f, 2.0f, slider.height * 0.5f));
 	jp_tooltip::draw(fillSelected ?
-		"Fill tolerance - how far a region may vary from the pixel you click" :
-		"Brush size ( [ and ] )",
+		"Tolerancia de relleno - cuánto puede variar la región desde el píxel cliqueado" :
+		"Tamaño del pincel ( [ y ] )",
 		slider.x, slider.y, slider.width, slider.height);
 
 	const ofRectangle swatch = getPaintColorSwatchBounds();
@@ -1290,7 +1289,7 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 		COL_ACCENT_CYAN : COL_BORDER_DEFAULT);
 	ofDrawRectRounded(swatch, 3.0f);
 	ofFill();
-	jp_tooltip::draw("Brush colour", swatch.x, swatch.y,
+	jp_tooltip::draw("Color del pincel", swatch.x, swatch.y,
 		swatch.width, swatch.height);
 
 	// Draw the first 6 saved colors from the palette next to the picker swatch
@@ -1312,11 +1311,11 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 		ofDrawRectRounded(qBounds, 2.0f);
 		ofFill();
 		
-		jp_tooltip::draw("Use saved color", qBounds.x, qBounds.y, qBounds.width, qBounds.height);
+		jp_tooltip::draw("Usar color guardado", qBounds.x, qBounds.y, qBounds.width, qBounds.height);
 	}
 
 	static const char *actionTips[PAINT_ACTION_COUNT] =
-		{"Undo (Ctrl+Z)", "Redo (Ctrl+Shift+Z)"};
+		{"Deshacer (Ctrl+Z)", "Rehacer (Ctrl+Shift+Z)"};
 	for (int action = 0; action < PAINT_ACTION_COUNT; ++action)
 	{
 		const ofRectangle bounds = getPaintActionBounds(action);
@@ -1401,7 +1400,7 @@ void JPboxgroup::drawPaintTransport(JPbox_paint *box)
 		{
 			ofDrawTriangle(cx - 3, cy, cx + 4, cy - 5, cx + 4, cy + 5);
 			ofDrawRectangle(cx - 6, cy - 5, 1.6f, 10);
-			tip = "Previous cel ( , )";
+			tip = "Celda anterior ( , )";
 		}
 		else if (slot == PAINT_TRANSPORT_PLAY)
 		{
@@ -1411,13 +1410,13 @@ void JPboxgroup::drawPaintTransport(JPbox_paint *box)
 				ofDrawRectangle(cx + 1, cy - 5, 3, 10);
 			}
 			else ofDrawTriangle(cx - 3, cy - 6, cx + 5, cy, cx - 3, cy + 6);
-			tip = state.playing ? "Pause (Space)" : "Play (Space)";
+			tip = state.playing ? "Pausa (Espacio)" : "Reproducir (Espacio)";
 		}
 		else if (slot == PAINT_TRANSPORT_NEXT)
 		{
 			ofDrawTriangle(cx + 3, cy, cx - 4, cy - 5, cx - 4, cy + 5);
 			ofDrawRectangle(cx + 5, cy - 5, 1.6f, 10);
-			tip = "Next cel ( . )";
+			tip = "Siguiente celda ( . )";
 		}
 		else if (slot == PAINT_TRANSPORT_DIRECTION)
 		{
@@ -1427,28 +1426,28 @@ void JPboxgroup::drawPaintTransport(JPbox_paint *box)
 			ofDrawLine(cx - 7 * sign, cy, cx + 7 * sign, cy);
 			ofDrawTriangle(cx + 7 * sign, cy,
 				cx + 2 * sign, cy - 4, cx + 2 * sign, cy + 4);
-			tip = active ? "Play forward" : "Play reverse";
+			tip = active ? "Reproducir adelante" : "Reproducir atrás";
 		}
 		else if (slot == PAINT_TRANSPORT_FPS)
 		{
 			label = ofToString(doc.fps, 0) + " fps";
-			tip = "Frames per second - drag to change";
+			tip = "Fotogramas por segundo - arrastra para cambiar";
 		}
 		else if (slot == PAINT_TRANSPORT_LOOP)
 		{
 			static const char *loops[] = {"ONCE", "LOOP", "PING"};
 			label = loops[std::clamp((int)state.loopMode, 0, 2)];
-			tip = "Playback mode";
+			tip = "Modo de reproducción (loop)";
 		}
 		else if (slot == PAINT_TRANSPORT_ONION)
 		{
 			label = "ONION " + ofToString(doc.onionBefore);
-			tip = "Onion skin range (Shift+O)";
+			tip = "Rango de cebolla (Shift+O)";
 		}
 		else
 		{
 			label = "REF";
-			tip = "Show the reference input";
+			tip = "Mostrar entrada de referencia";
 		}
 		if (!label.empty())
 		{
@@ -1795,18 +1794,18 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 	ofPopStyle();
 
 	const ofRectangle addCel = getPaintAddCelBounds();
-	jp_tooltip::draw("Add a frame (N), or Shift for a duplicate (D)",
+	jp_tooltip::draw("Añadir cuadro (N), o Shift para duplicar (D)",
 		addCel.x, addCel.y, addCel.width, addCel.height);
 	const ofRectangle addLayer = getPaintLayerAddBounds();
-	jp_tooltip::draw("Add a layer above the current one", addLayer.x, addLayer.y,
+	jp_tooltip::draw("Añadir capa sobre la actual", addLayer.x, addLayer.y,
 		addLayer.width, addLayer.height);
 	const int hoveredRow = paintLayerRowAtScreen(
 		ofVec2f((float)ofGetMouseX(), (float)ofGetMouseY()));
 	if (hoveredRow >= 0)
 	{
 		const ofRectangle bounds = getPaintGutterRowBounds(hoveredRow);
-		jp_tooltip::draw("Click to select, drag to reorder, right click to delete. "
-			"The eye hides it, the bar is its opacity, BG draws it on every frame",
+		jp_tooltip::draw("Clic para seleccionar, arrastrar para reordenar, tacho de basura para eliminar. "
+			"El ojo la oculta, la barra es su opacidad, BG la dibuja en todos los cuadros",
 			bounds.x, bounds.y, bounds.width, bounds.height);
 	}
 }
@@ -1946,9 +1945,9 @@ void JPboxgroup::drawPaintPicker()
 	ofPopStyle();
 
 	// Drawn outside the pushStyle so the tooltip is not affected by it.
-	jp_tooltip::draw(addFull ? "Palette is full" : "Save this colour to the palette",
+	jp_tooltip::draw(addFull ? "La paleta está llena" : "Guardar este color en la paleta",
 		add.x, add.y, add.width, add.height);
-	jp_tooltip::draw("Type a hex colour - #RGB, #RRGGBB or #RRGGBBAA. Enter applies, Esc cancels",
+	jp_tooltip::draw("Escribe un color hex - #RGB, #RRGGBB o #RRGGBBAA. Enter aplica, Esc cancela",
 		hex.x, hex.y, hex.width, hex.height);
 }
 
@@ -1960,7 +1959,7 @@ void JPboxgroup::drawPaintHelp()
 	// button is drawn at the panel body's layer, and the modal rule - a modal
 	// blocks the whole window for everything below it - then blocks that button.
 	jp_pointer::Scope promptScope(jp_pointer::kPrompt);
-	const int language = helpLanguageProvider ? helpLanguageProvider() : 0;
+	const int language = 1;
 
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
@@ -2126,12 +2125,12 @@ void JPboxgroup::drawPaintPanel()
 	jp_constants::p_font.drawString("?",
 		helpIcon.getCenter().x - jp_constants::p_font.stringWidth("?") * 0.5f,
 		helpIcon.getCenter().y + 5.0f);
-	jp_tooltip::draw("Drawing and animation shortcuts", helpIcon.x, helpIcon.y,
+	jp_tooltip::draw("Atajos de dibujo y animación", helpIcon.x, helpIcon.y,
 		helpIcon.width, helpIcon.height);
 
 	const ofRectangle close = getPaintPanelCloseBounds();
 	drawCloseGlyph(close, jp_button::hovered(close));
-	jp_tooltip::draw("Close (Esc)", close.x, close.y, close.width, close.height);
+	jp_tooltip::draw("Cerrar (Esc)", close.x, close.y, close.width, close.height);
 
 	drawPaintToolbar(box);
 	drawPaintCanvas(box);
