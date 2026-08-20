@@ -135,6 +135,7 @@ public:
 	bool paintSelectAllShortcut();
 	bool paintClipboardShortcut(char operation);
 	bool paintLayerShortcut(char operation);
+	bool paintExportShortcut(int format);
 	// True while a field in this panel owns the keyboard. Every tool shortcut has
 	// to stand down, or typing a hex digit would swap the brush - and ofApp reads
 	// it through anyFieldFocused so the global chords stand down too.

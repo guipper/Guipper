@@ -179,6 +179,10 @@ public:
 	float canvasAspect() const;
 	int canvasPixelWidth() const;
 	int canvasPixelHeight() const;
+	bool exportCurrentPng(const std::string &path);
+	bool exportPngSequence(const std::string &directory,
+		const std::string &prefix = "paint_frame");
+	bool exportGif(const std::string &path);
 
 private:
 	JPPaintDocument doc;
@@ -225,6 +229,7 @@ private:
 	bool unpremultiplyTried = false;
 	void ensureUnpremultiplyShader();
 	void compositeToOutput(ofFbo &source, float opacity);
+	bool renderCelPixels(int celIndex, ofPixels &pixels);
 
 	// One per cel, grown as the document grows. At 96px wide a two hundred cel
 	// animation is a few megabytes, so this needs no eviction policy at all -

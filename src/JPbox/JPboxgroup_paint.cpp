@@ -4083,6 +4083,38 @@ bool JPboxgroup::paintLayerShortcut(char operation)
 	return true;
 }
 
+bool JPboxgroup::paintExportShortcut(int format)
+{
+	JPbox_paint *box = getPaintEditBox();
+	if (box == nullptr) return false;
+	if (paintTextCaptureActive() || paintHelpOpen) return true;
+	jp_constants::systemDialog_open = true;
+	bool exported = false;
+	if (format == 1)
+	{
+		ofFileDialogResult result = ofSystemLoadDialog(
+			"Elegir carpeta para la secuencia PNG", true);
+		jp_constants::systemDialog_open = false;
+		if (result.bSuccess)
+			exported = box->exportPngSequence(result.getPath(), "paint_frame");
+	}
+	else
+	{
+		const bool gif = format == 2;
+		const string extension = gif ? ".gif" : ".png";
+		ofFileDialogResult result = ofSystemSaveDialog(
+			box->name + extension, gif ? "Exportar animación GIF" :
+			"Exportar cuadro PNG");
+		jp_constants::systemDialog_open = false;
+		if (result.bSuccess)
+			exported = gif ? box->exportGif(result.getPath()) :
+				box->exportCurrentPng(result.getPath());
+	}
+	if (!exported)
+		ofLogWarning("JPboxgroup") << "paint: export cancelled or failed";
+	return true;
+}
+
 void JPboxgroup::paintKeyPressed(int key)
 {
 	JPbox_paint *box = getPaintEditBox();

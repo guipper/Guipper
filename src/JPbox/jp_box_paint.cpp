@@ -4,9 +4,34 @@
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
+#include <iomanip>
+#include <sstream>
+
+#include <FreeImage.h>
 
 namespace
 {
+	std::string withExtension(const std::string &path, const std::string &extension)
+	{
+		if (path.size() >= extension.size() &&
+			path.substr(path.size() - extension.size()) == extension) return path;
+		return path + extension;
+	}
+
+	void setGifMetadata(FIBITMAP *page, const char *key, FREE_IMAGE_MDTYPE type,
+		const void *value, DWORD bytes)
+	{
+		FITAG *tag = FreeImage_CreateTag();
+		if (tag == nullptr) return;
+		FreeImage_SetTagKey(tag, key);
+		FreeImage_SetTagType(tag, type);
+		FreeImage_SetTagCount(tag, 1);
+		FreeImage_SetTagLength(tag, bytes);
+		FreeImage_SetTagValue(tag, value);
+		FreeImage_SetMetadata(FIMD_ANIMATION, page, key, tag);
+		FreeImage_DeleteTag(tag);
+	}
 	// A stroke that needs no scratch pass: fully opaque and not erasing, so
 	// overlapping geometry cannot double-blend visibly.
 	//
@@ -1166,6 +1191,132 @@ int JPbox_paint::canvasPixelWidth() const
 int JPbox_paint::canvasPixelHeight() const
 {
 	return std::max(1, (int)fbo.getHeight());
+}
+
+bool JPbox_paint::renderCelPixels(int celIndex, ofPixels &pixels)
+{
+	if (doc.frames.empty()) return false;
+	ofFbo &raster = ensureRaster(celIndex);
+	raster.readToPixels(pixels);
+	if (!pixels.isAllocated() || pixels.getNumChannels() < 4) return false;
+	// glGetTexImage is bottom-up while ofPixels and image encoders are top-down.
+	pixels.mirror(true, false);
+
+	// The cached cel is premultiplied. Export formats expect straight alpha, and
+	// the document background belongs in the exported canvas just as it does in
+	// the PAINT output shader.
+	const float bgA = ofClamp(doc.bgA, 0.0f, 1.0f);
+	for (std::size_t i = 0; i + 3 < pixels.size(); i += 4)
+	{
+		const float a = pixels[i + 3] / 255.0f;
+		const float outA = a + bgA * (1.0f - a);
+		for (int c = 0; c < 3; ++c)
+		{
+			const float bg = c == 0 ? doc.bgR : c == 1 ? doc.bgG : doc.bgB;
+			const float premult = pixels[i + c] / 255.0f +
+				bg * bgA * (1.0f - a);
+			pixels[i + c] = (unsigned char)std::lround(ofClamp(
+				outA > 0.0005f ? premult / outA : 0.0f, 0.0f, 1.0f) * 255.0f);
+		}
+		pixels[i + 3] = (unsigned char)std::lround(outA * 255.0f);
+	}
+	return true;
+}
+
+bool JPbox_paint::exportCurrentPng(const std::string &path)
+{
+	ofPixels pixels;
+	return renderCelPixels(currentCel(), pixels) &&
+		ofSaveImage(pixels, withExtension(path, ".png"));
+}
+
+bool JPbox_paint::exportPngSequence(const std::string &directory,
+	const std::string &prefix)
+{
+	if (directory.empty()) return false;
+	std::error_code error;
+	std::filesystem::create_directories(directory, error);
+	if (error) return false;
+	const int digits = std::max(4, (int)ofToString(doc.frames.size()).size());
+	for (int i = 0; i < (int)doc.frames.size(); ++i)
+	{
+		ofPixels pixels;
+		if (!renderCelPixels(i, pixels)) return false;
+		std::ostringstream filename;
+		filename << prefix << "_" << std::setw(digits) << std::setfill('0')
+			<< (i + 1) << ".png";
+		if (!ofSaveImage(pixels,
+			(std::filesystem::path(directory) / filename.str()).string())) return false;
+	}
+	return true;
+}
+
+bool JPbox_paint::exportGif(const std::string &path)
+{
+	if (doc.frames.empty()) return false;
+	const std::string output = withExtension(path, ".gif");
+	FIMULTIBITMAP *gif = FreeImage_OpenMultiBitmap(FIF_GIF, output.c_str(),
+		TRUE, FALSE, TRUE, GIF_DEFAULT);
+	if (gif == nullptr) return false;
+	bool ok = true;
+	for (int frame = 0; frame < (int)doc.frames.size() && ok; ++frame)
+	{
+		ofPixels pixels;
+		if (!renderCelPixels(frame, pixels)) { ok = false; break; }
+		const int w = (int)pixels.getWidth(), h = (int)pixels.getHeight();
+		FIBITMAP *rgb = FreeImage_Allocate(w, h, 24);
+		if (rgb == nullptr) { ok = false; break; }
+		bool hasTransparency = false;
+		for (int y = 0; y < h; ++y)
+		{
+			BYTE *dst = FreeImage_GetScanLine(rgb, h - 1 - y);
+			for (int x = 0; x < w; ++x)
+			{
+				const ofColor color = pixels.getColor(x, y);
+				const bool transparent = color.a < 128;
+				hasTransparency = hasTransparency || transparent;
+				dst[x * 3 + FI_RGBA_RED] = transparent ? 255 : color.r;
+				dst[x * 3 + FI_RGBA_GREEN] = transparent ? 0 : color.g;
+				dst[x * 3 + FI_RGBA_BLUE] = transparent ? 255 : color.b;
+			}
+		}
+		RGBQUAD reserved{};
+		reserved.rgbRed = 255; reserved.rgbGreen = 0; reserved.rgbBlue = 255;
+		FIBITMAP *indexed = FreeImage_ColorQuantizeEx(rgb, FIQ_WUQUANT,
+			256, hasTransparency ? 1 : 0, hasTransparency ? &reserved : nullptr);
+		FreeImage_Unload(rgb);
+		if (indexed == nullptr) { ok = false; break; }
+		if (hasTransparency)
+		{
+			const RGBQUAD *palette = FreeImage_GetPalette(indexed);
+			int transparentIndex = 0;
+			for (int i = 0; i < 256; ++i)
+				if (palette[i].rgbRed == 255 && palette[i].rgbGreen == 0 &&
+					palette[i].rgbBlue == 255) { transparentIndex = i; break; }
+			BYTE alpha[256];
+			std::fill(std::begin(alpha), std::end(alpha), (BYTE)255);
+			alpha[transparentIndex] = 0;
+			FreeImage_SetTransparencyTable(indexed, alpha, 256);
+		}
+		const DWORD frameTime = (DWORD)std::max(10.0f,
+			1000.0f * jp_paint::holdOf(doc.frames[(std::size_t)frame]) /
+			std::max(0.1f, doc.fps));
+		setGifMetadata(indexed, "FrameTime", FIDT_LONG,
+			&frameTime, sizeof(frameTime));
+		const BYTE disposal = 2;
+		setGifMetadata(indexed, "DisposalMethod", FIDT_BYTE,
+			&disposal, sizeof(disposal));
+		if (frame == 0)
+		{
+			const DWORD loop = 0;
+			setGifMetadata(indexed, "Loop", FIDT_LONG, &loop, sizeof(loop));
+		}
+		FreeImage_AppendPage(gif, indexed);
+		FreeImage_Unload(indexed);
+	}
+	ok = FreeImage_CloseMultiBitmap(gif, GIF_DEFAULT) && ok;
+	if (!ok) std::filesystem::remove(output);
+	return ok;
 }
 
 // ----------------------------------------------------------------- playback
