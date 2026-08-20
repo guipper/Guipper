@@ -25,6 +25,13 @@
 
 namespace
 {
+	enum PaintSelectionCombine
+	{
+		PAINT_SELECTION_REPLACE = 0,
+		PAINT_SELECTION_ADD,
+		PAINT_SELECTION_SUBTRACT
+	};
+
 	bool isPointInPolygon(const ofVec2f &p, const std::vector<ofVec2f> &polygon)
 	{
 		if (polygon.size() < 3) return false;
@@ -160,7 +167,7 @@ namespace
 	void cutStrokesWithLasso(JPbox_paint *box,
 		const std::vector<ofVec2f> &lasso,
 		std::vector<int> &outSelected,
-		ofRectangle &outBounds)
+		ofRectangle &outBounds, int combineMode)
 	{
 		const int cel = std::clamp(box->document().currentFrame, 0,
 			(int)box->document().frames.size() - 1);
@@ -172,7 +179,15 @@ namespace
 		// their invisible copies retain the full source vector, get split again,
 		// and reveal the old lasso path when this new selection is moved.
 		const std::vector<JPPaintStroke> orig =
-			jp_paint::collapseComplementaryStrokes(*listPtr);
+			combineMode == PAINT_SELECTION_REPLACE ?
+			jp_paint::collapseComplementaryStrokes(*listPtr) : *listPtr;
+		std::vector<bool> wasSelected(orig.size(), false);
+		if (combineMode != PAINT_SELECTION_REPLACE)
+		{
+			for (int index : outSelected)
+				if (index >= 0 && index < (int)wasSelected.size())
+					wasSelected[(std::size_t)index] = true;
+		}
 		std::vector<JPPaintStroke> result;
 		result.reserve(orig.size() * 2);
 		outSelected.clear();
@@ -183,33 +198,45 @@ namespace
 			lassoPoints.push_back(JPPaintPoint{point.x, point.y, 1.0f});
 		const ofRectangle lassoBounds = paintPointBounds(lassoPoints);
 
-		for (const JPPaintStroke &s : orig)
+		bool splitAny = false;
+		for (std::size_t sourceIndex = 0; sourceIndex < orig.size(); ++sourceIndex)
 		{
+			const JPPaintStroke &s = orig[sourceIndex];
+			const bool selectedBefore = wasSelected[sourceIndex];
+			const bool eligible = combineMode == PAINT_SELECTION_REPLACE ||
+				(combineMode == PAINT_SELECTION_ADD && !selectedBefore) ||
+				(combineMode == PAINT_SELECTION_SUBTRACT && selectedBefore);
 			// Bucket fills are commands whose result depends on all preceding
 			// pixels; moving their seed is not equivalent to moving those pixels.
 			// Leave them untouched until fills are materialised in the document.
-			if (s.points.empty() || s.tool == (int)JPPaintTool::Fill ||
+			if (!eligible || s.points.empty() ||
+				s.tool == (int)JPPaintTool::Fill ||
 				s.clips.size() >= 8 ||
 				!strokeTouchesLasso(s, lasso, lassoBounds, box->canvasAspect()))
 			{
 				result.push_back(s);
+				if (selectedBefore) outSelected.push_back((int)result.size() - 1);
 				continue;
 			}
+			splitAny = true;
 
 			JPPaintStroke outside = s;
 			outside.clips.push_back(makePaintClip(lasso, true));
 			result.push_back(std::move(outside));
+			if (combineMode == PAINT_SELECTION_SUBTRACT)
+				outSelected.push_back((int)result.size() - 1);
 
 			JPPaintStroke inside = s;
 			inside.clips.push_back(makePaintClip(lasso, false));
 			result.push_back(std::move(inside));
-			outSelected.push_back((int)result.size() - 1);
+			if (combineMode != PAINT_SELECTION_SUBTRACT)
+				outSelected.push_back((int)result.size() - 1);
 		}
 
 		// Keep every pair at the original z position. Moving all selected halves
 		// to the tail would change translucent overlaps and eraser ordering even
 		// before the user moved the selection.
-		if (outSelected.empty()) return;
+		if (!splitAny) return;
 		outBounds = lassoBounds;
 		box->replaceStrokes(cel, box->currentLayer(), result);
 	}
@@ -271,7 +298,8 @@ namespace
 	const JPPaintTool kToolbarTools[] = {
 		JPPaintTool::Brush, JPPaintTool::Eraser, JPPaintTool::Line,
 		JPPaintTool::Rect, JPPaintTool::Ellipse, JPPaintTool::Lasso,
-		JPPaintTool::Fill, JPPaintTool::LassoSelect};
+		JPPaintTool::Fill, JPPaintTool::RectSelect,
+		JPPaintTool::LassoSelect};
 	constexpr int kToolbarToolCount =
 		(int)(sizeof(kToolbarTools) / sizeof(kToolbarTools[0]));
 
@@ -1116,7 +1144,8 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 		if (box->liveStrokeActive && !box->liveStroke.points.empty())
 		{
 			const JPPaintStroke &live = box->liveStroke;
-			if (live.tool == (int)JPPaintTool::LassoSelect)
+			if (live.tool == (int)JPPaintTool::LassoSelect ||
+				live.tool == (int)JPPaintTool::RectSelect)
 			{
 				// Bypass preview: selection outline is drawn below
 			}
@@ -1279,7 +1308,8 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 
 		// If currently drawing a selection.
 		if (box->liveStrokeActive && !box->liveStroke.points.empty() &&
-			paintTool == (int)JPPaintTool::LassoSelect)
+			(paintTool == (int)JPPaintTool::LassoSelect ||
+			 paintTool == (int)JPPaintTool::RectSelect))
 		{
 			const JPViewTransform view = paintView();
 			ofPushStyle();
@@ -1319,7 +1349,8 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 		"Pincel (B)", "Borrador (E)", "Línea (L)", "Rectángulo (R)", "Elipse (O)",
 		"Pluma / Pen: cierra y rellena al soltar (P)",
 		"Rellenar región - el slider define la tolerancia (G)",
-		"Selección libre (S): recorta sin deformar y selecciona el interior; arrastrá para mover, manija superior para rotar, esquinas para escalar, DEL para borrar, D/Alt+arrastrá para duplicar"};
+		"Selección rectangular (M); Shift suma y Alt resta",
+		"Selección libre (S): Shift suma, Alt resta; arrastrá para mover, manija superior para rotar, esquinas para escalar, DEL para borrar y D para duplicar"};
 
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
@@ -1397,6 +1428,21 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 			ofDrawCircle(cx + 5.0f, cy + 6.0f, 1.8f);
 		}
 
+		else if (tool == JPPaintTool::RectSelect)
+		{
+			ofNoFill();
+			for (int x = -6; x < 6; x += 4)
+			{
+				ofDrawLine(cx + x, cy - 5, cx + std::min(x + 2, 6), cy - 5);
+				ofDrawLine(cx + x, cy + 5, cx + std::min(x + 2, 6), cy + 5);
+			}
+			for (int y = -5; y < 5; y += 4)
+			{
+				ofDrawLine(cx - 6, cy + y, cx - 6, cy + std::min(y + 2, 5));
+				ofDrawLine(cx + 6, cy + y, cx + 6, cy + std::min(y + 2, 5));
+			}
+			ofFill();
+		}
 		else if (tool == JPPaintTool::LassoSelect)
 		{
 			ofNoFill();
@@ -2375,7 +2421,8 @@ void JPboxgroup::extendPaintStroke(JPbox_paint *box, const ofVec2f &uv)
 		points.push_back(JPPaintPoint{x0, y0, 1.0f});
 		points.push_back(JPPaintPoint{x1, y1, 1.0f});
 	}
-	else if (paintTool == (int)JPPaintTool::Rect)
+	else if (paintTool == (int)JPPaintTool::Rect ||
+		paintTool == (int)JPPaintTool::RectSelect)
 	{
 		points.push_back(JPPaintPoint{x0, y0, 1.0f});
 		points.push_back(JPPaintPoint{x1, y0, 1.0f});
@@ -2410,7 +2457,8 @@ void JPboxgroup::endPaintStroke(JPbox_paint *box)
 
 	// LassoSelect is UI-only; its live stroke is consumed by
 	// endSelectionDrawing / cutStrokesWithLasso and must NEVER reach commitStroke.
-	if (stroke.tool == (int)JPPaintTool::LassoSelect) return;
+	if (stroke.tool == (int)JPPaintTool::LassoSelect ||
+		stroke.tool == (int)JPPaintTool::RectSelect) return;
 
 	if (stroke.tool == (int)JPPaintTool::Lasso && stroke.points.size() >= 3)
 	{
@@ -2469,7 +2517,6 @@ void JPboxgroup::endSelectionDrawing(JPbox_paint *box)
 		paintSelectionActive = true;
 	}
 	
-	paintSelectedStrokeIndices.clear();
 }
 
 void JPboxgroup::clearPaintSelection()
@@ -3268,15 +3315,24 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 			markPaintChanged();
 			return true;
 		}
-		if (paintTool == (int)JPPaintTool::LassoSelect)
+		if (paintTool == (int)JPPaintTool::LassoSelect ||
+			paintTool == (int)JPPaintTool::RectSelect)
 		{
 			const ofVec2f uv = paintView().toUv(mouse);
+			const bool addSelection = paintSelectionActive &&
+				ofGetKeyPressed(OF_KEY_SHIFT);
+			const bool subtractSelection = paintSelectionActive &&
+				!addSelection && ofGetKeyPressed(OF_KEY_ALT);
+			const bool combiningSelection = addSelection || subtractSelection;
+			paintSelectionCombineMode = addSelection ? PAINT_SELECTION_ADD :
+				(subtractSelection ? PAINT_SELECTION_SUBTRACT :
+				 PAINT_SELECTION_REPLACE);
 			bool clickedInside = false;
 			bool clickedRotate = false;
 			bool clickedScale = false;
 			const ofVec2f centerVal = paintSelectionBounds.getCenter();
 			
-			if (paintSelectionActive)
+			if (paintSelectionActive && !combiningSelection)
 			{
 				const JPViewTransform view = paintView();
 				float aspect = view.canvasRect().height > 0.0f ? (view.canvasRect().width / view.canvasRect().height) : 1.0f;
@@ -3332,7 +3388,12 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 				}
 			}
 
-			if (clickedScale)
+			if (combiningSelection)
+			{
+				paintDragMode = PAINT_DRAG_STROKE;
+				beginPaintStroke(box, uv);
+			}
+			else if (clickedScale)
 			{
 				paintSelectionScaling = true;
 				const JPViewTransform view = paintView();
@@ -3353,10 +3414,6 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 				paintSelectionDragging = true;
 				paintSelectionDragStartUv = uv;
 				paintSelectionDragOffset.set(0.0f, 0.0f);
-				if (ofGetKeyPressed(OF_KEY_ALT))
-				{
-					duplicateSelectedStrokes(box);
-				}
 			}
 			else
 			{
@@ -3541,7 +3598,8 @@ bool JPboxgroup::update_paintMouseReleased(int mouseButton)
 
 	if (box != nullptr)
 	{
-		if (paintTool == (int)JPPaintTool::LassoSelect)
+		if (paintTool == (int)JPPaintTool::LassoSelect ||
+			paintTool == (int)JPPaintTool::RectSelect)
 		{
 			if (paintSelectionScaling)
 			{
@@ -3566,19 +3624,63 @@ bool JPboxgroup::update_paintMouseReleased(int mouseButton)
 			}
 			else if (paintDragMode == PAINT_DRAG_STROKE)
 			{
-				// Selection cuts non-destructively and keeps the interior active.
+				const std::vector<int> previousIndices =
+					paintSelectedStrokeIndices;
+				const std::vector<ofVec2f> previousPath = paintSelectionPath;
+				const ofRectangle previousBounds = paintSelectionBounds;
+				// Selection cuts non-destructively and keeps the requested Boolean
+				// combination active.
 				endSelectionDrawing(box);
 				if (!paintSelectionPath.empty())
 				{
-					cutStrokesWithLasso(box, paintSelectionPath,
-						paintSelectedStrokeIndices, paintSelectionBounds);
+					const std::vector<ofVec2f> operationPath = paintSelectionPath;
+					const ofRectangle operationBounds = paintSelectionBounds;
+					paintSelectedStrokeIndices = previousIndices;
+					ofRectangle cutBounds;
+					cutStrokesWithLasso(box, operationPath,
+						paintSelectedStrokeIndices, cutBounds,
+						paintSelectionCombineMode);
 					paintSelectionActive = !paintSelectedStrokeIndices.empty();
+					if (paintSelectionActive &&
+						paintSelectionCombineMode == PAINT_SELECTION_ADD)
+					{
+						const float minX = std::min(previousBounds.x,
+							operationBounds.x);
+						const float minY = std::min(previousBounds.y,
+							operationBounds.y);
+						const float maxX = std::max(previousBounds.getRight(),
+							operationBounds.getRight());
+						const float maxY = std::max(previousBounds.getBottom(),
+							operationBounds.getBottom());
+						paintSelectionBounds = ofRectangle(minX, minY,
+							maxX - minX, maxY - minY);
+						paintSelectionPath = {
+							ofVec2f(minX, minY), ofVec2f(maxX, minY),
+							ofVec2f(maxX, maxY), ofVec2f(minX, maxY),
+							ofVec2f(minX, minY)};
+					}
+					else if (paintSelectionActive &&
+						paintSelectionCombineMode == PAINT_SELECTION_SUBTRACT)
+					{
+						paintSelectionPath = previousPath;
+						paintSelectionBounds = previousBounds;
+					}
+					else if (paintSelectionActive)
+					{
+						paintSelectionPath = operationPath;
+						paintSelectionBounds = operationBounds;
+					}
+					else
+					{
+						clearPaintSelection();
+					}
 					paintSelectionDragging = false;
 					paintSelectionRotating = false;
 					paintSelectionScaling = false;
 					paintSelectionRotation = 0.0f;
 					paintSelectionScale = 1.0f;
 					paintSelectionDragOffset.set(0.0f, 0.0f);
+					paintSelectionCombineMode = PAINT_SELECTION_REPLACE;
 				}
 			}
 			markPaintChanged();
@@ -3825,6 +3927,7 @@ void JPboxgroup::paintKeyPressed(int key)
 	case 'o': paintTool = (int)JPPaintTool::Ellipse; break;
 	case 'p': paintTool = (int)JPPaintTool::Lasso; break;
 	case 's': case 'S': paintTool = (int)JPPaintTool::LassoSelect; break;
+	case 'm': case 'M': paintTool = (int)JPPaintTool::RectSelect; break;
 
 	// Shift+, and Shift+. - the layer parallel to , and . stepping cels.
 	case '<': box->setCurrentLayer(box->currentLayer() - 1); break;

@@ -929,6 +929,31 @@ namespace
 			"a moved selection remains split from its source stroke");
 	}
 
+	void testNestedSelectionCollapse()
+	{
+		JPPaintStroke base = strokeOf(3);
+		JPPaintClip first;
+		first.points = {pt(0.1f, 0.1f), pt(0.4f, 0.1f), pt(0.2f, 0.4f)};
+		JPPaintClip second;
+		second.points = {pt(0.6f, 0.6f), pt(0.9f, 0.6f), pt(0.8f, 0.9f)};
+
+		JPPaintStroke outsideBoth = base;
+		first.inverted = true;
+		second.inverted = true;
+		outsideBoth.clips = {first, second};
+		JPPaintStroke firstOutsideSecondInside = outsideBoth;
+		firstOutsideSecondInside.clips.back().inverted = false;
+		JPPaintStroke firstInside = base;
+		first.inverted = false;
+		firstInside.clips = {first};
+
+		const std::vector<JPPaintStroke> collapsed =
+			jp_paint::collapseComplementaryStrokes({outsideBoth,
+				firstOutsideSecondInside, firstInside});
+		expect(collapsed.size() == 1 && collapsed[0].clips.empty(),
+			"nested untouched add/subtract regions render as the source stroke");
+	}
+
 	void testReplaceStrokesUndoRedo()
 	{
 		JPPaintDocument doc = docOf(1);
@@ -1024,6 +1049,7 @@ int main()
 	testUndoEviction();
 	testClipPayloadAccounting();
 	testComplementarySelectionCollapse();
+	testNestedSelectionCollapse();
 	testReplaceStrokesUndoRedo();
 	testUndoAcrossFrameEdits();
 	testCurrentFrameClamp();

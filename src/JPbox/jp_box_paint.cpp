@@ -18,7 +18,8 @@ namespace
 		// The selection tool stores a temporary lasso outline in the live stroke
 		// buffer but are NEVER committed to the document as drawable marks.
 		// Guard here as a second line of defence in case one leaks.
-		if (stroke.tool == (int)JPPaintTool::LassoSelect) return false;
+		if (stroke.tool == (int)JPPaintTool::LassoSelect ||
+			stroke.tool == (int)JPPaintTool::RectSelect) return false;
 		if (!stroke.clips.empty()) return false;
 		return !stroke.erase && stroke.a >= 0.999f;
 	}
@@ -710,7 +711,8 @@ void JPbox_paint::renderStrokeGeometry(const JPPaintStroke &stroke,
 	if (points.empty()) return;
 	// LassoSelect is a UI-only tool: its outline is drawn by
 	// the panel overlay, not the rasterizer, and must never produce marks.
-	if (stroke.tool == (int)JPPaintTool::LassoSelect) return;
+	if (stroke.tool == (int)JPPaintTool::LassoSelect ||
+		stroke.tool == (int)JPPaintTool::RectSelect) return;
 
 	// Sizes are normalized to canvas WIDTH only, so a brush dab stays round on
 	// a non-square canvas instead of turning elliptical.

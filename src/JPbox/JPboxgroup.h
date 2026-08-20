@@ -1120,6 +1120,9 @@ private:
 	bool paintSelectionScaling = false;
 	float paintSelectionScale = 1.0f;
 	float paintSelectionScaleStartDist = 1.0f;
+	// 0 replaces, 1 adds and 2 subtracts. Captured on mouse-down so releasing a
+	// modifier halfway through a lasso cannot change the operation.
+	int paintSelectionCombineMode = 0;
 
 
 	// ofFbo boxesdrawing;
