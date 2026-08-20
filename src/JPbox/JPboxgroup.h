@@ -1090,6 +1090,7 @@ private:
 	int paintDragCelTo = -1;
 	int paintDragLayerFrom = -1;
 	int paintDragLayerTo = -1;
+	float paintDragLayerStartOpacity = 1.0f;
 	// A shape tool needs the press point for its whole drag; the brush needs it
 	// only for the first sample.
 	ofVec2f paintStrokeStartUv;

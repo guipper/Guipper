@@ -33,6 +33,7 @@ Special thanks to Kali Shade for contributing a wide range of shaders to the off
   <li>Built-in shader browser with live search, favorites, and preview.</li>
   <li>Integrated GLSL code editor with live compile/reload.</li>
   <li>Box groups (sub-compositions) and a cue/crossfade staging workflow.</li>
+  <li>Integrated PAINT canvas with frame animation, layers, non-destructive selection and PNG/GIF export.</li>
   <li>Cross-platform: Windows, Linux and macOS (openFrameworks 0.12.1).</li>
 </ul>
 
@@ -48,6 +49,12 @@ longer fits the window.
 Shaders can consume normalized bands, onsets, rhythm data, and sixteen spectrum
 bins through global uniforms. See [Audio-Reactive Visuals](mds/AUDIO_REACTIVITY.md)
 for the complete workflow, uniform reference, diagnostics, and tests.
+
+## PAINT Canvas
+
+The integrated PAINT box supports drawing, frame-by-frame animation, onion
+skin, layers and precise selection transforms. See the [PAINT guide](mds/PAINT.md)
+for its workflow, shortcuts, export options and file compatibility notes.
 
 ## Installation
 Provide step-by-step instructions on how to install and configure Guipper. Include information on how to download and compile the source code, as well as any additional required configurations.

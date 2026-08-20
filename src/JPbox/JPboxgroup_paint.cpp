@@ -3334,9 +3334,9 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 					const ofRectangle bar = getPaintLayerOpacityBounds(row);
 					JPPaintLayerInfo props = box->document()
 						.layers[(std::size_t)index];
-					props.opacity = ofClamp(
-						(mouse.x - bar.x) / std::max(1.0f, bar.width), 0.0f, 1.0f);
-					box->setLayerProps(index, props);
+					paintDragLayerStartOpacity = props.opacity;
+					box->previewLayerOpacity(index, ofClamp(
+						(mouse.x - bar.x) / std::max(1.0f, bar.width), 0.0f, 1.0f));
 				}
 				else
 				{
@@ -3719,11 +3719,8 @@ bool JPboxgroup::update_paintMouseDragged(int mouseButton)
 		}
 		if (row < 0) return true;
 		const ofRectangle bar = getPaintLayerOpacityBounds(row);
-		JPPaintLayerInfo props =
-			box->document().layers[(std::size_t)paintDragLayerFrom];
-		props.opacity = ofClamp(
-			(mouse.x - bar.x) / std::max(1.0f, bar.width), 0.0f, 1.0f);
-		box->setLayerProps(paintDragLayerFrom, props);
+		box->previewLayerOpacity(paintDragLayerFrom, ofClamp(
+			(mouse.x - bar.x) / std::max(1.0f, bar.width), 0.0f, 1.0f));
 		return true;
 	}
 	case PAINT_DRAG_PICKER_SV:
@@ -3861,9 +3858,14 @@ bool JPboxgroup::update_paintMouseReleased(int mouseButton)
 			box->moveLayer(paintDragLayerFrom, paintDragLayerTo);
 			markPaintChanged();
 		}
+		else if (paintDragMode == PAINT_DRAG_LAYER_OPACITY)
+		{
+			box->commitLayerOpacity(paintDragLayerFrom,
+				paintDragLayerStartOpacity);
+			markPaintChanged();
+		}
 		else if (paintDragMode == PAINT_DRAG_FPS ||
-			paintDragMode == PAINT_DRAG_SIZE ||
-			paintDragMode == PAINT_DRAG_LAYER_OPACITY)
+			paintDragMode == PAINT_DRAG_SIZE)
 		{
 			markPaintChanged();
 		}
@@ -4090,13 +4092,17 @@ bool JPboxgroup::paintExportShortcut(int format)
 	if (paintTextCaptureActive() || paintHelpOpen) return true;
 	jp_constants::systemDialog_open = true;
 	bool exported = false;
+	bool attempted = false;
 	if (format == 1)
 	{
 		ofFileDialogResult result = ofSystemLoadDialog(
 			"Elegir carpeta para la secuencia PNG", true);
 		jp_constants::systemDialog_open = false;
 		if (result.bSuccess)
+		{
+			attempted = true;
 			exported = box->exportPngSequence(result.getPath(), "paint_frame");
+		}
 	}
 	else
 	{
@@ -4107,11 +4113,14 @@ bool JPboxgroup::paintExportShortcut(int format)
 			"Exportar cuadro PNG");
 		jp_constants::systemDialog_open = false;
 		if (result.bSuccess)
+		{
+			attempted = true;
 			exported = gif ? box->exportGif(result.getPath()) :
 				box->exportCurrentPng(result.getPath());
+		}
 	}
-	if (!exported)
-		ofLogWarning("JPboxgroup") << "paint: export cancelled or failed";
+	if (attempted && !exported)
+		ofLogWarning("JPboxgroup") << "paint: export failed";
 	return true;
 }
 

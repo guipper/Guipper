@@ -1681,6 +1681,33 @@ void JPbox_paint::setLayerProps(int index, const JPPaintLayerInfo &props)
 	recordEdit(edit);
 }
 
+void JPbox_paint::previewLayerOpacity(int index, float opacity)
+{
+	if (index < 0 || index >= (int)doc.layers.size()) return;
+	const float clamped = ofClamp(opacity, 0.0f, 1.0f);
+	if (std::abs(doc.layers[(std::size_t)index].opacity - clamped) < 0.0001f)
+		return;
+	doc.layers[(std::size_t)index].opacity = clamped;
+	jp_paint::bumpAllFrames(doc);
+}
+
+void JPbox_paint::commitLayerOpacity(int index, float previousOpacity)
+{
+	if (index < 0 || index >= (int)doc.layers.size()) return;
+	const JPPaintLayerInfo current = doc.layers[(std::size_t)index];
+	const float before = ofClamp(previousOpacity, 0.0f, 1.0f);
+	if (std::abs(current.opacity - before) < 0.001f) return;
+	// The preview already put the document in its final state. Record the exact
+	// before/after pair without applying it a second time.
+	JPPaintEdit edit;
+	edit.kind = JPPaintEdit::SetLayerProps;
+	edit.layerIndex = index;
+	edit.layer = current;
+	edit.previousLayer = current;
+	edit.previousLayer.opacity = before;
+	recordEdit(edit);
+}
+
 void JPbox_paint::addCel(bool duplicateCurrent)
 {
 	const int cel = std::clamp(doc.currentFrame, 0,

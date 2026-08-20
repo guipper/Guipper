@@ -113,6 +113,8 @@ public:
 	void moveLayer(int from, int to);
 	// Name / visible / opacity / background, as one undoable step.
 	void setLayerProps(int index, const JPPaintLayerInfo &props);
+	void previewLayerOpacity(int index, float opacity);
+	void commitLayerOpacity(int index, float previousOpacity);
 	// Flips the background flag, adopting the current cel's strokes the first
 	// time it goes on. Marking a layer as the backdrop AFTER drawing it is the
 	// normal order of operations.
