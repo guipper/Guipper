@@ -129,6 +129,7 @@ public:
 	bool paintWantsKeyCapture() const;
 	void paintKeyPressed(int key);
 	bool paintUndoShortcut(bool redo);
+	bool paintSelectAllShortcut();
 	// True while a field in this panel owns the keyboard. Every tool shortcut has
 	// to stand down, or typing a hex digit would swap the brush - and ofApp reads
 	// it through anyFieldFocused so the global chords stand down too.

@@ -465,6 +465,11 @@ void JPboxgroup::dismissPaintTopLayer()
 		paintPickerOpen = false;
 		return;
 	}
+	if (paintSelectionActive)
+	{
+		clearPaintSelection();
+		return;
+	}
 	endPaintEdit();
 }
 
@@ -3355,10 +3360,9 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 			}
 			else
 			{
-				// Clicked outside the active selection: clear it and start a new lasso.
-				paintSelectionActive = false;
-				paintSelectedStrokeIndices.clear();
-				paintSelectionPath.clear();
+				// Clicking outside confirms the previous selection and immediately
+				// starts another one while the selection tool remains active.
+				clearPaintSelection();
 				paintDragMode = PAINT_DRAG_STROKE;
 				beginPaintStroke(box, uv);
 			}
@@ -3688,6 +3692,41 @@ bool JPboxgroup::paintUndoShortcut(bool redo)
 	return true;
 }
 
+bool JPboxgroup::paintSelectAllShortcut()
+{
+	JPbox_paint *box = getPaintEditBox();
+	if (box == nullptr) return false;
+	// Consume the chord without touching the canvas while a field or modal owns
+	// input, just like undo does.
+	if (paintTextCaptureActive() || paintHelpOpen) return true;
+
+	const int cel = std::clamp(box->document().currentFrame, 0,
+		(int)box->document().frames.size() - 1);
+	const std::vector<JPPaintStroke> *list =
+		jp_paint::strokeListFor(box->document(), cel, box->currentLayer());
+	clearPaintSelection();
+	if (list == nullptr) return true;
+
+	for (int i = 0; i < (int)list->size(); ++i)
+	{
+		const JPPaintStroke &stroke = (*list)[(std::size_t)i];
+		// A fill is a replay command tied to its seed and preceding pixels, not
+		// movable geometry. It remains in place when selecting the whole layer.
+		if (!stroke.points.empty() && stroke.tool != (int)JPPaintTool::Fill)
+			paintSelectedStrokeIndices.push_back(i);
+	}
+	if (paintSelectedStrokeIndices.empty()) return true;
+
+	paintTool = (int)JPPaintTool::LassoSelect;
+	paintSelectionPath = {
+		ofVec2f(0.0f, 0.0f), ofVec2f(1.0f, 0.0f),
+		ofVec2f(1.0f, 1.0f), ofVec2f(0.0f, 1.0f),
+		ofVec2f(0.0f, 0.0f)};
+	paintSelectionBounds = ofRectangle(0.0f, 0.0f, 1.0f, 1.0f);
+	paintSelectionActive = true;
+	return true;
+}
+
 void JPboxgroup::paintKeyPressed(int key)
 {
 	JPbox_paint *box = getPaintEditBox();
@@ -3698,6 +3737,11 @@ void JPboxgroup::paintKeyPressed(int key)
 	// A focused field owns the keyboard. Without this, typing a hex digit would
 	// swap the brush and typing a layer name would delete cels.
 	if (paintHandleTextKey(key)) return;
+	if ((key == OF_KEY_RETURN || key == '\r') && paintSelectionActive)
+	{
+		clearPaintSelection();
+		return;
+	}
 	JPPaintDocument &doc = box->document();
 	JPMediaState &state = box->mediaState();
 	bool changed = true;

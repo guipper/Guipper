@@ -5491,6 +5491,10 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	}
 
 	const bool controlDown = e.hasModifier(OF_KEY_CONTROL);
+	const bool selectAllShortcut =
+		e.key == 1 ||
+		(ctrlOrCmd &&
+			(e.keycode == GLFW_KEY_A || e.key == 'a' || e.key == 'A'));
 	const bool copyShortcut =
 		e.key == 3 ||
 		(controlDown &&
@@ -5514,6 +5518,12 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		if (boxes.paintUndoShortcut(e.hasModifier(OF_KEY_SHIFT))) {
 			return;
 		}
+	}
+
+	if (selectAllShortcut && pantallaActiva == NODOS &&
+		!shaderEditor.wantsKeyCapture() && !anyFieldFocused() &&
+		!saveModalActive) {
+		if (boxes.paintSelectAllShortcut()) return;
 	}
 
 	// GLFW reports Ctrl+letter as a normal letter plus a modifier on Linux.
