@@ -3727,6 +3727,76 @@ bool JPboxgroup::paintSelectAllShortcut()
 	return true;
 }
 
+bool JPboxgroup::paintClipboardShortcut(char operation)
+{
+	JPbox_paint *box = getPaintEditBox();
+	if (box == nullptr) return false;
+	if (paintTextCaptureActive() || paintHelpOpen) return true;
+
+	const int cel = std::clamp(box->document().currentFrame, 0,
+		(int)box->document().frames.size() - 1);
+	const int layer = box->currentLayer();
+	const std::vector<JPPaintStroke> *list =
+		jp_paint::strokeListFor(box->document(), cel, layer);
+	if (list == nullptr) return true;
+
+	if (operation == 'c' || operation == 'x')
+	{
+		if (!paintSelectionActive || paintSelectedStrokeIndices.empty())
+			return true;
+		std::vector<JPPaintStroke> copied;
+		copied.reserve(paintSelectedStrokeIndices.size());
+		for (int index : paintSelectedStrokeIndices)
+		{
+			if (index >= 0 && index < (int)list->size())
+				copied.push_back((*list)[(std::size_t)index]);
+		}
+		if (copied.empty()) return true;
+
+		paintClipboard = std::move(copied);
+		paintClipboardPath = paintSelectionPath;
+		paintClipboardBounds = paintSelectionBounds;
+		paintClipboardPasteSerial = 0;
+
+		if (operation == 'x')
+		{
+			deleteSelectedStrokes(box);
+			markPaintChanged();
+		}
+		return true;
+	}
+
+	if (operation != 'v' || paintClipboard.empty()) return true;
+
+	std::vector<JPPaintStroke> pasted = paintClipboard;
+	const float displacement = 0.02f * (float)++paintClipboardPasteSerial;
+	const ofVec2f offset(displacement, displacement);
+	for (JPPaintStroke &stroke : pasted)
+	{
+		transformStrokeCoordinates(stroke,
+			[&](const ofVec2f &point) { return point + offset; });
+	}
+
+	std::vector<JPPaintStroke> newList = *list;
+	const int first = (int)newList.size();
+	newList.insert(newList.end(), pasted.begin(), pasted.end());
+	box->replaceStrokes(cel, layer, newList);
+
+	clearPaintSelection();
+	paintSelectedStrokeIndices.reserve(pasted.size());
+	for (int i = 0; i < (int)pasted.size(); ++i)
+		paintSelectedStrokeIndices.push_back(first + i);
+	paintSelectionPath = paintClipboardPath;
+	for (ofVec2f &point : paintSelectionPath) point += offset;
+	paintSelectionBounds = paintClipboardBounds;
+	paintSelectionBounds.x += offset.x;
+	paintSelectionBounds.y += offset.y;
+	paintSelectionActive = true;
+	paintTool = (int)JPPaintTool::LassoSelect;
+	markPaintChanged();
+	return true;
+}
+
 void JPboxgroup::paintKeyPressed(int key)
 {
 	JPbox_paint *box = getPaintEditBox();

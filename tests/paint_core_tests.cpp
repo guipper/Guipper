@@ -929,6 +929,31 @@ namespace
 			"a moved selection remains split from its source stroke");
 	}
 
+	void testReplaceStrokesUndoRedo()
+	{
+		JPPaintDocument doc = docOf(1);
+		const std::vector<JPPaintStroke> original =
+			doc.frames[0].layers[0].strokes;
+		std::vector<JPPaintStroke> pasted = original;
+		pasted.push_back(strokeOf(4));
+
+		JPPaintEdit edit;
+		edit.kind = JPPaintEdit::ReplaceStrokes;
+		edit.frameIndex = 0;
+		edit.layerIndex = 0;
+		edit.previousLayer.sharedStrokes = original;
+		edit.layer.sharedStrokes = pasted;
+		expect(jp_paint::applyEdit(doc, edit) &&
+			doc.frames[0].layers[0].strokes.size() == 2,
+			"a clipboard-style replacement appends its payload");
+		expect(jp_paint::revertEdit(doc, edit) &&
+			doc.frames[0].layers[0].strokes.size() == 1,
+			"undo removes a pasted payload in one edit");
+		expect(jp_paint::applyEdit(doc, edit) &&
+			doc.frames[0].layers[0].strokes[1].points.size() == 4,
+			"redo restores the complete pasted payload");
+	}
+
 	void testUndoAcrossFrameEdits()
 	{
 		// Undoing a cel delete has to bring the cel's strokes back with it.
@@ -999,6 +1024,7 @@ int main()
 	testUndoEviction();
 	testClipPayloadAccounting();
 	testComplementarySelectionCollapse();
+	testReplaceStrokesUndoRedo();
 	testUndoAcrossFrameEdits();
 	testCurrentFrameClamp();
 	if (failures != 0)

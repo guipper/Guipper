@@ -5490,25 +5490,28 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		}
 	}
 
-	const bool controlDown = e.hasModifier(OF_KEY_CONTROL);
 	const bool selectAllShortcut =
 		e.key == 1 ||
 		(ctrlOrCmd &&
 			(e.keycode == GLFW_KEY_A || e.key == 'a' || e.key == 'A'));
 	const bool copyShortcut =
 		e.key == 3 ||
-		(controlDown &&
+		(ctrlOrCmd &&
 			(e.keycode == GLFW_KEY_C || e.key == 'c' || e.key == 'C'));
+	const bool cutShortcut =
+		e.key == 24 ||
+		(ctrlOrCmd &&
+			(e.keycode == GLFW_KEY_X || e.key == 'x' || e.key == 'X'));
 	const bool pasteShortcut =
 		e.key == 22 ||
-		(controlDown &&
+		(ctrlOrCmd &&
 			(e.keycode == GLFW_KEY_V || e.key == 'v' || e.key == 'V'));
 
 	// Undo lives here rather than in keyPressed for the same reason Ctrl+D and
 	// Ctrl+S do: the legacy character callback never sees modifiers.
 	const bool undoShortcut =
 		e.key == 26 ||
-		(controlDown &&
+		(ctrlOrCmd &&
 			(e.keycode == GLFW_KEY_Z || e.key == 'z' || e.key == 'Z'));
 	if (undoShortcut && pantallaActiva == NODOS &&
 		!shaderEditor.wantsKeyCapture() && !anyFieldFocused() &&
@@ -5528,11 +5531,17 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 
 	// GLFW reports Ctrl+letter as a normal letter plus a modifier on Linux.
 	if (copyShortcut && pantallaActiva == NODOS) {
+		if (boxes.paintClipboardShortcut('c')) return;
 		boxes.copySelectedBoxes();
 		return;
 	}
 
+	if (cutShortcut && pantallaActiva == NODOS) {
+		if (boxes.paintClipboardShortcut('x')) return;
+	}
+
 	if (pasteShortcut && pantallaActiva == NODOS) {
+		if (boxes.paintClipboardShortcut('v')) return;
 		boxes.pasteBoxes();
 		return;
 	}
