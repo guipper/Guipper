@@ -112,6 +112,8 @@ struct JPPaintLayerInfo
 	// each one. The per-cel strokes are KEPT, not discarded, so turning the flag
 	// back off restores whatever was there.
 	bool background = false;
+	// -1 means no label.  Otherwise this indexes the editor's fixed palette.
+	int labelColor = -1;
 	std::vector<JPPaintStroke> sharedStrokes;
 	int id = 0;
 };
@@ -149,6 +151,10 @@ struct JPPaintDocument
 	// Transparent by default: this is a texture in a patch, not a page. An
 	// opaque white canvas would blot out everything composited underneath it.
 	float bgR = 0.0f, bgG = 0.0f, bgB = 0.0f, bgA = 0.0f;
+	// Native PAINT resolution.  The node output can be resampled to the global
+	// graph resolution, but stroke rasterization and exports use these values.
+	int canvasWidth = 1920;
+	int canvasHeight = 1080;
 	// Never reused within a document, so a cached raster cannot be handed to a
 	// different cel that happened to land on the same index.
 	int nextFrameId = 1;
@@ -976,6 +982,7 @@ namespace jp_paint
 			target.opacity = std::clamp(edit.layer.opacity, 0.0f, 1.0f);
 			target.blendMode = std::clamp(edit.layer.blendMode, 0, 3);
 			target.background = edit.layer.background;
+			target.labelColor = std::clamp(edit.layer.labelColor, -1, 7);
 			// The shared strokes travel with the properties, because turning the
 			// background flag ON adopts whatever was drawn on the layer - see
 			// JPbox_paint::toggleLayerBackground. previousLayer carries the old

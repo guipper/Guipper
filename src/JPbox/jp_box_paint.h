@@ -181,6 +181,10 @@ public:
 	float canvasAspect() const;
 	int canvasPixelWidth() const;
 	int canvasPixelHeight() const;
+	// Keeps the graph-facing FBO at the project resolution while rebuilding the
+	// internal stroke cache at this PAINT's native resolution.
+	void setCanvasSize(int width, int height);
+	void setCanvasBackground(float r, float g, float b, float a);
 	bool exportCurrentPng(const std::string &path);
 	bool exportPngSequence(const std::string &directory,
 		const std::string &prefix = "paint_frame");

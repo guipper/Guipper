@@ -5491,9 +5491,8 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	}
 
 	const bool selectAllShortcut =
-		e.key == 1 ||
-		(ctrlOrCmd &&
-			(e.keycode == GLFW_KEY_A || e.key == 'a' || e.key == 'A'));
+		ctrlOrCmd &&
+		(e.keycode == GLFW_KEY_A || e.key == 'a' || e.key == 'A');
 	const bool copyShortcut =
 		e.key == 3 ||
 		(ctrlOrCmd &&

@@ -134,6 +134,12 @@ public:
 	bool paintUndoShortcut(bool redo);
 	bool paintSelectAllShortcut();
 	bool paintClipboardShortcut(char operation);
+	bool paintTimelineClipboardShortcut(char operation);
+	bool paintTimelineHasSelection() const;
+	void clearPaintTimelineSelection();
+	void copyPaintTimelineSelection(JPbox_paint *box, bool cut);
+	void pastePaintTimelineSelection(JPbox_paint *box);
+	void deletePaintTimelineSelection(JPbox_paint *box);
 	bool paintLayerShortcut(char operation);
 	bool paintExportShortcut(int format);
 	// True while a field in this panel owns the keyboard. Every tool shortcut has
@@ -993,7 +999,7 @@ private:
 	void clearPaintSelection();
 	void moveSelectedStrokes(JPbox_paint *box, const ofVec2f &offset);
 	void rotateSelectedStrokes(JPbox_paint *box, float angle);
-	void scaleSelectedStrokes(JPbox_paint *box, float scaleFactor);
+	void scaleSelectedStrokes(JPbox_paint *box, const ofVec2f &scale);
 	void flipSelectedStrokes(JPbox_paint *box, bool horizontal);
 	void duplicateSelectedStrokes(JPbox_paint *box);
 	void deleteSelectedStrokes(JPbox_paint *box);
@@ -1012,6 +1018,7 @@ private:
 	// index. paintLayerAtRow converts back.
 	ofRectangle getPaintGutterRowBounds(int row) const;
 	ofRectangle getPaintLayerEyeBounds(int row) const;
+	ofRectangle getPaintLayerLabelBounds(int row) const;
 	ofRectangle getPaintLayerBlendBounds(int row) const;
 	ofRectangle getPaintLayerLockBounds(int row) const;
 	ofRectangle getPaintLayerBadgeBounds(int row) const;
@@ -1137,6 +1144,15 @@ private:
 	std::vector<ofVec2f> paintClipboardPath;
 	ofRectangle paintClipboardBounds;
 	int paintClipboardPasteSerial = 0;
+	// Timeline cells use document layer indices (not visual row indices).
+	std::vector<std::pair<int, int>> paintTimelineSelection;
+	int paintTimelineAnchorFrame = -1;
+	int paintTimelineAnchorLayer = -1;
+	std::vector<JPPaintLayer> paintTimelineClipboard;
+	std::vector<std::pair<int, int>> paintTimelineClipboardOffsets;
+	bool paintTimelineMoveArmed = false;
+	int paintTimelineMoveTargetFrame = -1;
+	int paintTimelineMoveTargetLayer = -1;
 	bool paintSelectionDragging = false;
 	ofVec2f paintSelectionDragStartUv;
 	ofVec2f paintSelectionDragOffset;
@@ -1144,8 +1160,9 @@ private:
 	float paintSelectionRotation = 0.0f;
 	float paintSelectionRotateStartAngle = 0.0f;
 	bool paintSelectionScaling = false;
-	float paintSelectionScale = 1.0f;
-	float paintSelectionScaleStartDist = 1.0f;
+	ofVec2f paintSelectionScale = ofVec2f(1.0f, 1.0f);
+	ofVec2f paintSelectionScaleStartDist = ofVec2f(1.0f, 1.0f);
+	int paintSelectionScaleHandle = -1;
 	// 0 replaces, 1 adds and 2 subtracts. Captured on mouse-down so releasing a
 	// modifier halfway through a lasso cannot change the operation.
 	int paintSelectionCombineMode = 0;

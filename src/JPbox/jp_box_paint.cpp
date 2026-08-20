@@ -404,8 +404,8 @@ ofFbo &JPbox_paint::ensureRaster(int celIndex)
 	jp_paint::clampCurrentFrame(doc);
 	const int index = std::clamp(celIndex, 0, (int)doc.frames.size() - 1);
 	const JPPaintFrame &frame = doc.frames[(std::size_t)index];
-	const int targetW = std::max(1, (int)fbo.getWidth());
-	const int targetH = std::max(1, (int)fbo.getHeight());
+	const int targetW = std::max(16, doc.canvasWidth);
+	const int targetH = std::max(16, doc.canvasHeight);
 
 	++rasterClock;
 
@@ -1118,9 +1118,31 @@ void JPbox_paint::drawStrokePreview(const JPPaintStroke &stroke, float drawX,
 	if (stroke.points.empty()) return;
 	ofPushMatrix();
 	ofTranslate(drawX, drawY);
-	// Sizes are a fraction of canvas width, so passing the ON SCREEN width is
-	// what makes the brush scale with the editor's zoom.
-	renderStrokeGeometry(stroke, drawWidth, drawHeight);
+	// Keep the preview on the same soft-edge path as the actual brush.  Calling
+	// renderStrokeGeometry just once made every preview look 100% hard even
+	// though the canvas correctly used the nested feather passes in paintStroke.
+	const ofColor tint = ofGetStyle().color;
+	const bool soft = stroke.hardness < 0.999f &&
+		(stroke.tool == (int)JPPaintTool::Brush ||
+		 stroke.tool == (int)JPPaintTool::Eraser);
+	if (!soft)
+	{
+		renderStrokeGeometry(stroke, drawWidth, drawHeight);
+	}
+	else
+	{
+		const int steps = 16;
+		for (int i = 0; i < steps; ++i)
+		{
+			JPPaintStroke pass = stroke;
+			const float u = (float)i / (float)(steps - 1);
+			pass.size *= ofLerp(1.0f, std::max(0.025f, stroke.hardness), u);
+			const float alpha = 1.0f / (float)(steps - i);
+			ofSetColor(tint.r * alpha, tint.g * alpha, tint.b * alpha,
+				tint.a * alpha);
+			renderStrokeGeometry(pass, drawWidth, drawHeight);
+		}
+	}
 	ofPopMatrix();
 }
 
@@ -1178,19 +1200,38 @@ ofFbo *JPbox_paint::referenceFbo()
 
 float JPbox_paint::canvasAspect() const
 {
-	const float w = std::max(1.0f, (float)fbo.getWidth());
-	const float h = std::max(1.0f, (float)fbo.getHeight());
+	const float w = std::max(1.0f, (float)doc.canvasWidth);
+	const float h = std::max(1.0f, (float)doc.canvasHeight);
 	return w / h;
 }
 
 int JPbox_paint::canvasPixelWidth() const
 {
-	return std::max(1, (int)fbo.getWidth());
+	return std::max(16, doc.canvasWidth);
 }
 
 int JPbox_paint::canvasPixelHeight() const
 {
-	return std::max(1, (int)fbo.getHeight());
+	return std::max(16, doc.canvasHeight);
+}
+
+void JPbox_paint::setCanvasSize(int width, int height)
+{
+	const int w = std::clamp(width, 16, 8192);
+	const int h = std::clamp(height, 16, 8192);
+	if (doc.canvasWidth == w && doc.canvasHeight == h) return;
+	doc.canvasWidth = w;
+	doc.canvasHeight = h;
+	jp_paint::bumpAllFrames(doc);
+	invalidateRasters();
+}
+
+void JPbox_paint::setCanvasBackground(float r, float g, float b, float a)
+{
+	doc.bgR = ofClamp(r, 0.0f, 1.0f);
+	doc.bgG = ofClamp(g, 0.0f, 1.0f);
+	doc.bgB = ofClamp(b, 0.0f, 1.0f);
+	doc.bgA = ofClamp(a, 0.0f, 1.0f);
 }
 
 bool JPbox_paint::renderCelPixels(int celIndex, ofPixels &pixels)
@@ -1665,6 +1706,7 @@ void JPbox_paint::setLayerProps(int index, const JPPaintLayerInfo &props)
 		existing.locked == props.locked &&
 		existing.blendMode == props.blendMode &&
 		existing.background == props.background &&
+		existing.labelColor == props.labelColor &&
 		existing.sharedStrokes.size() == props.sharedStrokes.size() &&
 		std::abs(existing.opacity - props.opacity) < 0.001f)
 	{
@@ -1890,7 +1932,9 @@ void JPbox_paint::saveCustomState(ofXml &boxNode) const
 	root.appendChild("currentLayer").set(doc.currentLayer);
 	root.appendChild("background").set(
 		ofToString(doc.bgR) + " " + ofToString(doc.bgG) + " " +
-		ofToString(doc.bgB) + " " + ofToString(doc.bgA));
+		 ofToString(doc.bgB) + " " + ofToString(doc.bgA));
+	root.appendChild("canvasSize").set(ofToString(doc.canvasWidth) + " " +
+		ofToString(doc.canvasHeight));
 
 	// The layer stack, described once. <layer> under <layers> is the layer
 	// itself; <layer> under <frame> is that cel's strokes for it. Different
@@ -1906,6 +1950,8 @@ void JPbox_paint::saveCustomState(ofXml &boxNode) const
 		layerNode.appendChild("opacity").set(info.opacity);
 		if (info.blendMode != 0)
 			layerNode.appendChild("blendMode").set(info.blendMode);
+		if (info.labelColor >= 0)
+			layerNode.appendChild("labelColor").set(info.labelColor);
 		layerNode.appendChild("background").set(info.background);
 		// Written whether or not the flag is set, so toggling background off
 		// after a reload still restores what was drawn on it.
@@ -1971,6 +2017,16 @@ void JPbox_paint::loadCustomState(const ofXml &boxNode)
 			doc.bgA = ofToFloat(parts[3]);
 		}
 	}
+	auto canvasSize = root.getChild("canvasSize");
+	if (canvasSize)
+	{
+		const std::vector<std::string> parts = ofSplitString(canvasSize.getValue(), " ", true, true);
+		if (parts.size() >= 2)
+		{
+			doc.canvasWidth = std::clamp(ofToInt(parts[0]), 16, 8192);
+			doc.canvasHeight = std::clamp(ofToInt(parts[1]), 16, 8192);
+		}
+	}
 
 	// The layer stack. A file written before layers existed has no <layers>
 	// block at all, which is exactly when a single default layer is right.
@@ -1994,6 +2050,7 @@ void JPbox_paint::loadCustomState(const ofXml &boxNode)
 				0.0f, 1.0f);
 			info.blendMode = std::clamp(
 				readInt(layerNode, "blendMode", 0), 0, 3);
+			info.labelColor = std::clamp(readInt(layerNode, "labelColor", -1), -1, 7);
 			auto background = layerNode.getChild("background");
 			info.background = background ? background.getBoolValue() : false;
 			readStrokes(layerNode, info.sharedStrokes);

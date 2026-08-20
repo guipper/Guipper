@@ -319,8 +319,9 @@ namespace
 	constexpr float kSizeSliderWidth = 96.0f;
 	constexpr float kBrushPropertyWidth = 26.0f;
 	constexpr float kBrushSettingsWidth = 176.0f;
-	constexpr float kBrushSettingsPreviewHeight = 38.0f;
-	constexpr float kBrushSettingsRowHeight = 33.0f;
+	constexpr float kBrushSettingsPreviewHeight = 42.0f;
+	constexpr float kBrushSettingsRowHeight = 29.0f;
+	constexpr int kBrushSettingCount = 4;
 	constexpr float kSwatchWidth = 34.0f;
 	constexpr float kActionWidth = 34.0f;
 	constexpr float kPickerWidth = 184.0f;
@@ -734,9 +735,9 @@ ofRectangle JPboxgroup::getPaintBrushSettingsBounds() const
 	x = ofClamp(x, 4.0f, std::max(4.0f, ofGetWidth() - kBrushSettingsWidth - 4.0f));
 	y = ofClamp(y, 4.0f, std::max(4.0f,
 		ofGetHeight() - kBrushSettingsPreviewHeight -
-			kBrushSettingsRowHeight * 4.0f - 15.0f));
+			kBrushSettingsRowHeight * kBrushSettingCount - 15.0f));
 	return ofRectangle(x, y, kBrushSettingsWidth,
-		kBrushSettingsPreviewHeight + kBrushSettingsRowHeight * 4.0f + 13.0f);
+		kBrushSettingsPreviewHeight + kBrushSettingsRowHeight * kBrushSettingCount + 13.0f);
 }
 
 ofRectangle JPboxgroup::getPaintBrushSettingsPreviewBounds() const
@@ -748,7 +749,7 @@ ofRectangle JPboxgroup::getPaintBrushSettingsPreviewBounds() const
 
 ofRectangle JPboxgroup::getPaintBrushSettingRowBounds(int mode) const
 {
-	if (mode < 0 || mode > 3) return ofRectangle();
+	if (mode < 0 || mode >= kBrushSettingCount) return ofRectangle();
 	const ofRectangle menu = getPaintBrushSettingsBounds();
 	return ofRectangle(menu.x + 4.0f,
 		menu.y + kBrushSettingsPreviewHeight + 8.0f +
@@ -954,6 +955,12 @@ ofRectangle JPboxgroup::getPaintLayerEyeBounds(int row) const
 	return ofRectangle(bounds.x + 6.0f, bounds.y + 5.0f, 16.0f, 16.0f);
 }
 
+ofRectangle JPboxgroup::getPaintLayerLabelBounds(int row) const
+{
+	const ofRectangle eye = getPaintLayerEyeBounds(row);
+	return ofRectangle(eye.getRight() + 4.0f, eye.y + 4.0f, 8.0f, 8.0f);
+}
+
 ofRectangle JPboxgroup::getPaintLayerBadgeBounds(int row) const
 {
 	const ofRectangle bounds = getPaintGutterRowBounds(row);
@@ -1002,8 +1009,9 @@ ofRectangle JPboxgroup::getPaintLayerNameBounds(int row) const
 	const ofRectangle badge = getPaintLayerBlendBounds(row);
 	// Between the eye and the BG badge, and above the opacity bar: the strip that
 	// shows the name is the strip that starts a rename.
-	return ofRectangle(eye.getRight() + 7.0f, bounds.y + 3.0f,
-		std::max(16.0f, badge.x - eye.getRight() - 12.0f), 17.0f);
+	const ofRectangle label = getPaintLayerLabelBounds(row);
+	return ofRectangle(label.getRight() + 4.0f, bounds.y + 3.0f,
+		std::max(16.0f, badge.x - label.getRight() - 8.0f), 17.0f);
 }
 
 ofRectangle JPboxgroup::getPaintHexFieldBounds() const
@@ -1222,13 +1230,13 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 					{
 						if (paintSelectionScaling)
 							scaleStrokeAppearance(previewStrokes[(std::size_t)idx],
-								paintSelectionScale);
+								std::sqrt(paintSelectionScale.x * paintSelectionScale.y));
 						transformStrokeCoordinates(previewStrokes[(std::size_t)idx], [&](const ofVec2f &point) {
 							ofVec2f p = point;
 							if (paintSelectionScaling)
 							{
-								p.x = centerVal.x + (p.x - centerVal.x) * paintSelectionScale;
-								p.y = centerVal.y + (p.y - centerVal.y) * paintSelectionScale;
+								p.x = centerVal.x + (p.x - centerVal.x) * paintSelectionScale.x;
+								p.y = centerVal.y + (p.y - centerVal.y) * paintSelectionScale.y;
 							}
 							if (paintSelectionRotating)
 							{
@@ -1335,8 +1343,8 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 				ofVec2f pt = p;
 				if (paintSelectionScaling)
 				{
-					pt.x = centerVal.x + (pt.x - centerVal.x) * paintSelectionScale;
-					pt.y = centerVal.y + (pt.y - centerVal.y) * paintSelectionScale;
+				pt.x = centerVal.x + (pt.x - centerVal.x) * paintSelectionScale.x;
+				pt.y = centerVal.y + (pt.y - centerVal.y) * paintSelectionScale.y;
 				}
 				if (paintSelectionRotating)
 				{
@@ -1358,7 +1366,7 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 			}
 			
 			// Draw rotation handle
-			ofVec2f topCenter = ofVec2f(centerVal.x, centerVal.y + (paintSelectionBounds.y - centerVal.y) * (paintSelectionScaling ? paintSelectionScale : 1.0f));
+			ofVec2f topCenter = ofVec2f(centerVal.x, centerVal.y + (paintSelectionBounds.y - centerVal.y) * (paintSelectionScaling ? paintSelectionScale.y : 1.0f));
 			if (paintSelectionRotating)
 			{
 				topCenter = rotatePointAround(topCenter, centerVal, paintSelectionRotation, aspect);
@@ -1384,9 +1392,9 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 			ofSetColor(COL_ACCENT_CYAN, 240);
 			ofDrawCircle(handleScr.x, handleScr.y, 4.0f);
 			
-			// Draw 4 scale handles on the corners
+			// Eight handles: corners resize both axes; edge handles resize one.
 			auto getCornerScr = [&](float x, float y) {
-				ofVec2f pt = centerVal + (ofVec2f(x, y) - centerVal) * (paintSelectionScaling ? paintSelectionScale : 1.0f);
+				ofVec2f pt = centerVal + ofVec2f((x - centerVal.x) * (paintSelectionScaling ? paintSelectionScale.x : 1.0f), (y - centerVal.y) * (paintSelectionScaling ? paintSelectionScale.y : 1.0f));
 				if (paintSelectionRotating)
 				{
 					pt = rotatePointAround(pt, centerVal, paintSelectionRotation, aspect);
@@ -1409,6 +1417,14 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 			ofDrawRectangle(trScr.x - 3, trScr.y - 3, 6, 6);
 			ofDrawRectangle(blScr.x - 3, blScr.y - 3, 6, 6);
 			ofDrawRectangle(brScr.x - 3, brScr.y - 3, 6, 6);
+			const ofVec2f topMid = (tlScr + trScr) * 0.5f;
+			const ofVec2f bottomMid = (blScr + brScr) * 0.5f;
+			const ofVec2f leftMid = (tlScr + blScr) * 0.5f;
+			const ofVec2f rightMid = (trScr + brScr) * 0.5f;
+			ofDrawRectangle(topMid.x - 3, topMid.y - 3, 6, 6);
+			ofDrawRectangle(bottomMid.x - 3, bottomMid.y - 3, 6, 6);
+			ofDrawRectangle(leftMid.x - 3, leftMid.y - 3, 6, 6);
+			ofDrawRectangle(rightMid.x - 3, rightMid.y - 3, 6, 6);
 			
 			ofNoFill();
 			ofSetColor(COL_ACCENT_CYAN, 240);
@@ -1416,6 +1432,10 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 			ofDrawRectangle(trScr.x - 3, trScr.y - 3, 6, 6);
 			ofDrawRectangle(blScr.x - 3, blScr.y - 3, 6, 6);
 			ofDrawRectangle(brScr.x - 3, brScr.y - 3, 6, 6);
+			ofDrawRectangle(topMid.x - 3, topMid.y - 3, 6, 6);
+			ofDrawRectangle(bottomMid.x - 3, bottomMid.y - 3, 6, 6);
+			ofDrawRectangle(leftMid.x - 3, leftMid.y - 3, 6, 6);
+			ofDrawRectangle(rightMid.x - 3, rightMid.y - 3, 6, 6);
 			
 			ofPopStyle();
 		}
@@ -1577,21 +1597,14 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 			bounds.width, bounds.height);
 	}
 
-	// The property button makes the active brush setting explicit. Keyboard
-	// modifiers still work as a fast temporary override, but no longer force the
-	// user to remember which invisible mode the trough is editing.
+	// The property button makes the active brush setting explicit. The dropdown
+	// is the single source of truth: modifiers belong to selection transforms,
+	// not hidden brush modes.
 	const ofRectangle slider = getPaintSizeSliderBounds();
 	const ofRectangle property = getPaintBrushPropertyBounds();
 	const ofRectangle value = getPaintBrushValueBounds();
 	const bool fillSelected = paintTool == (int)JPPaintTool::Fill;
 	int sliderMode = paintBrushSliderMode;
-	if (paintDragMode != PAINT_DRAG_SIZE)
-	{
-		if (ofGetKeyPressed(OF_KEY_CONTROL) || ofGetKeyPressed(OF_KEY_COMMAND))
-			sliderMode = 3;
-		else if (ofGetKeyPressed(OF_KEY_ALT)) sliderMode = 2;
-		else if (ofGetKeyPressed(OF_KEY_SHIFT)) sliderMode = 1;
-	}
 	if (fillSelected) sliderMode = 0;
 	const float t = fillSelected ? paintFillTolerance :
 		(sliderMode == 1 ? paintBrushOpacity :
@@ -1632,8 +1645,7 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 	ofDrawCircle(value.x + value.width * t, value.getCenter().y,
 		(fillSelected || sliderMode != 0) ? 3.0f
 			: ofClamp(paintBrushSize * 200.0f, 2.0f, value.height * 0.5f));
-	const char *sliderTip = fillSelected ?
-		"Tolerancia de relleno" : sliderMode == 1 ?
+	const char *sliderTip = fillSelected ? "Tolerancia de relleno" : sliderMode == 1 ?
 		"Opacidad del pincel" : sliderMode == 2 ? "Dureza del pincel" :
 		sliderMode == 3 ? "Estabilizador del trazo" : "Tamaño del pincel ([ y ])";
 	jp_tooltip::draw(sliderTip,
@@ -1682,7 +1694,7 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 		box->drawStrokePreview(previewStroke, previewBounds.x, previewBounds.y,
 			previewBounds.width, previewBounds.height);
 		static const char *menuNames[] = {"Tamaño", "Opacidad", "Dureza", "Estabilizador"};
-		for (int mode = 0; mode < 4; ++mode)
+		for (int mode = 0; mode < kBrushSettingCount; ++mode)
 		{
 			const ofRectangle row = getPaintBrushSettingRowBounds(mode);
 			const bool active = mode == paintBrushSliderMode;
@@ -1694,7 +1706,8 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 			jp_constants::p2_font.drawString(menuNames[mode], row.x + 7.0f,
 				row.y + 12.0f);
 			const float itemValue = mode == 0 ? sliderFromBrush(paintBrushSize) :
-				(mode == 1 ? paintBrushOpacity : mode == 2 ? paintBrushHardness : paintBrushStabilizer);
+				(mode == 1 ? paintBrushOpacity : mode == 2 ? paintBrushHardness :
+				 mode == 3 ? paintBrushStabilizer : sliderFromBrush(paintBrushSize));
 			const ofRectangle itemSlider = getPaintBrushSettingValueBounds(mode);
 			ofSetColor(COL_SLIDER_TROUGH);
 			ofDrawRectRounded(itemSlider, 2.0f);
@@ -1704,7 +1717,9 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 			ofSetColor(active ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
 			ofDrawCircle(itemSlider.x + itemSlider.width * itemValue,
 				itemSlider.getCenter().y, 2.5f);
-			const string percent = ofToString((int)std::round(itemValue * 100.0f)) + "%";
+			const string percent = mode == 0 ?
+				ofToString((int)std::round(paintBrushSize * box->canvasPixelWidth() * 2.0f)) + " px" :
+				ofToString((int)std::round(itemValue * 100.0f)) + "%";
 			ofSetColor(active ? COL_ACCENT_CYAN : COL_TEXT_MUTED);
 			jp_constants::p2_font.drawString(percent, row.getRight() - 7.0f -
 				jp_constants::p2_font.stringWidth(percent), row.y + 12.0f);
@@ -2011,8 +2026,19 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 			}
 			else
 			{
+				static const ofColor labelColors[] = {
+					ofColor(239, 83, 80), ofColor(255, 202, 40),
+					ofColor(102, 187, 106), ofColor(38, 198, 218),
+					ofColor(66, 165, 245), ofColor(171, 71, 188),
+					ofColor(255, 112, 67), ofColor(176, 190, 197)};
+				const ofRectangle labelBadge = getPaintLayerLabelBounds(row);
+				ofSetColor(info.labelColor >= 0 ?
+					labelColors[std::clamp(info.labelColor, 0, 7)] : COL_TEXT_DARK);
+				ofDrawCircle(labelBadge.getCenter(), 4.0f);
+				jp_tooltip::draw("Etiqueta de color", labelBadge.x, labelBadge.y,
+					labelBadge.width, labelBadge.height);
 				ofSetColor(selected ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
-				jp_constants::p2_font.drawString(label, eye.getRight() + 7.0f,
+				jp_constants::p2_font.drawString(label, labelBadge.getRight() + 4.0f,
 					bounds.y + 15.0f);
 			}
 
@@ -2211,6 +2237,49 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 				const bool filled = strokes != nullptr && !strokes->empty();
 				const bool selected = frame == doc.currentFrame &&
 					index == currentLayerIndex;
+				const bool blockSelected = std::find(paintTimelineSelection.begin(),
+					paintTimelineSelection.end(), std::make_pair(frame, index)) !=
+					paintTimelineSelection.end();
+				bool movePlaceholder = false;
+				if (paintTimelineMoveArmed && paintTimelineMoveTargetFrame >= 0 &&
+					paintTimelineMoveTargetLayer >= 0 && !paintTimelineSelection.empty())
+				{
+					int minFrame = paintTimelineSelection.front().first;
+					int minLayer = paintTimelineSelection.front().second;
+					for (const auto &source : paintTimelineSelection)
+					{
+						minFrame = std::min(minFrame, source.first);
+						minLayer = std::min(minLayer, source.second);
+					}
+					for (const auto &source : paintTimelineSelection)
+					{
+						if (frame == paintTimelineMoveTargetFrame + source.first - minFrame &&
+							index == paintTimelineMoveTargetLayer + source.second - minLayer)
+						{
+							movePlaceholder = true;
+							break;
+						}
+					}
+				}
+				if (blockSelected)
+				{
+					ofSetColor(ofColor(COL_ACCENT_GOLD, 52));
+					ofDrawRectangle(cell.x + 1.0f, cell.y + 1.0f,
+						cell.width - 2.0f, cell.height - 2.0f);
+				}
+				if (movePlaceholder)
+				{
+					ofSetColor(ofColor(COL_ACCENT_GOLD, 92));
+					ofDrawRectRounded(cell.x + 4.0f, cell.y + 4.0f,
+						cell.width - 8.0f, cell.height - 8.0f, 2.0f);
+					ofNoFill();
+					ofSetColor(COL_ACCENT_GOLD);
+					ofSetLineWidth(1.5f);
+					ofDrawRectangle(cell.x + 2.0f, cell.y + 2.0f,
+						cell.width - 4.0f, cell.height - 4.0f);
+					ofSetLineWidth(1.0f);
+					ofFill();
+				}
 
 				if (filled)
 				{
@@ -2221,11 +2290,11 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 						cell.getCenter().x - side * 0.5f,
 						cell.getCenter().y - side * 0.5f, side, side, 2.0f);
 				}
-				if (selected)
+				if (selected || blockSelected)
 				{
 					ofNoFill();
 					ofSetLineWidth(1.5f);
-					ofSetColor(COL_ACCENT_CYAN);
+					ofSetColor(blockSelected ? COL_ACCENT_GOLD : COL_ACCENT_CYAN);
 					ofDrawRectangle(cell.x + 1, cell.y + 1, cell.width - 2,
 						cell.height - 2);
 					ofSetLineWidth(1.0f);
@@ -2807,7 +2876,8 @@ void JPboxgroup::clearPaintSelection()
 	paintSelectionRotating = false;
 	paintSelectionRotation = 0.0f;
 	paintSelectionScaling = false;
-	paintSelectionScale = 1.0f;
+	paintSelectionScale.set(1.0f, 1.0f);
+	paintSelectionScaleHandle = -1;
 }
 
 void JPboxgroup::moveSelectedStrokes(JPbox_paint *box, const ofVec2f &offset)
@@ -2879,9 +2949,10 @@ void JPboxgroup::rotateSelectedStrokes(JPbox_paint *box, float angle)
 	paintSelectionBounds = ofRectangle(minX, minY, maxX - minX, maxY - minY);
 }
 
-void JPboxgroup::scaleSelectedStrokes(JPbox_paint *box, float scaleFactor)
+void JPboxgroup::scaleSelectedStrokes(JPbox_paint *box, const ofVec2f &scale)
 {
-	if (paintSelectedStrokeIndices.empty() || std::abs(scaleFactor - 1.0f) < 0.001f) return;
+	if (paintSelectedStrokeIndices.empty() ||
+		(std::abs(scale.x - 1.0f) < 0.001f && std::abs(scale.y - 1.0f) < 0.001f)) return;
 	const int cel = std::clamp(box->document().currentFrame, 0, (int)box->document().frames.size() - 1);
 	const std::vector<JPPaintStroke> *list = jp_paint::strokeListFor(box->document(), cel, box->currentLayer());
 	if (list == nullptr) return;
@@ -2892,10 +2963,10 @@ void JPboxgroup::scaleSelectedStrokes(JPbox_paint *box, float scaleFactor)
 	{
 		if (idx >= 0 && idx < (int)newList.size())
 		{
-			scaleStrokeAppearance(newList[idx], scaleFactor);
+			scaleStrokeAppearance(newList[idx], std::sqrt(scale.x * scale.y));
 			transformStrokeCoordinates(newList[idx], [&](const ofVec2f &point) {
-				return ofVec2f(center.x + (point.x - center.x) * scaleFactor,
-					center.y + (point.y - center.y) * scaleFactor);
+				return ofVec2f(center.x + (point.x - center.x) * scale.x,
+					center.y + (point.y - center.y) * scale.y);
 			});
 		}
 	}
@@ -2904,8 +2975,8 @@ void JPboxgroup::scaleSelectedStrokes(JPbox_paint *box, float scaleFactor)
 	
 	for (auto &p : paintSelectionPath)
 	{
-		p.x = center.x + (p.x - center.x) * scaleFactor;
-		p.y = center.y + (p.y - center.y) * scaleFactor;
+		p.x = center.x + (p.x - center.x) * scale.x;
+		p.y = center.y + (p.y - center.y) * scale.y;
 	}
 	
 	float minX = paintSelectionPath[0].x;
@@ -3266,7 +3337,7 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 			getPaintBrushSettingsBounds().inside(mouse))
 		{
 			paintPanelPointerCaptured = true;
-			for (int mode = 0; mode < 4; ++mode)
+			for (int mode = 0; mode < kBrushSettingCount; ++mode)
 			{
 				if (!getPaintBrushSettingRowBounds(mode).inside(mouse)) continue;
 				paintBrushSliderMode = mode;
@@ -3425,10 +3496,6 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 	{
 		paintDragMode = PAINT_DRAG_SIZE;
 		paintBrushSettingsDragMode = -1;
-		paintBrushSliderMode =
-			(ofGetKeyPressed(OF_KEY_CONTROL) || ofGetKeyPressed(OF_KEY_COMMAND)) ? 3 :
-			ofGetKeyPressed(OF_KEY_ALT) ? 2 :
-			ofGetKeyPressed(OF_KEY_SHIFT) ? 1 : paintBrushSliderMode;
 		if (paintTool == (int)JPPaintTool::Fill) paintBrushSliderMode = 0;
 		const float t = ofClamp(
 			(mouse.x - slider.x) / std::max(1.0f, slider.width), 0.0f, 1.0f);
@@ -3528,6 +3595,12 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 					props.visible = !props.visible;
 					box->setLayerProps(index, props);
 				}
+				else if (getPaintLayerLabelBounds(row).inside(mouse))
+				{
+					JPPaintLayerInfo props = box->document().layers[(std::size_t)index];
+					props.labelColor = props.labelColor >= 7 ? -1 : props.labelColor + 1;
+					box->setLayerProps(index, props);
+				}
 				else if (getPaintLayerBlendBounds(row).inside(mouse))
 				{
 					JPPaintLayerInfo props = box->document()
@@ -3613,8 +3686,47 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 			const int index = paintLayerAtRow(cellRow);
 			if (index >= 0)
 			{
+				const std::pair<int, int> cell(cellFrame, index);
+				const bool shift = ofGetKeyPressed(OF_KEY_SHIFT);
+				const bool toggle = ofGetKeyPressed(OF_KEY_CONTROL) ||
+					ofGetKeyPressed(OF_KEY_SUPER);
+				const bool wasSelected = std::find(paintTimelineSelection.begin(),
+					paintTimelineSelection.end(), cell) != paintTimelineSelection.end();
+				if (shift && paintTimelineAnchorFrame >= 0 &&
+					paintTimelineAnchorLayer >= 0)
+				{
+					paintTimelineSelection.clear();
+					const int minFrame = std::min(paintTimelineAnchorFrame, cellFrame);
+					const int maxFrame = std::max(paintTimelineAnchorFrame, cellFrame);
+					const int minLayer = std::min(paintTimelineAnchorLayer, index);
+					const int maxLayer = std::max(paintTimelineAnchorLayer, index);
+					for (int frame = minFrame; frame <= maxFrame; ++frame)
+						for (int layer = minLayer; layer <= maxLayer; ++layer)
+							paintTimelineSelection.push_back(std::make_pair(frame, layer));
+				}
+				else if (toggle)
+				{
+					auto it = std::find(paintTimelineSelection.begin(),
+						paintTimelineSelection.end(), cell);
+					if (it == paintTimelineSelection.end()) paintTimelineSelection.push_back(cell);
+					else paintTimelineSelection.erase(it);
+					paintTimelineAnchorFrame = cellFrame;
+					paintTimelineAnchorLayer = index;
+				}
+				else if (!wasSelected)
+				{
+					paintTimelineSelection.assign(1, cell);
+					paintTimelineAnchorFrame = cellFrame;
+					paintTimelineAnchorLayer = index;
+				}
 				box->setCurrentCel(cellFrame);
 				box->setCurrentLayer(index);
+				// Dragging an already-selected cell moves the whole selected block.
+				// Modifiers are selection gestures, never movement gestures.
+				paintTimelineMoveArmed = !shift && !toggle && wasSelected &&
+					paintTimelineSelection.size() > 0;
+				paintTimelineMoveTargetFrame = cellFrame;
+				paintTimelineMoveTargetLayer = index;
 				markPaintChanged();
 			}
 			return true;
@@ -3711,7 +3823,7 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 				float aspect = view.canvasRect().height > 0.0f ? (view.canvasRect().width / view.canvasRect().height) : 1.0f;
 				
 				auto getCornerScr = [&](float x, float y) {
-					ofVec2f pt = centerVal + (ofVec2f(x, y) - centerVal) * (paintSelectionScaling ? paintSelectionScale : 1.0f);
+					ofVec2f pt = centerVal + ofVec2f((x - centerVal.x) * (paintSelectionScaling ? paintSelectionScale.x : 1.0f), (y - centerVal.y) * (paintSelectionScaling ? paintSelectionScale.y : 1.0f));
 					if (paintSelectionRotating)
 					{
 						pt = rotatePointAround(pt, centerVal, paintSelectionRotation, aspect);
@@ -3728,14 +3840,14 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 				ofVec2f blScr = getCornerScr(paintSelectionBounds.x, paintSelectionBounds.getBottom());
 				ofVec2f brScr = getCornerScr(paintSelectionBounds.getRight(), paintSelectionBounds.getBottom());
 				
-				if (mouse.distance(tlScr) < 8.0f || mouse.distance(trScr) < 8.0f ||
-					mouse.distance(blScr) < 8.0f || mouse.distance(brScr) < 8.0f)
-				{
-					clickedScale = true;
-				}
+				const ofVec2f handles[] = {tlScr, trScr, blScr, brScr,
+					(ofVec2f(tlScr + trScr) * 0.5f), (ofVec2f(blScr + brScr) * 0.5f),
+					(ofVec2f(tlScr + blScr) * 0.5f), (ofVec2f(trScr + brScr) * 0.5f)};
+				for (int h = 0; h < 8; ++h)
+					if (mouse.distance(handles[h]) < 8.0f) { clickedScale = true; paintSelectionScaleHandle = h; break; }
 				else
 				{
-					ofVec2f topCenter = ofVec2f(centerVal.x, centerVal.y + (paintSelectionBounds.y - centerVal.y) * (paintSelectionScaling ? paintSelectionScale : 1.0f));
+					ofVec2f topCenter = ofVec2f(centerVal.x, centerVal.y + (paintSelectionBounds.y - centerVal.y) * (paintSelectionScaling ? paintSelectionScale.y : 1.0f));
 					if (paintSelectionRotating)
 					{
 						topCenter = rotatePointAround(topCenter, centerVal, paintSelectionRotation, aspect);
@@ -3771,9 +3883,8 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 				paintSelectionScaling = true;
 				const JPViewTransform view = paintView();
 				const ofVec2f centerScr = view.toScreen(centerVal + (paintSelectionDragging ? paintSelectionDragOffset : ofVec2f(0.0f, 0.0f)));
-				paintSelectionScaleStartDist = mouse.distance(centerScr);
-				if (paintSelectionScaleStartDist < 1.0f) paintSelectionScaleStartDist = 1.0f;
-				paintSelectionScale = 1.0f;
+				paintSelectionScaleStartDist.set(std::max(1.0f, std::abs(mouse.x - centerScr.x)), std::max(1.0f, std::abs(mouse.y - centerScr.y)));
+				paintSelectionScale.set(1.0f, 1.0f);
 			}
 			else if (clickedRotate)
 			{
@@ -3837,11 +3948,17 @@ bool JPboxgroup::update_paintMouseDragged(int mouseButton)
 		const JPViewTransform view = paintView();
 		const ofVec2f centerVal = paintSelectionBounds.getCenter();
 		const ofVec2f centerScr = view.toScreen(centerVal + (paintSelectionDragging ? paintSelectionDragOffset : ofVec2f(0.0f, 0.0f)));
-		float currentDist = mouse.distance(centerScr);
-		paintSelectionScale = currentDist / paintSelectionScaleStartDist;
+		paintSelectionScale.x = std::max(0.05f, std::abs(mouse.x - centerScr.x) /
+			std::max(1.0f, paintSelectionScaleStartDist.x));
+		paintSelectionScale.y = std::max(0.05f, std::abs(mouse.y - centerScr.y) /
+			std::max(1.0f, paintSelectionScaleStartDist.y));
+		if (paintSelectionScaleHandle == 4 || paintSelectionScaleHandle == 5) paintSelectionScale.x = 1.0f;
+		if (paintSelectionScaleHandle == 6 || paintSelectionScaleHandle == 7) paintSelectionScale.y = 1.0f;
 		if (ofGetKeyPressed(OF_KEY_SHIFT))
-			paintSelectionScale = std::round(paintSelectionScale * 10.0f) / 10.0f;
-		if (paintSelectionScale < 0.05f) paintSelectionScale = 0.05f;
+		{
+			const float uniform = std::max(paintSelectionScale.x, paintSelectionScale.y);
+			paintSelectionScale.set(uniform, uniform);
+		}
 		markPaintChanged();
 		return true;
 	}
@@ -3888,6 +4005,20 @@ bool JPboxgroup::update_paintMouseDragged(int mouseButton)
 		paintPanelW = paintPanelResizeStartSize.x + delta.x;
 		paintPanelH = paintPanelResizeStartSize.y + delta.y;
 		clampPaintPanelLayout();
+		return true;
+	}
+	if (paintTimelineMoveArmed)
+	{
+		int frame = -1, row = -1;
+		if (paintCellAtScreen(mouse, frame, row))
+		{
+			const int layer = paintLayerAtRow(row);
+			if (layer >= 0)
+			{
+				paintTimelineMoveTargetFrame = frame;
+				paintTimelineMoveTargetLayer = layer;
+			}
+		}
 		return true;
 	}
 
@@ -3984,15 +4115,59 @@ bool JPboxgroup::update_paintMouseReleased(int mouseButton)
 
 	if (box != nullptr)
 	{
+		if (paintTimelineMoveArmed)
+		{
+			const int targetFrame = paintTimelineMoveTargetFrame;
+			const int targetLayer = paintTimelineMoveTargetLayer;
+			paintTimelineMoveArmed = false;
+			if (targetFrame >= 0 && targetLayer >= 0 &&
+				(targetFrame != paintTimelineAnchorFrame ||
+				 targetLayer != paintTimelineAnchorLayer))
+			{
+				copyPaintTimelineSelection(box, false);
+				const JPPaintDocument &doc = box->document();
+				bool emptyDestination = !paintTimelineClipboard.empty();
+				for (std::size_t i = 0; emptyDestination && i < paintTimelineClipboard.size(); ++i)
+				{
+					const int frame = targetFrame + paintTimelineClipboardOffsets[i].first;
+					const int layer = targetLayer + paintTimelineClipboardOffsets[i].second;
+					if (frame < 0 || frame >= (int)doc.frames.size() || layer < 0 ||
+						layer >= (int)doc.layers.size() || doc.layers[(std::size_t)layer].locked)
+					{
+						emptyDestination = false;
+						break;
+					}
+					const std::vector<JPPaintStroke> *strokes =
+						jp_paint::strokeListFor(doc, frame, layer);
+					// A destination occupied by THIS block is valid: all source cels
+					// are cleared before pasting, so shifting a run one or two frames
+					// left/right must not be rejected for overlapping itself.
+					const bool sourceCell = std::find(paintTimelineSelection.begin(),
+						paintTimelineSelection.end(), std::make_pair(frame, layer)) !=
+						paintTimelineSelection.end();
+					emptyDestination = strokes != nullptr &&
+						(strokes->empty() || sourceCell);
+				}
+				if (emptyDestination)
+				{
+					deletePaintTimelineSelection(box);
+					box->setCurrentCel(targetFrame);
+					box->setCurrentLayer(targetLayer);
+					pastePaintTimelineSelection(box);
+					markPaintChanged();
+				}
+			}
+		}
 		if (paintTool == (int)JPPaintTool::LassoSelect ||
 			paintTool == (int)JPPaintTool::RectSelect)
 		{
 			if (paintSelectionScaling)
 			{
-				if (std::abs(paintSelectionScale - 1.0f) > 0.01f)
+				if (std::abs(paintSelectionScale.x - 1.0f) > 0.01f || std::abs(paintSelectionScale.y - 1.0f) > 0.01f)
 					scaleSelectedStrokes(box, paintSelectionScale);
 				paintSelectionScaling = false;
-				paintSelectionScale = 1.0f;
+				paintSelectionScale.set(1.0f, 1.0f);
+				paintSelectionScaleHandle = -1;
 			}
 			else if (paintSelectionRotating)
 			{
@@ -4064,7 +4239,7 @@ bool JPboxgroup::update_paintMouseReleased(int mouseButton)
 					paintSelectionRotating = false;
 					paintSelectionScaling = false;
 					paintSelectionRotation = 0.0f;
-					paintSelectionScale = 1.0f;
+					paintSelectionScale.set(1.0f, 1.0f);
 					paintSelectionDragOffset.set(0.0f, 0.0f);
 					paintSelectionCombineMode = PAINT_SELECTION_REPLACE;
 				}
@@ -4223,11 +4398,106 @@ bool JPboxgroup::paintSelectAllShortcut()
 	return true;
 }
 
+bool JPboxgroup::paintTimelineHasSelection() const
+{
+	return !paintTimelineSelection.empty();
+}
+
+void JPboxgroup::clearPaintTimelineSelection()
+{
+	paintTimelineSelection.clear();
+	paintTimelineAnchorFrame = -1;
+	paintTimelineAnchorLayer = -1;
+}
+
+void JPboxgroup::copyPaintTimelineSelection(JPbox_paint *box, bool cut)
+{
+	if (box == nullptr || paintTimelineSelection.empty()) return;
+	const JPPaintDocument &doc = box->document();
+	int minFrame = doc.frames.size(), minLayer = doc.layers.size();
+	for (const auto &cell : paintTimelineSelection)
+	{
+		minFrame = std::min(minFrame, cell.first);
+		minLayer = std::min(minLayer, cell.second);
+	}
+	paintTimelineClipboard.clear();
+	paintTimelineClipboardOffsets.clear();
+	for (const auto &cell : paintTimelineSelection)
+	{
+		if (cell.first < 0 || cell.first >= (int)doc.frames.size() ||
+			cell.second < 0 || cell.second >= (int)doc.layers.size()) continue;
+		const std::vector<JPPaintStroke> *strokes = jp_paint::strokeListFor(
+			doc, cell.first, cell.second);
+		if (strokes == nullptr) continue;
+		JPPaintLayer copied;
+		copied.strokes = *strokes;
+		paintTimelineClipboard.push_back(std::move(copied));
+		paintTimelineClipboardOffsets.push_back(
+			std::make_pair(cell.first - minFrame, cell.second - minLayer));
+	}
+	if (cut)
+	{
+		for (const auto &cell : paintTimelineSelection)
+			box->clearCel(cell.first, cell.second);
+	}
+}
+
+void JPboxgroup::pastePaintTimelineSelection(JPbox_paint *box)
+{
+	if (box == nullptr || paintTimelineClipboard.empty()) return;
+	const JPPaintDocument &doc = box->document();
+	const int baseFrame = box->currentCel();
+	const int baseLayer = box->currentLayer();
+	// Validate the WHOLE target first. A move/copy is all-or-nothing and never
+	// overwrites drawn cels or locked layers.
+	for (std::size_t i = 0; i < paintTimelineClipboard.size(); ++i)
+	{
+		const int frame = baseFrame + paintTimelineClipboardOffsets[i].first;
+		const int layer = baseLayer + paintTimelineClipboardOffsets[i].second;
+		if (frame < 0 || frame >= (int)doc.frames.size() || layer < 0 ||
+			layer >= (int)doc.layers.size() || doc.layers[(std::size_t)layer].locked)
+			return;
+		const std::vector<JPPaintStroke> *target = jp_paint::strokeListFor(doc, frame, layer);
+		if (target == nullptr || !target->empty()) return;
+	}
+	clearPaintTimelineSelection();
+	for (std::size_t i = 0; i < paintTimelineClipboard.size(); ++i)
+	{
+		const int frame = baseFrame + paintTimelineClipboardOffsets[i].first;
+		const int layer = baseLayer + paintTimelineClipboardOffsets[i].second;
+		box->replaceStrokes(frame, layer, paintTimelineClipboard[i].strokes);
+		paintTimelineSelection.push_back(std::make_pair(frame, layer));
+	}
+	paintTimelineAnchorFrame = baseFrame;
+	paintTimelineAnchorLayer = baseLayer;
+}
+
+void JPboxgroup::deletePaintTimelineSelection(JPbox_paint *box)
+{
+	if (box == nullptr) return;
+	for (const auto &cell : paintTimelineSelection)
+		box->clearCel(cell.first, cell.second);
+}
+
+bool JPboxgroup::paintTimelineClipboardShortcut(char operation)
+{
+	JPbox_paint *box = getPaintEditBox();
+	if (box == nullptr || paintTextCaptureActive() || paintHelpOpen) return false;
+	if ((operation == 'c' || operation == 'x') && paintTimelineSelection.empty()) return false;
+	if (operation == 'c') copyPaintTimelineSelection(box, false);
+	else if (operation == 'x') copyPaintTimelineSelection(box, true);
+	else if (operation == 'v') pastePaintTimelineSelection(box);
+	else return false;
+	markPaintChanged();
+	return true;
+}
+
 bool JPboxgroup::paintClipboardShortcut(char operation)
 {
 	JPbox_paint *box = getPaintEditBox();
 	if (box == nullptr) return false;
 	if (paintTextCaptureActive() || paintHelpOpen) return true;
+	if (paintTimelineClipboardShortcut(operation)) return true;
 
 	const int cel = std::clamp(box->document().currentFrame, 0,
 		(int)box->document().frames.size() - 1);
@@ -4427,7 +4697,22 @@ void JPboxgroup::paintKeyPressed(int key)
 	case ' ': state.playing = !state.playing; break;
 	case 'n': case 'N': box->addCel(false); clampPaintTimelineScroll(); break;
 	case 'd': case 'D':
-		if (paintSelectionActive)
+		if (paintTimelineHasSelection())
+		{
+			// Duplicate to the first cell immediately after the selected block;
+			// paste validates that the complete target is empty.
+			int minFrame = box->currentCel(), maxFrame = minFrame, minLayer = box->currentLayer();
+			for (const auto &cell : paintTimelineSelection)
+			{
+				minFrame = std::min(minFrame, cell.first); maxFrame = std::max(maxFrame, cell.first);
+				minLayer = std::min(minLayer, cell.second);
+			}
+			copyPaintTimelineSelection(box, false);
+			box->setCurrentCel(maxFrame + 1);
+			box->setCurrentLayer(minLayer);
+			pastePaintTimelineSelection(box);
+		}
+		else if (paintSelectionActive)
 		{
 			duplicateSelectedStrokes(box);
 		}
@@ -4446,7 +4731,12 @@ void JPboxgroup::paintKeyPressed(int key)
 	// ofApp::keyPressed and deletes the box being drawn on, taking the whole
 	// drawing with it - which is what happens today with the mapping panel open.
 	case OF_KEY_DEL: case OF_KEY_BACKSPACE:
-		if (paintSelectionActive)
+		if (paintTimelineHasSelection())
+		{
+			deletePaintTimelineSelection(box);
+			clearPaintTimelineSelection();
+		}
+		else if (paintSelectionActive)
 		{
 			deleteSelectedStrokes(box);
 		}
