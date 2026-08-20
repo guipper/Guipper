@@ -124,6 +124,9 @@ public:
 	bool update_paintMouseDragged(int mouseButton);
 	bool update_paintMouseReleased(int mouseButton);
 	bool update_paintMouseScrolled(int x, int y, float scrollY);
+	// Pressure supplied by touch/stylus backends. Mouse input leaves it at 1.
+	void setPaintInputPressure(float pressure);
+	void setPaintPointerOverride(float x, float y, bool active);
 	// True while the panel owns the keyboard. Without this the global DEL
 	// branch in ofApp deletes the box being drawn on.
 	bool paintWantsKeyCapture() const;
@@ -961,6 +964,7 @@ private:
 	const JPbox_paint *getPaintEditBox() const;
 	bool isPaintBox(JPbox *box) const;
 	bool paintPanKeyHeld() const;
+	ofVec2f paintPointerPosition() const;
 	bool mouseOverPaintPanel() const;
 	bool mouseOverPaintPanelHeader() const;
 	bool mouseOverPaintPanelResizeHandle() const;
@@ -1059,6 +1063,14 @@ private:
 	float paintFillTolerance = 0.12f;
 	ofFloatColor paintColor = ofFloatColor(1.0f, 1.0f, 1.0f, 1.0f);
 	float paintBrushSize = 0.012f;
+	float paintBrushOpacity = 1.0f;
+	float paintBrushHardness = 1.0f;
+	float paintBrushStabilizer = 0.0f;
+	float paintInputPressure = 1.0f;
+	bool paintPointerOverrideActive = false;
+	ofVec2f paintPointerOverride;
+	// 0 size, 1 opacity, 2 hardness, 3 stabilizer. Captured on press.
+	int paintBrushSliderMode = 0;
 	bool paintReferenceVisible = true;
 	float paintViewZoom = 1.0f;
 	ofVec2f paintViewCenter = ofVec2f(0.5f, 0.5f);

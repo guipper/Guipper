@@ -6061,6 +6061,32 @@ void ofApp::mouseReleased(int x, int y, int button) {
 		// mouseButton_left = false;
 	}
 }
+
+void ofApp::touchDown(ofTouchEventArgs &touch) {
+	// Paint is single-pointer by design. The primary touch follows the same
+	// interaction path as the mouse while preserving pressure for brush width.
+	if (touch.id != 0) return;
+	boxes.setPaintPointerOverride(touch.x, touch.y, true);
+	boxes.setPaintInputPressure(touch.pressure);
+	mousePressed((int)touch.x, (int)touch.y, OF_MOUSE_BUTTON_LEFT);
+}
+
+void ofApp::touchMoved(ofTouchEventArgs &touch) {
+	if (touch.id != 0) return;
+	boxes.setPaintPointerOverride(touch.x, touch.y, true);
+	boxes.setPaintInputPressure(touch.pressure);
+	mouseDragged((int)touch.x, (int)touch.y, OF_MOUSE_BUTTON_LEFT);
+}
+
+void ofApp::touchUp(ofTouchEventArgs &touch) {
+	if (touch.id != 0) return;
+	boxes.setPaintPointerOverride(touch.x, touch.y, true);
+	boxes.setPaintInputPressure(touch.pressure);
+	mouseReleased((int)touch.x, (int)touch.y, OF_MOUSE_BUTTON_LEFT);
+	boxes.setPaintInputPressure(1.0f);
+	boxes.setPaintPointerOverride(touch.x, touch.y, false);
+}
+
 void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 	if (midiKeymap.mouseScrolled(x, y, scrollX, scrollY)) {
 		return;

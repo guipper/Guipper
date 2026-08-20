@@ -75,6 +75,9 @@ struct JPPaintStroke
 	// Half-width, normalized to canvas WIDTH only. Normalizing each axis
 	// separately would turn every brush dab elliptical on a non-square canvas.
 	float size = 0.012f;
+	// 1 is the historical hard-edged brush. Lower values keep an opaque core
+	// and feather the remainder of the radius at raster time.
+	float hardness = 1.0f;
 	bool erase = false;
 	int tool = (int)JPPaintTool::Brush;
 	// Fill only: how close a pixel has to be to the seed pixel to count as the
@@ -182,7 +185,8 @@ namespace jp_paint
 	{
 		if (a.tool != b.tool || a.erase != b.erase ||
 			a.r != b.r || a.g != b.g || a.b != b.b || a.a != b.a ||
-			a.size != b.size || a.tolerance != b.tolerance ||
+			a.size != b.size || a.hardness != b.hardness ||
+			a.tolerance != b.tolerance ||
 			!sameStrokePoints(a.points, b.points) ||
 			a.clips.size() != b.clips.size() || a.clips.empty()) return false;
 

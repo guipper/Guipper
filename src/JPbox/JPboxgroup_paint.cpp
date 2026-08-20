@@ -507,6 +507,25 @@ void JPboxgroup::markPaintChanged()
 	if (isCueDraftMode()) updateCueDraftGraph();
 }
 
+void JPboxgroup::setPaintInputPressure(float pressure)
+{
+	// Some touch backends report zero when pressure is unavailable. Treat that
+	// as an ordinary mouse instead of making an invisible stroke.
+	paintInputPressure = pressure > 0.0f ? ofClamp(pressure, 0.05f, 1.0f) : 1.0f;
+}
+
+void JPboxgroup::setPaintPointerOverride(float x, float y, bool active)
+{
+	paintPointerOverride.set(x, y);
+	paintPointerOverrideActive = active;
+}
+
+ofVec2f JPboxgroup::paintPointerPosition() const
+{
+	return paintPointerOverrideActive ? paintPointerOverride :
+		ofVec2f((float)ofGetMouseX(), (float)ofGetMouseY());
+}
+
 // -------------------------------------------------------------------- layout
 
 void JPboxgroup::setupDefaultPaintPanelLayout()
@@ -582,15 +601,15 @@ bool JPboxgroup::paintPanKeyHeld() const
 bool JPboxgroup::mouseOverPaintPanel() const
 {
 	return paintEditActive &&
-		getPaintPanelBounds().inside((float)ofGetMouseX(), (float)ofGetMouseY());
+		getPaintPanelBounds().inside(paintPointerPosition());
 }
 
 bool JPboxgroup::mouseOverPaintPanelHeader() const
 {
-	return paintEditActive && ofGetMouseX() >= paintPanelX &&
-		ofGetMouseX() <= paintPanelX + paintPanelW &&
-		ofGetMouseY() >= paintPanelY &&
-		ofGetMouseY() <= paintPanelY + kHeaderHeight;
+	const ofVec2f mouse = paintPointerPosition();
+	return paintEditActive && mouse.x >= paintPanelX &&
+		mouse.x <= paintPanelX + paintPanelW &&
+		mouse.y >= paintPanelY && mouse.y <= paintPanelY + kHeaderHeight;
 }
 
 bool JPboxgroup::isPaintHelpOpen() const
@@ -648,7 +667,7 @@ bool JPboxgroup::mouseOverPaintPanelResizeHandle() const
 	return paintEditActive &&
 		ofRectangle(paintPanelX + paintPanelW - grip,
 			paintPanelY + paintPanelH - grip, grip, grip)
-			.inside((float)ofGetMouseX(), (float)ofGetMouseY());
+			.inside(paintPointerPosition());
 }
 
 ofRectangle JPboxgroup::getPaintToolBounds(int tool) const
@@ -1262,7 +1281,7 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 			ofSetLineWidth(1.0f);
 			drawDashedLine(topCenterScr, handleScr, 3.0f);
 			ofFill();
-			const ofVec2f mouse(ofGetMouseX(), ofGetMouseY());
+			const ofVec2f mouse = paintPointerPosition();
 			const bool handleHovered = mouse.distance(handleScr) < 8.0f;
 			ofSetColor(handleHovered || paintSelectionRotating ? COL_ACCENT_CYAN : COL_TEXT_PRIMARY);
 			ofDrawCircle(handleScr.x, handleScr.y, 4.0f);
@@ -1463,12 +1482,25 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 			bounds.width, bounds.height);
 	}
 
-	// Brush size: a trough with a filled proportion and a dab preview, so the
-	// number that matters (how fat is the mark) is shown rather than described.
+	// One contextual trough keeps the toolbar compact. Modifiers expose the
+	// less frequently adjusted brush properties and the chosen mode is captured
+	// for the duration of a drag.
 	const ofRectangle slider = getPaintSizeSliderBounds();
 	const bool fillSelected = paintTool == (int)JPPaintTool::Fill;
-	const float t = fillSelected ? paintFillTolerance
-		: sliderFromBrush(paintBrushSize);
+	int sliderMode = paintBrushSliderMode;
+	if (paintDragMode != PAINT_DRAG_SIZE)
+	{
+		if (ofGetKeyPressed(OF_KEY_CONTROL) || ofGetKeyPressed(OF_KEY_COMMAND))
+			sliderMode = 3;
+		else if (ofGetKeyPressed(OF_KEY_ALT)) sliderMode = 2;
+		else if (ofGetKeyPressed(OF_KEY_SHIFT)) sliderMode = 1;
+		else sliderMode = 0;
+	}
+	if (fillSelected) sliderMode = 0;
+	const float t = fillSelected ? paintFillTolerance :
+		(sliderMode == 1 ? paintBrushOpacity :
+		 sliderMode == 2 ? paintBrushHardness :
+		 sliderMode == 3 ? paintBrushStabilizer : sliderFromBrush(paintBrushSize));
 	ofSetColor(COL_SLIDER_TROUGH);
 	ofDrawRectRounded(slider, 3.0f);
 	ofSetColor(COL_ACCENT_CYAN_DIM);
@@ -1482,11 +1514,15 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 	// bucket there is no dab, so the knob is a plain marker.
 	ofSetColor(COL_TEXT_PRIMARY);
 	ofDrawCircle(slider.x + slider.width * t, slider.getCenter().y,
-		fillSelected ? 3.0f
+		(fillSelected || sliderMode != 0) ? 3.0f
 			: ofClamp(paintBrushSize * 200.0f, 2.0f, slider.height * 0.5f));
-	jp_tooltip::draw(fillSelected ?
-		"Tolerancia de relleno - cuánto puede variar la región desde el píxel cliqueado" :
-		"Tamaño del pincel ( [ y ] )",
+	const char *sliderTip = fillSelected ?
+		"Tolerancia de relleno" : sliderMode == 1 ?
+		"Opacidad del pincel (Shift)" : sliderMode == 2 ?
+		"Dureza del pincel (Alt)" : sliderMode == 3 ?
+		"Estabilizador del trazo (Ctrl/Cmd)" :
+		"Tamaño del pincel ([ y ]); Shift opacidad, Alt dureza, Ctrl estabilizador";
+	jp_tooltip::draw(sliderTip,
 		slider.x, slider.y, slider.width, slider.height);
 
 	const ofRectangle swatch = getPaintColorSwatchBounds();
@@ -2013,7 +2049,7 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 	jp_tooltip::draw("Añadir capa sobre la actual", addLayer.x, addLayer.y,
 		addLayer.width, addLayer.height);
 	const int hoveredRow = paintLayerRowAtScreen(
-		ofVec2f((float)ofGetMouseX(), (float)ofGetMouseY()));
+		paintPointerPosition());
 	if (hoveredRow >= 0)
 	{
 		const ofRectangle bounds = getPaintGutterRowBounds(hoveredRow);
@@ -2378,11 +2414,15 @@ void JPboxgroup::beginPaintStroke(JPbox_paint *box, const ofVec2f &uv)
 	stroke.r = paintColor.r;
 	stroke.g = paintColor.g;
 	stroke.b = paintColor.b;
-	stroke.a = paintColor.a;
+	stroke.a = paintColor.a * paintBrushOpacity;
 	stroke.size = paintBrushSize;
+	stroke.hardness = paintBrushHardness;
 	stroke.erase = paintTool == (int)JPPaintTool::Eraser;
 	stroke.tool = paintTool;
-	stroke.points.push_back(JPPaintPoint{uv.x, uv.y, 1.0f});
+	const bool pressureTool = paintTool == (int)JPPaintTool::Brush ||
+		paintTool == (int)JPPaintTool::Eraser;
+	stroke.points.push_back(JPPaintPoint{uv.x, uv.y,
+		pressureTool ? paintInputPressure : 1.0f});
 	box->liveStroke = stroke;
 	box->liveStrokeActive = true;
 	paintStrokeStartUv = uv;
@@ -2398,15 +2438,29 @@ void JPboxgroup::extendPaintStroke(JPbox_paint *box, const ofVec2f &uv)
 		paintTool == (int)JPPaintTool::Lasso ||
 		paintTool == (int)JPPaintTool::LassoSelect)
 	{
+		ofVec2f sample = uv;
+		if (!points.empty() &&
+			(paintTool == (int)JPPaintTool::Brush ||
+			 paintTool == (int)JPPaintTool::Eraser))
+		{
+			// A bounded low-pass gives useful smoothing at 100% while preserving
+			// responsiveness. Stored points are final, so replay/export is stable.
+			const float response = 1.0f - paintBrushStabilizer * 0.85f;
+			sample.x = ofLerp(points.back().x, uv.x, response);
+			sample.y = ofLerp(points.back().y, uv.y, response);
+		}
 		// A sample that has not moved adds a point and a join circle for
 		// nothing - the previous dab already covers that pixel.
 		if (!points.empty())
 		{
-			const float dx = uv.x - points.back().x;
-			const float dy = uv.y - points.back().y;
+			const float dx = sample.x - points.back().x;
+			const float dy = sample.y - points.back().y;
 			if (dx * dx + dy * dy < 1.0e-8f) return;
 		}
-		points.push_back(JPPaintPoint{uv.x, uv.y, 1.0f});
+		const bool pressureTool = paintTool == (int)JPPaintTool::Brush ||
+			paintTool == (int)JPPaintTool::Eraser;
+		points.push_back(JPPaintPoint{sample.x, sample.y,
+			pressureTool ? paintInputPressure : 1.0f});
 		return;
 	}
 
@@ -2967,7 +3021,7 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 {
 	JPbox_paint *box = getPaintEditBox();
 	if (box == nullptr || !mouseOverPaintPanel()) return false;
-	const ofVec2f mouse(ofGetMouseX(), ofGetMouseY());
+	const ofVec2f mouse = paintPointerPosition();
 
 	if (paintHelpOpen)
 	{
@@ -3108,9 +3162,17 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 	if (slider.inside(mouse))
 	{
 		paintDragMode = PAINT_DRAG_SIZE;
+		paintBrushSliderMode =
+			(ofGetKeyPressed(OF_KEY_CONTROL) || ofGetKeyPressed(OF_KEY_COMMAND)) ? 3 :
+			ofGetKeyPressed(OF_KEY_ALT) ? 2 :
+			ofGetKeyPressed(OF_KEY_SHIFT) ? 1 : 0;
+		if (paintTool == (int)JPPaintTool::Fill) paintBrushSliderMode = 0;
 		const float t = ofClamp(
 			(mouse.x - slider.x) / std::max(1.0f, slider.width), 0.0f, 1.0f);
 		if (paintTool == (int)JPPaintTool::Fill) paintFillTolerance = t;
+		else if (paintBrushSliderMode == 1) paintBrushOpacity = t;
+		else if (paintBrushSliderMode == 2) paintBrushHardness = t;
+		else if (paintBrushSliderMode == 3) paintBrushStabilizer = t;
 		else paintBrushSize = brushFromSlider(t);
 		return true;
 	}
@@ -3467,7 +3529,7 @@ bool JPboxgroup::update_paintMouseDragged(int mouseButton)
 	if (!paintPanelPointerCaptured) return false;
 	JPbox_paint *box = getPaintEditBox();
 	if (box == nullptr) return false;
-	const ofVec2f mouse(ofGetMouseX(), ofGetMouseY());
+	const ofVec2f mouse = paintPointerPosition();
 
 	if (paintViewPanning)
 	{
@@ -3558,6 +3620,9 @@ bool JPboxgroup::update_paintMouseDragged(int mouseButton)
 		const float t = ofClamp(
 			(mouse.x - slider.x) / std::max(1.0f, slider.width), 0.0f, 1.0f);
 		if (paintTool == (int)JPPaintTool::Fill) paintFillTolerance = t;
+		else if (paintBrushSliderMode == 1) paintBrushOpacity = t;
+		else if (paintBrushSliderMode == 2) paintBrushHardness = t;
+		else if (paintBrushSliderMode == 3) paintBrushStabilizer = t;
 		else paintBrushSize = brushFromSlider(t);
 		return true;
 	}

@@ -21,7 +21,8 @@ namespace
 		if (stroke.tool == (int)JPPaintTool::LassoSelect ||
 			stroke.tool == (int)JPPaintTool::RectSelect) return false;
 		if (!stroke.clips.empty()) return false;
-		return !stroke.erase && stroke.a >= 0.999f;
+		return !stroke.erase && stroke.a >= 0.999f &&
+			stroke.hardness >= 0.999f;
 	}
 
 	int channel(float value)
@@ -562,7 +563,8 @@ void JPbox_paint::paintStroke(ofFbo &target, const JPPaintStroke &stroke)
 	// is sub-pixel in a 46px thumbnail, and going through the scratch here would
 	// resize it from the render resolution and back on every cel edit - an 8MB
 	// reallocation twice per stroke, which hitches while drawing.
-	if (target.getWidth() < 256.0f && stroke.clips.empty())
+	if (target.getWidth() < 256.0f && stroke.clips.empty() &&
+		stroke.hardness >= 0.999f)
 	{
 		ofPushStyle();
 		ofSetRectMode(OF_RECTMODE_CORNER);
@@ -596,11 +598,34 @@ void JPbox_paint::paintStroke(ofFbo &target, const JPPaintStroke &stroke)
 	ofClear(0, 0, 0, 0);
 	glClearStencil(0);
 	glClear(GL_STENCIL_BUFFER_BIT);
-	ofEnableAlphaBlending();
-	ofSetColor(255, 255, 255, 255);
 	const bool clipped = beginStrokeClip(stroke,
 		scratch.getWidth(), scratch.getHeight());
-	renderStrokeGeometry(stroke, scratch.getWidth(), scratch.getHeight());
+	const bool softBrush = stroke.hardness < 0.999f &&
+		(stroke.tool == (int)JPPaintTool::Brush ||
+		 stroke.tool == (int)JPPaintTool::Eraser);
+	if (!softBrush)
+	{
+		ofEnableAlphaBlending();
+		ofSetColor(255, 255, 255, 255);
+		renderStrokeGeometry(stroke, scratch.getWidth(), scratch.getHeight());
+	}
+	else
+	{
+		// Nested silhouettes approximate a radial feather without changing the
+		// vector path. The alpha sequence makes accumulated coverage progress
+		// linearly from the outside to the opaque core.
+		const int steps = 16;
+		for (int i = 0; i < steps; ++i)
+		{
+			JPPaintStroke pass = stroke;
+			const float u = (float)i / (float)(steps - 1);
+			pass.size *= ofLerp(1.0f, std::max(0.025f, stroke.hardness), u);
+			beginPremultipliedBlend();
+			const int k = channel(1.0f / (float)(steps - i));
+			ofSetColor(k, k, k, k);
+			renderStrokeGeometry(pass, scratch.getWidth(), scratch.getHeight());
+		}
+	}
 	if (clipped) endStrokeClip();
 	scratch.end();
 
@@ -1507,6 +1532,8 @@ void JPbox_paint::writeStrokes(ofXml &parent,
 			ofToString(stroke.r) + " " + ofToString(stroke.g) + " " +
 			ofToString(stroke.b) + " " + ofToString(stroke.a));
 		strokeNode.appendChild("size").set(stroke.size);
+		if (stroke.hardness < 0.999f)
+			strokeNode.appendChild("hardness").set(stroke.hardness);
 		strokeNode.appendChild("erase").set(stroke.erase);
 		strokeNode.appendChild("tool").set(stroke.tool);
 		if (stroke.tool == (int)JPPaintTool::Fill)
@@ -1553,6 +1580,8 @@ void JPbox_paint::readStrokes(const ofXml &parent,
 		}
 		stroke.size = ofClamp(readFloatChild(strokeNode, "size", 0.012f),
 			0.0001f, 1.0f);
+		stroke.hardness = ofClamp(
+			readFloatChild(strokeNode, "hardness", 1.0f), 0.0f, 1.0f);
 		auto erase = strokeNode.getChild("erase");
 		stroke.erase = erase ? erase.getBoolValue() : false;
 		auto tool = strokeNode.getChild("tool");

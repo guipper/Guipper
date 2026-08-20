@@ -927,6 +927,15 @@ namespace
 		collapsed = jp_paint::collapseComplementaryStrokes({outside, inside});
 		expect(collapsed.size() == 2,
 			"a moved selection remains split from its source stroke");
+
+		inside = outside;
+		inside.clips.back().inverted = false;
+		inside.hardness = 0.5f;
+		collapsed = jp_paint::collapseComplementaryStrokes({outside, inside});
+		expect(collapsed.size() == 2,
+			"complementary clips with different hardness never collapse");
+		expect(JPPaintStroke().hardness == 1.0f,
+			"legacy strokes default to a fully hard edge");
 	}
 
 	void testNestedSelectionCollapse()
