@@ -9,11 +9,9 @@ del inspector. El botón `?` del panel muestra la lista completa de controles.
 Las herramientas disponibles son pincel (`B`), goma (`E`), línea (`L`),
 rectángulo (`R`), elipse (`O`), pluma rellena (`P`) y relleno de región (`G`).
 Hacé clic en la etiqueta `TAM` a la izquierda del deslizador para elegir
-tamaño, opacidad, dureza o estabilización; el menú también muestra el valor de
-cada propiedad. `Shift`, `Alt` y `Ctrl/Cmd` siguen ofreciendo accesos rápidos
-temporales para opacidad, dureza y estabilización. Con la herramienta de
-relleno el control pasa a ser tolerancia. `[` y `]` cambian rápidamente el
-tamaño del pincel.
+tamaño, opacidad, dureza o estabilización; el menú muestra y permite ajustar
+cada propiedad. Con la herramienta de relleno el control pasa a ser
+tolerancia. `[` y `]` cambian rápidamente el tamaño del pincel.
 
 El color principal abre un selector con entrada hexadecimal. El botón `+`
 guarda el color en la paleta y el clic derecho elimina una muestra. Si el
