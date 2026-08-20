@@ -107,6 +107,8 @@ public:
 	int currentLayer() const;
 	void setCurrentLayer(int index);
 	void addLayer();
+	void duplicateLayer(int index);
+	bool mergeLayerDown(int index);
 	void deleteLayer(int index);
 	void moveLayer(int from, int to);
 	// Name / visible / opacity / background, as one undoable step.

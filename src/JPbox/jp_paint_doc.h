@@ -102,7 +102,11 @@ struct JPPaintLayerInfo
 {
 	std::string name;
 	bool visible = true;
+	bool locked = false;
 	float opacity = 1.0f;
+	// 0 normal, 1 multiply, 2 screen, 3 additive. Kept as an integer so old
+	// savefiles need no enum migration and unknown values can be clamped.
+	int blendMode = 0;
 	// A background layer ignores its per-cel strokes and draws `sharedStrokes`
 	// on EVERY cel, so a static backdrop is drawn once instead of copied onto
 	// each one. The per-cel strokes are KEPT, not discarded, so turning the flag
@@ -754,7 +758,8 @@ struct JPPaintEdit
 		DeleteLayer,
 		MoveLayer,
 		SetLayerProps,
-		ReplaceStrokes
+		ReplaceStrokes,
+		MergeLayerDown
 	};
 
 	int kind = AddStroke;
@@ -777,6 +782,11 @@ struct JPPaintEdit
 	// is what makes undoing a layer delete restore the drawing rather than an
 	// empty layer.
 	std::vector<JPPaintLayer> layerCels;
+	// MergeLayerDown stores the lower layer before and after flattening. `layer`
+	// and `layerCels` hold the removed upper layer.
+	JPPaintLayerInfo mergedLayer;
+	std::vector<JPPaintLayer> previousLayerCels;
+	std::vector<JPPaintLayer> mergedLayerCels;
 };
 
 namespace jp_paint
@@ -814,6 +824,14 @@ namespace jp_paint
 				total += strokePoints(stroke);
 			}
 		}
+		for (const JPPaintLayer &layer : edit.previousLayerCels)
+			for (const JPPaintStroke &stroke : layer.strokes)
+				total += strokePoints(stroke);
+		for (const JPPaintLayer &layer : edit.mergedLayerCels)
+			for (const JPPaintStroke &stroke : layer.strokes)
+				total += strokePoints(stroke);
+		for (const JPPaintStroke &stroke : edit.mergedLayer.sharedStrokes)
+			total += strokePoints(stroke);
 		return total;
 	}
 
@@ -895,10 +913,12 @@ namespace jp_paint
 			doc.layers.insert(doc.layers.begin() + edit.layerIndex, edit.layer);
 			// Every cel gains a slot at the same position, or the parallel arrays
 			// would silently shear.
-			for (JPPaintFrame &frame : doc.frames)
+			for (std::size_t f = 0; f < doc.frames.size(); ++f)
 			{
+				JPPaintFrame &frame = doc.frames[f];
 				const int at = std::min(edit.layerIndex, (int)frame.layers.size());
-				frame.layers.insert(frame.layers.begin() + at, JPPaintLayer());
+				frame.layers.insert(frame.layers.begin() + at,
+					f < edit.layerCels.size() ? edit.layerCels[f] : JPPaintLayer());
 			}
 			syncLayerArity(doc);
 			clampCurrentLayer(doc);
@@ -952,7 +972,9 @@ namespace jp_paint
 			JPPaintLayerInfo &target = doc.layers[(std::size_t)edit.layerIndex];
 			target.name = edit.layer.name;
 			target.visible = edit.layer.visible;
+			target.locked = edit.layer.locked;
 			target.opacity = std::clamp(edit.layer.opacity, 0.0f, 1.0f);
+			target.blendMode = std::clamp(edit.layer.blendMode, 0, 3);
 			target.background = edit.layer.background;
 			// The shared strokes travel with the properties, because turning the
 			// background flag ON adopts whatever was drawn on the layer - see
@@ -969,6 +991,26 @@ namespace jp_paint
 			if (list == nullptr) return false;
 			*list = edit.layer.sharedStrokes;
 			touchLayer(doc, edit.frameIndex, edit.layerIndex);
+			return true;
+		}
+		case JPPaintEdit::MergeLayerDown:
+		{
+			const int upper = edit.layerIndex;
+			const int lower = upper - 1;
+			if (lower < 0 || upper >= (int)doc.layers.size()) return false;
+			doc.layers[(std::size_t)lower] = edit.mergedLayer;
+			doc.layers.erase(doc.layers.begin() + upper);
+			for (std::size_t f = 0; f < doc.frames.size(); ++f)
+			{
+				JPPaintFrame &frame = doc.frames[f];
+				if (upper >= (int)frame.layers.size()) continue;
+				frame.layers[(std::size_t)lower] = f < edit.mergedLayerCels.size() ?
+					edit.mergedLayerCels[f] : JPPaintLayer();
+				frame.layers.erase(frame.layers.begin() + upper);
+			}
+			syncLayerArity(doc);
+			doc.currentLayer = lower;
+			bumpAllFrames(doc);
 			return true;
 		}
 		default:
@@ -1104,7 +1146,9 @@ namespace jp_paint
 			JPPaintLayerInfo &target = doc.layers[(std::size_t)edit.layerIndex];
 			target.name = edit.previousLayer.name;
 			target.visible = edit.previousLayer.visible;
+			target.locked = edit.previousLayer.locked;
 			target.opacity = std::clamp(edit.previousLayer.opacity, 0.0f, 1.0f);
+			target.blendMode = std::clamp(edit.previousLayer.blendMode, 0, 3);
 			target.background = edit.previousLayer.background;
 			target.sharedStrokes = edit.previousLayer.sharedStrokes;
 			bumpAllFrames(doc);
@@ -1117,6 +1161,28 @@ namespace jp_paint
 			if (list == nullptr) return false;
 			*list = edit.previousLayer.sharedStrokes;
 			touchLayer(doc, edit.frameIndex, edit.layerIndex);
+			return true;
+		}
+		case JPPaintEdit::MergeLayerDown:
+		{
+			const int upper = edit.layerIndex;
+			const int lower = upper - 1;
+			if (lower < 0 || lower >= (int)doc.layers.size()) return false;
+			doc.layers[(std::size_t)lower] = edit.previousLayer;
+			doc.layers.insert(doc.layers.begin() + upper, edit.layer);
+			for (std::size_t f = 0; f < doc.frames.size(); ++f)
+			{
+				JPPaintFrame &frame = doc.frames[f];
+				if (lower >= (int)frame.layers.size()) continue;
+				frame.layers[(std::size_t)lower] = f < edit.previousLayerCels.size() ?
+					edit.previousLayerCels[f] : JPPaintLayer();
+				const int at = std::min(upper, (int)frame.layers.size());
+				frame.layers.insert(frame.layers.begin() + at,
+					f < edit.layerCels.size() ? edit.layerCels[f] : JPPaintLayer());
+			}
+			syncLayerArity(doc);
+			doc.currentLayer = upper;
+			bumpAllFrames(doc);
 			return true;
 		}
 		default:

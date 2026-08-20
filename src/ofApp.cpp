@@ -5506,6 +5506,10 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		e.key == 22 ||
 		(ctrlOrCmd &&
 			(e.keycode == GLFW_KEY_V || e.key == 'v' || e.key == 'V'));
+	const bool duplicateLayerShortcut = ctrlOrCmd &&
+		(e.keycode == GLFW_KEY_J || e.key == 'j' || e.key == 'J');
+	const bool mergeLayerShortcut = ctrlOrCmd &&
+		(e.keycode == GLFW_KEY_E || e.key == 'e' || e.key == 'E');
 
 	// Undo lives here rather than in keyPressed for the same reason Ctrl+D and
 	// Ctrl+S do: the legacy character callback never sees modifiers.
@@ -5545,6 +5549,11 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		boxes.pasteBoxes();
 		return;
 	}
+
+	if (duplicateLayerShortcut && pantallaActiva == NODOS &&
+		boxes.paintLayerShortcut('j')) return;
+	if (mergeLayerShortcut && pantallaActiva == NODOS &&
+		boxes.paintLayerShortcut('e')) return;
 
 	if (prevKey == 12) {
 		openloader.startThread();

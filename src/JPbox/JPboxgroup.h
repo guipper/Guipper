@@ -134,6 +134,7 @@ public:
 	bool paintUndoShortcut(bool redo);
 	bool paintSelectAllShortcut();
 	bool paintClipboardShortcut(char operation);
+	bool paintLayerShortcut(char operation);
 	// True while a field in this panel owns the keyboard. Every tool shortcut has
 	// to stand down, or typing a hex digit would swap the brush - and ofApp reads
 	// it through anyFieldFocused so the global chords stand down too.
@@ -1004,6 +1005,8 @@ private:
 	// index. paintLayerAtRow converts back.
 	ofRectangle getPaintGutterRowBounds(int row) const;
 	ofRectangle getPaintLayerEyeBounds(int row) const;
+	ofRectangle getPaintLayerBlendBounds(int row) const;
+	ofRectangle getPaintLayerLockBounds(int row) const;
 	ofRectangle getPaintLayerBadgeBounds(int row) const;
 	ofRectangle getPaintLayerOpacityBounds(int row) const;
 	ofRectangle getPaintLayerAddBounds() const;

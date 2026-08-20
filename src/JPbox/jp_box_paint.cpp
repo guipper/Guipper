@@ -57,6 +57,29 @@ namespace
 			GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
 	}
 
+	void beginLayerBlend(int mode)
+	{
+		ofEnableAlphaBlending();
+		switch (mode)
+		{
+		case 1: // multiply
+			glBlendFuncSeparate(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA,
+				GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+			break;
+		case 2: // screen
+			glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_COLOR,
+				GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+			break;
+		case 3: // additive colour, ordinary alpha coverage
+			glBlendFuncSeparate(GL_ONE, GL_ONE,
+				GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+			break;
+		default:
+			beginPremultipliedBlend();
+			break;
+		}
+	}
+
 	// Back to what the rest of the program assumes. ofEnableAlphaBlending
 	// resets the function as well as the enable, so this is a real restore.
 	void endCustomBlend()
@@ -477,7 +500,7 @@ void JPbox_paint::rebuildRaster(ofFbo &target, const JPPaintDocument &document,
 		ofPushStyle();
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		target.begin();
-		beginPremultipliedBlend();
+		beginLayerBlend(info.blendMode);
 		// Premultiplied, so scaling by the layer's opacity means scaling ALL FOUR
 		// channels. Scaling only alpha would leave the colour at full strength and
 		// the opacity control would barely do anything - the same mistake the
@@ -1283,6 +1306,7 @@ void JPbox_paint::commitStroke(const JPPaintStroke &stroke)
 {
 	if (stroke.points.empty()) return;
 	jp_paint::clampCurrentLayer(doc);
+	if (doc.layers[(std::size_t)doc.currentLayer].locked) return;
 	const int cel = std::clamp(doc.currentFrame, 0,
 		(int)doc.frames.size() - 1);
 	const std::vector<JPPaintStroke> *list =
@@ -1306,6 +1330,8 @@ void JPbox_paint::clearCurrentLayer()
 
 void JPbox_paint::clearCel(int frameIndex, int layerIndex)
 {
+	if (layerIndex < 0 || layerIndex >= (int)doc.layers.size() ||
+		doc.layers[(std::size_t)layerIndex].locked) return;
 	const std::vector<JPPaintStroke> *list =
 		jp_paint::strokeListFor(doc, frameIndex, layerIndex);
 	if (list == nullptr || list->empty()) return;
@@ -1324,6 +1350,7 @@ void JPbox_paint::replaceStrokes(int frameIndex, int layerIndex, const std::vect
 {
 	if (frameIndex < 0 || frameIndex >= (int)doc.frames.size()) return;
 	if (layerIndex < 0 || layerIndex >= (int)doc.layers.size()) return;
+	if (doc.layers[(std::size_t)layerIndex].locked) return;
 	const std::vector<JPPaintStroke> *list =
 		jp_paint::strokeListFor(doc, frameIndex, layerIndex);
 	if (list == nullptr) return;
@@ -1389,6 +1416,63 @@ void JPbox_paint::addLayer()
 	setCurrentLayer(edit.layerIndex);
 }
 
+void JPbox_paint::duplicateLayer(int index)
+{
+	if (index < 0 || index >= (int)doc.layers.size()) return;
+	JPPaintEdit edit;
+	edit.kind = JPPaintEdit::AddLayer;
+	edit.layerIndex = index + 1;
+	edit.layer = doc.layers[(std::size_t)index];
+	edit.layer.id = doc.nextLayerId++;
+	edit.layer.name = (edit.layer.name.empty() ? "Layer" : edit.layer.name) +
+		" copy";
+	for (const JPPaintFrame &frame : doc.frames)
+		edit.layerCels.push_back(index < (int)frame.layers.size() ?
+			frame.layers[(std::size_t)index] : JPPaintLayer());
+	if (!jp_paint::applyEdit(doc, edit)) return;
+	recordEdit(edit);
+	setCurrentLayer(edit.layerIndex);
+}
+
+bool JPbox_paint::mergeLayerDown(int index)
+{
+	if (index <= 0 || index >= (int)doc.layers.size()) return false;
+	const JPPaintLayerInfo &upper = doc.layers[(std::size_t)index];
+	const JPPaintLayerInfo &lower = doc.layers[(std::size_t)(index - 1)];
+	// Vector strokes cannot exactly encode a flattened multiply/screen layer.
+	// Keep the operation lossless by allowing only ordinary visible layers.
+	if (upper.locked || lower.locked || upper.background || lower.background ||
+		!upper.visible || !lower.visible || upper.blendMode != 0 ||
+		lower.blendMode != 0 || upper.opacity < 0.999f ||
+		lower.opacity < 0.999f) return false;
+
+	JPPaintEdit edit;
+	edit.kind = JPPaintEdit::MergeLayerDown;
+	edit.layerIndex = index;
+	edit.layer = upper;
+	edit.previousLayer = lower;
+	edit.mergedLayer = lower;
+	edit.mergedLayer.name = lower.name + " + " + upper.name;
+	edit.mergedLayer.opacity = 1.0f;
+	for (const JPPaintFrame &frame : doc.frames)
+	{
+		const JPPaintLayer lowerCel = frame.layers[(std::size_t)(index - 1)];
+		const JPPaintLayer upperCel = frame.layers[(std::size_t)index];
+		edit.previousLayerCels.push_back(lowerCel);
+		edit.layerCels.push_back(upperCel);
+		JPPaintLayer merged;
+		merged.strokes.reserve(lowerCel.strokes.size() + upperCel.strokes.size());
+		merged.strokes.insert(merged.strokes.end(), lowerCel.strokes.begin(),
+			lowerCel.strokes.end());
+		merged.strokes.insert(merged.strokes.end(), upperCel.strokes.begin(),
+			upperCel.strokes.end());
+		edit.mergedLayerCels.push_back(std::move(merged));
+	}
+	if (!jp_paint::applyEdit(doc, edit)) return false;
+	recordEdit(edit);
+	return true;
+}
+
 void JPbox_paint::deleteLayer(int index)
 {
 	if (doc.layers.size() <= 1) return;
@@ -1427,6 +1511,8 @@ void JPbox_paint::setLayerProps(int index, const JPPaintLayerInfo &props)
 	if (index < 0 || index >= (int)doc.layers.size()) return;
 	const JPPaintLayerInfo &existing = doc.layers[(std::size_t)index];
 	if (existing.name == props.name && existing.visible == props.visible &&
+		existing.locked == props.locked &&
+		existing.blendMode == props.blendMode &&
 		existing.background == props.background &&
 		existing.sharedStrokes.size() == props.sharedStrokes.size() &&
 		std::abs(existing.opacity - props.opacity) < 0.001f)
@@ -1638,7 +1724,10 @@ void JPbox_paint::saveCustomState(ofXml &boxNode) const
 		layerNode.appendChild("id").set(info.id);
 		layerNode.appendChild("name").set(info.name);
 		layerNode.appendChild("visible").set(info.visible);
+		if (info.locked) layerNode.appendChild("locked").set(true);
 		layerNode.appendChild("opacity").set(info.opacity);
+		if (info.blendMode != 0)
+			layerNode.appendChild("blendMode").set(info.blendMode);
 		layerNode.appendChild("background").set(info.background);
 		// Written whether or not the flag is set, so toggling background off
 		// after a reload still restores what was drawn on it.
@@ -1721,8 +1810,12 @@ void JPbox_paint::loadCustomState(const ofXml &boxNode)
 				("Layer " + ofToString((int)loadedLayers.size() + 1));
 			auto visible = layerNode.getChild("visible");
 			info.visible = visible ? visible.getBoolValue() : true;
+			auto locked = layerNode.getChild("locked");
+			info.locked = locked ? locked.getBoolValue() : false;
 			info.opacity = ofClamp(readFloat(layerNode, "opacity", 1.0f),
 				0.0f, 1.0f);
+			info.blendMode = std::clamp(
+				readInt(layerNode, "blendMode", 0), 0, 3);
 			auto background = layerNode.getChild("background");
 			info.background = background ? background.getBoolValue() : false;
 			readStrokes(layerNode, info.sharedStrokes);

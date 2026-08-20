@@ -881,6 +881,18 @@ ofRectangle JPboxgroup::getPaintLayerBadgeBounds(int row) const
 	return ofRectangle(bounds.getRight() - 42.0f, bounds.y + 3.0f, 22.0f, 13.0f);
 }
 
+ofRectangle JPboxgroup::getPaintLayerLockBounds(int row) const
+{
+	const ofRectangle bounds = getPaintGutterRowBounds(row);
+	return ofRectangle(bounds.getRight() - 59.0f, bounds.y + 3.0f, 14.0f, 13.0f);
+}
+
+ofRectangle JPboxgroup::getPaintLayerBlendBounds(int row) const
+{
+	const ofRectangle bounds = getPaintGutterRowBounds(row);
+	return ofRectangle(bounds.getRight() - 77.0f, bounds.y + 3.0f, 15.0f, 13.0f);
+}
+
 ofRectangle JPboxgroup::getPaintLayerDeleteBounds(int row) const
 {
 	const ofRectangle bounds = getPaintGutterRowBounds(row);
@@ -907,7 +919,7 @@ ofRectangle JPboxgroup::getPaintLayerNameBounds(int row) const
 {
 	const ofRectangle bounds = getPaintGutterRowBounds(row);
 	const ofRectangle eye = getPaintLayerEyeBounds(row);
-	const ofRectangle badge = getPaintLayerBadgeBounds(row);
+	const ofRectangle badge = getPaintLayerBlendBounds(row);
 	// Between the eye and the BG badge, and above the opacity bar: the strip that
 	// shows the name is the strip that starts a rename.
 	return ofRectangle(eye.getRight() + 2.0f, bounds.y + 1.0f,
@@ -1790,7 +1802,7 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 
 			string label = info.name.empty() ?
 				("Layer " + ofToString(index + 1)) : info.name;
-			const float labelLimit = getPaintLayerBadgeBounds(row).x -
+			const float labelLimit = getPaintLayerBlendBounds(row).x -
 				(eye.getRight() + 4.0f) - 4.0f;
 			while (label.size() > 1 &&
 				jp_constants::p2_font.stringWidth(label) > labelLimit)
@@ -1818,6 +1830,30 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 				jp_constants::p2_font.drawString(label, eye.getRight() + 4.0f,
 					bounds.y + 13.0f);
 			}
+
+			const ofRectangle blend = getPaintLayerBlendBounds(row);
+			static const char *blendLabels[] = {"N", "M", "S", "+"};
+			const bool blendOver = jp_button::hovered(blend);
+			ofSetColor(info.blendMode == 0 ?
+				(blendOver ? COL_BG_HOVER : ofColor(COL_BG_INPUT, 160)) :
+				ofColor(COL_ACCENT_CYAN, 150));
+			ofDrawRectRounded(blend, 2.0f);
+			ofSetColor(blendOver ? COL_ACCENT_CYAN : COL_TEXT_MUTED);
+			const string blendLabel = blendLabels[std::clamp(info.blendMode, 0, 3)];
+			jp_constants::p2_font.drawString(blendLabel,
+				blend.getCenter().x - jp_constants::p2_font.stringWidth(blendLabel) * 0.5f,
+				blend.getCenter().y + 3.5f);
+
+			const ofRectangle lock = getPaintLayerLockBounds(row);
+			const bool lockOver = jp_button::hovered(lock);
+			ofSetColor(info.locked ? COL_ACCENT_GOLD :
+				(lockOver ? COL_ACCENT_GOLD : COL_TEXT_MUTED));
+			ofNoFill();
+			ofDrawRectangle(lock.x + 3.0f, lock.y + 6.0f, 8.0f, 6.0f);
+			ofDrawLine(lock.x + 4.0f, lock.y + 6.0f, lock.x + 4.0f, lock.y + 3.0f);
+			ofDrawLine(lock.x + 4.0f, lock.y + 3.0f, lock.x + 10.0f, lock.y + 3.0f);
+			ofDrawLine(lock.x + 10.0f, lock.y + 3.0f, lock.x + 10.0f, lock.y + 6.0f);
+			ofFill();
 
 			// GOLD for the background badge: the same "applies beyond what you are
 			// looking at" meaning the cue system uses gold for.
@@ -2053,8 +2089,8 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 	if (hoveredRow >= 0)
 	{
 		const ofRectangle bounds = getPaintGutterRowBounds(hoveredRow);
-		jp_tooltip::draw("Clic para seleccionar, arrastrar para reordenar, tacho de basura para eliminar. "
-			"El ojo la oculta, la barra es su opacidad, BG la dibuja en todos los cuadros",
+		jp_tooltip::draw("Clic para seleccionar y arrastrar para reordenar. "
+			"N/M/S/+ cambia mezcla, el candado bloquea, BG comparte en todos los cuadros. Ctrl+J duplica y Ctrl+E combina hacia abajo",
 			bounds.x, bounds.y, bounds.width, bounds.height);
 	}
 }
@@ -2703,6 +2739,8 @@ void JPboxgroup::flipSelectedStrokes(JPbox_paint *box, bool horizontal)
 	if (paintSelectedStrokeIndices.empty()) return;
 	const int cel = std::clamp(box->document().currentFrame, 0,
 		(int)box->document().frames.size() - 1);
+	if (box->document().layers[(std::size_t)box->currentLayer()].locked)
+		return;
 	const std::vector<JPPaintStroke> *list =
 		jp_paint::strokeListFor(box->document(), cel, box->currentLayer());
 	if (list == nullptr) return;
@@ -3264,6 +3302,22 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 					props.visible = !props.visible;
 					box->setLayerProps(index, props);
 				}
+				else if (getPaintLayerBlendBounds(row).inside(mouse))
+				{
+					JPPaintLayerInfo props = box->document()
+						.layers[(std::size_t)index];
+					props.blendMode = (props.blendMode + 1) % 4;
+					box->setLayerProps(index, props);
+				}
+				else if (getPaintLayerLockBounds(row).inside(mouse))
+				{
+					JPPaintLayerInfo props = box->document()
+						.layers[(std::size_t)index];
+					props.locked = !props.locked;
+					box->setLayerProps(index, props);
+					if (props.locked && index == box->currentLayer())
+						clearPaintSelection();
+				}
 				else if (getPaintLayerBadgeBounds(row).inside(mouse))
 				{
 					box->toggleLayerBackground(index);
@@ -3362,6 +3416,8 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 			state.playing = false;
 			box->setCurrentCel(box->currentCel());
 		}
+		if (box->document().layers[(std::size_t)box->currentLayer()].locked)
+			return true;
 		if (paintTool == (int)JPPaintTool::Fill)
 		{
 			// A bucket is a click, not a gesture: it commits immediately and
@@ -3909,6 +3965,8 @@ bool JPboxgroup::paintSelectAllShortcut()
 
 	const int cel = std::clamp(box->document().currentFrame, 0,
 		(int)box->document().frames.size() - 1);
+	if (box->document().layers[(std::size_t)box->currentLayer()].locked)
+		return true;
 	const std::vector<JPPaintStroke> *list =
 		jp_paint::strokeListFor(box->document(), cel, box->currentLayer());
 	clearPaintSelection();
@@ -3943,6 +4001,8 @@ bool JPboxgroup::paintClipboardShortcut(char operation)
 	const int cel = std::clamp(box->document().currentFrame, 0,
 		(int)box->document().frames.size() - 1);
 	const int layer = box->currentLayer();
+	if (box->document().layers[(std::size_t)layer].locked && operation != 'c')
+		return true;
 	const std::vector<JPPaintStroke> *list =
 		jp_paint::strokeListFor(box->document(), cel, layer);
 	if (list == nullptr) return true;
@@ -4001,6 +4061,25 @@ bool JPboxgroup::paintClipboardShortcut(char operation)
 	paintSelectionActive = true;
 	paintTool = (int)JPPaintTool::LassoSelect;
 	markPaintChanged();
+	return true;
+}
+
+bool JPboxgroup::paintLayerShortcut(char operation)
+{
+	JPbox_paint *box = getPaintEditBox();
+	if (box == nullptr) return false;
+	if (paintTextCaptureActive() || paintHelpOpen) return true;
+	clearPaintSelection();
+	if (operation == 'j')
+	{
+		box->duplicateLayer(box->currentLayer());
+		markPaintChanged();
+	}
+	else if (operation == 'e' && box->mergeLayerDown(box->currentLayer()))
+	{
+		markPaintChanged();
+	}
+	clampPaintTimelineScroll();
 	return true;
 }
 

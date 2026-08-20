@@ -736,6 +736,47 @@ namespace
 		expect(arityHolds(doc), "reordering keeps the invariant");
 	}
 
+	void testLayerDuplicateAndMergePayloads()
+	{
+		JPPaintDocument doc = docOf(2);
+		JPPaintEdit duplicate;
+		duplicate.kind = JPPaintEdit::AddLayer;
+		duplicate.layerIndex = 1;
+		duplicate.layer = jp_paint::makeLayer(doc, "copy");
+		for (const JPPaintFrame &frame : doc.frames)
+			duplicate.layerCels.push_back(frame.layers[0]);
+		expect(jp_paint::applyEdit(doc, duplicate),
+			"AddLayer accepts duplicated cel payloads");
+		expect(doc.frames[0].layers[1].strokes.size() == 1 &&
+			doc.frames[1].layers[1].strokes.size() == 1,
+			"a duplicated layer copies every cel");
+
+		JPPaintEdit merge;
+		merge.kind = JPPaintEdit::MergeLayerDown;
+		merge.layerIndex = 1;
+		merge.previousLayer = doc.layers[0];
+		merge.layer = doc.layers[1];
+		merge.mergedLayer = doc.layers[0];
+		for (const JPPaintFrame &frame : doc.frames)
+		{
+			merge.previousLayerCels.push_back(frame.layers[0]);
+			merge.layerCels.push_back(frame.layers[1]);
+			JPPaintLayer result = frame.layers[0];
+			result.strokes.insert(result.strokes.end(),
+				frame.layers[1].strokes.begin(), frame.layers[1].strokes.end());
+			merge.mergedLayerCels.push_back(result);
+		}
+		expect(jp_paint::applyEdit(doc, merge), "MergeLayerDown applies");
+		expect(doc.layers.size() == 1 && arityHolds(doc) &&
+			doc.frames[0].layers[0].strokes.size() == 2,
+			"merge replaces both layers with their combined strokes");
+		expect(jp_paint::revertEdit(doc, merge), "MergeLayerDown reverts");
+		expect(doc.layers.size() == 2 && arityHolds(doc) &&
+			doc.frames[0].layers[0].strokes.size() == 1 &&
+			doc.frames[0].layers[1].strokes.size() == 1,
+			"undo restores both original layers and their cel payloads");
+	}
+
 	void testBackgroundLayer()
 	{
 		JPPaintDocument doc = docOf(3);
@@ -748,8 +789,12 @@ namespace
 		props.previousLayer = doc.layers[0];
 		props.layer = doc.layers[0];
 		props.layer.background = true;
+		props.layer.locked = true;
+		props.layer.blendMode = 2;
 		expect(jp_paint::applyEdit(doc, props), "SetLayerProps applies");
 		expect(doc.layers[0].background, "the layer is now a background");
+		expect(doc.layers[0].locked && doc.layers[0].blendMode == 2,
+			"lock and blend mode are layer properties");
 
 		JPPaintEdit stroke;
 		stroke.kind = JPPaintEdit::AddStroke;
@@ -1052,6 +1097,7 @@ int main()
 	testLayerDeleteCarriesStrokes();
 	testLastLayerSurvives();
 	testLayerMove();
+	testLayerDuplicateAndMergePayloads();
 	testBackgroundLayer();
 	testLayerArityAcrossCelEdits();
 	testUndoRing();
