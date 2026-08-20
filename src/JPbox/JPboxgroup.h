@@ -976,6 +976,7 @@ private:
 	ofRectangle getPaintLayerDeleteBounds(int row) const;
 	ofRectangle getPaintPickerBounds() const;
 	void endSelectionDrawing(JPbox_paint *box);
+	void clearPaintSelection();
 	void moveSelectedStrokes(JPbox_paint *box, const ofVec2f &offset);
 	void rotateSelectedStrokes(JPbox_paint *box, float angle);
 	void scaleSelectedStrokes(JPbox_paint *box, float scaleFactor);

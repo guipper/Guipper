@@ -42,6 +42,178 @@ namespace
 		return inside;
 	}
 
+	ofRectangle paintPointBounds(const std::vector<JPPaintPoint> &points,
+		float padding = 0.0f)
+	{
+		if (points.empty()) return ofRectangle();
+		float minX = points[0].x, maxX = minX;
+		float minY = points[0].y, maxY = minY;
+		for (const JPPaintPoint &point : points)
+		{
+			minX = std::min(minX, point.x); maxX = std::max(maxX, point.x);
+			minY = std::min(minY, point.y); maxY = std::max(maxY, point.y);
+		}
+		return ofRectangle(minX - padding, minY - padding,
+			maxX - minX + padding * 2.0f,
+			maxY - minY + padding * 2.0f);
+	}
+
+	bool rectanglesOverlap(const ofRectangle &a, const ofRectangle &b)
+	{
+		return a.getRight() >= b.x && b.getRight() >= a.x &&
+			a.getBottom() >= b.y && b.getBottom() >= a.y;
+	}
+
+	float pointSegmentDistanceSquared(const ofVec2f &point,
+		const ofVec2f &a, const ofVec2f &b)
+	{
+		const ofVec2f delta = b - a;
+		const float lengthSquared = delta.lengthSquared();
+		if (lengthSquared <= 1.0e-12f) return point.squareDistance(a);
+		const float t = ofClamp((point - a).dot(delta) / lengthSquared, 0.0f, 1.0f);
+		return point.squareDistance(a + delta * t);
+	}
+
+	bool segmentsIntersect(const ofVec2f &a, const ofVec2f &b,
+		const ofVec2f &c, const ofVec2f &d)
+	{
+		auto cross = [](const ofVec2f &u, const ofVec2f &v) {
+			return u.x * v.y - u.y * v.x;
+		};
+		const ofVec2f ab = b - a;
+		const ofVec2f cd = d - c;
+		const float denominator = cross(ab, cd);
+		if (std::abs(denominator) <= 1.0e-12f) return false;
+		const float t = cross(c - a, cd) / denominator;
+		const float u = cross(c - a, ab) / denominator;
+		return t >= 0.0f && t <= 1.0f && u >= 0.0f && u <= 1.0f;
+	}
+
+	bool strokeTouchesLasso(const JPPaintStroke &stroke,
+		const std::vector<ofVec2f> &lasso, const ofRectangle &lassoBounds,
+		float canvasAspect)
+	{
+		if (stroke.points.empty() || lasso.size() < 3) return false;
+		float maxWidth = 1.0f;
+		for (const JPPaintPoint &point : stroke.points)
+			maxWidth = std::max(maxWidth, point.width);
+		const float conservativeRadius = stroke.size * maxWidth *
+			std::max(1.0f, canvasAspect);
+		if (!rectanglesOverlap(paintPointBounds(stroke.points, conservativeRadius),
+			lassoBounds)) return false;
+
+		for (const JPPaintPoint &point : stroke.points)
+			if (isPointInPolygon(ofVec2f(point.x, point.y), lasso)) return true;
+
+		if (stroke.tool == (int)JPPaintTool::Lasso)
+		{
+			std::vector<ofVec2f> polygon;
+			polygon.reserve(stroke.points.size());
+			for (const JPPaintPoint &point : stroke.points)
+				polygon.push_back(ofVec2f(point.x, point.y));
+			if (isPointInPolygon(lasso.front(), polygon)) return true;
+		}
+
+		const std::size_t strokeSegments = stroke.points.size() > 1 ?
+			stroke.points.size() - 1 : 0;
+		for (std::size_t i = 0; i < strokeSegments; ++i)
+		{
+			const ofVec2f a(stroke.points[i].x, stroke.points[i].y);
+			const ofVec2f b(stroke.points[i + 1].x, stroke.points[i + 1].y);
+			const float radius = stroke.size * std::max(1.0f, canvasAspect) *
+				std::max(stroke.points[i].width, stroke.points[i + 1].width);
+			for (std::size_t p = 0; p + 1 < lasso.size(); ++p)
+			{
+				if (segmentsIntersect(a, b, lasso[p], lasso[p + 1]) ||
+					pointSegmentDistanceSquared(lasso[p], a, b) <= radius * radius)
+					return true;
+			}
+		}
+
+		if (stroke.points.size() == 1)
+		{
+			const ofVec2f center(stroke.points[0].x, stroke.points[0].y);
+			const float radius = stroke.size * std::max(1.0f, canvasAspect) *
+				stroke.points[0].width;
+			for (std::size_t p = 0; p + 1 < lasso.size(); ++p)
+				if (pointSegmentDistanceSquared(center, lasso[p], lasso[p + 1]) <=
+					radius * radius) return true;
+		}
+		return false;
+	}
+
+	JPPaintClip makePaintClip(const std::vector<ofVec2f> &lasso,
+		bool inverted)
+	{
+		JPPaintClip clip;
+		clip.inverted = inverted;
+		clip.points.reserve(lasso.size());
+		for (const ofVec2f &point : lasso)
+			clip.points.push_back(JPPaintPoint{point.x, point.y, 1.0f});
+		return clip;
+	}
+
+	// Split a selection non-destructively. Both halves retain the complete
+	// original vector and receive complementary raster-time clips. This keeps
+	// caps, joins, pressure, rectangles, ellipses and filled lasso shapes
+	// pixel-identical instead of rebuilding them from severed point lists.
+	void cutStrokesWithLasso(JPbox_paint *box,
+		const std::vector<ofVec2f> &lasso,
+		std::vector<int> &outSelected,
+		ofRectangle &outBounds)
+	{
+		const int cel = std::clamp(box->document().currentFrame, 0,
+			(int)box->document().frames.size() - 1);
+		const std::vector<JPPaintStroke> *listPtr =
+			jp_paint::strokeListFor(box->document(), cel, box->currentLayer());
+		if (listPtr == nullptr || lasso.size() < 3) return;
+
+		// Remove earlier selection pairs that were never transformed. Otherwise
+		// their invisible copies retain the full source vector, get split again,
+		// and reveal the old lasso path when this new selection is moved.
+		const std::vector<JPPaintStroke> orig =
+			jp_paint::collapseComplementaryStrokes(*listPtr);
+		std::vector<JPPaintStroke> result;
+		result.reserve(orig.size() * 2);
+		outSelected.clear();
+		outBounds = ofRectangle();
+		std::vector<JPPaintPoint> lassoPoints;
+		lassoPoints.reserve(lasso.size());
+		for (const ofVec2f &point : lasso)
+			lassoPoints.push_back(JPPaintPoint{point.x, point.y, 1.0f});
+		const ofRectangle lassoBounds = paintPointBounds(lassoPoints);
+
+		for (const JPPaintStroke &s : orig)
+		{
+			// Bucket fills are commands whose result depends on all preceding
+			// pixels; moving their seed is not equivalent to moving those pixels.
+			// Leave them untouched until fills are materialised in the document.
+			if (s.points.empty() || s.tool == (int)JPPaintTool::Fill ||
+				s.clips.size() >= 8 ||
+				!strokeTouchesLasso(s, lasso, lassoBounds, box->canvasAspect()))
+			{
+				result.push_back(s);
+				continue;
+			}
+
+			JPPaintStroke outside = s;
+			outside.clips.push_back(makePaintClip(lasso, true));
+			result.push_back(std::move(outside));
+
+			JPPaintStroke inside = s;
+			inside.clips.push_back(makePaintClip(lasso, false));
+			result.push_back(std::move(inside));
+			outSelected.push_back((int)result.size() - 1);
+		}
+
+		// Keep every pair at the original z position. Moving all selected halves
+		// to the tail would change translucent overlaps and eraser ordering even
+		// before the user moved the selection.
+		if (outSelected.empty()) return;
+		outBounds = lassoBounds;
+		box->replaceStrokes(cel, box->currentLayer(), result);
+	}
+
 
 
 	ofVec2f rotatePointAround(const ofVec2f &p, const ofVec2f &center, float angleDeg, float aspect)
@@ -57,6 +229,26 @@ namespace
 			center.x + rx / aspect,
 			center.y + ry
 		);
+	}
+
+	template <typename Transform>
+	void transformStrokeCoordinates(JPPaintStroke &stroke, Transform transform)
+	{
+		for (JPPaintPoint &point : stroke.points)
+		{
+			const ofVec2f changed = transform(ofVec2f(point.x, point.y));
+			point.x = changed.x;
+			point.y = changed.y;
+		}
+		for (JPPaintClip &clip : stroke.clips)
+		{
+			for (JPPaintPoint &point : clip.points)
+			{
+				const ofVec2f changed = transform(ofVec2f(point.x, point.y));
+				point.x = changed.x;
+				point.y = changed.y;
+			}
+		}
 	}
 
 	constexpr float kHeaderHeight = 30.0f;
@@ -79,7 +271,7 @@ namespace
 	const JPPaintTool kToolbarTools[] = {
 		JPPaintTool::Brush, JPPaintTool::Eraser, JPPaintTool::Line,
 		JPPaintTool::Rect, JPPaintTool::Ellipse, JPPaintTool::Lasso,
-		JPPaintTool::Fill};
+		JPPaintTool::Fill, JPPaintTool::LassoSelect};
 	constexpr int kToolbarToolCount =
 		(int)(sizeof(kToolbarTools) / sizeof(kToolbarTools[0]));
 
@@ -870,21 +1062,22 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 		}
 
 		const bool shifting = paintSelectionActive && (paintSelectionDragging || paintSelectionRotating || paintSelectionScaling);
+		bool drewSelectionPreview = false;
 		if (shifting)
 		{
 			const int cel = std::clamp(box->document().currentFrame, 0, (int)box->document().frames.size() - 1);
-			std::vector<JPPaintStroke> *list = jp_paint::strokeListFor(box->document(), cel, box->currentLayer());
+			const std::vector<JPPaintStroke> *list = jp_paint::strokeListFor(box->document(), cel, box->currentLayer());
 			if (list != nullptr)
 			{
+				std::vector<JPPaintStroke> previewStrokes = *list;
 				ofVec2f centerVal = paintSelectionBounds.getCenter();
 				float aspect = canvas.height > 0.0f ? (canvas.width / canvas.height) : 1.0f;
 				for (int idx : paintSelectedStrokeIndices)
 				{
-					if (idx >= 0 && idx < (int)list->size())
+					if (idx >= 0 && idx < (int)previewStrokes.size())
 					{
-						for (auto &pt : (*list)[idx].points)
-						{
-							ofVec2f p(pt.x, pt.y);
+						transformStrokeCoordinates(previewStrokes[(std::size_t)idx], [&](const ofVec2f &point) {
+							ofVec2f p = point;
 							if (paintSelectionScaling)
 							{
 								p.x = centerVal.x + (p.x - centerVal.x) * paintSelectionScale;
@@ -898,53 +1091,21 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 							{
 								p += paintSelectionDragOffset;
 							}
-							pt.x = p.x;
-							pt.y = p.y;
-						}
+							return p;
+						});
 					}
 				}
-				++box->document().frames[(std::size_t)cel].revision;
+				box->drawCelPreview(current, box->currentLayer(), previewStrokes,
+					canvas.x, canvas.y, canvas.width, canvas.height,
+					ofColor(255, 255, 255, 255));
+				drewSelectionPreview = true;
 			}
 		}
 
-		box->drawCel(current, canvas.x, canvas.y, canvas.width, canvas.height,
-			ofColor(255, 255, 255, 255));
-
-		if (shifting)
+		if (!drewSelectionPreview)
 		{
-			const int cel = std::clamp(box->document().currentFrame, 0, (int)box->document().frames.size() - 1);
-			std::vector<JPPaintStroke> *list = jp_paint::strokeListFor(box->document(), cel, box->currentLayer());
-			if (list != nullptr)
-			{
-				ofVec2f centerVal = paintSelectionBounds.getCenter();
-				float aspect = canvas.height > 0.0f ? (canvas.width / canvas.height) : 1.0f;
-				for (int idx : paintSelectedStrokeIndices)
-				{
-					if (idx >= 0 && idx < (int)list->size())
-					{
-						for (auto &pt : (*list)[idx].points)
-						{
-							ofVec2f p(pt.x, pt.y);
-							if (paintSelectionDragging)
-							{
-								p -= paintSelectionDragOffset;
-							}
-							if (paintSelectionRotating)
-							{
-								p = rotatePointAround(p, centerVal, -paintSelectionRotation, aspect);
-							}
-							if (paintSelectionScaling)
-							{
-								p.x = centerVal.x + (p.x - centerVal.x) / paintSelectionScale;
-								p.y = centerVal.y + (p.y - centerVal.y) / paintSelectionScale;
-							}
-							pt.x = p.x;
-							pt.y = p.y;
-						}
-					}
-				}
-				++box->document().frames[(std::size_t)cel].revision;
-			}
+			box->drawCel(current, canvas.x, canvas.y, canvas.width, canvas.height,
+				ofColor(255, 255, 255, 255));
 		}
 
 		if (box->liveStrokeActive && !box->liveStroke.points.empty())
@@ -1111,8 +1272,8 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 			ofPopStyle();
 		}
 
-		// If currently drawing selection
-		if (box->liveStrokeActive && !box->liveStroke.points.empty() && 
+		// If currently drawing a selection.
+		if (box->liveStrokeActive && !box->liveStroke.points.empty() &&
 			paintTool == (int)JPPaintTool::LassoSelect)
 		{
 			const JPViewTransform view = paintView();
@@ -1152,7 +1313,8 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 	static const char *tooltips[] = {
 		"Pincel (B)", "Borrador (E)", "Línea (L)", "Rectángulo (R)", "Elipse (O)",
 		"Pluma / Pen: cierra y rellena al soltar (P)",
-		"Rellenar región - el slider define la tolerancia (G)"};
+		"Rellenar región - el slider define la tolerancia (G)",
+		"Selección libre (S): recorta sin deformar y selecciona el interior; arrastrá para mover, manija superior para rotar, esquinas para escalar, DEL para borrar, D/Alt+arrastrá para duplicar"};
 
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
@@ -2241,6 +2403,10 @@ void JPboxgroup::endPaintStroke(JPbox_paint *box)
 	box->liveStroke = JPPaintStroke();
 	if (stroke.points.empty()) return;
 
+	// LassoSelect is UI-only; its live stroke is consumed by
+	// endSelectionDrawing / cutStrokesWithLasso and must NEVER reach commitStroke.
+	if (stroke.tool == (int)JPPaintTool::LassoSelect) return;
+
 	if (stroke.tool == (int)JPPaintTool::Lasso && stroke.points.size() >= 3)
 	{
 		// Close the ring to its start point. This is what the tool IS: the user
@@ -2269,7 +2435,7 @@ void JPboxgroup::endSelectionDrawing(JPbox_paint *box)
 	box->liveStrokeActive = false;
 	box->liveStroke = JPPaintStroke();
 	
-	if (stroke.points.size() < 2) return;
+	if (stroke.points.size() < 3) return;
 	
 	paintSelectionPath.clear();
 	for (const auto &pt : stroke.points)
@@ -2299,34 +2465,20 @@ void JPboxgroup::endSelectionDrawing(JPbox_paint *box)
 	}
 	
 	paintSelectedStrokeIndices.clear();
-	const int cel = std::clamp(box->document().currentFrame, 0, (int)box->document().frames.size() - 1);
-	const std::vector<JPPaintStroke> *list = jp_paint::strokeListFor(box->document(), cel, box->currentLayer());
-	if (list != nullptr && !paintSelectionPath.empty())
-	{
-		for (int i = 0; i < (int)list->size(); ++i)
-		{
-			const JPPaintStroke &s = (*list)[i];
-			if (s.points.empty()) continue;
-			
-			ofVec2f centroid(0, 0);
-			for (const auto &pt : s.points)
-			{
-				centroid += ofVec2f(pt.x, pt.y);
-			}
-			centroid /= (float)s.points.size();
-			
-			if (isPointInPolygon(centroid, paintSelectionPath))
-			{
-				paintSelectedStrokeIndices.push_back(i);
-			}
-		}
-	}
-	
-	if (paintSelectedStrokeIndices.empty())
-	{
-		paintSelectionActive = false;
-		paintSelectionPath.clear();
-	}
+}
+
+void JPboxgroup::clearPaintSelection()
+{
+	paintSelectionActive = false;
+	paintSelectionPath.clear();
+	paintSelectedStrokeIndices.clear();
+	paintSelectionBounds = ofRectangle();
+	paintSelectionDragging = false;
+	paintSelectionDragOffset.set(0.0f, 0.0f);
+	paintSelectionRotating = false;
+	paintSelectionRotation = 0.0f;
+	paintSelectionScaling = false;
+	paintSelectionScale = 1.0f;
 }
 
 void JPboxgroup::moveSelectedStrokes(JPbox_paint *box, const ofVec2f &offset)
@@ -2341,11 +2493,8 @@ void JPboxgroup::moveSelectedStrokes(JPbox_paint *box, const ofVec2f &offset)
 	{
 		if (idx >= 0 && idx < (int)newList.size())
 		{
-			for (auto &pt : newList[idx].points)
-			{
-				pt.x += offset.x;
-				pt.y += offset.y;
-			}
+			transformStrokeCoordinates(newList[idx],
+				[&](const ofVec2f &point) { return point + offset; });
 		}
 	}
 	
@@ -2374,12 +2523,9 @@ void JPboxgroup::rotateSelectedStrokes(JPbox_paint *box, float angle)
 	{
 		if (idx >= 0 && idx < (int)newList.size())
 		{
-			for (auto &pt : newList[idx].points)
-			{
-				ofVec2f rotated = rotatePointAround(ofVec2f(pt.x, pt.y), center, angle, aspect);
-				pt.x = rotated.x;
-				pt.y = rotated.y;
-			}
+			transformStrokeCoordinates(newList[idx], [&](const ofVec2f &point) {
+				return rotatePointAround(point, center, angle, aspect);
+			});
 		}
 	}
 	
@@ -2417,11 +2563,10 @@ void JPboxgroup::scaleSelectedStrokes(JPbox_paint *box, float scaleFactor)
 	{
 		if (idx >= 0 && idx < (int)newList.size())
 		{
-			for (auto &pt : newList[idx].points)
-			{
-				pt.x = center.x + (pt.x - center.x) * scaleFactor;
-				pt.y = center.y + (pt.y - center.y) * scaleFactor;
-			}
+			transformStrokeCoordinates(newList[idx], [&](const ofVec2f &point) {
+				return ofVec2f(center.x + (point.x - center.x) * scaleFactor,
+					center.y + (point.y - center.y) * scaleFactor);
+			});
 		}
 	}
 	
@@ -2462,11 +2607,9 @@ void JPboxgroup::duplicateSelectedStrokes(JPbox_paint *box)
 		if (idx >= 0 && idx < (int)newList.size())
 		{
 			JPPaintStroke dup = newList[idx];
-			for (auto &pt : dup.points)
-			{
-				pt.x += 0.02f;
-				pt.y += 0.02f;
-			}
+			transformStrokeCoordinates(dup, [](const ofVec2f &point) {
+				return point + ofVec2f(0.02f, 0.02f);
+			});
 			newList.push_back(dup);
 			newSelectedIndices.push_back((int)newList.size() - 1);
 		}
@@ -2915,10 +3058,14 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 	for (int action = 0; action < PAINT_ACTION_COUNT; ++action)
 	{
 		if (!getPaintActionBounds(action).inside(mouse)) continue;
-		if (action == PAINT_ACTION_UNDO) box->undo();
-		else if (action == PAINT_ACTION_REDO) box->redo();
-		clampPaintTimelineScroll();
-		markPaintChanged();
+		const bool changed = action == PAINT_ACTION_UNDO ?
+			box->undo() : box->redo();
+		if (changed)
+		{
+			clearPaintSelection();
+			clampPaintTimelineScroll();
+			markPaintChanged();
+		}
 		return true;
 	}
 
@@ -3208,6 +3355,7 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 			}
 			else
 			{
+				// Clicked outside the active selection: clear it and start a new lasso.
 				paintSelectionActive = false;
 				paintSelectedStrokeIndices.clear();
 				paintSelectionPath.clear();
@@ -3394,33 +3542,40 @@ bool JPboxgroup::update_paintMouseReleased(int mouseButton)
 			if (paintSelectionScaling)
 			{
 				if (std::abs(paintSelectionScale - 1.0f) > 0.01f)
-				{
 					scaleSelectedStrokes(box, paintSelectionScale);
-				}
 				paintSelectionScaling = false;
 				paintSelectionScale = 1.0f;
 			}
 			else if (paintSelectionRotating)
 			{
 				if (std::abs(paintSelectionRotation) > 0.01f)
-				{
 					rotateSelectedStrokes(box, paintSelectionRotation);
-				}
 				paintSelectionRotating = false;
 				paintSelectionRotation = 0.0f;
 			}
 			else if (paintSelectionDragging)
 			{
 				if (paintSelectionDragOffset.lengthSquared() > 0.0f)
-				{
 					moveSelectedStrokes(box, paintSelectionDragOffset);
-				}
 				paintSelectionDragging = false;
 				paintSelectionDragOffset.set(0.0f, 0.0f);
 			}
 			else if (paintDragMode == PAINT_DRAG_STROKE)
 			{
+				// Selection cuts non-destructively and keeps the interior active.
 				endSelectionDrawing(box);
+				if (!paintSelectionPath.empty())
+				{
+					cutStrokesWithLasso(box, paintSelectionPath,
+						paintSelectedStrokeIndices, paintSelectionBounds);
+					paintSelectionActive = !paintSelectedStrokeIndices.empty();
+					paintSelectionDragging = false;
+					paintSelectionRotating = false;
+					paintSelectionScaling = false;
+					paintSelectionRotation = 0.0f;
+					paintSelectionScale = 1.0f;
+					paintSelectionDragOffset.set(0.0f, 0.0f);
+				}
 			}
 			markPaintChanged();
 		}
@@ -3520,6 +3675,10 @@ bool JPboxgroup::paintUndoShortcut(bool redo)
 	const bool changed = redo ? box->redo() : box->undo();
 	if (changed)
 	{
+		// Selection is a document edit too. Undo restores the unsplit strokes;
+		// keeping the floating lasso would leave stale indices addressing the
+		// pre-undo list and make the operation look as if it had not reverted.
+		clearPaintSelection();
 		clampPaintTimelineScroll();
 		markPaintChanged();
 	}
@@ -3551,6 +3710,7 @@ void JPboxgroup::paintKeyPressed(int key)
 	case 'r': case 'R': paintTool = (int)JPPaintTool::Rect; break;
 	case 'o': paintTool = (int)JPPaintTool::Ellipse; break;
 	case 'p': paintTool = (int)JPPaintTool::Lasso; break;
+	case 's': case 'S': paintTool = (int)JPPaintTool::LassoSelect; break;
 
 	// Shift+, and Shift+. - the layer parallel to , and . stepping cels.
 	case '<': box->setCurrentLayer(box->currentLayer() - 1); break;

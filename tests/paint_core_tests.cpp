@@ -894,6 +894,41 @@ namespace
 		expect(fat.size() < 10, "huge strokes evict earlier than the entry cap");
 	}
 
+	void testClipPayloadAccounting()
+	{
+		JPPaintEdit edit;
+		edit.stroke = strokeOf(3);
+		JPPaintClip clip;
+		clip.inverted = true;
+		clip.points.push_back(pt(0.1f, 0.1f));
+		clip.points.push_back(pt(0.9f, 0.1f));
+		clip.points.push_back(pt(0.5f, 0.9f));
+		edit.stroke.clips.push_back(clip);
+		expect(jp_paint::pointCount(edit) == 6,
+			"undo accounting includes non-destructive clip points");
+	}
+
+	void testComplementarySelectionCollapse()
+	{
+		JPPaintStroke outside = strokeOf(3);
+		JPPaintClip clip;
+		clip.inverted = true;
+		clip.points = {pt(0.1f, 0.1f), pt(0.9f, 0.1f), pt(0.5f, 0.9f)};
+		outside.clips.push_back(clip);
+
+		JPPaintStroke inside = outside;
+		inside.clips.back().inverted = false;
+		std::vector<JPPaintStroke> collapsed =
+			jp_paint::collapseComplementaryStrokes({outside, inside});
+		expect(collapsed.size() == 1 && collapsed[0].clips.empty(),
+			"an untouched selection compacts back to its source stroke");
+
+		inside.points[0].x += 0.1f;
+		collapsed = jp_paint::collapseComplementaryStrokes({outside, inside});
+		expect(collapsed.size() == 2,
+			"a moved selection remains split from its source stroke");
+	}
+
 	void testUndoAcrossFrameEdits()
 	{
 		// Undoing a cel delete has to bring the cel's strokes back with it.
@@ -962,6 +997,8 @@ int main()
 	testLayerArityAcrossCelEdits();
 	testUndoRing();
 	testUndoEviction();
+	testClipPayloadAccounting();
+	testComplementarySelectionCollapse();
 	testUndoAcrossFrameEdits();
 	testCurrentFrameClamp();
 	if (failures != 0)

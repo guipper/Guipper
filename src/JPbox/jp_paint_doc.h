@@ -57,6 +57,15 @@ struct JPPaintPoint
 	float width = 1.0f;
 };
 
+// A non-destructive lasso clip. Keeping the original stroke geometry and
+// masking it at raster time avoids changing round caps, joins, closed shapes
+// and pressure widths when a selection crosses a stroke.
+struct JPPaintClip
+{
+	std::vector<JPPaintPoint> points;
+	bool inverted = false;
+};
+
 struct JPPaintStroke
 {
 	std::vector<JPPaintPoint> points;
@@ -71,6 +80,10 @@ struct JPPaintStroke
 	// Fill only: how close a pixel has to be to the seed pixel to count as the
 	// same region, per premultiplied channel. Ignored by every other tool.
 	float tolerance = 0.12f;
+	// Clips are intersected in order. An inverted clip keeps the exterior of
+	// its polygon; a normal clip keeps the interior. Eight nested clips are
+	// rendered exactly (the stencil buffer contributes one bit per clip).
+	std::vector<JPPaintClip> clips;
 };
 
 // One layer's worth of one cel. A cel holds one of these per document layer, in
@@ -137,6 +150,74 @@ struct JPPaintDocument
 
 namespace jp_paint
 {
+	inline bool sameStrokePoint(const JPPaintPoint &a,
+		const JPPaintPoint &b)
+	{
+		return a.x == b.x && a.y == b.y && a.width == b.width;
+	}
+
+	inline bool sameStrokePoints(const std::vector<JPPaintPoint> &a,
+		const std::vector<JPPaintPoint> &b)
+	{
+		if (a.size() != b.size()) return false;
+		for (std::size_t i = 0; i < a.size(); ++i)
+			if (!sameStrokePoint(a[i], b[i])) return false;
+		return true;
+	}
+
+	inline bool sameStrokeClip(const JPPaintClip &a, const JPPaintClip &b,
+		bool compareInversion = true)
+	{
+		return (!compareInversion || a.inverted == b.inverted) &&
+			sameStrokePoints(a.points, b.points);
+	}
+
+	// A selection stores an unchanged vector twice, with complementary final
+	// clips. If neither half was transformed, the pair is still exactly the
+	// original stroke and can be losslessly compacted. Besides removing a
+	// raster seam, doing this before another selection prevents old invisible
+	// halves from being selected and exposing the path of an earlier lasso.
+	inline bool mergeComplementaryStrokes(const JPPaintStroke &a,
+		const JPPaintStroke &b, JPPaintStroke &merged)
+	{
+		if (a.tool != b.tool || a.erase != b.erase ||
+			a.r != b.r || a.g != b.g || a.b != b.b || a.a != b.a ||
+			a.size != b.size || a.tolerance != b.tolerance ||
+			!sameStrokePoints(a.points, b.points) ||
+			a.clips.size() != b.clips.size() || a.clips.empty()) return false;
+
+		const std::size_t last = a.clips.size() - 1;
+		for (std::size_t i = 0; i < last; ++i)
+			if (!sameStrokeClip(a.clips[i], b.clips[i])) return false;
+		if (a.clips[last].inverted == b.clips[last].inverted ||
+			!sameStrokeClip(a.clips[last], b.clips[last], false)) return false;
+
+		merged = a;
+		merged.clips.pop_back();
+		return true;
+	}
+
+	inline std::vector<JPPaintStroke> collapseComplementaryStrokes(
+		const std::vector<JPPaintStroke> &strokes)
+	{
+		std::vector<JPPaintStroke> collapsed;
+		collapsed.reserve(strokes.size());
+		for (const JPPaintStroke &stroke : strokes)
+		{
+			collapsed.push_back(stroke);
+			while (collapsed.size() >= 2)
+			{
+				JPPaintStroke merged;
+				const std::size_t n = collapsed.size();
+				if (!mergeComplementaryStrokes(collapsed[n - 2],
+					collapsed[n - 1], merged)) break;
+				collapsed.pop_back();
+				collapsed.back() = merged;
+			}
+		}
+		return collapsed;
+	}
+
 	// ---------------------------------------------------------------- timing
 
 	inline int holdOf(const JPPaintFrame &frame)
@@ -698,21 +779,27 @@ namespace jp_paint
 {
 	inline std::size_t pointCount(const JPPaintEdit &edit)
 	{
-		std::size_t total = edit.stroke.points.size();
+		auto strokePoints = [](const JPPaintStroke &stroke) {
+			std::size_t count = stroke.points.size();
+			for (const JPPaintClip &clip : stroke.clips)
+				count += clip.points.size();
+			return count;
+		};
+		std::size_t total = strokePoints(edit.stroke);
 		for (const JPPaintLayer &layer : edit.frame.layers)
 		{
 			for (const JPPaintStroke &stroke : layer.strokes)
 			{
-				total += stroke.points.size();
+				total += strokePoints(stroke);
 			}
 		}
 		for (const JPPaintStroke &stroke : edit.layer.sharedStrokes)
 		{
-			total += stroke.points.size();
+			total += strokePoints(stroke);
 		}
 		for (const JPPaintStroke &stroke : edit.previousLayer.sharedStrokes)
 		{
-			total += stroke.points.size();
+			total += strokePoints(stroke);
 		}
 		// A deleted layer's payload is the biggest thing the ring ever holds, so
 		// leaving it out of the budget would let a few of them blow past the cap.
@@ -720,7 +807,7 @@ namespace jp_paint
 		{
 			for (const JPPaintStroke &stroke : layer.strokes)
 			{
-				total += stroke.points.size();
+				total += strokePoints(stroke);
 			}
 		}
 		return total;

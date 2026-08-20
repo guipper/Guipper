@@ -15,6 +15,11 @@ namespace
 	bool isSimpleStroke(const JPPaintStroke &stroke)
 	{
 		if (stroke.tool == (int)JPPaintTool::Fill) return false;
+		// The selection tool stores a temporary lasso outline in the live stroke
+		// buffer but are NEVER committed to the document as drawable marks.
+		// Guard here as a second line of defence in case one leaks.
+		if (stroke.tool == (int)JPPaintTool::LassoSelect) return false;
+		if (!stroke.clips.empty()) return false;
 		return !stroke.erase && stroke.a >= 0.999f;
 	}
 
@@ -275,6 +280,11 @@ void JPbox_paint::clear()
 		composite.clear();
 		composite.destroy();
 	}
+	if (selectionPreview.isAllocated())
+	{
+		selectionPreview.clear();
+		selectionPreview.destroy();
+	}
 	fbo.clear();
 	fbo.destroy();
 	fbohandlergroup.clear();
@@ -308,7 +318,7 @@ void JPbox_paint::ensureScratch(float width, float height)
 	settings.internalformat = GL_RGBA8;
 	settings.textureTarget = GL_TEXTURE_2D;
 	settings.useDepth = false;
-	settings.useStencil = false;
+	settings.useStencil = true;
 	settings.numSamples = 4;
 	scratch.allocate(settings);
 }
@@ -432,7 +442,8 @@ void JPbox_paint::ensureLayerScratch(float width, float height)
 }
 
 void JPbox_paint::rebuildRaster(ofFbo &target, const JPPaintDocument &document,
-	int celIndex)
+	int celIndex, int overrideLayerIndex,
+	const std::vector<JPPaintStroke> *overrideStrokes)
 {
 	const float w = target.getWidth();
 	const float h = target.getHeight();
@@ -447,7 +458,8 @@ void JPbox_paint::rebuildRaster(ofFbo &target, const JPPaintDocument &document,
 		const JPPaintLayerInfo &info = document.layers[(std::size_t)layerIndex];
 		if (!info.visible || info.opacity <= 0.002f) continue;
 		const std::vector<JPPaintStroke> *strokes =
-			jp_paint::strokeListFor(document, celIndex, layerIndex);
+			layerIndex == overrideLayerIndex && overrideStrokes != nullptr ?
+			overrideStrokes : jp_paint::strokeListFor(document, celIndex, layerIndex);
 		if (strokes == nullptr || strokes->empty()) continue;
 
 		// EVERY layer goes through the scratch, even a fully opaque one. It costs
@@ -483,20 +495,33 @@ void JPbox_paint::paintStrokeList(ofFbo &target,
 	const float w = target.getWidth();
 	const float h = target.getHeight();
 
+	// Reduce adjacent complementary pairs recursively. Recursive reduction is
+	// important after selecting an already clipped area: four nested pieces can
+	// collapse to two and then back to the one unchanged source stroke.
+	std::vector<JPPaintStroke> collapsed;
+	const std::vector<JPPaintStroke> *renderStrokes = &strokes;
+	if (std::any_of(strokes.begin(), strokes.end(),
+		[](const JPPaintStroke &stroke) { return !stroke.clips.empty(); }))
+	{
+		collapsed = jp_paint::collapseComplementaryStrokes(strokes);
+		renderStrokes = &collapsed;
+	}
+	const std::vector<JPPaintStroke> &renderList = *renderStrokes;
+
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
 	std::size_t i = 0;
-	while (i < strokes.size())
+	while (i < renderList.size())
 	{
-		if (isSimpleStroke(strokes[i]))
+		if (isSimpleStroke(renderList[i]))
 		{
 			// Batch the whole run of simple strokes into ONE framebuffer bind.
 			// Opaque non-erasing strokes are the common case by a wide margin,
 			// and a bind per stroke would dominate a rebuild.
 			target.begin();
-			while (i < strokes.size() && isSimpleStroke(strokes[i]))
+			while (i < renderList.size() && isSimpleStroke(renderList[i]))
 			{
-				const JPPaintStroke &stroke = strokes[i];
+				const JPPaintStroke &stroke = renderList[i];
 				// Re-armed per stroke, not once for the batch:
 				// renderStrokeGeometry ends in ofPopStyle, which restores the
 				// blend MODE and so throws away glBlendFuncSeparate. Without
@@ -514,13 +539,13 @@ void JPbox_paint::paintStrokeList(ofFbo &target,
 			target.end();
 			continue;
 		}
-		if (strokes[i].tool == (int)JPPaintTool::Fill)
+		if (renderList[i].tool == (int)JPPaintTool::Fill)
 		{
-			paintFillStroke(target, strokes[i]);
+			paintFillStroke(target, renderList[i]);
 		}
 		else
 		{
-			paintStroke(target, strokes[i]);
+			paintStroke(target, renderList[i]);
 		}
 		++i;
 	}
@@ -536,7 +561,7 @@ void JPbox_paint::paintStroke(ofFbo &target, const JPPaintStroke &stroke)
 	// is sub-pixel in a 46px thumbnail, and going through the scratch here would
 	// resize it from the render resolution and back on every cel edit - an 8MB
 	// reallocation twice per stroke, which hitches while drawing.
-	if (target.getWidth() < 256.0f)
+	if (target.getWidth() < 256.0f && stroke.clips.empty())
 	{
 		ofPushStyle();
 		ofSetRectMode(OF_RECTMODE_CORNER);
@@ -568,9 +593,14 @@ void JPbox_paint::paintStroke(ofFbo &target, const JPPaintStroke &stroke)
 	ensureScratch(target.getWidth(), target.getHeight());
 	scratch.begin();
 	ofClear(0, 0, 0, 0);
+	glClearStencil(0);
+	glClear(GL_STENCIL_BUFFER_BIT);
 	ofEnableAlphaBlending();
 	ofSetColor(255, 255, 255, 255);
+	const bool clipped = beginStrokeClip(stroke,
+		scratch.getWidth(), scratch.getHeight());
 	renderStrokeGeometry(stroke, scratch.getWidth(), scratch.getHeight());
+	if (clipped) endStrokeClip();
 	scratch.end();
 
 	target.begin();
@@ -678,6 +708,9 @@ void JPbox_paint::renderStrokeGeometry(const JPPaintStroke &stroke,
 {
 	const std::vector<JPPaintPoint> &points = stroke.points;
 	if (points.empty()) return;
+	// LassoSelect is a UI-only tool: its outline is drawn by
+	// the panel overlay, not the rasterizer, and must never produce marks.
+	if (stroke.tool == (int)JPPaintTool::LassoSelect) return;
 
 	// Sizes are normalized to canvas WIDTH only, so a brush dab stays round on
 	// a non-square canvas instead of turning elliptical.
@@ -761,6 +794,64 @@ void JPbox_paint::renderStrokeGeometry(const JPPaintStroke &stroke,
 		ofDrawCircle(point.x * width, point.y * height, base * point.width);
 	}
 	ofPopStyle();
+}
+
+bool JPbox_paint::beginStrokeClip(const JPPaintStroke &stroke,
+	float width, float height)
+{
+	const std::size_t count = std::min<std::size_t>(8, stroke.clips.size());
+	if (count == 0) return false;
+
+	glEnable(GL_STENCIL_TEST);
+	glStencilMask(0xff);
+	glClearStencil(0);
+	glClear(GL_STENCIL_BUFFER_BIT);
+	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+	glDisable(GL_BLEND);
+
+	unsigned int expected = 0;
+	for (std::size_t i = 0; i < count; ++i)
+	{
+		const JPPaintClip &clip = stroke.clips[i];
+		if (clip.points.size() < 3) continue;
+		const unsigned int bit = 1u << i;
+		expected |= bit;
+		glStencilMask(bit);
+		glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
+		if (clip.inverted)
+		{
+			glStencilFunc(GL_ALWAYS, bit, bit);
+			ofDrawRectangle(0.0f, 0.0f, width, height);
+			glStencilFunc(GL_ALWAYS, 0, bit);
+		}
+		else
+		{
+			glStencilFunc(GL_ALWAYS, bit, bit);
+		}
+
+		ofPath path;
+		path.setFilled(true);
+		path.moveTo(clip.points[0].x * width, clip.points[0].y * height);
+		for (std::size_t p = 1; p < clip.points.size(); ++p)
+			path.lineTo(clip.points[p].x * width, clip.points[p].y * height);
+		path.close();
+		path.draw();
+	}
+
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glStencilMask(0x00);
+	glStencilFunc(GL_EQUAL, expected, expected);
+	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+	ofEnableAlphaBlending();
+	return true;
+}
+
+void JPbox_paint::endStrokeClip()
+{
+	glStencilMask(0xff);
+	glDisable(GL_STENCIL_TEST);
+	ofEnableAlphaBlending();
 }
 
 void JPbox_paint::ensureUnpremultiplyShader()
@@ -902,6 +993,46 @@ void JPbox_paint::drawCel(int index, float drawX, float drawY,
 	beginPremultipliedBlend();
 	ofSetColor(tint);
 	raster.draw(drawX, drawY, drawWidth, drawHeight);
+	endCustomBlend();
+	ofPopStyle();
+}
+
+void JPbox_paint::drawCelPreview(int index, int layerIndex,
+	const std::vector<JPPaintStroke> &overrideStrokes,
+	float drawX, float drawY, float drawWidth, float drawHeight,
+	const ofColor &tint)
+{
+	if (doc.frames.empty()) return;
+	const int width = std::max(1, (int)fbo.getWidth());
+	const int height = std::max(1, (int)fbo.getHeight());
+	if (!selectionPreview.isAllocated() ||
+		(int)selectionPreview.getWidth() != width ||
+		(int)selectionPreview.getHeight() != height)
+	{
+		ofFbo::Settings settings;
+		settings.width = width;
+		settings.height = height;
+		settings.internalformat = GL_RGBA8;
+		settings.textureTarget = GL_TEXTURE_2D;
+		settings.useDepth = false;
+		settings.useStencil = false;
+		settings.numSamples = 4;
+		selectionPreview.allocate(settings);
+	}
+
+	{
+		jp_gl::ScopedNoScissor noClip;
+		const int cel = std::clamp(index, 0, (int)doc.frames.size() - 1);
+		rebuildRaster(selectionPreview, doc, cel,
+			layerIndex, &overrideStrokes);
+		selectionPreview.getTexture();
+	}
+
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	beginPremultipliedBlend();
+	ofSetColor(tint);
+	selectionPreview.draw(drawX, drawY, drawWidth, drawHeight);
 	endCustomBlend();
 	ofPopStyle();
 }
@@ -1371,6 +1502,13 @@ void JPbox_paint::writeStrokes(ofXml &parent,
 			// Only a bucket has one, so only a bucket writes one.
 			strokeNode.appendChild("tolerance").set(stroke.tolerance);
 		}
+		for (const JPPaintClip &clip : stroke.clips)
+		{
+			if (clip.points.size() < 3) continue;
+			auto clipNode = strokeNode.appendChild("clip");
+			clipNode.appendChild("inverted").set(clip.inverted);
+			clipNode.appendChild("pts").set(jp_paint::packPoints(clip.points));
+		}
 		// One packed text run rather than an element per point. A five minute
 		// doodle is tens of thousands of points, and verbose XML would spend over
 		// a hundred bytes on each of them.
@@ -1420,6 +1558,18 @@ void JPbox_paint::readStrokes(const ofXml &parent,
 			continue;
 		}
 		if (stroke.points.empty()) continue;
+		for (const ofXml &clipNode : strokeNode.getChildren("clip"))
+		{
+			if (stroke.clips.size() >= 8) break;
+			auto clipPoints = clipNode.getChild("pts");
+			if (!clipPoints) continue;
+			JPPaintClip clip;
+			auto inverted = clipNode.getChild("inverted");
+			clip.inverted = inverted ? inverted.getBoolValue() : false;
+			if (!jp_paint::unpackPoints(clipPoints.getValue(), clip.points) ||
+				clip.points.size() < 3) continue;
+			stroke.clips.push_back(std::move(clip));
+		}
 		out.push_back(stroke);
 	}
 }

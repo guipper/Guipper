@@ -135,6 +135,10 @@ public:
 	// output. Public because the panel lives in another translation unit.
 	void drawCel(int index, float drawX, float drawY, float drawWidth,
 		float drawHeight, const ofColor &tint);
+	void drawCelPreview(int index, int layerIndex,
+		const std::vector<JPPaintStroke> &overrideStrokes,
+		float drawX, float drawY, float drawWidth, float drawHeight,
+		const ofColor &tint);
 	// Builds a cel's raster if it is not cached. Callers that draw inside a
 	// scissor or a bound framebuffer MUST warm every cel they need first: a
 	// rebuild binds its own framebuffer, and an active scissor box would clip
@@ -206,6 +210,8 @@ private:
 	// Premultiplied cel plus live stroke, when there is a live stroke to merge.
 	// Allocated lazily, because most of the time there is not one.
 	ofFbo composite;
+	// Selection transforms render here without touching the document cache.
+	ofFbo selectionPreview;
 	// Cels are stored PREMULTIPLIED (see beginPremultipliedBlend). The output
 	// FBO must not be: every other box in the graph produces straight alpha and
 	// downstream shaders sample .rgb directly. This converts in one pass, and
@@ -230,7 +236,8 @@ private:
 
 	ofFbo &ensureRaster(int celIndex);
 	void rebuildRaster(ofFbo &target, const JPPaintDocument &document,
-		int celIndex);
+		int celIndex, int overrideLayerIndex = -1,
+		const std::vector<JPPaintStroke> *overrideStrokes = nullptr);
 	void paintStrokeList(ofFbo &target,
 		const std::vector<JPPaintStroke> &strokes);
 	void ensureLayerScratch(float width, float height);
@@ -252,6 +259,8 @@ private:
 	ofTexture fillTexture;
 	void renderStrokeGeometry(const JPPaintStroke &stroke,
 		float width, float height);
+	bool beginStrokeClip(const JPPaintStroke &stroke, float width, float height);
+	void endStrokeClip();
 
 	void advancePlayback();
 	void recordEdit(const JPPaintEdit &edit);
