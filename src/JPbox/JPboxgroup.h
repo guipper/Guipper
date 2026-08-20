@@ -982,6 +982,7 @@ private:
 	void moveSelectedStrokes(JPbox_paint *box, const ofVec2f &offset);
 	void rotateSelectedStrokes(JPbox_paint *box, float angle);
 	void scaleSelectedStrokes(JPbox_paint *box, float scaleFactor);
+	void flipSelectedStrokes(JPbox_paint *box, bool horizontal);
 	void duplicateSelectedStrokes(JPbox_paint *box);
 	void deleteSelectedStrokes(JPbox_paint *box);
 	// The timeline: an Aseprite style grid with layers down the left gutter and

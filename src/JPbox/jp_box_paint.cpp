@@ -1110,6 +1110,16 @@ float JPbox_paint::canvasAspect() const
 	return w / h;
 }
 
+int JPbox_paint::canvasPixelWidth() const
+{
+	return std::max(1, (int)fbo.getWidth());
+}
+
+int JPbox_paint::canvasPixelHeight() const
+{
+	return std::max(1, (int)fbo.getHeight());
+}
+
 // ----------------------------------------------------------------- playback
 
 bool JPbox_paint::scrubEnabled() const

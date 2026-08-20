@@ -175,6 +175,8 @@ public:
 		float drawWidth, float drawHeight);
 
 	float canvasAspect() const;
+	int canvasPixelWidth() const;
+	int canvasPixelHeight() const;
 
 private:
 	JPPaintDocument doc;

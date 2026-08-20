@@ -2644,6 +2644,35 @@ void JPboxgroup::scaleSelectedStrokes(JPbox_paint *box, float scaleFactor)
 	paintSelectionBounds = ofRectangle(minX, minY, maxX - minX, maxY - minY);
 }
 
+void JPboxgroup::flipSelectedStrokes(JPbox_paint *box, bool horizontal)
+{
+	if (paintSelectedStrokeIndices.empty()) return;
+	const int cel = std::clamp(box->document().currentFrame, 0,
+		(int)box->document().frames.size() - 1);
+	const std::vector<JPPaintStroke> *list =
+		jp_paint::strokeListFor(box->document(), cel, box->currentLayer());
+	if (list == nullptr) return;
+
+	std::vector<JPPaintStroke> newList = *list;
+	const ofVec2f center = paintSelectionBounds.getCenter();
+	for (int index : paintSelectedStrokeIndices)
+	{
+		if (index < 0 || index >= (int)newList.size()) continue;
+		transformStrokeCoordinates(newList[(std::size_t)index],
+			[&](const ofVec2f &point) {
+				return horizontal ?
+					ofVec2f(center.x * 2.0f - point.x, point.y) :
+					ofVec2f(point.x, center.y * 2.0f - point.y);
+			});
+	}
+	box->replaceStrokes(cel, box->currentLayer(), newList);
+	for (ofVec2f &point : paintSelectionPath)
+	{
+		if (horizontal) point.x = center.x * 2.0f - point.x;
+		else point.y = center.y * 2.0f - point.y;
+	}
+}
+
 void JPboxgroup::duplicateSelectedStrokes(JPbox_paint *box)
 {
 	if (paintSelectedStrokeIndices.empty()) return;
@@ -3466,6 +3495,8 @@ bool JPboxgroup::update_paintMouseDragged(int mouseButton)
 		const ofVec2f centerScr = view.toScreen(centerVal + (paintSelectionDragging ? paintSelectionDragOffset : ofVec2f(0.0f, 0.0f)));
 		float currentDist = mouse.distance(centerScr);
 		paintSelectionScale = currentDist / paintSelectionScaleStartDist;
+		if (ofGetKeyPressed(OF_KEY_SHIFT))
+			paintSelectionScale = std::round(paintSelectionScale * 10.0f) / 10.0f;
 		if (paintSelectionScale < 0.05f) paintSelectionScale = 0.05f;
 		markPaintChanged();
 		return true;
@@ -3478,6 +3509,8 @@ bool JPboxgroup::update_paintMouseDragged(int mouseButton)
 		const ofVec2f centerScr = view.toScreen(centerVal);
 		float currentAngle = ofRadToDeg(atan2(mouse.y - centerScr.y, mouse.x - centerScr.x));
 		paintSelectionRotation = currentAngle - paintSelectionRotateStartAngle;
+		if (ofGetKeyPressed(OF_KEY_SHIFT))
+			paintSelectionRotation = std::round(paintSelectionRotation / 15.0f) * 15.0f;
 		markPaintChanged();
 		return true;
 	}
@@ -3486,6 +3519,13 @@ bool JPboxgroup::update_paintMouseDragged(int mouseButton)
 	{
 		const ofVec2f uv = paintView().toUv(mouse);
 		paintSelectionDragOffset = uv - paintSelectionDragStartUv;
+		if (ofGetKeyPressed(OF_KEY_SHIFT))
+		{
+			if (std::abs(paintSelectionDragOffset.x) >=
+				std::abs(paintSelectionDragOffset.y))
+				paintSelectionDragOffset.y = 0.0f;
+			else paintSelectionDragOffset.x = 0.0f;
+		}
 		markPaintChanged();
 		return true;
 	}
@@ -3948,8 +3988,28 @@ void JPboxgroup::paintKeyPressed(int key)
 		paintBrushSize = brushFromSlider(
 			sliderFromBrush(paintBrushSize) + 0.05f);
 		break;
-	case ',': case OF_KEY_LEFT: box->setCurrentCel(box->currentCel() - 1); break;
-	case '.': case OF_KEY_RIGHT: box->setCurrentCel(box->currentCel() + 1); break;
+	case ',': box->setCurrentCel(box->currentCel() - 1); break;
+	case '.': box->setCurrentCel(box->currentCel() + 1); break;
+	case OF_KEY_LEFT: case OF_KEY_RIGHT: case OF_KEY_UP: case OF_KEY_DOWN:
+		if (paintSelectionActive)
+		{
+			const float multiplier = ofGetKeyPressed(OF_KEY_SHIFT) ? 10.0f : 1.0f;
+			ofVec2f offset;
+			if (key == OF_KEY_LEFT) offset.x = -multiplier /
+				(float)box->canvasPixelWidth();
+			else if (key == OF_KEY_RIGHT) offset.x = multiplier /
+				(float)box->canvasPixelWidth();
+			else if (key == OF_KEY_UP) offset.y = -multiplier /
+				(float)box->canvasPixelHeight();
+			else offset.y = multiplier / (float)box->canvasPixelHeight();
+			moveSelectedStrokes(box, offset);
+		}
+		else if (key == OF_KEY_LEFT)
+			box->setCurrentCel(box->currentCel() - 1);
+		else if (key == OF_KEY_RIGHT)
+			box->setCurrentCel(box->currentCel() + 1);
+		else changed = false;
+		break;
 	case ' ': state.playing = !state.playing; break;
 	case 'n': case 'N': box->addCel(false); clampPaintTimelineScroll(); break;
 	case 'd': case 'D':
@@ -3962,6 +4022,11 @@ void JPboxgroup::paintKeyPressed(int key)
 			box->addCel(true);
 			clampPaintTimelineScroll();
 		}
+		break;
+	case 'h': case 'H':
+		if (paintSelectionActive)
+			flipSelectedStrokes(box, key == 'h');
+		else changed = false;
 		break;
 	// THE reason this panel takes the keyboard. Without it this key reaches
 	// ofApp::keyPressed and deletes the box being drawn on, taking the whole
