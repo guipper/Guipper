@@ -979,6 +979,12 @@ private:
 	ofRectangle getPaintActionBounds(int action) const;
 	ofRectangle getPaintTransportBounds(int slot) const;
 	ofRectangle getPaintSizeSliderBounds() const;
+	ofRectangle getPaintBrushPropertyBounds() const;
+	ofRectangle getPaintBrushValueBounds() const;
+	ofRectangle getPaintBrushSettingsBounds() const;
+	ofRectangle getPaintBrushSettingsPreviewBounds() const;
+	ofRectangle getPaintBrushSettingRowBounds(int mode) const;
+	ofRectangle getPaintBrushSettingValueBounds(int mode) const;
 	ofRectangle getPaintColorSwatchBounds() const;
 	ofRectangle getPaintQuickSwatchBounds(int index) const;
 	ofRectangle getPaintLayerDeleteBounds(int row) const;
@@ -1075,6 +1081,8 @@ private:
 	ofVec2f paintPointerOverride;
 	// 0 size, 1 opacity, 2 hardness, 3 stabilizer. Captured on press.
 	int paintBrushSliderMode = 0;
+	bool paintBrushSettingsOpen = false;
+	int paintBrushSettingsDragMode = -1;
 	bool paintReferenceVisible = true;
 	float paintViewZoom = 1.0f;
 	ofVec2f paintViewCenter = ofVec2f(0.5f, 0.5f);

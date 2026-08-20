@@ -278,6 +278,16 @@ namespace
 		}
 	}
 
+	// Stroke geometry and its radius are stored independently. Scaling only the
+	// points makes a brush or line longer but leaves its nib unchanged, which
+	// reads as a stretched vector instead of a scaled piece of paint.
+	void scaleStrokeAppearance(JPPaintStroke &stroke, float scale)
+	{
+		if (stroke.tool == (int)JPPaintTool::Lasso ||
+			stroke.tool == (int)JPPaintTool::Fill) return;
+		stroke.size = ofClamp(stroke.size * scale, 0.0001f, 1.0f);
+	}
+
 	constexpr float kHeaderHeight = 30.0f;
 	constexpr float kToolbarHeight = 34.0f;
 	constexpr float kTransportHeight = 30.0f;
@@ -285,10 +295,10 @@ namespace
 	// The timeline is an Aseprite style grid: rows are layers, columns are
 	// frames. Cells sit flush against each other with 1px separators rather than
 	// gaps, which is what makes it read as a grid instead of a row of cards.
-	constexpr float kTimelineHeaderHeight = 16.0f;
+	constexpr float kTimelineHeaderHeight = 20.0f;
 	constexpr float kTimelineCompositeHeight = 34.0f;
-	constexpr float kTimelineRowHeight = 24.0f;
-	constexpr float kTimelineGutterWidth = 132.0f;
+	constexpr float kTimelineRowHeight = 32.0f;
+	constexpr float kTimelineGutterWidth = 184.0f;
 	constexpr float kTimelineCellWidth = 34.0f;
 	constexpr float kMinPanelWidth = 620.0f;
 	constexpr float kMinPanelHeight = 460.0f;
@@ -307,6 +317,10 @@ namespace
 	constexpr float kToolGap = 3.0f;
 	constexpr float kGroupGap = 10.0f;
 	constexpr float kSizeSliderWidth = 96.0f;
+	constexpr float kBrushPropertyWidth = 26.0f;
+	constexpr float kBrushSettingsWidth = 176.0f;
+	constexpr float kBrushSettingsPreviewHeight = 38.0f;
+	constexpr float kBrushSettingsRowHeight = 33.0f;
 	constexpr float kSwatchWidth = 34.0f;
 	constexpr float kActionWidth = 34.0f;
 	constexpr float kPickerWidth = 184.0f;
@@ -439,6 +453,8 @@ bool JPboxgroup::togglePaintEdit()
 	paintViewPanning = false;
 	paintDragMode = PAINT_DRAG_NONE;
 	paintPickerOpen = false;
+	paintBrushSettingsOpen = false;
+	paintBrushSettingsDragMode = -1;
 	paintFilmstripScroll = 0.0f;
 	if (paintPanelW < kMinPanelWidth || paintPanelH < kMinPanelHeight)
 	{
@@ -467,9 +483,12 @@ void JPboxgroup::endPaintEdit()
 	paintViewPanning = false;
 	paintViewPanButton = -1;
 	paintDragMode = PAINT_DRAG_NONE;
+	paintBrushSettingsDragMode = -1;
 	paintDragCelFrom = -1;
 	paintDragCelTo = -1;
 	paintPickerOpen = false;
+	paintBrushSettingsOpen = false;
+	paintBrushSettingsDragMode = -1;
 	paintHelpOpen = false;
 	paintHelpScroll = 0.0f;
 	cancelPaintHex();
@@ -491,6 +510,12 @@ void JPboxgroup::dismissPaintTopLayer()
 	if (paintPickerOpen)
 	{
 		paintPickerOpen = false;
+		return;
+	}
+	if (paintBrushSettingsOpen)
+	{
+		paintBrushSettingsOpen = false;
+		paintBrushSettingsDragMode = -1;
 		return;
 	}
 	if (paintSelectionActive)
@@ -584,6 +609,8 @@ ofRectangle JPboxgroup::getPaintPanelBounds() const
 		// layer at a time without a second z-order constant.
 		bounds = bounds.getUnion(getPaintPickerBounds());
 	}
+	if (paintBrushSettingsOpen)
+		bounds = bounds.getUnion(getPaintBrushSettingsBounds());
 	return bounds;
 }
 
@@ -682,6 +709,58 @@ ofRectangle JPboxgroup::getPaintSizeSliderBounds() const
 	const ofRectangle last = getPaintToolBounds(kToolbarToolCount - 1);
 	return ofRectangle(last.getRight() + kGroupGap, last.y + 3.0f,
 		kSizeSliderWidth, kToolButton - 6.0f);
+}
+
+ofRectangle JPboxgroup::getPaintBrushPropertyBounds() const
+{
+	const ofRectangle slider = getPaintSizeSliderBounds();
+	return ofRectangle(slider.x, slider.y, kBrushPropertyWidth, slider.height);
+}
+
+ofRectangle JPboxgroup::getPaintBrushValueBounds() const
+{
+	const ofRectangle slider = getPaintSizeSliderBounds();
+	const ofRectangle property = getPaintBrushPropertyBounds();
+	return ofRectangle(property.getRight() + 1.0f, slider.y,
+		std::max(18.0f, slider.getRight() - property.getRight() - 1.0f),
+		slider.height);
+}
+
+ofRectangle JPboxgroup::getPaintBrushSettingsBounds() const
+{
+	const ofRectangle property = getPaintBrushPropertyBounds();
+	float x = property.x;
+	float y = property.getBottom() + 4.0f;
+	x = ofClamp(x, 4.0f, std::max(4.0f, ofGetWidth() - kBrushSettingsWidth - 4.0f));
+	y = ofClamp(y, 4.0f, std::max(4.0f,
+		ofGetHeight() - kBrushSettingsPreviewHeight -
+			kBrushSettingsRowHeight * 4.0f - 15.0f));
+	return ofRectangle(x, y, kBrushSettingsWidth,
+		kBrushSettingsPreviewHeight + kBrushSettingsRowHeight * 4.0f + 13.0f);
+}
+
+ofRectangle JPboxgroup::getPaintBrushSettingsPreviewBounds() const
+{
+	const ofRectangle menu = getPaintBrushSettingsBounds();
+	return ofRectangle(menu.x + 5.0f, menu.y + 5.0f,
+		menu.width - 10.0f, kBrushSettingsPreviewHeight);
+}
+
+ofRectangle JPboxgroup::getPaintBrushSettingRowBounds(int mode) const
+{
+	if (mode < 0 || mode > 3) return ofRectangle();
+	const ofRectangle menu = getPaintBrushSettingsBounds();
+	return ofRectangle(menu.x + 4.0f,
+		menu.y + kBrushSettingsPreviewHeight + 8.0f +
+			(float)mode * kBrushSettingsRowHeight,
+		menu.width - 8.0f, kBrushSettingsRowHeight);
+}
+
+ofRectangle JPboxgroup::getPaintBrushSettingValueBounds(int mode) const
+{
+	const ofRectangle row = getPaintBrushSettingRowBounds(mode);
+	return ofRectangle(row.x + 7.0f, row.getBottom() - 8.0f,
+		std::max(24.0f, row.width - 14.0f), 5.0f);
 }
 
 ofRectangle JPboxgroup::getPaintColorSwatchBounds() const
@@ -872,38 +951,39 @@ ofRectangle JPboxgroup::getPaintGutterRowBounds(int row) const
 ofRectangle JPboxgroup::getPaintLayerEyeBounds(int row) const
 {
 	const ofRectangle bounds = getPaintGutterRowBounds(row);
-	return ofRectangle(bounds.x + 3.0f, bounds.y + 2.0f, 15.0f, 15.0f);
+	return ofRectangle(bounds.x + 6.0f, bounds.y + 5.0f, 16.0f, 16.0f);
 }
 
 ofRectangle JPboxgroup::getPaintLayerBadgeBounds(int row) const
 {
 	const ofRectangle bounds = getPaintGutterRowBounds(row);
-	return ofRectangle(bounds.getRight() - 42.0f, bounds.y + 3.0f, 22.0f, 13.0f);
+	return ofRectangle(bounds.getRight() - 45.0f, bounds.y + 5.0f, 24.0f, 15.0f);
 }
 
 ofRectangle JPboxgroup::getPaintLayerLockBounds(int row) const
 {
 	const ofRectangle bounds = getPaintGutterRowBounds(row);
-	return ofRectangle(bounds.getRight() - 59.0f, bounds.y + 3.0f, 14.0f, 13.0f);
+	return ofRectangle(bounds.getRight() - 64.0f, bounds.y + 5.0f, 15.0f, 15.0f);
 }
 
 ofRectangle JPboxgroup::getPaintLayerBlendBounds(int row) const
 {
 	const ofRectangle bounds = getPaintGutterRowBounds(row);
-	return ofRectangle(bounds.getRight() - 77.0f, bounds.y + 3.0f, 15.0f, 13.0f);
+	return ofRectangle(bounds.getRight() - 84.0f, bounds.y + 5.0f, 16.0f, 15.0f);
 }
 
 ofRectangle JPboxgroup::getPaintLayerDeleteBounds(int row) const
 {
 	const ofRectangle bounds = getPaintGutterRowBounds(row);
-	return ofRectangle(bounds.getRight() - 17.0f, bounds.y + 3.0f, 14.0f, 13.0f);
+	return ofRectangle(bounds.getRight() - 17.0f, bounds.y + 5.0f, 13.0f, 15.0f);
 }
 
 ofRectangle JPboxgroup::getPaintLayerOpacityBounds(int row) const
 {
 	const ofRectangle bounds = getPaintGutterRowBounds(row);
-	return ofRectangle(bounds.x + 3.0f, bounds.getBottom() - 6.0f,
-		bounds.width - 6.0f, 4.0f);
+	const ofRectangle eye = getPaintLayerEyeBounds(row);
+	return ofRectangle(eye.getRight() + 7.0f, bounds.getBottom() - 7.0f,
+		bounds.getRight() - eye.getRight() - 13.0f, 3.0f);
 }
 
 ofRectangle JPboxgroup::getPaintAddCelBounds() const
@@ -922,8 +1002,8 @@ ofRectangle JPboxgroup::getPaintLayerNameBounds(int row) const
 	const ofRectangle badge = getPaintLayerBlendBounds(row);
 	// Between the eye and the BG badge, and above the opacity bar: the strip that
 	// shows the name is the strip that starts a rename.
-	return ofRectangle(eye.getRight() + 2.0f, bounds.y + 1.0f,
-		std::max(10.0f, badge.x - eye.getRight() - 4.0f), 16.0f);
+	return ofRectangle(eye.getRight() + 7.0f, bounds.y + 3.0f,
+		std::max(16.0f, badge.x - eye.getRight() - 12.0f), 17.0f);
 }
 
 ofRectangle JPboxgroup::getPaintHexFieldBounds() const
@@ -1140,6 +1220,9 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 				{
 					if (idx >= 0 && idx < (int)previewStrokes.size())
 					{
+						if (paintSelectionScaling)
+							scaleStrokeAppearance(previewStrokes[(std::size_t)idx],
+								paintSelectionScale);
 						transformStrokeCoordinates(previewStrokes[(std::size_t)idx], [&](const ofVec2f &point) {
 							ofVec2f p = point;
 							if (paintSelectionScaling)
@@ -1494,10 +1577,12 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 			bounds.width, bounds.height);
 	}
 
-	// One contextual trough keeps the toolbar compact. Modifiers expose the
-	// less frequently adjusted brush properties and the chosen mode is captured
-	// for the duration of a drag.
+	// The property button makes the active brush setting explicit. Keyboard
+	// modifiers still work as a fast temporary override, but no longer force the
+	// user to remember which invisible mode the trough is editing.
 	const ofRectangle slider = getPaintSizeSliderBounds();
+	const ofRectangle property = getPaintBrushPropertyBounds();
+	const ofRectangle value = getPaintBrushValueBounds();
 	const bool fillSelected = paintTool == (int)JPPaintTool::Fill;
 	int sliderMode = paintBrushSliderMode;
 	if (paintDragMode != PAINT_DRAG_SIZE)
@@ -1506,36 +1591,125 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 			sliderMode = 3;
 		else if (ofGetKeyPressed(OF_KEY_ALT)) sliderMode = 2;
 		else if (ofGetKeyPressed(OF_KEY_SHIFT)) sliderMode = 1;
-		else sliderMode = 0;
 	}
 	if (fillSelected) sliderMode = 0;
 	const float t = fillSelected ? paintFillTolerance :
 		(sliderMode == 1 ? paintBrushOpacity :
 		 sliderMode == 2 ? paintBrushHardness :
 		 sliderMode == 3 ? paintBrushStabilizer : sliderFromBrush(paintBrushSize));
-	ofSetColor(COL_SLIDER_TROUGH);
-	ofDrawRectRounded(slider, 3.0f);
-	ofSetColor(COL_ACCENT_CYAN_DIM);
-	ofDrawRectRounded(slider.x, slider.y, slider.width * t, slider.height, 3.0f);
+	static const char *modeLabels[] = {"TAM", "OP", "DUR", "EST"};
+	const char *modeLabel = fillSelected ? "TOL" : modeLabels[sliderMode];
+
+	ofSetColor((paintBrushSettingsOpen || jp_button::hovered(property)) && !fillSelected ?
+		COL_ACCENT_CYAN_DIM : COL_BG_INPUT);
+	ofDrawRectRounded(property, 3.0f);
+	ofSetColor((paintBrushSettingsOpen || jp_button::hovered(property)) && !fillSelected ?
+		COL_ACCENT_CYAN : COL_BORDER_DEFAULT);
 	ofNoFill();
-	ofSetColor(jp_button::hovered(slider) ? COL_ACCENT_CYAN : COL_BORDER_DEFAULT);
-	ofDrawRectRounded(slider, 3.0f);
+	ofDrawRectRounded(property, 3.0f);
 	ofFill();
-	// The knob IS the dab preview - it shows the size at the place the size is
-	// set, instead of spending another control on saying the same thing. For the
-	// bucket there is no dab, so the knob is a plain marker.
 	ofSetColor(COL_TEXT_PRIMARY);
-	ofDrawCircle(slider.x + slider.width * t, slider.getCenter().y,
+	jp_constants::p2_font.drawString(modeLabel,
+		property.getCenter().x - jp_constants::p2_font.stringWidth(modeLabel) * 0.5f,
+		property.getCenter().y + 3.5f);
+	if (!fillSelected)
+	{
+		ofSetColor(COL_TEXT_MUTED);
+		ofDrawTriangle(property.getRight() - 7.0f, property.getCenter().y - 1.0f,
+			property.getRight() - 3.0f, property.getCenter().y - 1.0f,
+			property.getRight() - 5.0f, property.getCenter().y + 2.0f);
+	}
+
+	ofSetColor(COL_SLIDER_TROUGH);
+	ofDrawRectRounded(value, 3.0f);
+	ofSetColor(COL_ACCENT_CYAN_DIM);
+	ofDrawRectRounded(value.x, value.y, value.width * t, value.height, 3.0f);
+	ofNoFill();
+	ofSetColor(jp_button::hovered(value) ? COL_ACCENT_CYAN : COL_BORDER_DEFAULT);
+	ofDrawRectRounded(value, 3.0f);
+	ofFill();
+	ofSetColor(COL_TEXT_PRIMARY);
+	ofDrawCircle(value.x + value.width * t, value.getCenter().y,
 		(fillSelected || sliderMode != 0) ? 3.0f
-			: ofClamp(paintBrushSize * 200.0f, 2.0f, slider.height * 0.5f));
+			: ofClamp(paintBrushSize * 200.0f, 2.0f, value.height * 0.5f));
 	const char *sliderTip = fillSelected ?
 		"Tolerancia de relleno" : sliderMode == 1 ?
-		"Opacidad del pincel (Shift)" : sliderMode == 2 ?
-		"Dureza del pincel (Alt)" : sliderMode == 3 ?
-		"Estabilizador del trazo (Ctrl/Cmd)" :
-		"Tamaño del pincel ([ y ]); Shift opacidad, Alt dureza, Ctrl estabilizador";
+		"Opacidad del pincel" : sliderMode == 2 ? "Dureza del pincel" :
+		sliderMode == 3 ? "Estabilizador del trazo" : "Tamaño del pincel ([ y ])";
 	jp_tooltip::draw(sliderTip,
 		slider.x, slider.y, slider.width, slider.height);
+	jp_tooltip::draw(fillSelected ? "Tolerancia de relleno" :
+		"Elegir propiedad del pincel", property.x, property.y,
+		property.width, property.height);
+
+	if (paintBrushSettingsOpen && !fillSelected)
+	{
+		const ofRectangle menu = getPaintBrushSettingsBounds();
+		const ofRectangle previewBounds = getPaintBrushSettingsPreviewBounds();
+		ofSetColor(ofColor(COL_BG_PANEL, 252));
+		ofDrawRectRounded(menu, 4.0f);
+		ofNoFill();
+		ofSetColor(COL_ACCENT_CYAN);
+		ofDrawRectRounded(menu, 4.0f);
+		ofFill();
+		// A small live ribbon makes opacity, width and pressure feel like brush
+		// controls rather than abstract percentages. The wave is intentionally
+		// horizontal, so it reads as a quick S-shaped stroke.
+		ofSetColor(COL_BG_INPUT);
+		ofDrawRectRounded(previewBounds, 3.0f);
+		drawCheckerboard(ofRectangle(previewBounds.x + 1.0f, previewBounds.y + 1.0f,
+			previewBounds.width - 2.0f, previewBounds.height - 2.0f));
+		JPPaintStroke previewStroke;
+		previewStroke.r = paintColor.r;
+		previewStroke.g = paintColor.g;
+		previewStroke.b = paintColor.b;
+		previewStroke.a = paintColor.a * paintBrushOpacity;
+		previewStroke.size = paintBrushSize;
+		previewStroke.hardness = paintBrushHardness;
+		previewStroke.tool = (int)JPPaintTool::Brush;
+		constexpr int previewPointCount = 17;
+		for (int i = 0; i < previewPointCount; ++i)
+		{
+			const float u = (float)i / (float)(previewPointCount - 1);
+			previewStroke.points.push_back(JPPaintPoint{0.08f + u * 0.84f,
+				0.5f + std::sin(u * TWO_PI) * 0.22f, 1.0f});
+		}
+		ofEnableAlphaBlending();
+		ofSetColor(previewStroke.r * previewStroke.a * 255.0f,
+			previewStroke.g * previewStroke.a * 255.0f,
+			previewStroke.b * previewStroke.a * 255.0f,
+			previewStroke.a * 255.0f);
+		box->drawStrokePreview(previewStroke, previewBounds.x, previewBounds.y,
+			previewBounds.width, previewBounds.height);
+		static const char *menuNames[] = {"Tamaño", "Opacidad", "Dureza", "Estabilizador"};
+		for (int mode = 0; mode < 4; ++mode)
+		{
+			const ofRectangle row = getPaintBrushSettingRowBounds(mode);
+			const bool active = mode == paintBrushSliderMode;
+			const bool over = jp_button::hovered(row);
+			ofSetColor(active ? ofColor(COL_ACCENT_CYAN, 72) :
+				(over ? COL_BG_HOVER : ofColor(0, 0, 0, 0)));
+			ofDrawRectRounded(row, 2.0f);
+			ofSetColor(active ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
+			jp_constants::p2_font.drawString(menuNames[mode], row.x + 7.0f,
+				row.y + 12.0f);
+			const float itemValue = mode == 0 ? sliderFromBrush(paintBrushSize) :
+				(mode == 1 ? paintBrushOpacity : mode == 2 ? paintBrushHardness : paintBrushStabilizer);
+			const ofRectangle itemSlider = getPaintBrushSettingValueBounds(mode);
+			ofSetColor(COL_SLIDER_TROUGH);
+			ofDrawRectRounded(itemSlider, 2.0f);
+			ofSetColor(active ? COL_ACCENT_CYAN : COL_ACCENT_CYAN_DIM);
+			ofDrawRectRounded(itemSlider.x, itemSlider.y,
+				itemSlider.width * itemValue, itemSlider.height, 2.0f);
+			ofSetColor(active ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
+			ofDrawCircle(itemSlider.x + itemSlider.width * itemValue,
+				itemSlider.getCenter().y, 2.5f);
+			const string percent = ofToString((int)std::round(itemValue * 100.0f)) + "%";
+			ofSetColor(active ? COL_ACCENT_CYAN : COL_TEXT_MUTED);
+			jp_constants::p2_font.drawString(percent, row.getRight() - 7.0f -
+				jp_constants::p2_font.stringWidth(percent), row.y + 12.0f);
+		}
+	}
 
 	const ofRectangle swatch = getPaintColorSwatchBounds();
 	ofSetColor(30, 30, 34);
@@ -1751,18 +1925,28 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 	{
 		jp_gl::ScopedScissor clip(gutter);
 		ofSetColor(COL_TEXT_DIM);
-		jp_constants::p2_font.drawString("LAYERS", gutter.x + 5.0f,
-			gutter.y + 12.0f);
+		jp_constants::p2_font.drawString("CAPAS", gutter.x + 7.0f,
+			gutter.y + 13.0f);
+		ofSetColor(COL_BORDER_MUTED);
+		ofDrawLine(gutter.x + 6.0f, gutter.y + kTimelineHeaderHeight - 2.0f,
+			gutter.getRight() - 6.0f, gutter.y + kTimelineHeaderHeight - 2.0f);
 
 		const ofRectangle add = getPaintLayerAddBounds();
 		const bool addOver = jp_button::hovered(add);
-		ofSetColor(addOver ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
+		ofSetColor(addOver ? ofColor(COL_ACCENT_CYAN, 70) : COL_BG_INPUT);
+		ofDrawRectRounded(add, 2.0f);
+		ofNoFill();
+		ofSetColor(addOver ? COL_ACCENT_CYAN : COL_BORDER_DEFAULT);
+		ofDrawRectRounded(add, 2.0f);
+		ofFill();
+		ofSetColor(addOver ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
 		ofSetLineWidth(1.5f);
 		ofDrawLine(add.getCenter().x - 4, add.getCenter().y,
 			add.getCenter().x + 4, add.getCenter().y);
 		ofDrawLine(add.getCenter().x, add.getCenter().y - 4,
 			add.getCenter().x, add.getCenter().y + 4);
 		ofSetLineWidth(1.0f);
+		jp_tooltip::draw("Agregar capa", add.x, add.y, add.width, add.height);
 
 		for (int row = 0; row < layerCount; ++row)
 		{
@@ -1777,9 +1961,10 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 			const bool dropTarget = paintDragMode == PAINT_DRAG_LAYER &&
 				paintDragLayerTo == index && paintDragLayerFrom != index;
 
-			ofSetColor(selected ? ofColor(COL_ACCENT_CYAN, 55) :
+			ofSetColor(selected ? ofColor(COL_ACCENT_CYAN, 62) :
 				(over ? COL_BG_HOVER : COL_BG_BUTTON));
-			ofDrawRectangle(bounds);
+			ofDrawRectRounded(bounds.x + 1.0f, bounds.y + 1.0f,
+				bounds.width - 2.0f, bounds.height - 2.0f, 3.0f);
 
 			// The eye is an outline when hidden with a slash through it, a filled
 			// pupil when shown - the state has to read at a glance from 15px.
@@ -1827,8 +2012,8 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 			else
 			{
 				ofSetColor(selected ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
-				jp_constants::p2_font.drawString(label, eye.getRight() + 4.0f,
-					bounds.y + 13.0f);
+				jp_constants::p2_font.drawString(label, eye.getRight() + 7.0f,
+					bounds.y + 15.0f);
 			}
 
 			const ofRectangle blend = getPaintLayerBlendBounds(row);
@@ -1895,11 +2080,11 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 
 			const ofRectangle opacity = getPaintLayerOpacityBounds(row);
 			ofSetColor(COL_SLIDER_TROUGH);
-			ofDrawRectangle(opacity);
+			ofDrawRectRounded(opacity, 1.5f);
 			ofSetColor(info.visible ? COL_ACCENT_CYAN_DIM : COL_TEXT_DARK);
-			ofDrawRectangle(opacity.x, opacity.y,
+			ofDrawRectRounded(opacity.x, opacity.y,
 				opacity.width * ofClamp(info.opacity, 0.0f, 1.0f),
-				opacity.height);
+				opacity.height, 1.5f);
 
 			ofNoFill();
 			ofSetLineWidth(dropTarget ? 2.0f : 1.0f);
@@ -2417,10 +2602,12 @@ void JPboxgroup::drawPaintPanel()
 	drawCloseGlyph(close, jp_button::hovered(close));
 	jp_tooltip::draw("Cerrar (Esc)", close.x, close.y, close.width, close.height);
 
-	drawPaintToolbar(box);
 	drawPaintCanvas(box);
 	drawPaintTransport(box);
 	drawPaintTimeline(box);
+	// Draw after the canvas and timeline so the brush-property popover behaves
+	// as a real dropdown instead of being hidden by the document underneath.
+	drawPaintToolbar(box);
 
 	// Resize grip: three chevrons in the corner, the same affordance the
 	// mapping panel uses.
@@ -2705,6 +2892,7 @@ void JPboxgroup::scaleSelectedStrokes(JPbox_paint *box, float scaleFactor)
 	{
 		if (idx >= 0 && idx < (int)newList.size())
 		{
+			scaleStrokeAppearance(newList[idx], scaleFactor);
 			transformStrokeCoordinates(newList[idx], [&](const ofVec2f &point) {
 				return ofVec2f(center.x + (point.x - center.x) * scaleFactor,
 					center.y + (point.y - center.y) * scaleFactor);
@@ -3072,6 +3260,35 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 		return true;
 	}
 
+	if (paintBrushSettingsOpen)
+	{
+		if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
+			getPaintBrushSettingsBounds().inside(mouse))
+		{
+			paintPanelPointerCaptured = true;
+			for (int mode = 0; mode < 4; ++mode)
+			{
+				if (!getPaintBrushSettingRowBounds(mode).inside(mouse)) continue;
+				paintBrushSliderMode = mode;
+				paintBrushSettingsDragMode = mode;
+				paintDragMode = PAINT_DRAG_SIZE;
+				const ofRectangle slider = getPaintBrushSettingValueBounds(mode);
+				const float t = ofClamp((mouse.x - slider.x) /
+					std::max(1.0f, slider.width), 0.0f, 1.0f);
+				if (mode == 0) paintBrushSize = brushFromSlider(t);
+				else if (mode == 1) paintBrushOpacity = t;
+				else if (mode == 2) paintBrushHardness = t;
+				else paintBrushStabilizer = t;
+				return true;
+			}
+			return true;
+		}
+		// Like the colour picker, closing the menu does not consume the click
+		// aimed at the tool beneath it.
+		paintBrushSettingsOpen = false;
+		paintBrushSettingsDragMode = -1;
+	}
+
 	if (paintPickerOpen)
 	{
 		if (getPaintPickerBounds().inside(mouse))
@@ -3196,14 +3413,22 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 		return true;
 	}
 
-	const ofRectangle slider = getPaintSizeSliderBounds();
+	const ofRectangle property = getPaintBrushPropertyBounds();
+	if (property.inside(mouse) && paintTool != (int)JPPaintTool::Fill)
+	{
+		paintBrushSettingsOpen = !paintBrushSettingsOpen;
+		if (paintBrushSettingsOpen) paintPickerOpen = false;
+		return true;
+	}
+	const ofRectangle slider = getPaintBrushValueBounds();
 	if (slider.inside(mouse))
 	{
 		paintDragMode = PAINT_DRAG_SIZE;
+		paintBrushSettingsDragMode = -1;
 		paintBrushSliderMode =
 			(ofGetKeyPressed(OF_KEY_CONTROL) || ofGetKeyPressed(OF_KEY_COMMAND)) ? 3 :
 			ofGetKeyPressed(OF_KEY_ALT) ? 2 :
-			ofGetKeyPressed(OF_KEY_SHIFT) ? 1 : 0;
+			ofGetKeyPressed(OF_KEY_SHIFT) ? 1 : paintBrushSliderMode;
 		if (paintTool == (int)JPPaintTool::Fill) paintBrushSliderMode = 0;
 		const float t = ofClamp(
 			(mouse.x - slider.x) / std::max(1.0f, slider.width), 0.0f, 1.0f);
@@ -3217,6 +3442,7 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 	if (getPaintColorSwatchBounds().inside(mouse))
 	{
 		paintPickerOpen = !paintPickerOpen;
+		paintBrushSettingsOpen = false;
 		if (paintPickerOpen)
 		{
 			paintPickerHue = paintColor.getHue();
@@ -3672,7 +3898,9 @@ bool JPboxgroup::update_paintMouseDragged(int mouseButton)
 		return true;
 	case PAINT_DRAG_SIZE:
 	{
-		const ofRectangle slider = getPaintSizeSliderBounds();
+		const ofRectangle slider = paintBrushSettingsDragMode >= 0 ?
+			getPaintBrushSettingValueBounds(paintBrushSettingsDragMode) :
+			getPaintBrushValueBounds();
 		const float t = ofClamp(
 			(mouse.x - slider.x) / std::max(1.0f, slider.width), 0.0f, 1.0f);
 		if (paintTool == (int)JPPaintTool::Fill) paintFillTolerance = t;
@@ -3872,6 +4100,7 @@ bool JPboxgroup::update_paintMouseReleased(int mouseButton)
 	}
 
 	paintDragMode = PAINT_DRAG_NONE;
+	paintBrushSettingsDragMode = -1;
 	paintDragCelFrom = -1;
 	paintDragCelTo = -1;
 	paintDragLayerFrom = -1;
