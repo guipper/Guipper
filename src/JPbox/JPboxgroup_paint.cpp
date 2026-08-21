@@ -49,6 +49,17 @@ namespace
 		return inside;
 	}
 
+	// Every point a stroke's geometry is made of: its run, plus a region's
+	// remaining contours. A helper rather than four open-coded loops, because
+	// missing one would silently leave part of a region out of a hit test.
+	void forEachStrokePointList(const JPPaintStroke &stroke,
+		const std::function<void(const std::vector<JPPaintPoint> &)> &visit)
+	{
+		visit(stroke.points);
+		for (const std::vector<JPPaintPoint> &contour : stroke.contours)
+			visit(contour);
+	}
+
 	ofRectangle paintPointBounds(const std::vector<JPPaintPoint> &points,
 		float padding = 0.0f)
 	{
@@ -63,6 +74,21 @@ namespace
 		return ofRectangle(minX - padding, minY - padding,
 			maxX - minX + padding * 2.0f,
 			maxY - minY + padding * 2.0f);
+	}
+
+	ofRectangle strokeBounds(const JPPaintStroke &stroke, float padding)
+	{
+		ofRectangle bounds;
+		bool first = true;
+		forEachStrokePointList(stroke,
+			[&](const std::vector<JPPaintPoint> &points)
+		{
+			if (points.empty()) return;
+			const ofRectangle part = paintPointBounds(points, padding);
+			bounds = first ? part : bounds.getUnion(part);
+			first = false;
+		});
+		return bounds;
 	}
 
 	bool rectanglesOverlap(const ofRectangle &a, const ofRectangle &b)
@@ -106,47 +132,109 @@ namespace
 			maxWidth = std::max(maxWidth, point.width);
 		const float conservativeRadius = stroke.size * maxWidth *
 			std::max(1.0f, canvasAspect);
-		if (!rectanglesOverlap(paintPointBounds(stroke.points, conservativeRadius),
+		if (!rectanglesOverlap(strokeBounds(stroke, conservativeRadius),
 			lassoBounds)) return false;
 
-		for (const JPPaintPoint &point : stroke.points)
-			if (isPointInPolygon(ofVec2f(point.x, point.y), lasso)) return true;
+		// An AREA also counts as touched when the lasso is entirely inside it -
+		// there is no point or edge crossing to find in that case.
+		const bool area = jp_paint::isAreaTool(stroke.tool);
 
-		if (stroke.tool == (int)JPPaintTool::Lasso)
+		bool touched = false;
+		forEachStrokePointList(stroke,
+			[&](const std::vector<JPPaintPoint> &points)
 		{
-			std::vector<ofVec2f> polygon;
-			polygon.reserve(stroke.points.size());
-			for (const JPPaintPoint &point : stroke.points)
-				polygon.push_back(ofVec2f(point.x, point.y));
-			if (isPointInPolygon(lasso.front(), polygon)) return true;
-		}
+			if (touched || points.empty()) return;
+			for (const JPPaintPoint &point : points)
+				if (isPointInPolygon(ofVec2f(point.x, point.y), lasso))
+				{
+					touched = true;
+					return;
+				}
 
-		const std::size_t strokeSegments = stroke.points.size() > 1 ?
-			stroke.points.size() - 1 : 0;
-		for (std::size_t i = 0; i < strokeSegments; ++i)
-		{
-			const ofVec2f a(stroke.points[i].x, stroke.points[i].y);
-			const ofVec2f b(stroke.points[i + 1].x, stroke.points[i + 1].y);
-			const float radius = stroke.size * std::max(1.0f, canvasAspect) *
-				std::max(stroke.points[i].width, stroke.points[i + 1].width);
-			for (std::size_t p = 0; p + 1 < lasso.size(); ++p)
+			if (area)
 			{
-				if (segmentsIntersect(a, b, lasso[p], lasso[p + 1]) ||
-					pointSegmentDistanceSquared(lasso[p], a, b) <= radius * radius)
-					return true;
+				std::vector<ofVec2f> polygon;
+				polygon.reserve(points.size());
+				for (const JPPaintPoint &point : points)
+					polygon.push_back(ofVec2f(point.x, point.y));
+				if (isPointInPolygon(lasso.front(), polygon))
+				{
+					touched = true;
+					return;
+				}
 			}
-		}
 
-		if (stroke.points.size() == 1)
+			const std::size_t segments = points.size() > 1 ?
+				points.size() - 1 : 0;
+			for (std::size_t i = 0; i < segments; ++i)
+			{
+				const ofVec2f a(points[i].x, points[i].y);
+				const ofVec2f b(points[i + 1].x, points[i + 1].y);
+				const float radius = stroke.size * std::max(1.0f, canvasAspect) *
+					std::max(points[i].width, points[i + 1].width);
+				for (std::size_t p = 0; p + 1 < lasso.size(); ++p)
+				{
+					if (segmentsIntersect(a, b, lasso[p], lasso[p + 1]) ||
+						pointSegmentDistanceSquared(lasso[p], a, b) <=
+							radius * radius)
+					{
+						touched = true;
+						return;
+					}
+				}
+			}
+
+			if (points.size() == 1)
+			{
+				const ofVec2f center(points[0].x, points[0].y);
+				const float radius = stroke.size *
+					std::max(1.0f, canvasAspect) * points[0].width;
+				for (std::size_t p = 0; p + 1 < lasso.size(); ++p)
+					if (pointSegmentDistanceSquared(center, lasso[p],
+						lasso[p + 1]) <= radius * radius)
+					{
+						touched = true;
+						return;
+					}
+			}
+		});
+		return touched;
+	}
+
+	// True only when the stroke's paint is ENTIRELY inside the lasso: every
+	// point inside the polygon, and no point closer to an edge than its own
+	// radius. Conservative on purpose - a false negative just falls back to
+	// clipping, while a false positive would move paint the user left outside.
+	bool strokeInsideLasso(const JPPaintStroke &stroke,
+		const std::vector<ofVec2f> &lasso, const ofRectangle &lassoBounds,
+		float canvasAspect)
+	{
+		if (stroke.points.empty() || lasso.size() < 3) return false;
+		float maxWidth = 1.0f;
+		for (const JPPaintPoint &point : stroke.points)
+			maxWidth = std::max(maxWidth, point.width);
+		// Radius normalized the way stroke.size is - to canvas WIDTH - so the
+		// larger axis is the conservative one on a non-square canvas.
+		const float radius = stroke.size * maxWidth *
+			std::max(1.0f, canvasAspect);
+		if (!lassoBounds.inside(strokeBounds(stroke, radius))) return false;
+
+		const float radiusSquared = radius * radius;
+		bool inside = true;
+		forEachStrokePointList(stroke,
+			[&](const std::vector<JPPaintPoint> &points)
 		{
-			const ofVec2f center(stroke.points[0].x, stroke.points[0].y);
-			const float radius = stroke.size * std::max(1.0f, canvasAspect) *
-				stroke.points[0].width;
-			for (std::size_t p = 0; p + 1 < lasso.size(); ++p)
-				if (pointSegmentDistanceSquared(center, lasso[p], lasso[p + 1]) <=
-					radius * radius) return true;
-		}
-		return false;
+			if (!inside) return;
+			for (const JPPaintPoint &point : points)
+			{
+				const ofVec2f p(point.x, point.y);
+				if (!isPointInPolygon(p, lasso)) { inside = false; return; }
+				for (std::size_t i = 0; i + 1 < lasso.size(); ++i)
+					if (pointSegmentDistanceSquared(p, lasso[i], lasso[i + 1]) <=
+						radiusSquared) { inside = false; return; }
+			}
+		});
+		return inside;
 	}
 
 	JPPaintClip makePaintClip(const std::vector<ofVec2f> &lasso,
@@ -198,11 +286,13 @@ namespace
 			lassoPoints.push_back(JPPaintPoint{point.x, point.y, 1.0f});
 		const ofRectangle lassoBounds = paintPointBounds(lassoPoints);
 
-		bool splitAny = false;
-		for (std::size_t sourceIndex = 0; sourceIndex < orig.size(); ++sourceIndex)
+		bool listChanged = orig.size() != listPtr->size();
+		// One source stroke in, its replacements out. Recursive for exactly one
+		// reason: a stroke at the clip cap is baked into clip-free pieces and
+		// each piece then goes through the same decision.
+		std::function<void(const JPPaintStroke &, bool)> consider =
+			[&](const JPPaintStroke &s, bool selectedBefore)
 		{
-			const JPPaintStroke &s = orig[sourceIndex];
-			const bool selectedBefore = wasSelected[sourceIndex];
 			const bool eligible = combineMode == PAINT_SELECTION_REPLACE ||
 				(combineMode == PAINT_SELECTION_ADD && !selectedBefore) ||
 				(combineMode == PAINT_SELECTION_SUBTRACT && selectedBefore);
@@ -211,15 +301,52 @@ namespace
 			// Leave them untouched until fills are materialised in the document.
 			if (!eligible || s.points.empty() ||
 				s.tool == (int)JPPaintTool::Fill ||
-				s.clips.size() >= 8 ||
 				!strokeTouchesLasso(s, lasso, lassoBounds, box->canvasAspect()))
 			{
 				result.push_back(s);
 				if (selectedBefore) outSelected.push_back((int)result.size() - 1);
-				continue;
+				return;
 			}
-			splitAny = true;
 
+			// Wholly inside the lasso: it takes NO clip and is not split. This
+			// is the common case - lasso a shape, drag it - and splitting it
+			// used to leave an invisible outside half carrying the entire
+			// source vector, so the clip list grew by one per move until the
+			// stroke hit the cap and quietly stopped being selectable.
+			if (strokeInsideLasso(s, lasso, lassoBounds, box->canvasAspect()))
+			{
+				result.push_back(s);
+				// SUBTRACT is the one mode where being inside means LEAVING the
+				// selection, which is what dropping the index does.
+				if (combineMode != PAINT_SELECTION_SUBTRACT)
+					outSelected.push_back((int)result.size() - 1);
+				return;
+			}
+
+			if (s.clips.size() >= jp_paint::kMaxStrokeClips)
+			{
+				std::vector<JPPaintStroke> baked;
+				if (jp_paint::collapseStrokeClips(s, baked))
+				{
+					// Fewer, smaller strokes carrying no clips at all: the cap
+					// is now unreachable for this paint rather than a wall it
+					// sits against.
+					listChanged = true;
+					for (const JPPaintStroke &piece : baked)
+						consider(piece, selectedBefore);
+					return;
+				}
+				// A filled shape's mark is an area, so there is no point run to
+				// bake - see collapseStrokeClips. It stays whole and out of the
+				// selection, and says so instead of failing silently.
+				ofLogWarning("JPboxgroup") << "paint: a filled shape is at the "
+					"clip limit and was left out of the selection";
+				result.push_back(s);
+				if (selectedBefore) outSelected.push_back((int)result.size() - 1);
+				return;
+			}
+
+			listChanged = true;
 			JPPaintStroke outside = s;
 			outside.clips.push_back(makePaintClip(lasso, true));
 			result.push_back(std::move(outside));
@@ -231,14 +358,19 @@ namespace
 			result.push_back(std::move(inside));
 			if (combineMode != PAINT_SELECTION_SUBTRACT)
 				outSelected.push_back((int)result.size() - 1);
-		}
+		};
 
 		// Keep every pair at the original z position. Moving all selected halves
 		// to the tail would change translucent overlaps and eraser ordering even
 		// before the user moved the selection.
-		if (!splitAny) return;
+		for (std::size_t sourceIndex = 0; sourceIndex < orig.size(); ++sourceIndex)
+			consider(orig[sourceIndex], wasSelected[sourceIndex]);
+
 		outBounds = lassoBounds;
-		box->replaceStrokes(cel, box->currentLayer(), result);
+		// The indices handed back address `result`, so the document has to BE
+		// result whenever it differs - including when the only difference came
+		// from collapsing complementary pairs above.
+		if (listChanged) box->replaceStrokes(cel, box->currentLayer(), result);
 	}
 
 
@@ -267,6 +399,17 @@ namespace
 			point.x = changed.x;
 			point.y = changed.y;
 		}
+		// A region's holes and islands move with its outer edge, or a moved fill
+		// would leave its holes behind.
+		for (std::vector<JPPaintPoint> &contour : stroke.contours)
+		{
+			for (JPPaintPoint &point : contour)
+			{
+				const ofVec2f changed = transform(ofVec2f(point.x, point.y));
+				point.x = changed.x;
+				point.y = changed.y;
+			}
+		}
 		for (JPPaintClip &clip : stroke.clips)
 		{
 			for (JPPaintPoint &point : clip.points)
@@ -283,7 +426,7 @@ namespace
 	// reads as a stretched vector instead of a scaled piece of paint.
 	void scaleStrokeAppearance(JPPaintStroke &stroke, float scale)
 	{
-		if (stroke.tool == (int)JPPaintTool::Lasso ||
+		if (jp_paint::isAreaTool(stroke.tool) ||
 			stroke.tool == (int)JPPaintTool::Fill) return;
 		stroke.size = ofClamp(stroke.size * scale, 0.0001f, 1.0f);
 	}
@@ -334,6 +477,27 @@ namespace
 	constexpr int kPaletteSize = kPaletteColumns * kPaletteRows;
 	constexpr float kSwatchSize = 16.0f;
 	constexpr float kSwatchPitch = 19.0f;
+	// The export options popover. They describe what LEAVES the document rather
+	// than what is in it, and the toolbar is no place for them - that is
+	// entirely brush and selection state.
+	constexpr float kDocPropsWidth = 214.0f;
+	constexpr float kDocPropsPad = 8.0f;
+	constexpr float kDocTitleHeight = 14.0f;
+	constexpr float kDocRowHeight = 20.0f;
+	constexpr float kDocRowGap = 5.0f;
+	// Row tops inside the popover, measured from its own top edge, so adding a
+	// row below shifts everything under it instead of colliding with it.
+	constexpr float kDocScaleRowTop = kDocPropsPad + kDocTitleHeight + kDocRowGap;
+	constexpr float kDocRangeRowTop = kDocScaleRowTop + kDocRowHeight + kDocRowGap;
+	constexpr float kDocSheetRowTop = kDocRangeRowTop + kDocRowHeight + 2.0f;
+	constexpr float kDocPropsHeight = kDocSheetRowTop + kDocRowHeight +
+		kDocPropsPad;
+	// Export multipliers. Half for a quick check, 1 for the document, 2 and 4
+	// because strokes are vector and a bigger export is more geometry rather
+	// than stretched pixels.
+	const float kDocScales[] = {0.5f, 1.0f, 2.0f, 4.0f};
+	constexpr int kDocScaleCount =
+		(int)(sizeof(kDocScales) / sizeof(kDocScales[0]));
 	// Brush radius as a fraction of canvas width. The floor is a hairline at
 	// 1080p; the ceiling still lets one dab cover a third of the canvas.
 	constexpr float kMinBrush = 0.0008f;
@@ -488,6 +652,7 @@ void JPboxgroup::endPaintEdit()
 	paintDragCelFrom = -1;
 	paintDragCelTo = -1;
 	paintPickerOpen = false;
+	paintDocPropsOpen = false;
 	paintBrushSettingsOpen = false;
 	paintBrushSettingsDragMode = -1;
 	paintHelpOpen = false;
@@ -517,6 +682,11 @@ void JPboxgroup::dismissPaintTopLayer()
 	{
 		paintBrushSettingsOpen = false;
 		paintBrushSettingsDragMode = -1;
+		return;
+	}
+	if (paintDocPropsOpen)
+	{
+		paintDocPropsOpen = false;
 		return;
 	}
 	if (paintSelectionActive)
@@ -781,6 +951,22 @@ ofRectangle JPboxgroup::getPaintQuickSwatchBounds(int index) const
 	return ofRectangle(startX + (float)index * (size + gap), y, size, size);
 }
 
+int JPboxgroup::paintQuickSwatchCount() const
+{
+	// Six was a fixed count, and six does not fit at the minimum panel width -
+	// the last swatch drew over undo and redo. Six is still the ceiling; what
+	// changed is that it is a ceiling rather than a count.
+	const int wanted = std::min(6, (int)paintPalette.size());
+	if (wanted <= 0) return 0;
+	const float limit = getPaintActionBounds(0).x - kToolGap;
+	for (int count = wanted; count > 0; --count)
+	{
+		if (getPaintQuickSwatchBounds(count - 1).getRight() <= limit)
+			return count;
+	}
+	return 0;
+}
+
 ofRectangle JPboxgroup::getPaintActionBounds(int action) const
 {
 	// Right aligned, indexed FROM the right, so adding one later shifts the
@@ -844,7 +1030,7 @@ ofRectangle JPboxgroup::getPaintTransportBounds(int slot) const
 	// because they genuinely differ - a play icon and a "PING" label are not
 	// the same size and forcing them to be wastes the row.
 	static const float widths[PAINT_TRANSPORT_COUNT] =
-		{24.0f, 30.0f, 24.0f, 24.0f, 52.0f, 50.0f, 66.0f, 42.0f};
+		{24.0f, 30.0f, 24.0f, 24.0f, 52.0f, 50.0f, 66.0f, 58.0f, 42.0f};
 	for (int i = 0; i < PAINT_TRANSPORT_COUNT; ++i)
 	{
 		if (i == slot) return ofRectangle(x, top, widths[i], height);
@@ -914,6 +1100,43 @@ ofRectangle JPboxgroup::getPaintPaletteAddBounds() const
 	const ofRectangle picker = getPaintPickerBounds();
 	return ofRectangle(picker.x + 8.0f + kPaletteColumns * kSwatchPitch,
 		picker.y + 8.0f + 120.0f + 8.0f, kSwatchSize, kSwatchSize);
+}
+
+// ------------------------------------------------------- the edited colour
+
+void JPboxgroup::syncPaintPickerFromColor()
+{
+	paintPickerHue = paintColor.getHue();
+	paintPickerSat = paintColor.getSaturation();
+	paintPickerVal = paintColor.getBrightness();
+}
+
+void JPboxgroup::setPaintBrushColor(const ofFloatColor &color)
+{
+	paintColor = color;
+	syncPaintPickerFromColor();
+}
+
+// ----------------------------------------------------- export options popover
+
+ofRectangle JPboxgroup::getPaintDocIconBounds() const
+{
+	const float size = 18.0f;
+	// One slot left of the help icon, which is itself left of the close cross.
+	return ofRectangle(paintPanelX + paintPanelW - 10.0f - size * 3.0f - 12.0f,
+		paintPanelY + (kHeaderHeight - size) * 0.5f, size, size);
+}
+
+ofRectangle JPboxgroup::getPaintDocPropsBounds() const
+{
+	const ofRectangle icon = getPaintDocIconBounds();
+	// Right aligned with the icon it hangs from, then clamped so the popover
+	// stays on screen when the panel is parked against an edge.
+	float x = icon.getRight() - kDocPropsWidth;
+	float y = icon.getBottom() + 6.0f;
+	x = ofClamp(x, 4.0f, std::max(4.0f, ofGetWidth() - kDocPropsWidth - 4.0f));
+	y = ofClamp(y, 4.0f, std::max(4.0f, ofGetHeight() - kDocPropsHeight - 4.0f));
+	return ofRectangle(x, y, kDocPropsWidth, kDocPropsHeight);
 }
 
 // ------------------------------------------------------------ timeline cells
@@ -1324,7 +1547,40 @@ void JPboxgroup::drawPaintCanvas(JPbox_paint *box)
 					(int)(live.b * 255), (int)(live.a * 255));
 				box->drawStrokePreview(live, canvas.x, canvas.y,
 					canvas.width, canvas.height);
+				// The mirrors, previewed the same way. commitStroke makes them
+				// real on release; without this the stroke would appear to jump
+				// into being symmetric the moment the button came up.
+				std::vector<JPPaintStroke> mirrors;
+				jp_paint::appendSymmetryStrokes(live, doc.symmetry, mirrors);
+				for (const JPPaintStroke &mirrored : mirrors)
+				{
+					box->drawStrokePreview(mirrored, canvas.x, canvas.y,
+						canvas.width, canvas.height);
+				}
 			}
+		}
+
+		// The symmetry axes. Dashed, so they read as a guide rather than as
+		// something drawn, and only while symmetry is on.
+		if (doc.symmetry != 0)
+		{
+			ofPushStyle();
+			ofSetColor(COL_ACCENT_CYAN, 130);
+			ofSetLineWidth(1.0f);
+			if ((doc.symmetry & 1) != 0)
+			{
+				const float x = canvas.getCenter().x;
+				drawDashedLine(ofVec2f(x, canvas.y),
+					ofVec2f(x, canvas.getBottom()), 6.0f);
+			}
+			if ((doc.symmetry & 2) != 0)
+			{
+				const float y = canvas.getCenter().y;
+				drawDashedLine(ofVec2f(canvas.x, y),
+					ofVec2f(canvas.getRight(), y), 6.0f);
+			}
+			ofSetLineWidth(1.0f);
+			ofPopStyle();
 		}
 
 		// Draw active selection outline!
@@ -1742,8 +1998,8 @@ void JPboxgroup::drawPaintToolbar(JPbox_paint *box)
 	jp_tooltip::draw("Color del pincel", swatch.x, swatch.y,
 		swatch.width, swatch.height);
 
-	// Draw the first 6 saved colors from the palette next to the picker swatch
-	for (int i = 0; i < std::min(6, (int)paintPalette.size()); ++i)
+	// The saved colours that fit next to the picker swatch.
+	for (int i = 0; i < paintQuickSwatchCount(); ++i)
 	{
 		const ofRectangle qBounds = getPaintQuickSwatchBounds(i);
 		ofSetColor(30, 30, 34);
@@ -1831,6 +2087,7 @@ void JPboxgroup::drawPaintTransport(JPbox_paint *box)
 		if (slot == PAINT_TRANSPORT_PLAY) active = state.playing;
 		else if (slot == PAINT_TRANSPORT_DIRECTION) active = state.reverse;
 		else if (slot == PAINT_TRANSPORT_REFERENCE) active = paintReferenceVisible;
+		else if (slot == PAINT_TRANSPORT_SYMMETRY) active = doc.symmetry != 0;
 
 		ofSetColor(active ? ofColor(COL_ACCENT_GREEN, 190) :
 			(over ? COL_BG_HOVER : COL_BG_BUTTON));
@@ -1891,8 +2148,19 @@ void JPboxgroup::drawPaintTransport(JPbox_paint *box)
 		}
 		else if (slot == PAINT_TRANSPORT_ONION)
 		{
-			label = "ONION " + ofToString(doc.onionBefore);
-			tip = "Rango de cebolla (Shift+O)";
+			// Both sides shown, always: the two are independently adjustable, so
+			// one number would be a lie half the time.
+			label = "ONION " + ofToString(doc.onionBefore) + "/" +
+				ofToString(doc.onionAfter);
+			tip = "Rango de cebolla (Shift+O). Shift+clic cambia solo los "
+				"cuadros anteriores y Alt+clic solo los siguientes";
+		}
+		else if (slot == PAINT_TRANSPORT_SYMMETRY)
+		{
+			static const char *modes[] = {"SIM -", "SIM X", "SIM Y", "SIM XY"};
+			label = modes[std::clamp(doc.symmetry, 0, 3)];
+			tip = "Simetría de dibujo (Y): cada trazo se refleja en el eje del "
+				"lienzo como un trazo real";
 		}
 		else
 		{
@@ -2333,7 +2601,7 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 	ofPopStyle();
 
 	const ofRectangle addCel = getPaintAddCelBounds();
-	jp_tooltip::draw("Añadir cuadro (N), o Shift para duplicar (D)",
+	jp_tooltip::draw("Añadir cuadro (N), o Shift para duplicar (D). Shift+clic selecciona un rango; Ctrl/Cmd+clic alterna celdas",
 		addCel.x, addCel.y, addCel.width, addCel.height);
 	const ofRectangle addLayer = getPaintLayerAddBounds();
 	jp_tooltip::draw("Añadir capa sobre la actual", addLayer.x, addLayer.y,
@@ -2344,8 +2612,17 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 	{
 		const ofRectangle bounds = getPaintGutterRowBounds(hoveredRow);
 		jp_tooltip::draw("Clic para seleccionar y arrastrar para reordenar. "
-			"N/M/S/+ cambia mezcla, el candado bloquea, BG comparte en todos los cuadros. Ctrl+J duplica y Ctrl+E combina hacia abajo",
+			"N/M/S/+ cambia mezcla, el candado bloquea, BG comparte en todos los cuadros. Ctrl/Cmd+J duplica y Ctrl/Cmd+E combina hacia abajo",
 			bounds.x, bounds.y, bounds.width, bounds.height);
+	}
+	int hoveredFrame = -1;
+	int hoveredCellRow = -1;
+	if (paintCellAtScreen(paintPointerPosition(), hoveredFrame, hoveredCellRow))
+	{
+		const ofRectangle cell = getPaintCellBounds(hoveredFrame, hoveredCellRow);
+		jp_tooltip::draw("Clic: seleccionar. Shift: rango. Ctrl/Cmd: alternar. "
+			"Arrastra: mover bloque. Ctrl/Cmd+C/X/V: copiar/cortar/pegar; D: duplicar; Del: borrar",
+			cell.x, cell.y, cell.width, cell.height);
 	}
 }
 
@@ -2488,6 +2765,75 @@ void JPboxgroup::drawPaintPicker()
 		add.x, add.y, add.width, add.height);
 	jp_tooltip::draw("Escribe un color hex - #RGB, #RRGGBB o #RRGGBBAA. Enter aplica, Esc cancela",
 		hex.x, hex.y, hex.width, hex.height);
+}
+
+ofRectangle JPboxgroup::getPaintDocScaleBounds(int index) const
+{
+	if (index < 0 || index >= kDocScaleCount) return ofRectangle();
+	const ofRectangle bounds = getPaintDocPropsBounds();
+	const float inner = bounds.width - kDocPropsPad * 2.0f;
+	const float slot = (inner - 3.0f * 3.0f) / (float)kDocScaleCount;
+	return ofRectangle(bounds.x + kDocPropsPad + (float)index * (slot + 3.0f),
+		bounds.y + kDocScaleRowTop, slot, kDocRowHeight);
+}
+
+ofRectangle JPboxgroup::getPaintDocRangeBounds() const
+{
+	const ofRectangle bounds = getPaintDocPropsBounds();
+	return ofRectangle(bounds.x + kDocPropsPad, bounds.y + kDocRangeRowTop,
+		bounds.width - kDocPropsPad * 2.0f, kDocRowHeight);
+}
+
+ofRectangle JPboxgroup::getPaintDocSheetBounds() const
+{
+	const ofRectangle bounds = getPaintDocPropsBounds();
+	return ofRectangle(bounds.x + kDocPropsPad, bounds.y + kDocSheetRowTop,
+		bounds.width - kDocPropsPad * 2.0f, kDocRowHeight);
+}
+
+void JPboxgroup::drawPaintDocProps()
+{
+	const ofRectangle bounds = getPaintDocPropsBounds();
+	// The popover has to own the pointer above the panel body, or the header
+	// icons underneath it light up through it.
+	jp_pointer::Scope propsScope(jp_pointer::kDropdown);
+
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofSetColor(0, 0, 0, 70);
+	ofDrawRectRounded(bounds.x + 3, bounds.y + 3, bounds.width, bounds.height,
+		5.0f);
+	ofSetColor(COL_BG_PANEL, 252);
+	ofDrawRectRounded(bounds, 5.0f);
+	ofNoFill();
+	ofSetColor(COL_ACCENT_CYAN);
+	ofDrawRectRounded(bounds, 5.0f);
+	ofFill();
+
+	ofSetColor(COL_TEXT_MUTED);
+	jp_constants::p2_font.drawString("EXPORTAR", bounds.x + kDocPropsPad,
+		bounds.y + kDocPropsPad + 10.0f);
+	for (int index = 0; index < kDocScaleCount; ++index)
+	{
+		jp_button::draw(getPaintDocScaleBounds(index),
+			ofToString(kDocScales[index], kDocScales[index] < 1.0f ? 1 : 0) + "x",
+			std::abs(paintExportScale - kDocScales[index]) < 0.001f);
+	}
+	const ofRectangle range = getPaintDocRangeBounds();
+	jp_button::draw(range, paintExportUseRange ?
+		"Solo el rango IN/OUT" : "Todos los cuadros", paintExportUseRange);
+	const ofRectangle sheet = getPaintDocSheetBounds();
+	jp_button::draw(sheet, "Hoja de sprites", false);
+	ofPopStyle();
+
+	// Drawn outside the pushStyle so the tooltips are not affected by it.
+	jp_tooltip::draw("Multiplicador de resolución de la exportación - los trazos "
+		"se rasterizan de nuevo, no se estiran",
+		getPaintDocScaleBounds(0));
+	jp_tooltip::draw("Exportar solo el rango IN/OUT del transporte, o todo el "
+		"documento", range);
+	jp_tooltip::draw("Todos los cuadros en una sola imagen en grilla "
+		"(Ctrl/Cmd+Alt+G)", sheet);
 }
 
 void JPboxgroup::drawPaintHelp()
@@ -2658,6 +3004,22 @@ void JPboxgroup::drawPaintPanel()
 	jp_constants::p_font.drawString(title, paintPanelX + 12.0f,
 		paintPanelY + kHeaderHeight * 0.5f + 4.0f);
 
+	// A page with lines: what comes OUT of the document.
+	const ofRectangle docIcon = getPaintDocIconBounds();
+	const bool docOver = jp_button::hovered(docIcon);
+	ofSetColor(paintDocPropsOpen || docOver ? COL_ACCENT_CYAN :
+		COL_TEXT_SECONDARY);
+	ofNoFill();
+	ofSetLineWidth(1.4f);
+	ofDrawRectangle(docIcon.x + 3.0f, docIcon.y + 2.0f, 12.0f, 14.0f);
+	ofFill();
+	ofDrawRectangle(docIcon.x + 5.5f, docIcon.y + 5.0f, 7.0f, 1.0f);
+	ofDrawRectangle(docIcon.x + 5.5f, docIcon.y + 8.0f, 7.0f, 1.0f);
+	ofDrawRectangle(docIcon.x + 5.5f, docIcon.y + 11.0f, 4.0f, 1.0f);
+	ofSetLineWidth(1.0f);
+	jp_tooltip::draw("Opciones de exportación", docIcon.x, docIcon.y,
+		docIcon.width, docIcon.height);
+
 	const ofRectangle helpIcon = getPaintHelpIconBounds();
 	const bool helpOver = jp_button::hovered(helpIcon);
 	ofSetColor(paintHelpOpen || helpOver ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
@@ -2691,8 +3053,10 @@ void JPboxgroup::drawPaintPanel()
 			paintPanelY + paintPanelH - offset);
 	}
 
-	// Last, so they are over everything they overlap. The modal outranks the
-	// popover, so it paints after it.
+	// Last, so they are over everything they overlap. The picker can be opened
+	// FROM the properties popover, so it paints after it, and the modal
+	// outranks both.
+	if (paintDocPropsOpen) drawPaintDocProps();
 	if (paintPickerOpen) drawPaintPicker();
 	if (paintHelpOpen) drawPaintHelp();
 	ofPopStyle();
@@ -2724,6 +3088,7 @@ void JPboxgroup::extendPaintStroke(JPbox_paint *box, const ofVec2f &uv)
 {
 	if (!box->liveStrokeActive) return;
 	std::vector<JPPaintPoint> &points = box->liveStroke.points;
+
 
 	if (paintTool == (int)JPPaintTool::Brush ||
 		paintTool == (int)JPPaintTool::Eraser ||
@@ -3155,10 +3520,7 @@ void JPboxgroup::commitPaintHex()
 	// half-apply.
 	if (jp_paint::parseHexColor(paintHexBuffer, r, g, b, a))
 	{
-		paintColor.set(r, g, b, a);
-		paintPickerHue = paintColor.getHue();
-		paintPickerSat = paintColor.getSaturation();
-		paintPickerVal = paintColor.getBrightness();
+		setPaintBrushColor(ofFloatColor(r, g, b, a));
 	}
 	cancelPaintHex();
 }
@@ -3169,6 +3531,30 @@ void JPboxgroup::cancelPaintHex()
 	paintHexBuffer.clear();
 	paintHexCursor = 0;
 	paintHexSelectAll = false;
+}
+
+bool JPboxgroup::handlePaintDocPropsPressed(const ofVec2f &mouse)
+{
+	for (int index = 0; index < kDocScaleCount; ++index)
+	{
+		if (!getPaintDocScaleBounds(index).inside(mouse)) continue;
+		paintExportScale = kDocScales[index];
+		return true;
+	}
+	if (getPaintDocRangeBounds().inside(mouse))
+	{
+		paintExportUseRange = !paintExportUseRange;
+		return true;
+	}
+	if (getPaintDocSheetBounds().inside(mouse))
+	{
+		// Closed first: the export opens a system dialog, and leaving a popover
+		// up behind one reads as the panel having hung.
+		paintDocPropsOpen = false;
+		paintExportShortcut(3);
+		return true;
+	}
+	return true;
 }
 
 void JPboxgroup::beginPaintLayerRename(int layerIndex)
@@ -3280,11 +3666,8 @@ bool JPboxgroup::handlePaintPickerPressed(const ofVec2f &mouse)
 	for (int i = 0; i < (int)paintPalette.size(); ++i)
 	{
 		if (!getPaintSwatchBounds(i).inside(mouse)) continue;
-		paintColor = paintPalette[(std::size_t)i];
 		// Keep the HSB controls showing the colour that is actually selected.
-		paintPickerHue = paintColor.getHue();
-		paintPickerSat = paintColor.getSaturation();
-		paintPickerVal = paintColor.getBrightness();
+		setPaintBrushColor(paintPalette[(std::size_t)i]);
 		return true;
 	}
 	return true;
@@ -3358,6 +3741,15 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 		// aimed at the tool beneath it.
 		paintBrushSettingsOpen = false;
 		paintBrushSettingsDragMode = -1;
+		// Except the button that OPENED it: without this the toggle below runs
+		// on the same press and the menu reopens, so it could never be closed
+		// by clicking its own button.
+		if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
+			getPaintBrushPropertyBounds().inside(mouse))
+		{
+			paintPanelPointerCaptured = true;
+			return true;
+		}
 	}
 
 	if (paintPickerOpen)
@@ -3402,6 +3794,24 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 		paintPickerOpen = false;
 	}
 
+	if (paintDocPropsOpen)
+	{
+		if (getPaintDocPropsBounds().inside(mouse))
+		{
+			paintPanelPointerCaptured = true;
+			if (mouseButton != OF_MOUSE_BUTTON_LEFT) return true;
+			return handlePaintDocPropsPressed(mouse);
+		}
+		paintDocPropsOpen = false;
+		// Same rule as the brush menu: the icon that opened it has to close it.
+		if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
+			getPaintDocIconBounds().inside(mouse))
+		{
+			paintPanelPointerCaptured = true;
+			return true;
+		}
+	}
+
 	paintPanelPointerCaptured = true;
 	paintDragMode = PAINT_DRAG_NONE;
 
@@ -3441,16 +3851,19 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 		if (box->sampleColor(paintView().toUv(mouse).x,
 			paintView().toUv(mouse).y, sampled))
 		{
-			paintColor = sampled;
-			paintPickerHue = paintColor.getHue();
-			paintPickerSat = paintColor.getSaturation();
-			paintPickerVal = paintColor.getBrightness();
+			setPaintBrushColor(sampled);
 		}
 		return true;
 	}
 
 	if (mouseButton != OF_MOUSE_BUTTON_LEFT) return true;
 
+	if (getPaintDocIconBounds().inside(mouse))
+	{
+		paintDocPropsOpen = true;
+		paintBrushSettingsOpen = false;
+		return true;
+	}
 	if (getPaintHelpIconBounds().inside(mouse))
 	{
 		paintHelpOpen = true;
@@ -3510,22 +3923,14 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 	{
 		paintPickerOpen = !paintPickerOpen;
 		paintBrushSettingsOpen = false;
-		if (paintPickerOpen)
-		{
-			paintPickerHue = paintColor.getHue();
-			paintPickerSat = paintColor.getSaturation();
-			paintPickerVal = paintColor.getBrightness();
-		}
+		if (paintPickerOpen) syncPaintPickerFromColor();
 		return true;
 	}
-	for (int i = 0; i < std::min(6, (int)paintPalette.size()); ++i)
+	for (int i = 0; i < paintQuickSwatchCount(); ++i)
 	{
 		if (getPaintQuickSwatchBounds(i).inside(mouse))
 		{
-			paintColor = paintPalette[(std::size_t)i];
-			paintPickerHue = paintColor.getHue();
-			paintPickerSat = paintColor.getSaturation();
-			paintPickerVal = paintColor.getBrightness();
+			setPaintBrushColor(paintPalette[(std::size_t)i]);
 			return true;
 		}
 	}
@@ -3562,13 +3967,26 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 			jp_media::cycleLoopMode(state);
 		else if (slot == PAINT_TRANSPORT_ONION)
 		{
-			// One control cycling both sides: separate before/after spinners
-			// would be four more hit targets for a setting nobody tunes
-			// asymmetrically.
+			// One control, three gestures: a plain click keeps both sides in
+			// step - which is what almost everybody wants - while Shift and Alt
+			// reach one side each. The document has always stored the two
+			// separately; only the UI insisted they matched.
 			JPPaintDocument &doc = box->document();
-			const int next = (doc.onionBefore + 1) % 4;
-			doc.onionBefore = next;
-			doc.onionAfter = next;
+			const bool beforeOnly = ofGetKeyPressed(OF_KEY_SHIFT);
+			const bool afterOnly = !beforeOnly && ofGetKeyPressed(OF_KEY_ALT);
+			if (beforeOnly) doc.onionBefore = (doc.onionBefore + 1) % 4;
+			else if (afterOnly) doc.onionAfter = (doc.onionAfter + 1) % 4;
+			else
+			{
+				const int next = (std::max(doc.onionBefore, doc.onionAfter) + 1) % 4;
+				doc.onionBefore = next;
+				doc.onionAfter = next;
+			}
+		}
+		else if (slot == PAINT_TRANSPORT_SYMMETRY)
+		{
+			JPPaintDocument &doc = box->document();
+			doc.symmetry = (doc.symmetry + 1) % 4;
 		}
 		else paintReferenceVisible = !paintReferenceVisible;
 		markPaintChanged();
@@ -3761,43 +4179,16 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 			// A bucket is a click, not a gesture: it commits immediately and
 			// there is no live stroke to preview.
 			//
-			// Capped because every fill on a cel costs a full readback and a
-			// whole-canvas scan EVERY time that cel is re-rasterized. Sixteen is
-			// generous for real use and keeps a pathological cel editable.
-			int existing = 0;
-			const std::vector<JPPaintStroke> *list = jp_paint::strokeListFor(
-				box->document(), box->document().currentFrame,
-				box->currentLayer());
-			if (list != nullptr)
-			{
-				for (const JPPaintStroke &s : *list)
-				{
-					if (s.tool == (int)JPPaintTool::Fill) ++existing;
-				}
-			}
-			if (existing >= 16)
-			{
-				ofLogWarning("JPboxgroup") <<
-					"paint: this cel already carries 16 fills; flatten or clear "
-					"it before adding another";
-				return true;
-			}
-			JPPaintStroke fill;
-			fill.r = paintColor.r;
-			fill.g = paintColor.g;
-			fill.b = paintColor.b;
-			fill.a = paintColor.a;
-			fill.tool = (int)JPPaintTool::Fill;
-			fill.tolerance = paintFillTolerance;
+			// The flood happens ONCE, here, and what gets committed is the
+			// region it covered - see JPbox_paint::materializeFill. There is no
+			// cap on how many a cel may carry any more: the old seed-and-
+			// tolerance form re-flooded on every rebuild, which is what a cap of
+			// sixteen was protecting.
 			const ofVec2f uv = paintView().toUv(mouse);
-			// Off-canvas has no region to flood.
-			if (uv.x < 0.0f || uv.y < 0.0f || uv.x > 1.0f || uv.y > 1.0f)
+			if (box->materializeFill(uv.x, uv.y, paintFillTolerance, paintColor))
 			{
-				return true;
+				markPaintChanged();
 			}
-			fill.points.push_back(JPPaintPoint{uv.x, uv.y, 1.0f});
-			box->commitStroke(fill);
-			markPaintChanged();
 			return true;
 		}
 		if (paintTool == (int)JPPaintTool::LassoSelect ||
@@ -4600,22 +4991,29 @@ bool JPboxgroup::paintExportShortcut(int format)
 		if (result.bSuccess)
 		{
 			attempted = true;
-			exported = box->exportPngSequence(result.getPath(), "paint_frame");
+			exported = box->exportPngSequence(result.getPath(), "paint_frame",
+				paintExportScale, paintExportUseRange);
 		}
 	}
 	else
 	{
 		const bool gif = format == 2;
+		const bool sheet = format == 3;
 		const string extension = gif ? ".gif" : ".png";
 		ofFileDialogResult result = ofSystemSaveDialog(
-			box->name + extension, gif ? "Exportar animación GIF" :
-			"Exportar cuadro PNG");
+			box->name + (sheet ? "_sheet" : "") + extension,
+			gif ? "Exportar animación GIF" : sheet ?
+			"Exportar hoja de sprites" : "Exportar cuadro PNG");
 		jp_constants::systemDialog_open = false;
 		if (result.bSuccess)
 		{
 			attempted = true;
-			exported = gif ? box->exportGif(result.getPath()) :
-				box->exportCurrentPng(result.getPath());
+			exported = gif ?
+				box->exportGif(result.getPath(), paintExportScale,
+					paintExportUseRange) :
+				sheet ? box->exportSpriteSheet(result.getPath(),
+					paintExportScale, paintExportUseRange) :
+				box->exportCurrentPng(result.getPath(), paintExportScale);
 		}
 	}
 	if (attempted && !exported)
@@ -4657,6 +5055,14 @@ void JPboxgroup::paintKeyPressed(int key)
 	case '<': box->setCurrentLayer(box->currentLayer() - 1); break;
 	case '>': box->setCurrentLayer(box->currentLayer() + 1); break;
 	case 'g': case 'G': paintTool = (int)JPPaintTool::Fill; break;
+	case 'y': case 'Y':
+	{
+		// Off, X, Y, both. One key rather than three, the way the onion range
+		// cycles rather than having a control per side.
+		JPPaintDocument &symmetryDoc = box->document();
+		symmetryDoc.symmetry = (symmetryDoc.symmetry + 1) % 4;
+		break;
+	}
 	case 'O':
 	{
 		const int next = (doc.onionBefore + 1) % 4;
