@@ -418,6 +418,50 @@ void JPbox::draw_outlet()
 	ofFill();
 	ofSetColor(COL_TEXT_PRIMARY);
 }
+
+void JPbox::draw_inlet(int index)
+{
+	if (index < 0 || index >= fbohandlergroup.getSize()) return;
+
+	const float inletX = fbohandlergroup.getPosX(index);
+	const float inletY = fbohandlergroup.getPosY(index);
+	const bool linked = fbohandlergroup.getisPointerSet(index);
+	const bool hovered = fbohandlergroup.mouseOver(index);
+	const ofColor idleColor = linked ? ofColor(0, 120, 0) :
+		ofColor(200, 0, 0);
+	const ofColor hoverColor = linked ? COL_ACCENT_GREEN : COL_ACCENT_RED;
+
+	ofPushStyle();
+	if (hovered)
+	{
+		const float pulse = 0.5f + 0.5f *
+			sin(ofGetElapsedTimef() * 7.0f);
+		ofFill();
+		ofSetColor(ofColor(hoverColor, 45 + (int)(pulse * 45.0f)));
+		ofDrawCircle(inletX, inletY,
+			inlet_size * (0.68f + pulse * 0.08f));
+	}
+
+	const float diameter = inlet_size * (hovered ? 1.12f : 1.0f);
+	ofFill();
+	ofSetColor(hovered ? hoverColor : idleColor);
+	ofDrawEllipse(inletX, inletY, diameter, diameter);
+
+	ofNoFill();
+	ofSetLineWidth(hovered ? 2.0f : 1.0f);
+	ofSetColor(hovered ? ofColor(COL_TEXT_PRIMARY, 235) : ofColor(0, 230));
+	ofDrawEllipse(inletX, inletY, diameter, diameter);
+	ofPopStyle();
+}
+
+void JPbox::draw_inlets()
+{
+	for (int index = 0; index < fbohandlergroup.getSize(); ++index)
+	{
+		draw_inlet(index);
+	}
+}
+
 void JPbox::clear()
 {
 	//cout << "JP_BOX clear" << endl;

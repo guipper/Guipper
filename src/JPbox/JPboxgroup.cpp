@@ -4140,60 +4140,10 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 		}
 	}
 
-	// Connection dragging: release outlet over an input
-	JPbox_preset *inputOwnerPreset = nullptr;
-	if (isGroupViewActive())
-	{
-		inputOwnerPreset = isCueDraftMode() ?
-			getDraftPresetForCurrentView() :
-			getActivePreset();
-	}
-	JPdragobject::setMouseOverride(canvasMouse);
-	for (int i = (int)activeBoxes.size() - 1; i >= 0; i--)
-	{
-		for (int k = (int)activeBoxes.size() - 1; k >= 0; k--)
-		{
-			for (int l = activeBoxes[k]->fbohandlergroup.getSize() - 1; l >= 0; l--)
-			{
-				if (activeBoxes[k]->fbohandlergroup.mouseOver(l) &&
-					activeBoxes[i]->outletActiveFlag)
-				{
-					// A box cannot feed its own inlet. JPFbohandlerGroup
-					// refuses this anyway, but stopping the gesture here keeps
-					// the drop from looking accepted and avoids a pointless
-					// cue rebuild - and in cue draft mode the draft and the
-					// real box own different FBOs, so the funnel guard cannot
-					// recognise the pair by pointer.
-					if (i == k) continue;
-					if (inputOwnerPreset != nullptr &&
-						inputOwnerPreset
-							->isExposedTextureInputTarget(
-								activeBoxes[k]->name,
-								activeBoxes[k]
-									->fbohandlergroup
-									.getName(l)))
-					{
-						continue;
-					}
-					if (activeBoxes[k]->fbohandlergroup.getFboName(l) == activeBoxes[i]->name)
-					{
-						continue;
-					}
-					if (isCueDraftMode() && cueTargetsCurrentView())
-					{
-						commitCueDraftLink(k, l, i);
-					}
-					else
-					{
-						activeBoxes[k]->fbohandlergroup.setFboPointer(&activeBoxes[i]->fbo,
-																		&activeBoxes[i]->name, l);
-						requestCueRebuild();
-					}
-				}
-			}
-		}
-	}
-	JPdragobject::clearMouseOverride();
+	// The graph is deliberately not mutated while the cable is moving. The
+	// inlet below the pointer remains only a hover target until mouseReleased;
+	// otherwise merely passing across an input rewires it before the user has
+	// chosen where to drop.
 	// Para los sliders :
 	JPbox *inspectorBox = getInspectorBox();
 	if (!shaderboxagarrado && !ouletagarrado && cualestaagarrado == -1 && outlet_cualestaagarrado == -1 && inspectorBox != nullptr)
@@ -4815,6 +4765,66 @@ void JPboxgroup::update_mouseReleased(int mouseButton)
 	}
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT)
 	{
+		// Commit an OUT -> IN connection only at the final drop position. Keep
+		// this before clearing outletActiveFlag and the drag indices below.
+		if (ouletagarrado && outlet_cualestaagarrado >= 0 &&
+			outlet_cualestaagarrado < (int)activeBoxes.size())
+		{
+			const int sourceIndex = outlet_cualestaagarrado;
+			JPbox_preset *inputOwnerPreset = nullptr;
+			if (isGroupViewActive())
+			{
+				inputOwnerPreset = isCueDraftMode() ?
+					getDraftPresetForCurrentView() : activePreset;
+			}
+
+			const ofVec2f canvasMouse = screenToCanvas(
+				ofVec2f(ofGetMouseX(), ofGetMouseY()));
+			JPdragobject::setMouseOverride(canvasMouse);
+			for (int targetIndex = (int)activeBoxes.size() - 1;
+				targetIndex >= 0; targetIndex--)
+			{
+				JPbox *target = activeBoxes[targetIndex];
+				for (int inlet = target->fbohandlergroup.getSize() - 1;
+					inlet >= 0; inlet--)
+				{
+					if (!target->fbohandlergroup.mouseOver(inlet)) continue;
+					// A box cannot feed itself. In cue mode the live and draft
+					// FBOs differ, so this must be checked by graph index.
+					if (sourceIndex == targetIndex) continue;
+					if (inputOwnerPreset != nullptr &&
+						inputOwnerPreset->isExposedTextureInputTarget(
+							target->name,
+							target->fbohandlergroup.getName(inlet)))
+					{
+						continue;
+					}
+
+					JPbox *source = activeBoxes[sourceIndex];
+					if (target->fbohandlergroup.getFboName(inlet) ==
+						source->name)
+					{
+						continue;
+					}
+					if (isCueDraftMode() && cueTargetsCurrentView())
+					{
+						commitCueDraftLink(targetIndex, inlet, sourceIndex);
+					}
+					else
+					{
+						target->fbohandlergroup.setFboPointer(
+							&source->fbo, &source->name, inlet);
+						requestCueRebuild();
+					}
+					// Inlets cannot overlap in normal layouts, and one drop is
+					// one action even if malformed hitboxes do overlap.
+					targetIndex = -1;
+					break;
+				}
+			}
+			JPdragobject::clearMouseOverride();
+		}
+
 		if (shaderboxagarrado && cualestaagarrado != -1 && cualestaagarrado < (int)activeBoxes.size())
 		{
 			activeBoxes[cualestaagarrado]->activeFlag = false;

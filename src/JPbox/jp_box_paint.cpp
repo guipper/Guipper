@@ -292,25 +292,7 @@ void JPbox_paint::draw()
 	JPbox::draw_outlet();
 	ofSetColor(COL_TEXT_PRIMARY, 255);
 
-	for (int i = 0; i < fbohandlergroup.getSize(); i++)
-	{
-		ofNoFill();
-		ofSetColor(0);
-		ofDrawEllipse(fbohandlergroup.getPosX(i), fbohandlergroup.getPosY(i),
-			inlet_size, inlet_size);
-		ofFill();
-		if (fbohandlergroup.getisPointerSet(i))
-		{
-			ofSetColor(fbohandlergroup.mouseOver(i) ?
-				ofColor(100, 255, 0) : ofColor(0, 120, 0));
-		}
-		else
-		{
-			ofSetColor(200, 0, 0);
-		}
-		ofDrawEllipse(fbohandlergroup.getPosX(i), fbohandlergroup.getPosY(i),
-			inlet_size, inlet_size);
-	}
+	draw_inlets();
 	ofSetColor(COL_TEXT_PRIMARY, 255);
 }
 

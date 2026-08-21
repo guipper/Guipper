@@ -545,24 +545,7 @@ void JPbox_preset::draw()
 	fbo.draw(x, y + padding_top / 2 - 3, fbowidth, fboheight);
 	JPbox::draw_outlet();
 
-	for (int i = 0; i < fbohandlergroup.getSize(); i++)
-	{
-		ofNoFill();
-		ofSetColor(0);
-		ofDrawEllipse(fbohandlergroup.getPosX(i),
-			fbohandlergroup.getPosY(i), inlet_size, inlet_size);
-		ofFill();
-		const bool linked =
-			fbohandlergroup.getisPointerSet(i);
-		const bool hovered = fbohandlergroup.mouseOver(i);
-		ofSetColor(linked ?
-			(hovered ? ofColor(100, 255, 0, 255) :
-			 ofColor(0, 120, 0, 255)) :
-			(hovered ? COL_ACCENT_RED :
-			 ofColor(COL_ACCENT_RED, 190)));
-		ofDrawEllipse(fbohandlergroup.getPosX(i),
-			fbohandlergroup.getPosY(i), inlet_size, inlet_size);
-	}
+	draw_inlets();
 	ofSetColor(255);
 }
 

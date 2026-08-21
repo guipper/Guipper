@@ -160,38 +160,7 @@ void JPbox_framedifference::draw()
 	ofSetColor(COL_TEXT_PRIMARY, 255);
 
 	// DIBUJAR NODOS:
-	for (int i = 0; i < fbohandlergroup.getSize(); i++)
-	{
-		ofNoFill();
-		ofSetColor(0);
-		ofDrawEllipse(fbohandlergroup.getPosX(i), fbohandlergroup.getPosY(i), inlet_size, inlet_size);
-
-		ofFill();
-		if (fbohandlergroup.getisPointerSet(i))
-		{
-			if (fbohandlergroup.mouseOver(i))
-			{
-				ofSetColor(100, 255, 0, 255);
-			}
-			else
-			{
-				ofSetColor(0, 120, 0, 255);
-			}
-		}
-		else
-		{
-			if (fbohandlergroup.mouseOver(i))
-			{
-				ofSetColor(200, 0, 0, 255);
-			}
-			else
-			{
-				ofSetColor(200, 0, 0, 255);
-			}
-		}
-		ofDrawEllipse(fbohandlergroup.getPosX(i), fbohandlergroup.getPosY(i), inlet_size, inlet_size);
-		// ofDrawRectangle(fbohandlergroup.getPosX(i)+ outlet_size, fbohandlergroup.getPosY(i), outlet_size, outlet_size);
-	}
+	draw_inlets();
 }
 void JPbox_framedifference::clear()
 {

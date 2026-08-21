@@ -101,6 +101,11 @@ public:
 	void setRenderThisFrame(bool enabled) { renderThisFrame = enabled; }
 	bool shouldRenderThisFrame() const { return renderThisFrame; }
 	void draw_outlet();
+	// Shared texture-input rendering. Hovering an IN gives it a brighter fill,
+	// a small scale-up and a soft pulse so the pending OUT -> IN drop target is
+	// obvious without changing the connection before mouse release.
+	void draw_inlet(int index);
+	void draw_inlets();
 	virtual void clear();
 	virtual void saveCustomState(ofXml &boxNode) const;
 	virtual void loadCustomState(const ofXml &boxNode);

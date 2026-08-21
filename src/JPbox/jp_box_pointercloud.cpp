@@ -345,15 +345,7 @@ void JPbox_pointercloud::draw()
 		const float inletX = fbohandlergroup.getPosX(inlet);
 		const float inletY = fbohandlergroup.getPosY(inlet);
 		const bool over = fbohandlergroup.mouseOver(inlet);
-		ofColor inletColor = fbohandlergroup.getisPointerSet(inlet) ?
-			COL_ACCENT_GREEN : COL_ACCENT_RED;
-		if (over) inletColor = inletColor.getLerped(COL_TEXT_PRIMARY, 0.5f);
-		ofNoFill();
-		ofSetColor(0);
-		ofDrawCircle(inletX, inletY, inlet_size * 0.5f);
-		ofFill();
-		ofSetColor(inletColor);
-		ofDrawCircle(inletX, inletY, inlet_size * 0.5f);
+		draw_inlet(inlet);
 		if (over)
 		{
 			const string label = fbohandlergroup.getName(inlet);
