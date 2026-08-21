@@ -1056,6 +1056,327 @@ namespace
 			"the restored cel keeps its strokes");
 	}
 
+	// ------------------------------------------------------- clip collapse
+
+	JPPaintClip squareClip(float x0, float y0, float x1, float y1,
+		bool inverted)
+	{
+		JPPaintClip clip;
+		clip.inverted = inverted;
+		clip.points.push_back(pt(x0, y0));
+		clip.points.push_back(pt(x1, y0));
+		clip.points.push_back(pt(x1, y1));
+		clip.points.push_back(pt(x0, y1));
+		return clip;
+	}
+
+	void testClipsKeepPoint()
+	{
+		std::vector<JPPaintClip> clips;
+		clips.push_back(squareClip(0.2f, 0.2f, 0.8f, 0.8f, false));
+		expect(jp_paint::clipsKeepPoint(clips, 0.5f, 0.5f),
+			"a normal clip keeps its interior");
+		expect(!jp_paint::clipsKeepPoint(clips, 0.1f, 0.5f),
+			"a normal clip drops its exterior");
+		clips[0].inverted = true;
+		expect(!jp_paint::clipsKeepPoint(clips, 0.5f, 0.5f),
+			"an inverted clip drops its interior");
+		expect(jp_paint::clipsKeepPoint(clips, 0.1f, 0.5f),
+			"an inverted clip keeps its exterior");
+
+		// Intersected in order: the two halves of one selection keep nothing in
+		// common, which is exactly why a pair of them is invisible.
+		clips.push_back(squareClip(0.2f, 0.2f, 0.8f, 0.8f, false));
+		expect(!jp_paint::clipsKeepPoint(clips, 0.5f, 0.5f) &&
+			!jp_paint::clipsKeepPoint(clips, 0.1f, 0.5f),
+			"complementary clips keep nothing");
+	}
+
+	void testCollapseStrokeClips()
+	{
+		// A horizontal run crossing a clip that keeps the middle third.
+		JPPaintStroke stroke;
+		for (int i = 0; i <= 10; ++i)
+			stroke.points.push_back(pt((float)i * 0.1f, 0.5f));
+		stroke.clips.push_back(squareClip(0.35f, 0.4f, 0.65f, 0.6f, false));
+
+		std::vector<JPPaintStroke> out;
+		expect(jp_paint::collapseStrokeClips(stroke, out),
+			"a point run collapses");
+		expect(out.size() == 1, "one surviving run means one stroke");
+		if (out.size() == 1)
+		{
+			expect(out[0].clips.empty(), "a baked stroke carries no clips");
+			expect(out[0].points.size() >= 2, "the surviving run has geometry");
+			// Bisected to the clip edge rather than snapped to a stored point,
+			// which would have landed on 0.3 and 0.7.
+			expect(near(out[0].points.front().x, 0.35f, 0.002f),
+				"the run starts at the clip edge");
+			expect(near(out[0].points.back().x, 0.65f, 0.002f),
+				"the run ends at the clip edge");
+			for (const JPPaintPoint &point : out[0].points)
+				expect(point.x >= 0.35f - 0.002f && point.x <= 0.65f + 0.002f,
+					"no baked point sits outside the clip");
+		}
+
+		// An inverted clip over the middle leaves the two ends: one stroke in,
+		// two out.
+		JPPaintStroke split = stroke;
+		split.clips[0].inverted = true;
+		out.clear();
+		expect(jp_paint::collapseStrokeClips(split, out),
+			"an inverted clip collapses");
+		expect(out.size() == 2, "a run cut in the middle becomes two strokes");
+
+		// Complementary clips keep nothing, so there is nothing to hand back -
+		// and that is a success, not a refusal.
+		JPPaintStroke empty = stroke;
+		empty.clips.push_back(squareClip(0.35f, 0.4f, 0.65f, 0.6f, true));
+		out.clear();
+		expect(jp_paint::collapseStrokeClips(empty, out) && out.empty(),
+			"a fully clipped stroke collapses to nothing");
+
+		// A filled shape has no point run to bake.
+		JPPaintStroke filled = stroke;
+		filled.tool = (int)JPPaintTool::Lasso;
+		out.clear();
+		expect(!jp_paint::collapseStrokeClips(filled, out) && out.empty(),
+			"a filled lasso refuses to collapse");
+		filled.tool = (int)JPPaintTool::Fill;
+		expect(!jp_paint::collapseStrokeClips(filled, out),
+			"a bucket fill refuses to collapse");
+
+		// Everything else about the stroke survives the bake.
+		JPPaintStroke styled = stroke;
+		styled.r = 0.25f;
+		styled.size = 0.031f;
+		styled.hardness = 0.4f;
+		styled.erase = true;
+		out.clear();
+		jp_paint::collapseStrokeClips(styled, out);
+		expect(out.size() == 1 && near(out[0].r, 0.25f) &&
+			near(out[0].size, 0.031f) && near(out[0].hardness, 0.4f) &&
+			out[0].erase,
+			"a baked stroke keeps colour, size, hardness and erase");
+	}
+
+	// ------------------------------------------------------- region tracing
+
+	// A mask with a filled rectangle from (x0,y0) to (x1,y1) exclusive.
+	std::vector<std::uint8_t> maskRect(int w, int h, int x0, int y0,
+		int x1, int y1)
+	{
+		std::vector<std::uint8_t> mask((std::size_t)w * (std::size_t)h, 0);
+		for (int y = y0; y < y1; ++y)
+			for (int x = x0; x < x1; ++x)
+				mask[(std::size_t)y * (std::size_t)w + (std::size_t)x] = 255;
+		return mask;
+	}
+
+	// Twice the enclosed area, signed. Positive and negative just mean the two
+	// orientations; a hole traced by the same walk comes out opposite to the
+	// outer edge it sits in.
+	float loopArea2(const std::vector<JPPaintPoint> &loop)
+	{
+		float sum = 0.0f;
+		for (std::size_t i = 0; i < loop.size(); ++i)
+		{
+			const JPPaintPoint &a = loop[i];
+			const JPPaintPoint &b = loop[(i + 1) % loop.size()];
+			sum += a.x * b.y - b.x * a.y;
+		}
+		return sum;
+	}
+
+	void testTraceMaskContours()
+	{
+		std::vector<std::vector<JPPaintPoint>> contours;
+
+		// Empty mask, nothing to trace.
+		jp_paint::traceMaskContours(std::vector<std::uint8_t>(64, 0), 8, 8,
+			contours);
+		expect(contours.empty(), "an empty mask traces no contours");
+
+		// A square: one closed loop, on the pixel GRID, so its corners are the
+		// outside of the filled pixels rather than their centres.
+		jp_paint::traceMaskContours(maskRect(10, 10, 2, 2, 6, 6), 10, 10,
+			contours);
+		expect(contours.size() == 1, "a solid square traces one contour");
+		if (contours.size() == 1)
+		{
+			float minX = 1.0f, minY = 1.0f, maxX = 0.0f, maxY = 0.0f;
+			for (const JPPaintPoint &point : contours[0])
+			{
+				minX = std::min(minX, point.x); maxX = std::max(maxX, point.x);
+				minY = std::min(minY, point.y); maxY = std::max(maxY, point.y);
+			}
+			expect(near(minX, 0.2f) && near(minY, 0.2f) &&
+				near(maxX, 0.6f) && near(maxY, 0.6f),
+				"the contour bounds the filled pixels on the grid");
+			expect(contours[0].size() == 16,
+				"the staircase keeps one corner per boundary edge");
+		}
+
+		// A ring: the hole is traced too, in the opposite orientation, which is
+		// what an ODD winding rule renders as a hole.
+		std::vector<std::uint8_t> ring = maskRect(12, 12, 2, 2, 10, 10);
+		for (int y = 4; y < 8; ++y)
+			for (int x = 4; x < 8; ++x)
+				ring[(std::size_t)y * 12 + (std::size_t)x] = 0;
+		jp_paint::traceMaskContours(ring, 12, 12, contours);
+		expect(contours.size() == 2, "a ring traces an outer edge and a hole");
+		if (contours.size() == 2)
+		{
+			expect(loopArea2(contours[0]) * loopArea2(contours[1]) < 0.0f,
+				"the hole winds against the outer edge");
+		}
+
+		// Two separate blobs are two loops, whatever order they are found in.
+		std::vector<std::uint8_t> pair = maskRect(16, 8, 1, 1, 4, 4);
+		for (int y = 1; y < 4; ++y)
+			for (int x = 10; x < 14; ++x)
+				pair[(std::size_t)y * 16 + (std::size_t)x] = 255;
+		jp_paint::traceMaskContours(pair, 16, 8, contours);
+		expect(contours.size() == 2, "two islands trace two contours");
+
+		// A region touching the canvas edge is closed by the border.
+		jp_paint::traceMaskContours(maskRect(8, 8, 0, 0, 8, 8), 8, 8, contours);
+		expect(contours.size() == 1, "a full canvas traces one contour");
+		if (contours.size() == 1)
+			expect(contours[0].size() == 4 ||
+				near(std::abs(loopArea2(contours[0])), 2.0f),
+				"a full canvas contour encloses the whole canvas");
+
+		// Simplification collapses the staircase but keeps the corners.
+		jp_paint::traceMaskContours(maskRect(100, 100, 20, 20, 60, 60), 100, 100,
+			contours, 0.02f);
+		expect(contours.size() == 1 && contours[0].size() <= 6,
+			"simplification reduces a square to its corners");
+
+		// The point ceiling is honoured by simplifying harder, not by dropping
+		// part of an outline.
+		std::vector<std::uint8_t> noisy((std::size_t)64 * 64, 0);
+		for (int y = 0; y < 64; ++y)
+			for (int x = 0; x < 64; ++x)
+				if (((x / 2) + (y / 2)) % 2 == 0)
+					noisy[(std::size_t)y * 64 + (std::size_t)x] = 255;
+		jp_paint::traceMaskContours(noisy, 64, 64, contours, 0.0f, 200);
+		std::size_t total = 0;
+		for (const std::vector<JPPaintPoint> &loop : contours)
+			total += loop.size();
+		expect(total <= 200, "tracing respects its point ceiling");
+	}
+
+	void testRegionAccounting()
+	{
+		JPPaintStroke region;
+		region.tool = (int)JPPaintTool::Region;
+		region.points = {pt(0.1f, 0.1f), pt(0.9f, 0.1f), pt(0.9f, 0.9f)};
+		region.contours.push_back({pt(0.4f, 0.4f), pt(0.6f, 0.4f),
+			pt(0.6f, 0.6f), pt(0.5f, 0.6f)});
+
+		JPPaintEdit edit;
+		edit.kind = JPPaintEdit::AddStroke;
+		edit.stroke = region;
+		expect(jp_paint::pointCount(edit) == 7,
+			"the undo budget counts a region's holes as well as its outline");
+
+		// Two regions that differ only in a hole are not the two halves of one
+		// selection, so they must not be merged into one.
+		JPPaintStroke a = region;
+		JPPaintStroke b = region;
+		a.clips.push_back(squareClip(0.2f, 0.2f, 0.8f, 0.8f, false));
+		b.clips.push_back(squareClip(0.2f, 0.2f, 0.8f, 0.8f, true));
+		b.contours[0][0].x = 0.41f;
+		JPPaintStroke merged;
+		expect(!jp_paint::mergeComplementaryStrokes(a, b, merged),
+			"regions with different holes are not complementary halves");
+		b.contours[0][0].x = 0.4f;
+		expect(jp_paint::mergeComplementaryStrokes(a, b, merged) &&
+			merged.clips.empty(),
+			"two halves of one region selection still collapse");
+	}
+
+	// ------------------------------------------------------------- symmetry
+
+	void testSymmetryMirrors()
+	{
+		JPPaintStroke stroke;
+		stroke.points = {pt(0.2f, 0.3f), pt(0.25f, 0.35f, 0.5f)};
+		stroke.contours.push_back({pt(0.21f, 0.31f), pt(0.22f, 0.32f),
+			pt(0.23f, 0.33f)});
+		stroke.clips.push_back(squareClip(0.1f, 0.1f, 0.4f, 0.4f, false));
+
+		const JPPaintStroke flipped = jp_paint::mirrorStroke(stroke, true, false);
+		expect(near(flipped.points[0].x, 0.8f) &&
+			near(flipped.points[0].y, 0.3f), "mirroring x reflects about 0.5");
+		expect(near(flipped.points[1].width, 0.5f),
+			"mirroring keeps per-point width");
+		expect(near(flipped.contours[0][0].x, 0.79f),
+			"a region's holes are mirrored too");
+		expect(near(flipped.clips[0].points[0].x, 0.9f),
+			"clips travel with the paint they cut");
+
+		std::vector<JPPaintStroke> mirrors;
+		jp_paint::appendSymmetryStrokes(stroke, 0, mirrors);
+		expect(mirrors.empty(), "symmetry off adds nothing");
+		jp_paint::appendSymmetryStrokes(stroke, 1, mirrors);
+		expect(mirrors.size() == 1, "one axis adds one mirror");
+		mirrors.clear();
+		jp_paint::appendSymmetryStrokes(stroke, 3, mirrors);
+		expect(mirrors.size() == 3, "both axes add three mirrors");
+
+		// A stroke lying exactly on the axis is its own mirror, and committing
+		// it twice would double its density.
+		JPPaintStroke centred;
+		centred.points = {pt(0.5f, 0.2f), pt(0.5f, 0.8f)};
+		mirrors.clear();
+		jp_paint::appendSymmetryStrokes(centred, 1, mirrors);
+		expect(mirrors.empty(), "a stroke on the axis is not doubled");
+		mirrors.clear();
+		jp_paint::appendSymmetryStrokes(centred, 3, mirrors);
+		expect(mirrors.size() == 1,
+			"four way symmetry of an axis stroke adds only the other reflection");
+	}
+
+	void testGroupedStrokeUndo()
+	{
+		JPPaintDocument doc = docOf(2);
+		JPPaintEdit edit;
+		edit.kind = JPPaintEdit::AddStroke;
+		edit.frameIndex = 0;
+		edit.layerIndex = 0;
+		edit.strokeIndex = (int)doc.frames[0].layers[0].strokes.size();
+		edit.stroke = strokeOf(3);
+		edit.extraStrokes.push_back(strokeOf(4));
+		edit.extraStrokes.push_back(strokeOf(5));
+
+		const std::size_t before = doc.frames[0].layers[0].strokes.size();
+		expect(jp_paint::applyEdit(doc, edit), "a stroke group applies");
+		expect(doc.frames[0].layers[0].strokes.size() == before + 3,
+			"the group and its mirrors land together");
+		expect(doc.frames[0].layers[0].strokes[before + 1].points.size() == 4 &&
+			doc.frames[0].layers[0].strokes[before + 2].points.size() == 5,
+			"the group keeps its commit order");
+		expect(jp_paint::revertEdit(doc, edit), "a stroke group reverts");
+		expect(doc.frames[0].layers[0].strokes.size() == before,
+			"one undo takes the whole group");
+		expect(jp_paint::pointCount(edit) == 12,
+			"the undo budget counts every stroke in the group");
+	}
+
+	void testAreaTools()
+	{
+		// An area is filled, so it has no nib to scale and a lasso drawn inside
+		// it still touches it. A ribbon is neither.
+		expect(jp_paint::isAreaTool((int)JPPaintTool::Lasso) &&
+			jp_paint::isAreaTool((int)JPPaintTool::Region) &&
+			!jp_paint::isAreaTool((int)JPPaintTool::Rect) &&
+			!jp_paint::isAreaTool((int)JPPaintTool::Brush) &&
+			!jp_paint::isAreaTool((int)JPPaintTool::Fill),
+			"the area tools are the ones that fill a shape");
+	}
+
 	void testCurrentFrameClamp()
 	{
 		JPPaintDocument doc = docOf(3);
@@ -1108,6 +1429,13 @@ int main()
 	testReplaceStrokesUndoRedo();
 	testUndoAcrossFrameEdits();
 	testCurrentFrameClamp();
+	testClipsKeepPoint();
+	testCollapseStrokeClips();
+	testTraceMaskContours();
+	testRegionAccounting();
+	testSymmetryMirrors();
+	testGroupedStrokeUndo();
+	testAreaTools();
 	if (failures != 0)
 	{
 		std::cerr << failures << " paint core test(s) failed\n";

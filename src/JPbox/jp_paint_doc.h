@@ -42,8 +42,24 @@ enum class JPPaintTool
 	// Freehand that closes to its start point on release and fills.
 	Lasso,
 	RectSelect,
-	LassoSelect
+	LassoSelect,
+	// A materialised bucket fill: the region the flood actually covered, stored
+	// as closed contours. Fill above is the OLD form, kept because savefiles
+	// contain it - see the note on JPPaintStroke::contours.
+	Region
 };
+
+namespace jp_paint
+{
+	// Does this tool's mark enclose an area rather than trace a line? An area
+	// has no nib to scale and can be selected by a lasso that sits entirely
+	// inside it, neither of which is true of a ribbon.
+	inline bool isAreaTool(int tool)
+	{
+		return tool == (int)JPPaintTool::Lasso ||
+			tool == (int)JPPaintTool::Region;
+	}
+}
 
 struct JPPaintPoint
 {
@@ -84,9 +100,21 @@ struct JPPaintStroke
 	// same region, per premultiplied channel. Ignored by every other tool.
 	float tolerance = 0.12f;
 	// Clips are intersected in order. An inverted clip keeps the exterior of
-	// its polygon; a normal clip keeps the interior. Eight nested clips are
-	// rendered exactly (the stencil buffer contributes one bit per clip).
+	// its polygon; a normal clip keeps the interior. See kMaxStrokeClips for
+	// how deep the nesting is allowed to go and what happens at the bottom.
 	std::vector<JPPaintClip> clips;
+	// Region only. `points` is the region's first contour and these are the
+	// rest, holes included - which is why the whole set is filled with an ODD
+	// winding rule rather than the union a lasso wants.
+	//
+	// This is what makes a bucket fill a THING rather than a command. A Fill
+	// stroke stores only a seed and a tolerance, so it had to re-flood on every
+	// rebuild - one full readback and canvas scan each - it changed retroactively
+	// when anything under it changed, and it could not be selected or moved,
+	// because moving a seed is not moving the pixels the seed found. A Region is
+	// ordinary geometry and has none of those properties. Fill is still rendered
+	// exactly as it always was, for documents that contain it.
+	std::vector<std::vector<JPPaintPoint>> contours;
 };
 
 // One layer's worth of one cel. A cel holds one of these per document layer, in
@@ -151,6 +179,13 @@ struct JPPaintDocument
 	// Transparent by default: this is a texture in a patch, not a page. An
 	// opaque white canvas would blot out everything composited underneath it.
 	float bgR = 0.0f, bgG = 0.0f, bgB = 0.0f, bgA = 0.0f;
+	// Drawing symmetry: 0 off, 1 mirrors across the vertical centre line, 2
+	// across the horizontal one, 3 both, which is four way. A mirrored copy is
+	// committed as a REAL stroke beside the original rather than being a render
+	// time trick, so afterwards it can be erased, selected and moved on its own -
+	// and a document drawn with symmetry on opens the same in a version that
+	// never heard of it.
+	int symmetry = 0;
 	// Native PAINT resolution.  The node output can be resampled to the global
 	// graph resolution, but stroke rasterization and exports use these values.
 	int canvasWidth = 1920;
@@ -185,6 +220,181 @@ namespace jp_paint
 			sameStrokePoints(a.points, b.points);
 	}
 
+	// How many clips one stroke may carry.
+	//
+	// This is NOT a rasterizer limit: beginStrokeClip counts clips in the
+	// stencil buffer, so it handles far more than this. The cap is here because
+	// every selection of a stroke that STRADDLES the lasso leaves one more clip
+	// and one more copy behind, and unbounded nesting would be unbounded
+	// doubling. A stroke that reaches the cap is baked by collapseStrokeClips
+	// rather than quietly dropping out of every future selection, which is what
+	// a silent cap used to do.
+	constexpr std::size_t kMaxStrokeClips = 32;
+
+	inline bool pointInPolygon(const std::vector<JPPaintPoint> &polygon,
+		float x, float y)
+	{
+		if (polygon.size() < 3) return false;
+		bool inside = false;
+		std::size_t j = polygon.size() - 1;
+		for (std::size_t i = 0; i < polygon.size(); ++i)
+		{
+			if (((polygon[i].y > y) != (polygon[j].y > y)) &&
+				(x < (polygon[j].x - polygon[i].x) * (y - polygon[i].y) /
+					(polygon[j].y - polygon[i].y) + polygon[i].x))
+			{
+				inside = !inside;
+			}
+			j = i;
+		}
+		return inside;
+	}
+
+	// A point survives a stroke's clips when every one of them keeps it: a
+	// normal clip keeps its interior, an inverted clip keeps its exterior.
+	inline bool clipsKeepPoint(const std::vector<JPPaintClip> &clips,
+		float x, float y)
+	{
+		for (const JPPaintClip &clip : clips)
+		{
+			if (clip.points.size() < 3) continue;
+			if (pointInPolygon(clip.points, x, y) == clip.inverted) return false;
+		}
+		return true;
+	}
+
+	// Bake a stroke's clips into its point run: the same paint, as zero or more
+	// strokes carrying no clips at all.
+	//
+	// Returns false and leaves `out` alone for a stroke whose mark is an AREA
+	// rather than a run of points - a filled lasso would need real polygon
+	// boolean ops, and a bucket fill is a command whose result depends on every
+	// pixel under it.
+	//
+	// Cut ends get the round cap every other stroke end has, and the cut follows
+	// the CENTRELINE, so up to one brush radius of paint crosses the boundary in
+	// either direction. A baked stroke is therefore not pixel-identical to the
+	// clipped one it replaces - which is the whole reason clipping is normally
+	// kept non-destructive, and the reason this only runs at the cap.
+	inline bool collapseStrokeClips(const JPPaintStroke &stroke,
+		std::vector<JPPaintStroke> &out)
+	{
+		if (stroke.tool == (int)JPPaintTool::Lasso ||
+			stroke.tool == (int)JPPaintTool::Region ||
+			stroke.tool == (int)JPPaintTool::Fill) return false;
+		if (stroke.clips.empty())
+		{
+			out.push_back(stroke);
+			return true;
+		}
+		if (stroke.points.empty()) return true;
+
+		// Where a segment crosses a clip edge, bisect for the crossing rather
+		// than snapping to the nearest stored point: at brush sizes the stored
+		// points can be several pixels apart, and snapping would visibly move
+		// the cut.
+		auto crossing = [&stroke](const JPPaintPoint &inside,
+			const JPPaintPoint &outside)
+		{
+			float lo = 0.0f, hi = 1.0f;
+			for (int step = 0; step < 12; ++step)
+			{
+				const float mid = (lo + hi) * 0.5f;
+				const float x = inside.x + (outside.x - inside.x) * mid;
+				const float y = inside.y + (outside.y - inside.y) * mid;
+				if (clipsKeepPoint(stroke.clips, x, y)) lo = mid;
+				else hi = mid;
+			}
+			JPPaintPoint point;
+			point.x = inside.x + (outside.x - inside.x) * lo;
+			point.y = inside.y + (outside.y - inside.y) * lo;
+			point.width = inside.width + (outside.width - inside.width) * lo;
+			return point;
+		};
+
+		JPPaintStroke piece = stroke;
+		piece.clips.clear();
+		piece.points.clear();
+		auto flush = [&out, &piece]()
+		{
+			if (piece.points.empty()) return;
+			out.push_back(piece);
+			piece.points.clear();
+		};
+
+		bool previousKept = false;
+		for (std::size_t i = 0; i < stroke.points.size(); ++i)
+		{
+			const JPPaintPoint &point = stroke.points[i];
+			const bool kept = clipsKeepPoint(stroke.clips, point.x, point.y);
+			if (kept)
+			{
+				// Entering: start the run at the boundary, not at the first
+				// stored point inside it.
+				if (!previousKept && i > 0)
+					piece.points.push_back(crossing(point, stroke.points[i - 1]));
+				piece.points.push_back(point);
+			}
+			else if (previousKept)
+			{
+				piece.points.push_back(crossing(stroke.points[i - 1], point));
+				flush();
+			}
+			previousKept = kept;
+		}
+		flush();
+		return true;
+	}
+
+	// ------------------------------------------------------------- symmetry
+
+	// A copy of the stroke mirrored about the canvas centre. Mirroring reverses
+	// the point order's handedness, which matters to nothing here: a ribbon has
+	// no direction, and a region is filled with an ODD winding rule.
+	inline JPPaintStroke mirrorStroke(const JPPaintStroke &stroke,
+		bool mirrorX, bool mirrorY)
+	{
+		JPPaintStroke copy = stroke;
+		auto flip = [mirrorX, mirrorY](JPPaintPoint &point)
+		{
+			if (mirrorX) point.x = 1.0f - point.x;
+			if (mirrorY) point.y = 1.0f - point.y;
+		};
+		for (JPPaintPoint &point : copy.points) flip(point);
+		for (std::vector<JPPaintPoint> &contour : copy.contours)
+			for (JPPaintPoint &point : contour) flip(point);
+		// The clips travel with the paint they were cutting, or a mirrored copy
+		// of a clipped stroke would show the part the clip had removed.
+		for (JPPaintClip &clip : copy.clips)
+			for (JPPaintPoint &point : clip.points) flip(point);
+		return copy;
+	}
+
+	// The mirrors a stroke needs under this symmetry mode, appended to `out`.
+	// The stroke itself is NOT included - the caller already has it.
+	//
+	// A mirror that lands exactly on its source is dropped: a stroke drawn down
+	// the axis would otherwise be committed twice, which is invisible while it
+	// is opaque and doubles its density the moment it is not.
+	inline void appendSymmetryStrokes(const JPPaintStroke &stroke, int symmetry,
+		std::vector<JPPaintStroke> &out)
+	{
+		if (symmetry <= 0 || symmetry > 3 || stroke.points.empty()) return;
+		const bool acrossX = (symmetry & 1) != 0;
+		const bool acrossY = (symmetry & 2) != 0;
+		auto add = [&stroke, &out](bool mirrorX, bool mirrorY)
+		{
+			JPPaintStroke mirrored = mirrorStroke(stroke, mirrorX, mirrorY);
+			if (sameStrokePoints(mirrored.points, stroke.points)) return;
+			for (const JPPaintStroke &existing : out)
+				if (sameStrokePoints(mirrored.points, existing.points)) return;
+			out.push_back(std::move(mirrored));
+		};
+		if (acrossX) add(true, false);
+		if (acrossY) add(false, true);
+		if (acrossX && acrossY) add(true, true);
+	}
+
 	// A selection stores an unchanged vector twice, with complementary final
 	// clips. If neither half was transformed, the pair is still exactly the
 	// original stroke and can be losslessly compacted. Besides removing a
@@ -198,7 +408,10 @@ namespace jp_paint
 			a.size != b.size || a.hardness != b.hardness ||
 			a.tolerance != b.tolerance ||
 			!sameStrokePoints(a.points, b.points) ||
+			a.contours.size() != b.contours.size() ||
 			a.clips.size() != b.clips.size() || a.clips.empty()) return false;
+		for (std::size_t i = 0; i < a.contours.size(); ++i)
+			if (!sameStrokePoints(a.contours[i], b.contours[i])) return false;
 
 		const std::size_t last = a.clips.size() - 1;
 		for (std::size_t i = 0; i < last; ++i)
@@ -257,6 +470,26 @@ namespace jp_paint
 			if (tick < accumulated) return (int)i;
 		}
 		return (int)doc.frames.size() - 1;
+	}
+
+	// The cel range a normalized IN/OUT selection covers, in the same tick math
+	// playback uses - so exporting a trimmed range and playing it back pick the
+	// same cels. Inclusive at both ends, and always at least one cel.
+	inline void celRange(const JPPaintDocument &doc, float rangeIn,
+		float rangeOut, int &firstCel, int &lastCel)
+	{
+		const int last = doc.frames.empty() ? 0 : (int)doc.frames.size() - 1;
+		const int ticks = tickCount(doc);
+		const float in = std::clamp(rangeIn, 0.0f, 1.0f);
+		const float out = std::clamp(rangeOut, in, 1.0f);
+		firstCel = frameAtTick(doc,
+			(int)std::floor(in * (float)ticks));
+		// The out point is a boundary, so the last cel is the one the tick just
+		// BEFORE it lands on.
+		lastCel = frameAtTick(doc,
+			std::max(0, (int)std::ceil(out * (float)ticks) - 1));
+		firstCel = std::clamp(firstCel, 0, last);
+		lastCel = std::clamp(std::max(firstCel, lastCel), 0, last);
 	}
 
 	inline int celAtPlayhead(const JPPaintDocument &doc, float playheadTicks)
@@ -629,6 +862,129 @@ namespace jp_paint
 		points.swap(kept);
 	}
 
+	// -------------------------------------------------------- region tracing
+
+	// The outline of a flood filled region, as closed contours in NORMALIZED
+	// coordinates. Replaces `out` rather than appending to it.
+	//
+	// Walks the PIXEL GRID, not pixel centres: every edge between a filled pixel
+	// and an unfilled one - or the canvas border - is one segment of the
+	// boundary, and the segments chain head to tail into closed loops. Holes and
+	// islands come out of the same walk as the outer edge, so there is no "is
+	// this one a hole" question to get wrong; a loop inside a loop IS a hole once
+	// the set is filled with an ODD winding rule.
+	//
+	// Every segment is emitted with the filled side on its RIGHT, which is what
+	// makes the chaining unambiguous: the segment continuing a loop is the one
+	// that STARTS at the corner the last one ended on.
+	//
+	// epsilon is a Douglas-Peucker tolerance in normalized units; 0 keeps the
+	// pixel staircase. maxPoints is a ceiling on the whole result - a region
+	// traced at 4K can have a boundary tens of thousands of corners long, and
+	// that would go into the savefile. The tolerance is doubled until the result
+	// fits rather than truncating a contour, which would leave a hole in the
+	// region's outline.
+	inline void traceMaskContours(const std::vector<std::uint8_t> &mask,
+		int width, int height,
+		std::vector<std::vector<JPPaintPoint>> &out,
+		float epsilon = 0.0f, std::size_t maxPoints = 12000)
+	{
+		out.clear();
+		if (width <= 0 || height <= 0) return;
+		if (mask.size() != (std::size_t)width * (std::size_t)height) return;
+
+		const int stride = width + 1;
+		auto corner = [stride](int x, int y) { return y * stride + x; };
+		auto filled = [&mask, width, height](int x, int y) {
+			if (x < 0 || y < 0 || x >= width || y >= height) return false;
+			return mask[(std::size_t)y * (std::size_t)width + (std::size_t)x] != 0;
+		};
+
+		// (start corner, end corner) pairs, sorted by start so the walk can find
+		// its continuation with a binary search. The count is the boundary
+		// length, so this stays in the thousands even for a big region - which is
+		// why it is a sorted list and not a lookup table the size of the canvas.
+		std::vector<std::pair<int, int>> edges;
+		for (int y = 0; y < height; ++y)
+		{
+			for (int x = 0; x < width; ++x)
+			{
+				if (!filled(x, y)) continue;
+				if (!filled(x, y - 1))
+					edges.push_back({corner(x, y), corner(x + 1, y)});
+				if (!filled(x + 1, y))
+					edges.push_back({corner(x + 1, y), corner(x + 1, y + 1)});
+				if (!filled(x, y + 1))
+					edges.push_back({corner(x + 1, y + 1), corner(x, y + 1)});
+				if (!filled(x - 1, y))
+					edges.push_back({corner(x, y + 1), corner(x, y)});
+			}
+		}
+		if (edges.empty()) return;
+		std::sort(edges.begin(), edges.end());
+		std::vector<bool> used(edges.size(), false);
+
+		// The first unused edge starting at this corner, or -1.
+		auto next = [&edges, &used](int startCorner) {
+			std::size_t lo = (std::size_t)(std::lower_bound(edges.begin(),
+				edges.end(), std::make_pair(startCorner, -1)) - edges.begin());
+			for (; lo < edges.size() && edges[lo].first == startCorner; ++lo)
+				if (!used[lo]) return (long)lo;
+			return (long)-1;
+		};
+
+		const float fw = (float)width;
+		const float fh = (float)height;
+		std::vector<std::vector<JPPaintPoint>> loops;
+		for (std::size_t seed = 0; seed < edges.size(); ++seed)
+		{
+			if (used[seed]) continue;
+			std::vector<JPPaintPoint> loop;
+			long current = (long)seed;
+			while (current >= 0 && !used[(std::size_t)current])
+			{
+				used[(std::size_t)current] = true;
+				const int at = edges[(std::size_t)current].first;
+				JPPaintPoint point;
+				point.x = (float)(at % stride) / fw;
+				point.y = (float)(at / stride) / fh;
+				point.width = 1.0f;
+				loop.push_back(point);
+				current = next(edges[(std::size_t)current].second);
+			}
+			// Fewer than three corners cannot enclose area.
+			if (loop.size() >= 3) loops.push_back(std::move(loop));
+		}
+		if (loops.empty()) return;
+
+		// Simplify closed: the first corner is repeated at the end so the
+		// Douglas-Peucker pins a segment of the loop rather than a corner, then
+		// the duplicate is dropped again.
+		float tolerance = epsilon;
+		for (int attempt = 0; attempt < 8; ++attempt)
+		{
+			out = loops;
+			if (tolerance > 0.0f)
+			{
+				for (std::vector<JPPaintPoint> &loop : out)
+				{
+					loop.push_back(loop.front());
+					simplify(loop, tolerance);
+					if (loop.size() > 1) loop.pop_back();
+				}
+			}
+			std::size_t total = 0;
+			for (const std::vector<JPPaintPoint> &loop : out) total += loop.size();
+			if (total <= maxPoints) break;
+			// The first pass may have had no tolerance at all to double.
+			tolerance = tolerance > 0.0f ? tolerance * 2.0f : 1.0f / fw;
+		}
+		// A loop that simplification flattened encloses nothing.
+		out.erase(std::remove_if(out.begin(), out.end(),
+			[](const std::vector<JPPaintPoint> &loop) { return loop.size() < 3; }),
+			out.end());
+	}
+
 	// ------------------------------------------------------------- mutations
 
 	inline JPPaintFrame makeFrame(JPPaintDocument &doc)
@@ -779,6 +1135,10 @@ struct JPPaintEdit
 	int intValue = 0;      // SetHold: the new hold
 	int previousValue = 0; // SetHold: the hold it replaced
 	JPPaintStroke stroke;  // AddStroke
+	// AddStroke: strokes inserted immediately after `stroke`, as ONE step. This
+	// is how a symmetry mirror is committed: undoing a dab must not leave its
+	// mirror behind, and two edits would take two undos.
+	std::vector<JPPaintStroke> extraStrokes;
 	JPPaintFrame frame;    // AddFrame / DeleteFrame / ClearLayer
 	// AddLayer / DeleteLayer: the layer itself. SetLayerProps: the NEW props,
 	// with previousLayer holding what they replaced.
@@ -803,9 +1163,15 @@ namespace jp_paint
 			std::size_t count = stroke.points.size();
 			for (const JPPaintClip &clip : stroke.clips)
 				count += clip.points.size();
+			// A traced region carries most of its geometry here, so leaving it
+			// out would let a handful of fills blow past the ring's budget.
+			for (const std::vector<JPPaintPoint> &contour : stroke.contours)
+				count += contour.size();
 			return count;
 		};
 		std::size_t total = strokePoints(edit.stroke);
+		for (const JPPaintStroke &stroke : edit.extraStrokes)
+			total += strokePoints(stroke);
 		for (const JPPaintLayer &layer : edit.frame.layers)
 		{
 			for (const JPPaintStroke &stroke : layer.strokes)
@@ -863,6 +1229,10 @@ namespace jp_paint
 				(int)list->size() : edit.strokeIndex;
 			if (at < 0 || at > (int)list->size()) return false;
 			list->insert(list->begin() + at, edit.stroke);
+			// Contiguous and in order, so the group's z order is the order it
+			// was committed in and revert can erase one run.
+			list->insert(list->begin() + at + 1, edit.extraStrokes.begin(),
+				edit.extraStrokes.end());
 			touchLayer(doc, edit.frameIndex, edit.layerIndex);
 			return true;
 		}
@@ -1035,10 +1405,11 @@ namespace jp_paint
 			std::vector<JPPaintStroke> *list =
 				strokeListFor(doc, edit.frameIndex, edit.layerIndex);
 			if (list == nullptr) return false;
+			const int count = 1 + (int)edit.extraStrokes.size();
 			const int at = edit.strokeIndex < 0 ?
-				(int)list->size() - 1 : edit.strokeIndex;
-			if (at < 0 || at >= (int)list->size()) return false;
-			list->erase(list->begin() + at);
+				(int)list->size() - count : edit.strokeIndex;
+			if (at < 0 || at + count > (int)list->size()) return false;
+			list->erase(list->begin() + at, list->begin() + at + count);
 			touchLayer(doc, edit.frameIndex, edit.layerIndex);
 			return true;
 		}

@@ -949,6 +949,7 @@ private:
 		PAINT_TRANSPORT_FPS,
 		PAINT_TRANSPORT_LOOP,
 		PAINT_TRANSPORT_ONION,
+		PAINT_TRANSPORT_SYMMETRY,
 		PAINT_TRANSPORT_REFERENCE,
 		PAINT_TRANSPORT_COUNT
 	};
@@ -993,6 +994,9 @@ private:
 	ofRectangle getPaintBrushSettingValueBounds(int mode) const;
 	ofRectangle getPaintColorSwatchBounds() const;
 	ofRectangle getPaintQuickSwatchBounds(int index) const;
+	// How many palette swatches fit between the colour swatch and the action
+	// group at the current panel width.
+	int paintQuickSwatchCount() const;
 	ofRectangle getPaintLayerDeleteBounds(int row) const;
 	ofRectangle getPaintPickerBounds() const;
 	void endSelectionDrawing(JPbox_paint *box);
@@ -1050,6 +1054,19 @@ private:
 	void applyPaintPickerColor();
 	ofRectangle getPaintSwatchBounds(int index) const;
 	ofRectangle getPaintPaletteAddBounds() const;
+	// Keeps the picker's HSB controls showing the colour it is editing. One
+	// helper rather than the same three assignments at every site that changes
+	// the brush colour from outside the picker - eyedropper, quick swatch.
+	void syncPaintPickerFromColor();
+	void setPaintBrushColor(const ofFloatColor &color);
+	// ----------------------------------------------- export options popover
+	ofRectangle getPaintDocIconBounds() const;
+	ofRectangle getPaintDocPropsBounds() const;
+	ofRectangle getPaintDocScaleBounds(int index) const;
+	ofRectangle getPaintDocRangeBounds() const;
+	ofRectangle getPaintDocSheetBounds() const;
+	void drawPaintDocProps();
+	bool handlePaintDocPropsPressed(const ofVec2f &mouse);
 	void beginPaintStroke(JPbox_paint *box, const ofVec2f &uv);
 	void extendPaintStroke(JPbox_paint *box, const ofVec2f &uv);
 	void endPaintStroke(JPbox_paint *box);
@@ -1088,6 +1105,10 @@ private:
 	ofVec2f paintPointerOverride;
 	// 0 size, 1 opacity, 2 hardness, 3 stabilizer. Captured on press.
 	int paintBrushSliderMode = 0;
+	// Export options. Editor state rather than document state: they describe one
+	// export, not the drawing.
+	float paintExportScale = 1.0f;
+	bool paintExportUseRange = false;
 	bool paintBrushSettingsOpen = false;
 	int paintBrushSettingsDragMode = -1;
 	bool paintReferenceVisible = true;
@@ -1113,6 +1134,7 @@ private:
 	float paintFilmstripScroll = 0.0f;
 	float paintTimelineScrollY = 0.0f;
 	bool paintPickerOpen = false;
+	bool paintDocPropsOpen = false;
 	bool paintHelpOpen = false;
 	// The hex field and the layer rename are the only text entry in this panel.
 	// Both go through paintHandleTextKey, and both make paintTextCaptureActive

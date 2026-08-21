@@ -98,6 +98,14 @@ public:
 	void setCurrentCel(int index);
 
 	void commitStroke(const JPPaintStroke &stroke);
+	// Floods the ACTIVE LAYER once from a normalized seed, traces the region the
+	// flood covered and commits it as ordinary geometry. This is what a bucket
+	// click does now: a Region stroke can be selected, moved and transformed,
+	// costs no readback when the cel is rebuilt, and does not change under the
+	// user when something below it is edited. False when the seed is off canvas,
+	// the layer is locked or the flood covered nothing.
+	bool materializeFill(float u, float v, float tolerance,
+		const ofFloatColor &color);
 	void clearCurrentLayer();
 	// Clears one cel of the grid. Same edit as clearCurrentLayer with the indices
 	// passed in rather than read from the document - what the timeline's
@@ -185,10 +193,20 @@ public:
 	// internal stroke cache at this PAINT's native resolution.
 	void setCanvasSize(int width, int height);
 	void setCanvasBackground(float r, float g, float b, float a);
-	bool exportCurrentPng(const std::string &path);
+	// scale multiplies the canvas resolution the frames are rasterized at, so a
+	// document can be exported bigger or smaller than it is drawn without
+	// changing the document. useRange limits the frames to the transport's
+	// IN/OUT selection, which is the range the box plays.
+	bool exportCurrentPng(const std::string &path, float scale = 1.0f);
 	bool exportPngSequence(const std::string &directory,
-		const std::string &prefix = "paint_frame");
-	bool exportGif(const std::string &path);
+		const std::string &prefix = "paint_frame", float scale = 1.0f,
+		bool useRange = false);
+	bool exportGif(const std::string &path, float scale = 1.0f,
+		bool useRange = false);
+	// Every frame in one image, laid out left to right and top to bottom.
+	// columns of 0 picks a roughly square sheet.
+	bool exportSpriteSheet(const std::string &path, float scale = 1.0f,
+		bool useRange = false, int columns = 0);
 
 private:
 	JPPaintDocument doc;
@@ -235,7 +253,14 @@ private:
 	bool unpremultiplyTried = false;
 	void ensureUnpremultiplyShader();
 	void compositeToOutput(ofFbo &source, float opacity);
-	bool renderCelPixels(int celIndex, ofPixels &pixels);
+	// scale of 1 reads the cached raster; anything else rasterizes the cel into
+	// `exportBuffer` at the scaled size, because the cache is the canvas size
+	// and stretching pixels is not the same as drawing them bigger.
+	bool renderCelPixels(int celIndex, ofPixels &pixels, float scale = 1.0f);
+	ofFbo exportBuffer;
+	// The cel range an export covers: the whole document, or the transport's
+	// IN/OUT selection.
+	void exportCelRange(bool useRange, int &firstCel, int &lastCel) const;
 
 	// One per cel, grown as the document grows. At 96px wide a two hundred cel
 	// animation is a few megabytes, so this needs no eviction policy at all -
@@ -250,6 +275,12 @@ private:
 	std::vector<ThumbSlot> thumbs;
 
 	ofFbo &ensureRaster(int celIndex);
+	// Draws a just-appended stroke group straight onto the cached raster, so a
+	// commit does not cost a replay of everything already on the cel. Takes the
+	// whole group at once because one edit bumps the cel's revision once: a
+	// second call would no longer recognise the slot as one revision behind.
+	void appendStrokesToRasterCache(int celIndex, int layerIndex,
+		const std::vector<JPPaintStroke> &strokes);
 	void rebuildRaster(ofFbo &target, const JPPaintDocument &document,
 		int celIndex, int overrideLayerIndex = -1,
 		const std::vector<JPPaintStroke> *overrideStrokes = nullptr);
@@ -263,6 +294,10 @@ private:
 	void ensureScratch(float width, float height);
 	void invalidateRasters();
 	void paintStroke(ofFbo &target, const JPPaintStroke &stroke);
+	// The stroke's outline as a path, with the winding rule its tool needs: a
+	// traced region's contours nest, a lasso's overlaps unite.
+	ofPath strokeAreaPath(const JPPaintStroke &stroke,
+		float width, float height) const;
 	// A bucket fill: reads the target back, floods from the stored seed, and
 	// composites the colour through the resulting mask. Reused buffers rather
 	// than locals so a rebuild does not churn a full-resolution allocation per

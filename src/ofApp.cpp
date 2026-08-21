@@ -5514,6 +5514,10 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	const bool exportSequenceShortcut = ctrlOrCmd && e.hasModifier(OF_KEY_ALT) &&
 		e.keycode == GLFW_KEY_P;
 	const bool exportGifShortcut = ctrlOrCmd && e.hasModifier(OF_KEY_SHIFT) &&
+		!e.hasModifier(OF_KEY_ALT) && e.keycode == GLFW_KEY_G;
+	// Ctrl+Alt beside Ctrl+Shift, the same pairing the two PNG exports use:
+	// Shift is the single image, Alt is the one that covers every frame.
+	const bool exportSheetShortcut = ctrlOrCmd && e.hasModifier(OF_KEY_ALT) &&
 		e.keycode == GLFW_KEY_G;
 
 	// Undo lives here rather than in keyPressed for the same reason Ctrl+D and
@@ -5565,6 +5569,8 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		boxes.paintExportShortcut(1)) return;
 	if (exportGifShortcut && pantallaActiva == NODOS &&
 		boxes.paintExportShortcut(2)) return;
+	if (exportSheetShortcut && pantallaActiva == NODOS &&
+		boxes.paintExportShortcut(3)) return;
 
 	if (prevKey == 12) {
 		openloader.startThread();

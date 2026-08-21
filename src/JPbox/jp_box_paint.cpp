@@ -222,7 +222,14 @@ void JPbox_paint::updateFBO()
 
 	// A stroke in flight is merged into a scratch copy rather than committed to
 	// the cel, so dragging the mouse never re-rasterizes the cel.
-	ensureScratch(fbo.getWidth(), fbo.getHeight());
+	//
+	// At the CEL's resolution, not the output's. The two are the same by
+	// default, but a canvas sized away from the project resolution would
+	// otherwise resize this scratch on every commit and back again on the next
+	// drag - a full-resolution reallocation twice per stroke, which hitches
+	// while drawing - and would rasterize the live stroke at a different
+	// resolution from the committed one.
+	ensureScratch(raster.getWidth(), raster.getHeight());
 	scratch.begin();
 	ofClear(0, 0, 0, 0);
 	ofEnableAlphaBlending();
@@ -231,12 +238,12 @@ void JPbox_paint::updateFBO()
 	scratch.end();
 
 	if (!composite.isAllocated() ||
-		(int)composite.getWidth() != (int)fbo.getWidth() ||
-		(int)composite.getHeight() != (int)fbo.getHeight())
+		(int)composite.getWidth() != (int)raster.getWidth() ||
+		(int)composite.getHeight() != (int)raster.getHeight())
 	{
 		ofFbo::Settings settings;
-		settings.width = std::max(1, (int)fbo.getWidth());
-		settings.height = std::max(1, (int)fbo.getHeight());
+		settings.width = std::max(1, (int)raster.getWidth());
+		settings.height = std::max(1, (int)raster.getHeight());
 		settings.internalformat = GL_RGBA8;
 		settings.textureTarget = GL_TEXTURE_2D;
 		settings.useDepth = false;
@@ -384,6 +391,73 @@ void JPbox_paint::invalidateRasters()
 	{
 		slot.valid = false;
 		slot.frameId = -1;
+	}
+}
+
+// Committing a stroke bumps the cel's revision, which is what invalidates the
+// cache - so without this every stroke on a cel costs a replay of every stroke
+// already there, and drawing gets slower the longer you draw. Source-over
+// premultiplied compositing is associative, so a stroke drawn onto the finished
+// cel lands exactly where a replay would have put it. The live-stroke path in
+// updateFBO already relies on the same identity.
+//
+// Only taken when the new stroke cannot interact with anything it was not
+// already sitting on top of:
+//   - the layer has to be the last thing this cel draws, so nothing composites
+//     over the new stroke afterwards;
+//   - visible, at full opacity and normal blend, or the layer's contribution is
+//     not a plain source-over of its own strokes;
+//   - not an eraser, which must reach only its own layer;
+//   - not a bucket fill, which reads its target back and would flood through
+//     the layers underneath instead of within its own;
+//   - not a shared background layer, whose strokes appear on every cel, so one
+//     cached raster is not the only one that just went stale.
+// Anything else leaves the cache invalid and takes the replay.
+void JPbox_paint::appendStrokesToRasterCache(int celIndex, int layerIndex,
+	const std::vector<JPPaintStroke> &strokes)
+{
+	if (rasters.empty() || strokes.empty()) return;
+	for (const JPPaintStroke &stroke : strokes)
+	{
+		if (stroke.points.empty()) return;
+		if (stroke.erase || stroke.tool == (int)JPPaintTool::Fill) return;
+	}
+	if (celIndex < 0 || celIndex >= (int)doc.frames.size()) return;
+	if (layerIndex < 0 || layerIndex >= (int)doc.layers.size()) return;
+
+	const JPPaintLayerInfo &info = doc.layers[(std::size_t)layerIndex];
+	if (info.background || !info.visible) return;
+	if (info.blendMode != 0 || info.opacity < 0.998f) return;
+	for (int above = layerIndex + 1; above < (int)doc.layers.size(); ++above)
+	{
+		const JPPaintLayerInfo &other = doc.layers[(std::size_t)above];
+		if (!other.visible || other.opacity <= 0.002f) continue;
+		const std::vector<JPPaintStroke> *list =
+			jp_paint::strokeListFor(doc, celIndex, above);
+		if (list != nullptr && !list->empty()) return;
+	}
+
+	const JPPaintFrame &frame = doc.frames[(std::size_t)celIndex];
+	const int targetW = std::max(16, doc.canvasWidth);
+	const int targetH = std::max(16, doc.canvasHeight);
+	for (RasterSlot &slot : rasters)
+	{
+		// Exactly one revision behind: the slot holds this cel as it was
+		// immediately before this stroke, and nothing else has happened since.
+		if (!slot.valid || slot.frameId != frame.id) continue;
+		if (slot.revision + 1 != frame.revision) continue;
+		if (!slot.fbo.isAllocated()) continue;
+		if ((int)slot.fbo.getWidth() != targetW ||
+			(int)slot.fbo.getHeight() != targetH) continue;
+
+		// Through paintStrokeList, not paintStroke, so the strokes take the
+		// SAME path a replay would take for them. A cache that drew them any
+		// other way would make the drawing change the moment the slot was
+		// evicted.
+		jp_gl::ScopedNoScissor noClip;
+		paintStrokeList(slot.fbo, strokes);
+		slot.revision = frame.revision;
+		return;
 	}
 }
 
@@ -698,6 +772,67 @@ void JPbox_paint::paintStroke(ofFbo &target, const JPPaintStroke &stroke)
 	target.end();
 }
 
+bool JPbox_paint::materializeFill(float u, float v, float tolerance,
+	const ofFloatColor &color)
+{
+	jp_gl::ScopedNoScissor noClip;
+	jp_paint::clampCurrentLayer(doc);
+	jp_paint::clampCurrentFrame(doc);
+	if (u < 0.0f || v < 0.0f || u > 1.0f || v > 1.0f) return false;
+	const int layerIndex = doc.currentLayer;
+	if (doc.layers[(std::size_t)layerIndex].locked) return false;
+	const int cel = doc.currentFrame;
+	const std::vector<JPPaintStroke> *strokes =
+		jp_paint::strokeListFor(doc, cel, layerIndex);
+	if (strokes == nullptr) return false;
+
+	const int w = std::max(16, doc.canvasWidth);
+	const int h = std::max(16, doc.canvasHeight);
+	// The layer ALONE, which is what a bucket floods within: reusing the cel
+	// raster would let the region leak across whatever happens to sit on the
+	// layers underneath it.
+	ensureLayerScratch((float)w, (float)h);
+	layerScratch.begin();
+	ofClear(0, 0, 0, 0);
+	layerScratch.end();
+	paintStrokeList(layerScratch, *strokes);
+	layerScratch.readToPixels(fillReadback);
+	if ((int)fillReadback.getWidth() != w ||
+		(int)fillReadback.getHeight() != h) return false;
+	if (fillReadback.getNumChannels() < 4) return false;
+
+	// Same row convention paintFillStroke and sampleColor use: readToPixels
+	// hands rows back in the order the strokes were rendered in, so v maps
+	// straight to a row.
+	const int seedX = (int)std::lround(u * (float)(w - 1));
+	const int seedY = (int)std::lround(v * (float)(h - 1));
+	const int tol =
+		(int)std::lround(ofClamp(tolerance, 0.0f, 1.0f) * 255.0f);
+	if (jp_paint::floodFill(fillReadback.getData(), w, h, seedX, seedY, tol,
+		fillMask) == 0) return false;
+
+	std::vector<std::vector<JPPaintPoint>> contours;
+	// Half a pixel: takes the staircase off a traced edge without moving it
+	// anywhere the eye can follow at the resolution it was traced at.
+	jp_paint::traceMaskContours(fillMask, w, h, contours, 0.5f / (float)w);
+	if (contours.empty()) return false;
+
+	JPPaintStroke region;
+	region.tool = (int)JPPaintTool::Region;
+	region.r = color.r;
+	region.g = color.g;
+	region.b = color.b;
+	region.a = color.a;
+	region.tolerance = ofClamp(tolerance, 0.0f, 1.0f);
+	region.points = contours.front();
+	region.contours.assign(contours.begin() + 1, contours.end());
+	commitStroke(region);
+	return true;
+}
+
+// The OLD bucket: a seed and a tolerance, re-flooded on every rebuild. Kept
+// because savefiles contain it. New fills are materialised into geometry by
+// materializeFill instead - see JPPaintStroke::contours for why.
 void JPbox_paint::paintFillStroke(ofFbo &target, const JPPaintStroke &stroke)
 {
 	if (stroke.points.empty()) return;
@@ -797,28 +932,14 @@ void JPbox_paint::renderStrokeGeometry(const JPPaintStroke &stroke,
 	// so a very fat one does not cost thousands of triangles per dab.
 	ofSetCircleResolution((int)ofClamp(base * 1.5f, 12.0f, 64.0f));
 
-	if (stroke.tool == (int)JPPaintTool::Lasso)
+	if (jp_paint::isAreaTool(stroke.tool))
 	{
-		// A closed, filled region. ofPath is right here for exactly the reason
-		// it is wrong for a ribbon: there is no width to vary and no join to
-		// notch, only an area to fill.
-		//
-		// One path per stroke, never subpaths, so overlaps are a union rather
-		// than even-odd holes - the same decision rebuildAdvancedMappingMask
-		// documents.
-		if (points.size() >= 3)
-		{
-			ofPath path;
-			path.setFilled(true);
-			path.setFillColor(ofGetStyle().color);
-			path.moveTo(points[0].x * width, points[0].y * height);
-			for (std::size_t i = 1; i < points.size(); ++i)
-			{
-				path.lineTo(points[i].x * width, points[i].y * height);
-			}
-			path.close();
-			path.draw();
-		}
+		// A closed, filled area. ofPath is right here for exactly the reason it
+		// is wrong for a ribbon: there is no width to vary and no join to notch,
+		// only an area to fill.
+		ofPath path = strokeAreaPath(stroke, width, height);
+		path.setFillColor(ofGetStyle().color);
+		path.draw();
 		ofPopStyle();
 		return;
 	}
@@ -871,11 +992,59 @@ void JPbox_paint::renderStrokeGeometry(const JPPaintStroke &stroke,
 	ofPopStyle();
 }
 
+ofPath JPbox_paint::strokeAreaPath(const JPPaintStroke &stroke,
+	float width, float height) const
+{
+	ofPath path;
+	path.setFilled(true);
+	// A Region is a traced flood fill, so a contour inside another contour is a
+	// HOLE and the winding rule has to be ODD. A lasso or a shape is a single
+	// outline the user drew: overlaps there are a UNION, which is the decision
+	// rebuildAdvancedMappingMask documents.
+	const bool region = stroke.tool == (int)JPPaintTool::Region;
+	path.setPolyWindingMode(region ? OF_POLY_WINDING_ODD :
+		OF_POLY_WINDING_NONZERO);
+	auto addContour = [&path, width, height]
+		(const std::vector<JPPaintPoint> &contour)
+	{
+		if (contour.size() < 3) return;
+		path.moveTo(contour[0].x * width, contour[0].y * height);
+		for (std::size_t i = 1; i < contour.size(); ++i)
+			path.lineTo(contour[i].x * width, contour[i].y * height);
+		path.close();
+	};
+	addContour(stroke.points);
+	if (region)
+	{
+		for (const std::vector<JPPaintPoint> &contour : stroke.contours)
+			addContour(contour);
+	}
+	return path;
+}
+
 bool JPbox_paint::beginStrokeClip(const JPPaintStroke &stroke,
 	float width, float height)
 {
-	const std::size_t count = std::min<std::size_t>(8, stroke.clips.size());
+	// COUNTING, not one bit per clip.
+	//
+	// A bit per clip capped the nesting at eight in an 8 bit stencil, and the
+	// ninth clip was silently ignored - a selection that looked like it had
+	// worked and had not. A counter uses the same eight bits to reach 255:
+	// every clip increments the pixels it keeps, so a pixel kept by all of them
+	// ends up holding exactly the clip count.
+	//
+	// An inverted clip keeps the EXTERIOR of its polygon. Rather than build a
+	// polygon complement, it increments everywhere and then decrements inside
+	// the polygon, which lands on the same place.
+	std::size_t count = 0;
+	for (const JPPaintClip &clip : stroke.clips)
+		if (clip.points.size() >= 3) ++count;
 	if (count == 0) return false;
+	// The counter must not wrap: at 256 clips a fully excluded pixel would read
+	// as fully included. Nothing reaches this - jp_paint::kMaxStrokeClips bounds
+	// what a selection can build, and the loader clamps what a savefile can ask
+	// for - so it is a backstop, not a behaviour.
+	count = std::min<std::size_t>(count, 255);
 
 	glEnable(GL_STENCIL_TEST);
 	glStencilMask(0xff);
@@ -883,40 +1052,41 @@ bool JPbox_paint::beginStrokeClip(const JPPaintStroke &stroke,
 	glClear(GL_STENCIL_BUFFER_BIT);
 	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 	glDisable(GL_BLEND);
+	glStencilFunc(GL_ALWAYS, 0, 0xff);
 
-	unsigned int expected = 0;
-	for (std::size_t i = 0; i < count; ++i)
+	std::size_t applied = 0;
+	for (const JPPaintClip &clip : stroke.clips)
 	{
-		const JPPaintClip &clip = stroke.clips[i];
 		if (clip.points.size() < 3) continue;
-		const unsigned int bit = 1u << i;
-		expected |= bit;
-		glStencilMask(bit);
-		glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+		if (applied >= count) break;
+		++applied;
 
-		if (clip.inverted)
-		{
-			glStencilFunc(GL_ALWAYS, bit, bit);
-			ofDrawRectangle(0.0f, 0.0f, width, height);
-			glStencilFunc(GL_ALWAYS, 0, bit);
-		}
-		else
-		{
-			glStencilFunc(GL_ALWAYS, bit, bit);
-		}
-
+		// One path per clip and never subpaths: the tessellator hands back
+		// non-overlapping triangles, which is what lets a pixel be incremented
+		// exactly once per clip.
 		ofPath path;
 		path.setFilled(true);
 		path.moveTo(clip.points[0].x * width, clip.points[0].y * height);
 		for (std::size_t p = 1; p < clip.points.size(); ++p)
 			path.lineTo(clip.points[p].x * width, clip.points[p].y * height);
 		path.close();
+
+		if (clip.inverted)
+		{
+			glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
+			ofDrawRectangle(0.0f, 0.0f, width, height);
+			glStencilOp(GL_KEEP, GL_KEEP, GL_DECR);
+		}
+		else
+		{
+			glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
+		}
 		path.draw();
 	}
 
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glStencilMask(0x00);
-	glStencilFunc(GL_EQUAL, expected, expected);
+	glStencilFunc(GL_EQUAL, (GLint)applied, 0xff);
 	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 	ofEnableAlphaBlending();
 	return true;
@@ -1234,14 +1404,66 @@ void JPbox_paint::setCanvasBackground(float r, float g, float b, float a)
 	doc.bgA = ofClamp(a, 0.0f, 1.0f);
 }
 
-bool JPbox_paint::renderCelPixels(int celIndex, ofPixels &pixels)
+void JPbox_paint::exportCelRange(bool useRange, int &firstCel,
+	int &lastCel) const
+{
+	if (useRange)
+	{
+		jp_paint::celRange(doc, playback.rangeIn, playback.rangeOut,
+			firstCel, lastCel);
+		return;
+	}
+	firstCel = 0;
+	lastCel = doc.frames.empty() ? 0 : (int)doc.frames.size() - 1;
+}
+
+bool JPbox_paint::renderCelPixels(int celIndex, ofPixels &pixels, float scale)
 {
 	if (doc.frames.empty()) return false;
-	ofFbo &raster = ensureRaster(celIndex);
-	raster.readToPixels(pixels);
+	jp_gl::ScopedNoScissor noClip;
+	const float clampedScale = ofClamp(scale, 0.05f, 8.0f);
+	if (std::abs(clampedScale - 1.0f) > 0.0005f)
+	{
+		// Rasterized at the export size rather than resampled from the cache:
+		// strokes are vector, so a 2x export is 2x the geometry, not 2x the
+		// pixels.
+		const int w = std::clamp((int)std::lround(
+			(float)std::max(16, doc.canvasWidth) * clampedScale), 16, 16384);
+		const int h = std::clamp((int)std::lround(
+			(float)std::max(16, doc.canvasHeight) * clampedScale), 16, 16384);
+		if (!exportBuffer.isAllocated() ||
+			(int)exportBuffer.getWidth() != w ||
+			(int)exportBuffer.getHeight() != h)
+		{
+			ofFbo::Settings settings;
+			settings.width = w;
+			settings.height = h;
+			settings.internalformat = GL_RGBA8;
+			settings.textureTarget = GL_TEXTURE_2D;
+			settings.useDepth = false;
+			settings.useStencil = false;
+			settings.numSamples = 4;
+			exportBuffer.allocate(settings);
+		}
+		rebuildRaster(exportBuffer, doc,
+			std::clamp(celIndex, 0, (int)doc.frames.size() - 1));
+		// Resolve while the scissor is suspended - see the note in ensureRaster.
+		exportBuffer.getTexture();
+		exportBuffer.readToPixels(pixels);
+	}
+	else
+	{
+		ofFbo &raster = ensureRaster(celIndex);
+		raster.readToPixels(pixels);
+	}
 	if (!pixels.isAllocated() || pixels.getNumChannels() < 4) return false;
-	// glGetTexImage is bottom-up while ofPixels and image encoders are top-down.
-	pixels.mirror(true, false);
+	// NO vertical flip. openFrameworks flips the MATRIX when it renders into a
+	// framebuffer (OF_FBOMODE_MATRIXFLIP), so the row a shape drawn at y=0 lands
+	// in is texture row 0, and glGetTexImage hands that row back first. Every
+	// export used to mirror here on the assumption that a readback is bottom up,
+	// which turned every exported PNG and GIF frame upside down. It is the same
+	// convention the bucket fill and the eyedropper have always relied on: v maps
+	// straight to a row.
 
 	// The cached cel is premultiplied. Export formats expect straight alpha, and
 	// the document background belongs in the exported canvas just as it does in
@@ -1264,26 +1486,30 @@ bool JPbox_paint::renderCelPixels(int celIndex, ofPixels &pixels)
 	return true;
 }
 
-bool JPbox_paint::exportCurrentPng(const std::string &path)
+bool JPbox_paint::exportCurrentPng(const std::string &path, float scale)
 {
 	ofPixels pixels;
-	return renderCelPixels(currentCel(), pixels) &&
+	return renderCelPixels(currentCel(), pixels, scale) &&
 		ofSaveImage(pixels, withExtension(path, ".png"));
 }
 
 bool JPbox_paint::exportPngSequence(const std::string &directory,
-	const std::string &prefix)
+	const std::string &prefix, float scale, bool useRange)
 {
 	if (directory.empty()) return false;
 	std::error_code error;
 	std::filesystem::create_directories(directory, error);
 	if (error) return false;
+	int firstCel = 0, lastCel = 0;
+	exportCelRange(useRange, firstCel, lastCel);
 	const int digits = std::max(4, (int)ofToString(doc.frames.size()).size());
-	for (int i = 0; i < (int)doc.frames.size(); ++i)
+	for (int i = firstCel; i <= lastCel; ++i)
 	{
 		ofPixels pixels;
-		if (!renderCelPixels(i, pixels)) return false;
+		if (!renderCelPixels(i, pixels, scale)) return false;
 		std::ostringstream filename;
+		// Numbered by the cel's own index, so a trimmed range still says which
+		// cels it came from.
 		filename << prefix << "_" << std::setw(digits) << std::setfill('0')
 			<< (i + 1) << ".png";
 		if (!ofSaveImage(pixels,
@@ -1292,37 +1518,131 @@ bool JPbox_paint::exportPngSequence(const std::string &directory,
 	return true;
 }
 
-bool JPbox_paint::exportGif(const std::string &path)
+bool JPbox_paint::exportSpriteSheet(const std::string &path, float scale,
+	bool useRange, int columns)
 {
 	if (doc.frames.empty()) return false;
+	int firstCel = 0, lastCel = 0;
+	exportCelRange(useRange, firstCel, lastCel);
+	const int count = lastCel - firstCel + 1;
+	if (count <= 0) return false;
+	// Roughly square by default: a 12 frame walk cycle in one strip is 12 times
+	// wider than tall and unusable as a texture.
+	const int cols = columns > 0 ? columns :
+		std::max(1, (int)std::ceil(std::sqrt((double)count)));
+	const int rows = (count + cols - 1) / cols;
+
+	ofPixels sheet;
+	int cellW = 0, cellH = 0;
+	for (int i = 0; i < count; ++i)
+	{
+		ofPixels pixels;
+		if (!renderCelPixels(firstCel + i, pixels, scale)) return false;
+		if (i == 0)
+		{
+			cellW = (int)pixels.getWidth();
+			cellH = (int)pixels.getHeight();
+			sheet.allocate(cellW * cols, cellH * rows, OF_PIXELS_RGBA);
+			sheet.setColor(ofColor(0, 0, 0, 0));
+		}
+		if ((int)pixels.getWidth() != cellW ||
+			(int)pixels.getHeight() != cellH) return false;
+		// pasteInto rather than a per-pixel copy: same result, one memcpy per
+		// row instead of a function call per channel.
+		pixels.pasteInto(sheet, (i % cols) * cellW, (i / cols) * cellH);
+	}
+	return ofSaveImage(sheet, withExtension(path, ".png"));
+}
+
+bool JPbox_paint::exportGif(const std::string &path, float scale,
+	bool useRange)
+{
+	if (doc.frames.empty()) return false;
+	int firstCel = 0, lastCel = 0;
+	exportCelRange(useRange, firstCel, lastCel);
 	const std::string output = withExtension(path, ".gif");
 	FIMULTIBITMAP *gif = FreeImage_OpenMultiBitmap(FIF_GIF, output.c_str(),
 		TRUE, FALSE, TRUE, GIF_DEFAULT);
 	if (gif == nullptr) return false;
 	bool ok = true;
-	for (int frame = 0; frame < (int)doc.frames.size() && ok; ++frame)
+	for (int frame = firstCel; frame <= lastCel && ok; ++frame)
 	{
 		ofPixels pixels;
-		if (!renderCelPixels(frame, pixels)) { ok = false; break; }
+		if (!renderCelPixels(frame, pixels, scale)) { ok = false; break; }
 		const int w = (int)pixels.getWidth(), h = (int)pixels.getHeight();
 		FIBITMAP *rgb = FreeImage_Allocate(w, h, 24);
 		if (rgb == nullptr) { ok = false; break; }
+		// GIF has one transparent palette entry and no alpha, so transparent
+		// pixels have to be painted a colour that is then declared transparent.
+		// That colour must not appear in the drawing: a hard coded magenta
+		// punched holes in anything drawn in magenta. So the frame is scanned
+		// first and the key is a candidate the frame does not use.
+		//
+		// The candidates are deliberately odd values - nobody picks 3,252,1 off
+		// a colour wheel - and one pass marks which of them the frame contains.
+		struct KeyCandidate { BYTE r, g, b; };
+		static const KeyCandidate candidates[] = {
+			{255, 0, 255}, {1, 254, 3}, {254, 1, 253}, {3, 252, 1},
+			{250, 2, 251}, {2, 3, 250}, {253, 254, 2}, {5, 250, 253}};
+		constexpr int candidateCount =
+			(int)(sizeof(candidates) / sizeof(candidates[0]));
+		bool candidateUsed[candidateCount] = {false};
 		bool hasTransparency = false;
+		const unsigned char *src = pixels.getData();
+		const std::size_t stride = pixels.getNumChannels();
 		for (int y = 0; y < h; ++y)
 		{
+			// FreeImage bitmaps are bottom up; `pixels` is top down.
 			BYTE *dst = FreeImage_GetScanLine(rgb, h - 1 - y);
 			for (int x = 0; x < w; ++x)
 			{
-				const ofColor color = pixels.getColor(x, y);
-				const bool transparent = color.a < 128;
+				const unsigned char *p =
+					src + ((std::size_t)y * (std::size_t)w + x) * stride;
+				const bool transparent = p[3] < 128;
 				hasTransparency = hasTransparency || transparent;
-				dst[x * 3 + FI_RGBA_RED] = transparent ? 255 : color.r;
-				dst[x * 3 + FI_RGBA_GREEN] = transparent ? 0 : color.g;
-				dst[x * 3 + FI_RGBA_BLUE] = transparent ? 255 : color.b;
+				if (transparent) continue;
+				dst[x * 3 + FI_RGBA_RED] = p[0];
+				dst[x * 3 + FI_RGBA_GREEN] = p[1];
+				dst[x * 3 + FI_RGBA_BLUE] = p[2];
+				for (int c = 0; c < candidateCount; ++c)
+					if (p[0] == candidates[c].r && p[1] == candidates[c].g &&
+						p[2] == candidates[c].b) candidateUsed[c] = true;
+			}
+		}
+		int key = -1;
+		for (int c = 0; c < candidateCount && key < 0; ++c)
+			if (!candidateUsed[c]) key = c;
+		if (key < 0)
+		{
+			// Every candidate is in the artwork. Vanishingly unlikely, and the
+			// honest failure is a hole in the drawing that says why.
+			key = 0;
+			ofLogWarning("JPbox_paint") << name <<
+				": no unused colour left for GIF transparency; pixels drawn in "
+				"the key colour will come out transparent";
+		}
+		if (hasTransparency)
+		{
+			// Second pass, now that the key is known: only the transparent
+			// pixels need it, and the opaque ones were written above.
+			for (int y = 0; y < h; ++y)
+			{
+				BYTE *dst = FreeImage_GetScanLine(rgb, h - 1 - y);
+				for (int x = 0; x < w; ++x)
+				{
+					const unsigned char *p =
+						src + ((std::size_t)y * (std::size_t)w + x) * stride;
+					if (p[3] >= 128) continue;
+					dst[x * 3 + FI_RGBA_RED] = candidates[key].r;
+					dst[x * 3 + FI_RGBA_GREEN] = candidates[key].g;
+					dst[x * 3 + FI_RGBA_BLUE] = candidates[key].b;
+				}
 			}
 		}
 		RGBQUAD reserved{};
-		reserved.rgbRed = 255; reserved.rgbGreen = 0; reserved.rgbBlue = 255;
+		reserved.rgbRed = candidates[key].r;
+		reserved.rgbGreen = candidates[key].g;
+		reserved.rgbBlue = candidates[key].b;
 		FIBITMAP *indexed = FreeImage_ColorQuantizeEx(rgb, FIQ_WUQUANT,
 			256, hasTransparency ? 1 : 0, hasTransparency ? &reserved : nullptr);
 		FreeImage_Unload(rgb);
@@ -1332,8 +1652,13 @@ bool JPbox_paint::exportGif(const std::string &path)
 			const RGBQUAD *palette = FreeImage_GetPalette(indexed);
 			int transparentIndex = 0;
 			for (int i = 0; i < 256; ++i)
-				if (palette[i].rgbRed == 255 && palette[i].rgbGreen == 0 &&
-					palette[i].rgbBlue == 255) { transparentIndex = i; break; }
+				if (palette[i].rgbRed == candidates[key].r &&
+					palette[i].rgbGreen == candidates[key].g &&
+					palette[i].rgbBlue == candidates[key].b)
+				{
+					transparentIndex = i;
+					break;
+				}
 			BYTE alpha[256];
 			std::fill(std::begin(alpha), std::end(alpha), (BYTE)255);
 			alpha[transparentIndex] = 0;
@@ -1347,7 +1672,7 @@ bool JPbox_paint::exportGif(const std::string &path)
 		const BYTE disposal = 2;
 		setGifMetadata(indexed, "DisposalMethod", FIDT_BYTE,
 			&disposal, sizeof(disposal));
-		if (frame == 0)
+		if (frame == firstCel)
 		{
 			const DWORD loop = 0;
 			setGifMetadata(indexed, "Loop", FIDT_LONG, &loop, sizeof(loop));
@@ -1510,8 +1835,18 @@ void JPbox_paint::commitStroke(const JPPaintStroke &stroke)
 	edit.layerIndex = doc.currentLayer;
 	edit.strokeIndex = (int)list->size();
 	edit.stroke = stroke;
+	// Symmetry is expanded HERE rather than in the editor, so every way a stroke
+	// can be committed - brush, shape, and a materialised bucket fill - mirrors
+	// the same way, and one undo takes the whole group.
+	jp_paint::appendSymmetryStrokes(stroke, doc.symmetry, edit.extraStrokes);
 	if (!jp_paint::applyEdit(doc, edit)) return;
 	recordEdit(edit);
+	std::vector<JPPaintStroke> appended;
+	appended.reserve(1 + edit.extraStrokes.size());
+	appended.push_back(stroke);
+	appended.insert(appended.end(), edit.extraStrokes.begin(),
+		edit.extraStrokes.end());
+	appendStrokesToRasterCache(cel, doc.currentLayer, appended);
 }
 
 void JPbox_paint::clearCurrentLayer()
@@ -1842,10 +2177,21 @@ void JPbox_paint::writeStrokes(ofXml &parent,
 			strokeNode.appendChild("hardness").set(stroke.hardness);
 		strokeNode.appendChild("erase").set(stroke.erase);
 		strokeNode.appendChild("tool").set(stroke.tool);
-		if (stroke.tool == (int)JPPaintTool::Fill)
+		if (stroke.tool == (int)JPPaintTool::Fill ||
+			stroke.tool == (int)JPPaintTool::Region)
 		{
-			// Only a bucket has one, so only a bucket writes one.
+			// Only a bucket has one, so only a bucket writes one. A Region no
+			// longer needs it to render, but keeping it says what the region was
+			// traced from.
 			strokeNode.appendChild("tolerance").set(stroke.tolerance);
+		}
+		// A region's remaining contours, holes included. Same packed encoding as
+		// the point run, so a traced 4K edge costs bytes rather than kilobytes.
+		for (const std::vector<JPPaintPoint> &contour : stroke.contours)
+		{
+			if (contour.size() < 3) continue;
+			strokeNode.appendChild("contour").appendChild("pts").set(
+				jp_paint::packPoints(contour));
 		}
 		for (const JPPaintClip &clip : stroke.clips)
 		{
@@ -1905,9 +2251,21 @@ void JPbox_paint::readStrokes(const ofXml &parent,
 			continue;
 		}
 		if (stroke.points.empty()) continue;
+		for (const ofXml &contourNode : strokeNode.getChildren("contour"))
+		{
+			auto contourPoints = contourNode.getChild("pts");
+			if (!contourPoints) continue;
+			std::vector<JPPaintPoint> contour;
+			if (!jp_paint::unpackPoints(contourPoints.getValue(), contour) ||
+				contour.size() < 3) continue;
+			stroke.contours.push_back(std::move(contour));
+		}
 		for (const ofXml &clipNode : strokeNode.getChildren("clip"))
 		{
-			if (stroke.clips.size() >= 8) break;
+			// Same ceiling a selection can build. A savefile written by a
+			// future version with a higher cap loads its first
+			// kMaxStrokeClips clips rather than being rejected.
+			if (stroke.clips.size() >= jp_paint::kMaxStrokeClips) break;
 			auto clipPoints = clipNode.getChild("pts");
 			if (!clipPoints) continue;
 			JPPaintClip clip;
@@ -1935,6 +2293,7 @@ void JPbox_paint::saveCustomState(ofXml &boxNode) const
 		 ofToString(doc.bgB) + " " + ofToString(doc.bgA));
 	root.appendChild("canvasSize").set(ofToString(doc.canvasWidth) + " " +
 		ofToString(doc.canvasHeight));
+	root.appendChild("symmetry").set(doc.symmetry);
 
 	// The layer stack, described once. <layer> under <layers> is the layer
 	// itself; <layer> under <frame> is that cel's strokes for it. Different
@@ -2027,6 +2386,9 @@ void JPbox_paint::loadCustomState(const ofXml &boxNode)
 			doc.canvasHeight = std::clamp(ofToInt(parts[1]), 16, 8192);
 		}
 	}
+	auto symmetry = root.getChild("symmetry");
+	// Absent in documents written before symmetry existed, which is off.
+	doc.symmetry = symmetry ? std::clamp(symmetry.getIntValue(), 0, 3) : 0;
 
 	// The layer stack. A file written before layers existed has no <layers>
 	// block at all, which is exactly when a single default layer is right.
