@@ -3639,7 +3639,8 @@ void JPboxgroup::update(){
 					preset->boxes[i]->update();
 				}
 				// Handle box grabbing for sub-boxes
-				if (ofGetMousePressed() && !viewportPanning){
+				if (ofGetMousePressed() && !viewportPanning &&
+					!inspectorOwnsPointer){
 					JPdragobject::setMouseOverride(canvasMouse);
 					if (preset->boxes[i]->mouseOverOutlet() && !ouletagarrado && !shaderboxagarrado){
 						preset->boxes[i]->activeFlag = false;
@@ -3685,6 +3686,7 @@ void JPboxgroup::update(){
 	// Reset dragging state when mouse is not pressed
 	if (!ofGetMousePressed())
 	{
+		inspectorOwnsPointer = false;
 		draggedExposedBoxIndex = -1;
 		draggedExposedParamIndex = -1;
 	}
@@ -3736,7 +3738,8 @@ void JPboxgroup::update(){
 		}
 
 		// PARA AGARRAR LAS CAJITAS :
-		if (ofGetMousePressed() && !draw_SelectionRect && !viewportPanning){
+		if (ofGetMousePressed() && !draw_SelectionRect && !viewportPanning &&
+			!inspectorOwnsPointer){
 			JPdragobject::setMouseOverride(canvasMouse);
 			if (boxes[i]->mouseOverOutlet() && !ouletagarrado && !shaderboxagarrado){
 				boxes[i]->activeFlag = false;
@@ -3908,6 +3911,30 @@ void JPboxgroup::update_paramswindow()
 	jp_pointer::Scope pointerScope(jp_pointer::kInspector);
 
 	int index = 0; // INDICE PARA LOS BOTONES :
+
+	// Pointer gestures belong to the surface where they started. Legacy
+	// inspector widgets poll the global mouse state from update()/draw(), so a
+	// box drag that crosses the panel would otherwise satisfy "pressed + hover"
+	// and arm the slider underneath it. Disable every inspector controller while
+	// the canvas owns the gesture; a genuine slider drag has none of these flags
+	// set and continues to work even after leaving the panel bounds.
+	const bool canvasOwnsPointer = shaderboxagarrado || ouletagarrado ||
+		cualestaagarrado >= 0 || outlet_cualestaagarrado >= 0 ||
+		draw_SelectionRect || viewportPanning;
+	if (canvasOwnsPointer)
+	{
+		controllerselected = -1;
+		for (JPcontroller *controller : controllers)
+		{
+			if (controller == nullptr) continue;
+			controller->activeFlag = false;
+			controller->activable2 = false;
+			// Complex sliders propagate activable2 to their nested value,
+			// automation and range controls from update().
+			controller->update();
+		}
+		return;
+	}
 
 	// TODO ESTO PARA QUE TIPO AGARRES UN SOLO SLIDER A LA VEZ Y NO SE VUELVA LOCO
 	if (!ofGetMousePressed())
@@ -4265,6 +4292,12 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 {
 	////SET OPEN GUI NUMBER :
 	ofVec2f canvasMouse = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
+	// Capture the gesture at its origin. Checking only the current hover in
+	// update() is too late: a slider drag may leave the inspector and cross a
+	// box, while a box drag may enter the inspector. Each surface must retain
+	// ownership until release.
+	inspectorOwnsPointer = getInspectorBox() != nullptr &&
+		getInspectorBounds().inside(ofGetMouseX(), ofGetMouseY());
 
 	float dif = ofGetSystemTimeMillis() - lasttime_mouseclick;
 	// cout << "Diference " << dif << endl;
@@ -4732,6 +4765,9 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 }
 void JPboxgroup::update_mouseReleased(int mouseButton)
 {
+	// Release pointer capture before clearing the individual drag states. A
+	// following press can then choose its owning surface from its own origin.
+	inspectorOwnsPointer = false;
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT)
 	{
 		mediaTimelineDragging = false;

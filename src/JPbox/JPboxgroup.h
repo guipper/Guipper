@@ -1203,6 +1203,10 @@ private:
 	bool ouletagarrado;
 	int cualestaagarrado = -1;
 	int outlet_cualestaagarrado = -1;
+	// True from a press that began inside the inspector until its release. The
+	// graph still contains legacy pressed+hover polling, so it needs this capture
+	// bit to avoid grabbing a box behind the panel during a slider drag.
+	bool inspectorOwnsPointer = false;
 	CueState cueState;
 	float cuePanelX = 24.0f;
 	float cuePanelY = 360.0f;
