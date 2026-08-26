@@ -71,6 +71,18 @@ void TransitionSR::update() {
 	advance();
 	ofPushStyle();
 	ofSetColor(255, 255);
+	// Rect mode is global and this runs during UPDATE, so it inherits whatever
+	// the previous frame's draw happened to leave - and JPbox::draw leaves
+	// OF_RECTMODE_CENTER. Both draws below place a rectangle at (0,0) with the
+	// FBO's full size, which under CENTER lands three quarters outside it: the
+	// crossfade ends up painted into the top-left quadrant of `este` alone, and
+	// the live output shows a quarter-filled screen for as long as the fade
+	// lasts. Invisible the rest of the time, because a finished transition is
+	// never the thing drawn - which is exactly why it only ever showed up right
+	// after an undo, a group or an ungroup, the three moments that arm one.
+	//
+	// ofPushStyle covers rectMode, so this is restored on the way out.
+	ofSetRectMode(OF_RECTMODE_CORNER);
 	este.begin();
 	// Transparent pixels must replace the previous frame. Blending a new
 	// transparent frame over the old transition canvas leaves position trails.

@@ -7,6 +7,8 @@
 #include "../JPutils/jp_parametergroup.h"
 #include "../JPutils/jp_fbohandler.h"
 #include <array>
+#include <utility>
+#include <vector>
 //#include "Shaderrender.h"
 
 //#include "JPbox/JPboxgroup.h"
@@ -63,6 +65,43 @@ public:
 		float guideOpacity = 0.55f;
 	};
 
+	// ------------------------------------------------------- mapping undo
+	//
+	// A snapshot ring, not a command ring - the opposite choice from the graph
+	// and the paint document, and for the opposite reason. The whole mapping
+	// state is four layers of twelve points plus their mask contours: a few KB,
+	// already a value type of std::array and std::vector of POD, already copied
+	// wholesale by copyCustomStateFrom. Describing each corner drag as an
+	// invertible command would be more code and more ways to be wrong for no
+	// memory saved.
+	//
+	// The simple corner-pin tier has no struct at all - it lives in eight shader
+	// parameters - so the snapshot carries those alongside, and one entry covers
+	// whichever tier the box is using.
+	struct MappingSnapshot
+	{
+		AdvancedMappingState advanced;
+		std::vector<std::pair<int, float>> simpleCorners;
+	};
+
+	// Bounded by count alone: unlike a detached box or a paint stroke, an entry
+	// here has no payload that can grow without bound.
+	static constexpr std::size_t kMaxMappingHistory = 100;
+
+	// Records `before` as the state to come back to, given what the box holds
+	// now as the state to come back FROM. No-op when the two are equal, so a
+	// click that changed nothing does not become a step.
+	void pushMappingSnapshot(const MappingSnapshot &before);
+	MappingSnapshot captureMappingSnapshot() const;
+	bool mappingUndo();
+	bool mappingRedo();
+	bool canMappingUndo() const { return mappingCursor > 0; }
+	bool canMappingRedo() const
+	{
+		return mappingCursor + 1 < mappingHistory.size();
+	}
+	void clearMappingHistory();
+
 	JPbox_shader(); // constructor declared
 	~JPbox_shader();
 
@@ -118,6 +157,14 @@ public:
 
 private:
 	AdvancedMappingState advancedMappingState;
+	// mappingHistory[0, mappingCursor) are behind the current state;
+	// [mappingCursor, end) are ahead of it. Same cursor discipline as the other
+	// two rings in the project.
+	std::vector<MappingSnapshot> mappingHistory;
+	std::size_t mappingCursor = 0;
+	void applyMappingSnapshot(const MappingSnapshot &snapshot);
+	bool sameMappingSnapshot(const MappingSnapshot &a,
+		const MappingSnapshot &b) const;
 	bool advancedMappingInitialized = false;
 	std::array<ofFbo, ADVANCED_MAPPING_LAYER_COUNT>
 		advancedMappingMasks;

@@ -50,6 +50,7 @@ public:
 	// void setup(string _dir);
 
 	vector<JPbox *> boxes; // ESTO SERIA UNA RELACION FRACTAL O QUE CARAJO ?
+
 						   // string dir;
 	// JPFbohandlerGroup fbohandlergroup;
 

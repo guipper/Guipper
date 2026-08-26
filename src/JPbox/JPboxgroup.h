@@ -38,7 +38,8 @@ class JPShaderEditor; // forward declaration
 // Esta clase como que va a manejar todos los shaderboxs y esas cosas:
 #include "../JPutils/jp_constants.h"
 #include "../JPutils/TransitionSR.h"
-class JPboxgroup
+#include "../JPutils/jp_graph_history.h"
+class JPboxgroup : public JPGraphHistoryTarget
 {
 
 public:
@@ -132,6 +133,38 @@ public:
 	bool paintWantsKeyCapture() const;
 	void paintKeyPressed(int key);
 	bool paintUndoShortcut(bool redo);
+
+	// ------------------------------------------------------------- undo/redo
+	//
+	// Ctrl+Z reaches these in order - paint, then mapping, then the graph - and
+	// each returns false when its panel is not the one being edited, so the
+	// chord falls through to whichever surface actually owns it.
+	bool mappingUndoShortcut(bool redo);
+	bool graphUndoShortcut(bool redo);
+
+	// Change the active render AS A USER EDIT: the same request the sequencer
+	// and OSC make, plus the undo step they deliberately do not create.
+	// Everything driven by a click goes through here.
+	bool editActiveRenderForCurrentView(int index);
+
+	// JPGraphHistoryTarget. `view` is the owning JPbox_preset *, null for the
+	// main graph; the ring hands back whichever one it belongs to.
+	bool applyGraphEdit(JPGraphEdit &edit) override;
+	bool revertGraphEdit(JPGraphEdit &edit) override;
+	void releaseGraphEdit(JPGraphEdit &edit, bool wasApplied) override;
+
+	// Points every ring in the composition at this group. Called after load and
+	// after any structural change that can introduce a preset the rings have not
+	// seen, since a preset built by the XML reader has an unbound history.
+	void bindHistories();
+	// The stack for the view the user is looking at: the cue draft while a cue is
+	// being staged, otherwise the active group's, otherwise the main graph's.
+	JPGraphUndoRing &currentViewHistory();
+	// Adding a box is deliberately not undoable, but it still has to drop the
+	// redo tail - see jp_graph_history.h.
+	void invalidateCurrentViewRedo();
+	// Stamps the entry with the view it was recorded in, then files it.
+	void pushEdit(JPGraphEdit &&edit);
 	bool paintSelectAllShortcut();
 	bool paintClipboardShortcut(char operation);
 	bool paintTimelineClipboardShortcut(char operation);
@@ -468,6 +501,9 @@ public:
 		requiredRenderSources = names;
 	}
 	void groupSelectedBoxes();
+	// Dissolves every group in the selection back into the current view, as one
+	// undo step. Returns false when the selection holds no group.
+	bool ungroupSelectedBoxes();
 
 	// Clipboard - copy/paste across main and group views
 	string clipboardXml;
@@ -666,7 +702,9 @@ private:
 	void zoomViewport(const ofVec2f &screenAnchor, float zoomFactor);
 	void panViewport(const ofVec2f &screenDelta);
 	bool boxIntersectsSelection(JPbox *box) const;
-	bool deleteBoxAtIndex(int index);
+	// Removes a box from the main graph. With `detachedOut` the box is handed
+	// over ALIVE for the history to hold; without it, it is destroyed as before.
+	bool deleteBoxAtIndex(int index, JPGraphDetachedBox *detachedOut = nullptr);
 	bool deleteSelectedBoxes();
 
 	std::function<bool(float, float)> externalGuiHitTest;
@@ -1207,6 +1245,135 @@ private:
 	// graph still contains legacy pressed+hover polling, so it needs this capture
 	// bit to avoid grabbing a box behind the panel during a slider drag.
 	bool inspectorOwnsPointer = false;
+
+	// ---------------------------------------------------------------- history
+	//
+	// One ring per view. The main graph's lives here; each group carries its own
+	// (JPbox_preset::history); the cue draft gets a third, cleared whenever the
+	// cue is applied or dropped, so staging edits never leak into the real graph's
+	// stack.
+	JPGraphUndoRing graphHistory;
+	JPGraphUndoRing cueDraftHistory;
+
+	// Which box list an edit's uids resolve against, and where its activeRender
+	// lives. `view` is the JPbox_preset * the ring belongs to, null for the main
+	// graph - the same handle JPGraphUndoRing hands back.
+	// An entry names its own view (JPGraphEdit::viewUid), so these resolve from
+	// the entry rather than from the ring that holds it.
+	vector<JPbox *> *historyBoxesForEdit(const JPGraphEdit &edit);
+	JPbox_preset *historyPresetForEdit(const JPGraphEdit &edit);
+	int *historyActiveRenderForEdit(const JPGraphEdit &edit);
+	string currentViewUid() const;
+	// Index path to the preset with this uid, same convention getActivePreset()
+	// walks. Empty uid yields an empty path, which is the main graph.
+	bool findViewPath(const string &viewUid, vector<int> &outPath) const;
+	bool navigateToView(const vector<int> &path);
+	bool navigateToEditView(const JPGraphEdit &edit);
+	void focusInspectorOnEditBox(const JPGraphEdit &edit, bool applying);
+	JPbox *findBoxInView(const vector<JPbox *> &list, const string &boxUid) const;
+	JPbox *findBoxAnywhere(const string &boxUid) const;
+	JPbox *findBoxForEdit(const vector<JPbox *> &list,
+		const string &boxUid) const;
+	// Everything an undo/redo has to put back in order: the inspector holds raw
+	// JPParameter pointers that a restored or removed box would dangle.
+	void afterHistoryChange(const JPGraphEdit &edit, bool applying,
+		bool structural, bool retargetTransition = true);
+
+	// --- gesture capture -------------------------------------------------
+	//
+	// A drag is only one undo step once it ENDS, so the "before" side has to be
+	// taken when the gesture starts. Sliders make this mandatory rather than
+	// tidy: JPSlider writes the parameter from draw(), every frame of the drag,
+	// so by mouseReleased the original value is long gone.
+	struct PendingMove
+	{
+		string uid;
+		float fromX = 0.0f;
+		float fromY = 0.0f;
+	};
+	vector<PendingMove> pendingMoves;
+	void beginMoveCapture();
+	void commitMoveCapture();
+
+	// The on/off and bypass squares are legacy JPToogle widgets that flip
+	// themselves from draw() when clicked, so there is no call site to hook.
+	// Snapshotting both flags per box around the gesture catches every one of
+	// them - the box header's and the inspector's alike.
+	struct PendingBoxState
+	{
+		string uid;
+		bool onoff = false;
+		bool bypass = false;
+	};
+	vector<PendingBoxState> pendingBoxStates;
+	void beginBoxStateCapture();
+	void commitBoxStateCapture();
+
+	// The mapping panel keeps its own stack, on the box being mapped, so Ctrl+Z
+	// there walks back mapping work and never the graph. One capture at the top
+	// of the panel's press handler covers both mapping tiers.
+	bool pendingMappingValid = false;
+	JPbox_shader *pendingMappingBox = nullptr;
+	JPbox_shader::MappingSnapshot pendingMappingBefore;
+	void beginMappingCapture();
+	void commitMappingCapture();
+
+	// Every inspector widget the user could be about to drag, with the value it
+	// held before the press. Captured wholesale rather than per-widget because a
+	// slider writes its parameter from JPSlider::draw(), on every frame of the
+	// drag - by the time the mouse is released the original value is long gone.
+	struct PendingParam
+	{
+		JPParameter *parameter = nullptr;
+		string uid;
+		int index = -1;
+		JPGraphParamState before;
+	};
+	vector<PendingParam> pendingParams;
+	void beginParameterCapture();
+	void commitParameterCapture();
+	// Which box owns this JPParameter, walking groups too: an exposed slider on a
+	// group points straight at a child's parameter.
+	bool resolveParameterOwner(JPParameter *parameter, string &uid,
+		int &index) const;
+
+	void recordConnectionChange(JPbox *consumer, int inlet,
+		const string &producerBefore, const string &producerAfter);
+	void recordInputReorder(JPbox *consumer, int first, int second);
+	// The active render as the current view sees it, or -1 when the view has
+	// none. Read before a change so recordActiveRenderChange can be handed it.
+	int currentViewActiveRender();
+	void recordActiveRenderChange(int beforeIndex);
+	bool applyActiveRenderEdit(vector<JPbox *> &list, const JPGraphEdit &edit,
+		const string &boxUid, int fallbackIndex);
+
+	// The single place a box leaves a view alive. Returns the detached record;
+	// the caller either hands it to the history or destroys it.
+	// Which box currently feeds this inlet, as a uid. Matched on the FBO pointer
+	// rather than the name, because names are not unique.
+	string producerUidForInlet(const vector<JPbox *> &list, JPbox *consumer,
+		int inlet) const;
+	bool applyConnectionEdit(vector<JPbox *> &list, const JPGraphEdit &edit,
+		const string &producerUid);
+	// The exposed-parameter arrays run parallel to a group's box list, so they
+	// have to gain and lose slots in lockstep with it.
+	void eraseParentSlots(JPbox_preset *owner, int index);
+	void insertParentSlots(JPbox_preset *owner, int index, int parameterCount);
+	bool applyGroupPayload(vector<JPbox *> &list,
+		JPGraphEdit::GroupPayload &payload, JPbox_preset *owner);
+	bool revertGroupPayload(vector<JPbox *> &list,
+		JPGraphEdit::GroupPayload &payload, JPbox_preset *owner);
+	bool applyGroupEdit(vector<JPbox *> &list, JPGraphEdit &edit,
+		JPbox_preset *owner);
+	bool revertGroupEdit(vector<JPbox *> &list, JPGraphEdit &edit,
+		JPbox_preset *owner);
+
+	JPGraphDetachedBox detachBoxFromView(vector<JPbox *> &list, int index,
+		JPbox_preset *owner);
+	void reattachBoxToView(vector<JPbox *> &list, JPGraphDetachedBox &detached,
+		JPbox_preset *owner);
+	void destroyDetachedBox(JPGraphDetachedBox &detached);
+
 	CueState cueState;
 	float cuePanelX = 24.0f;
 	float cuePanelY = 360.0f;

@@ -841,3 +841,146 @@ void JPbox_shader::copyCustomStateFrom(const JPbox *source)
 		advancedMappingState.guideVisible = visible;
 	}
 }
+
+// ------------------------------------------------------------- mapping undo
+
+namespace
+{
+	// The simple corner-pin tier is eight shader uniforms rather than a struct,
+	// so a snapshot has to name them. Same contract JPboxgroup reads them by.
+	const char *kSimpleMappingParams[] = {
+		"top_left_x", "top_left_y",
+		"top_right_x", "top_right_y",
+		"bottom_right_x", "bottom_right_y",
+		"bottom_left_x", "bottom_left_y",
+		"feather",
+	};
+
+	bool sameNodeList(const std::vector<JPbox_shader::AdvancedMappingContour> &a,
+		const std::vector<JPbox_shader::AdvancedMappingContour> &b)
+	{
+		if (a.size() != b.size()) return false;
+		for (std::size_t i = 0; i < a.size(); i++)
+		{
+			if (a[i].closed != b[i].closed) return false;
+			if (a[i].nodes.size() != b[i].nodes.size()) return false;
+			for (std::size_t n = 0; n < a[i].nodes.size(); n++)
+			{
+				const JPbox_shader::AdvancedMappingNode &x = a[i].nodes[n];
+				const JPbox_shader::AdvancedMappingNode &y = b[i].nodes[n];
+				if (x.anchor != y.anchor || x.inHandle != y.inHandle ||
+					x.outHandle != y.outHandle || x.smooth != y.smooth)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+}
+
+JPbox_shader::MappingSnapshot JPbox_shader::captureMappingSnapshot() const
+{
+	MappingSnapshot snapshot;
+	snapshot.advanced = advancedMappingState;
+	JPbox_shader *self = const_cast<JPbox_shader *>(this);
+	for (const char *name : kSimpleMappingParams)
+	{
+		const int index = self->parameters.indexOfName(name);
+		if (index < 0) continue;
+		snapshot.simpleCorners.push_back(
+			std::make_pair(index, self->parameters.getFloatValue(index)));
+	}
+	return snapshot;
+}
+
+bool JPbox_shader::sameMappingSnapshot(const MappingSnapshot &a,
+	const MappingSnapshot &b) const
+{
+	if (a.simpleCorners != b.simpleCorners) return false;
+	if (a.advanced.selectedLayer != b.advanced.selectedLayer) return false;
+	if (a.advanced.guideVisible != b.advanced.guideVisible) return false;
+	if (a.advanced.guideOpacity != b.advanced.guideOpacity) return false;
+	if (a.advanced.guideImagePath != b.advanced.guideImagePath) return false;
+	for (int i = 0; i < ADVANCED_MAPPING_LAYER_COUNT; i++)
+	{
+		const AdvancedMappingLayer &x = a.advanced.layers[(std::size_t)i];
+		const AdvancedMappingLayer &y = b.advanced.layers[(std::size_t)i];
+		if (x.corners != y.corners) return false;
+		if (x.edgeHandles != y.edgeHandles) return false;
+		if (x.fitMode != y.fitMode) return false;
+		if (x.inspectorExpanded != y.inspectorExpanded) return false;
+		if (!sameNodeList(x.masks, y.masks)) return false;
+	}
+	return true;
+}
+
+void JPbox_shader::applyMappingSnapshot(const MappingSnapshot &snapshot)
+{
+	advancedMappingState = snapshot.advanced;
+	for (const std::pair<int, float> &entry : snapshot.simpleCorners)
+	{
+		if (entry.first < 0 || entry.first >= parameters.getSize()) continue;
+		parameters.setFloatValue(entry.second, entry.first);
+		parameters.setFloatLerpValue(entry.second, entry.first);
+	}
+	// Every layer, because a snapshot can differ from the live state in any of
+	// them and the raster masks are derived, not stored.
+	markAdvancedMappingMaskDirty();
+}
+
+void JPbox_shader::pushMappingSnapshot(const MappingSnapshot &before)
+{
+	const MappingSnapshot now = captureMappingSnapshot();
+	// A press that selected a node, or a drag that ended where it started, is
+	// not an edit.
+	if (sameMappingSnapshot(before, now)) return;
+
+	// The ring holds STATES, not deltas, and mappingHistory[mappingCursor] is
+	// always where the box is right now. Undo is a step towards the front.
+	if (mappingHistory.empty())
+	{
+		// First edit of the session seeds the state it started from.
+		mappingHistory.push_back(before);
+		mappingCursor = 0;
+	}
+	else
+	{
+		// Anything ahead of the cursor is unreachable now that history branched.
+		mappingHistory.resize(mappingCursor + 1);
+		// Normally identical to what is already there. It differs only if the
+		// state moved without going through here, and then `before` is the
+		// truthful account of what this edit started from.
+		mappingHistory[mappingCursor] = before;
+	}
+	mappingHistory.push_back(now);
+	mappingCursor = mappingHistory.size() - 1;
+
+	while (mappingHistory.size() > kMaxMappingHistory)
+	{
+		mappingHistory.erase(mappingHistory.begin());
+		if (mappingCursor > 0) mappingCursor--;
+	}
+}
+
+bool JPbox_shader::mappingUndo()
+{
+	if (!canMappingUndo()) return false;
+	mappingCursor--;
+	applyMappingSnapshot(mappingHistory[mappingCursor]);
+	return true;
+}
+
+bool JPbox_shader::mappingRedo()
+{
+	if (!canMappingRedo()) return false;
+	mappingCursor++;
+	applyMappingSnapshot(mappingHistory[mappingCursor]);
+	return true;
+}
+
+void JPbox_shader::clearMappingHistory()
+{
+	mappingHistory.clear();
+	mappingCursor = 0;
+}

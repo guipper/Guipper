@@ -626,6 +626,10 @@ void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 	font_p = &_font;
 	activerender = &_activerender;
 
+	// Once, here. The rings no longer care which view an entry belongs to - the
+	// entry says so itself - so nothing has to re-bind them when a group appears.
+	bindHistories();
+
 	//	cout << "WIIIIII " << jp_constants::renderWidth << endl;
 
 	inspectorwindow_width = 450;
@@ -2108,6 +2112,11 @@ bool JPboxgroup::update_mappingMousePressed(int mouseButton)
 	{
 		return false;
 	}
+	// The "before" state for whatever this press turns out to be - a corner
+	// drag, a mask node, a fit-mode click. One capture at the top covers both
+	// mapping tiers and every widget in the panel, and it is thrown away again
+	// on release if nothing actually moved.
+	beginMappingCapture();
 	if (getAdvancedMappingEditBox() != nullptr)
 	{
 		return updateAdvancedMappingMousePressed(mouseButton);
@@ -2233,13 +2242,16 @@ bool JPboxgroup::update_mappingMouseReleased(int mouseButton)
 {
 	if (getAdvancedMappingEditBox() != nullptr)
 	{
-		return updateAdvancedMappingMouseReleased(mouseButton);
+		const bool handled = updateAdvancedMappingMouseReleased(mouseButton);
+		commitMappingCapture();
+		return handled;
 	}
 	if (mouseButton != OF_MOUSE_BUTTON_LEFT ||
 		!mappingPanelPointerCaptured)
 	{
 		return false;
 	}
+	commitMappingCapture();
 	mappingDraggedCorner = -1;
 	mappingPanelDragging = false;
 	mappingPanelResizing = false;
@@ -2652,6 +2664,7 @@ bool JPboxgroup::moveInspectorInputUp(JPbox *box, int linkIndex)
 	{
 		return false;
 	}
+	recordInputReorder(box, linkIndex, linkIndex - 1);
 
 	if (isCueDraftMode())
 	{
@@ -2675,7 +2688,14 @@ bool JPboxgroup::unlinkInspectorInput(JPbox *box, int linkIndex)
 		return false;
 	}
 
+	// The producer has to be identified before the pointer is dropped; afterwards
+	// the inlet no longer knows what it was carrying.
+	vector<JPbox *> *currentBoxes = getCurrentViewBoxes();
+	const string producerBefore = currentBoxes != nullptr ?
+		producerUidForInlet(*currentBoxes, box, linkIndex) : string();
+
 	box->fbohandlergroup.deleteFboPointer(linkIndex);
+	recordConnectionChange(box, linkIndex, producerBefore, string());
 	if (isCueDraftMode())
 	{
 		markCueDraftDirty(cueSelectedIndex(), CUE_DIRTY_LINKS);
@@ -4299,6 +4319,20 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	inspectorOwnsPointer = getInspectorBox() != nullptr &&
 		getInspectorBounds().inside(ofGetMouseX(), ofGetMouseY());
 
+	// The "before" side of every drag that this press could turn out to be.
+	// Taken here, unconditionally, rather than at the point each drag actually
+	// arms itself: box grabbing is decided by polling inside update(), and a
+	// slider rewrites its parameter from draw() on every frame it is held, so by
+	// the time the button comes up there is nothing left to compare against.
+	// Both captures are a handful of floats per box and push nothing unless the
+	// gesture really changed something.
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT)
+	{
+		beginMoveCapture();
+		beginParameterCapture();
+		beginBoxStateCapture();
+	}
+
 	float dif = ofGetSystemTimeMillis() - lasttime_mouseclick;
 	// cout << "Diference " << dif << endl;
 	isDoubleClick = (ofGetSystemTimeMillis() - lasttime_mouseclick < duration_mouseclick);
@@ -4419,7 +4453,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				// Double-click: activate the box in the graph currently on screen.
 				if (isDoubleClick)
 				{
-					requestSetActiveRenderForCurrentView(clickedIndex);
+					editActiveRenderForCurrentView(clickedIndex);
 				}
 				return; // Don't process main boxes
 			}
@@ -4504,7 +4538,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		}
 		if (inspectorsetactive.mouseGrab())
 		{
-			requestSetActiveRenderForCurrentView(getCurrentViewSelectedIndex());
+			editActiveRenderForCurrentView(getCurrentViewSelectedIndex());
 		}
 		if (inspectorreload.mouseGrab())
 		{
@@ -4729,7 +4763,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		if (isDoubleClick)
 		{
 			//*activerender = i;
-			requestSetActiveRenderForCurrentView(i);
+			editActiveRenderForCurrentView(i);
 		}
 	}
 		}
@@ -4842,6 +4876,10 @@ void JPboxgroup::update_mouseReleased(int mouseButton)
 					{
 						continue;
 					}
+					// Read the old producer before overwriting it - that is
+					// the only side of the edit that cannot be recovered later.
+					const string producerBefore =
+						producerUidForInlet(activeBoxes, target, inlet);
 					if (isCueDraftMode() && cueTargetsCurrentView())
 					{
 						commitCueDraftLink(targetIndex, inlet, sourceIndex);
@@ -4852,6 +4890,8 @@ void JPboxgroup::update_mouseReleased(int mouseButton)
 							&source->fbo, &source->name, inlet);
 						requestCueRebuild();
 					}
+					recordConnectionChange(target, inlet, producerBefore,
+						source->uid);
 					// Inlets cannot overlap in normal layouts, and one drop is
 					// one action even if malformed hitboxes do overlap.
 					targetIndex = -1;
@@ -4880,6 +4920,13 @@ void JPboxgroup::update_mouseReleased(int mouseButton)
 			updateBoxSelection();
 			draw_SelectionRect = false;
 		}
+		// The gesture is over, so whatever it changed is now one undo step. Both
+		// commits compare against what was captured on press and push nothing at
+		// all when the answer is "the same" - a click that grabbed a box without
+		// moving it, or a slider the user only touched, is not an edit.
+		commitMoveCapture();
+		commitParameterCapture();
+		commitBoxStateCapture();
 	}
 }
 bool JPboxgroup::update_cueMousePressed(int mouseButton)
@@ -6818,6 +6865,10 @@ bool JPboxgroup::toggleBypassForBox(string boxName)
 	JPbox *box = getEditableBoxForRealIndex(index);
 	if (box != nullptr)
 	{
+		// Not recorded: this is the MIDI path, and live control of a bypass
+		// during a set is a performance, not an edit somebody wants to walk
+		// back with Ctrl+Z. Clicking the same toggle IS recorded, by the
+		// gesture capture around mouse press and release.
 		box->setBypass(!box->getBypass());
 		markCueDraftDirty(index, CUE_DIRTY_BYPASS_PAUSE);
 		return true;
@@ -6830,6 +6881,7 @@ bool JPboxgroup::togglePauseForBox(string boxName)
 	JPbox *box = getEditableBoxForRealIndex(index);
 	if (box != nullptr)
 	{
+		// Not recorded, same as toggleBypassForBox above.
 		box->setonoff(!box->getonoff());
 		markCueDraftDirty(index, CUE_DIRTY_BYPASS_PAUSE);
 		return true;
@@ -7487,6 +7539,8 @@ void JPboxgroup::clearCueDraft()
 		}
 	}
 	cueState.draftBoxes.clear();
+	// The draft's stack addresses boxes that are being destroyed right here.
+	cueDraftHistory.clear();
 	cueState.draftRealIndices.clear();
 	cueState.dirtyDraftRealIndices.clear();
 	cueState.draftDirtyFlags.clear();
@@ -7591,38 +7645,13 @@ bool JPboxgroup::applyCueDraftToSource()
 				vector<JPbox *> &pb = cueState.targetPreset->boxes;
 				if (realIndex < (int)pb.size() && pb[realIndex] != nullptr)
 				{
-					string deletedName = pb[realIndex]->name;
-					cueState.targetPreset
-						->removeExposedTextureInputsForBox(
-							deletedName);
-					for (int k = 0; k < (int)pb.size(); k++)
-					{
-						if (k == realIndex || pb[k] == nullptr) continue;
-						for (int l = 0; l < pb[k]->fbohandlergroup.getSize(); l++)
-							if (pb[k]->fbohandlergroup.getFboName(l) == deletedName)
-								pb[k]->fbohandlergroup.deleteFboPointer(l);
-					}
-					pb[realIndex]->clear();
-					delete pb[realIndex];
-					pb.erase(pb.begin() + realIndex);
-					if (realIndex < (int)cueState.targetPreset
-							->exposedParams.size())
-					{
-						cueState.targetPreset->exposedParams.erase(
-							cueState.targetPreset
-								->exposedParams.begin() +
-							realIndex);
-					}
-					if (realIndex < (int)cueState.targetPreset
-							->exposedParamOriginalIndices.size())
-					{
-						cueState.targetPreset
-							->exposedParamOriginalIndices.erase(
-								cueState.targetPreset
-									->exposedParamOriginalIndices
-									.begin() + realIndex);
-					}
-					if (cueState.targetPreset->activeRender > realIndex) cueState.targetPreset->activeRender--;
+					// Applying a cue is a commit, not an edit the user walks
+					// back with Ctrl+Z - the cue has its own cancel. So the box
+					// is detached through the shared helper for consistency and
+					// then destroyed straight away.
+					JPGraphDetachedBox detached = detachBoxFromView(pb,
+						realIndex, cueState.targetPreset);
+					destroyDetachedBox(detached);
 				}
 			}
 			else
@@ -9469,6 +9498,11 @@ bool JPboxgroup::mouseOverGui()
 }
 void JPboxgroup::addBox(string directory, float _x, float _y)
 {
+	// Adding a box is deliberately NOT undoable - that was the ask. It still has
+	// to drop the redo tail: a redo recorded before this box existed would be
+	// replayed against a graph that no longer matches what it was captured from.
+	invalidateCurrentViewRedo();
+
 	// When in group view, add any box type to the active preset's sub-boxes
 	if (isGroupViewActive())
 	{
@@ -9581,6 +9615,12 @@ void JPboxgroup::clear()
 	endMappingEdit();
 	clearSelection();
 	clearCue();
+	// Before anything is deleted. A history entry can own detached boxes, and
+	// clearing the ring is what destroys them; leaving it until after the loop
+	// below would strand them, and leaving it out entirely would let a Ctrl+Z
+	// after a load reattach a box from the previous composition.
+	graphHistory.clear();
+	cueDraftHistory.clear();
 	// Before the boxes go: clearParameterMorph only touches boxes still in the
 	// vector, so releasing it afterwards would leave a box that survives the
 	// clear emitting a blended value forever.
@@ -9699,7 +9739,7 @@ bool JPboxgroup::isBoxSelected(int index) const
 	return std::find(selectedBoxIndices.begin(), selectedBoxIndices.end(), index) != selectedBoxIndices.end();
 }
 
-bool JPboxgroup::deleteBoxAtIndex(int index)
+bool JPboxgroup::deleteBoxAtIndex(int index, JPGraphDetachedBox *detachedOut)
 {
 	if (index < 0 || index >= boxes.size())
 	{
@@ -9730,26 +9770,21 @@ bool JPboxgroup::deleteBoxAtIndex(int index)
 		clearCue();
 	}
 
-	string deletedName = boxes[index]->name;
-	for (int k = boxes.size() - 1; k >= 0; k--)
+	// Detached, NOT destroyed. The history keeps the box alive, so undoing a
+	// delete costs no shader recompile and no video reload, and the object stays
+	// at the same address - which is the only reason the cables that were cut
+	// can be restored by handing back the very same &box->fbo pointer.
+	// destroyDetachedBox is what actually frees it: here when the caller does not
+	// want it, otherwise when the ring evicts the entry.
+	JPGraphDetachedBox detached = detachBoxFromView(boxes, index, nullptr);
+	if (detachedOut != nullptr)
 	{
-		if (k == index)
-		{
-			continue;
-		}
-		for (int l = 0; l < boxes[k]->fbohandlergroup.getSize(); l++)
-		{
-			if (boxes[k]->fbohandlergroup.getFboName(l) == deletedName)
-			{
-				boxes[k]->fbohandlergroup.deleteFboPointer(l);
-			}
-		}
+		*detachedOut = detached;
 	}
-
-	boxes[index]->clear();
-	delete boxes[index];
-	boxes[index] = nullptr;
-	boxes.erase(boxes.begin() + index);
+	else
+	{
+		destroyDetachedBox(detached);
+	}
 
 	if (boxes.empty())
 	{
@@ -9811,9 +9846,27 @@ bool JPboxgroup::deleteSelectedBoxes()
 	}
 	std::sort(selectedBoxIndices.begin(), selectedBoxIndices.end(), std::greater<int>());
 	selectedBoxIndices.erase(std::unique(selectedBoxIndices.begin(), selectedBoxIndices.end()), selectedBoxIndices.end());
+
+	// One entry for the whole selection, so a multi-box delete comes back with a
+	// single Ctrl+Z instead of one press per box.
+	JPGraphEdit edit;
+	edit.kind = JPGraphEdit::DeleteBoxes;
 	for (int i = 0; i < selectedBoxIndices.size(); i++)
 	{
-		deleteBoxAtIndex(selectedBoxIndices[i]);
+		JPGraphDetachedBox detached;
+		if (deleteBoxAtIndex(selectedBoxIndices[i], &detached) &&
+			detached.box != nullptr)
+		{
+			edit.detached.push_back(detached);
+		}
+	}
+	// Deleted highest index first, so reverse to leave the entry in ascending
+	// order: reattaching walks it forwards and each box lands at the index it
+	// was taken from.
+	std::reverse(edit.detached.begin(), edit.detached.end());
+	if (!edit.detached.empty())
+	{
+		pushEdit(std::move(edit));
 	}
 	clearSelection();
 	return true;
@@ -9877,27 +9930,24 @@ void JPboxgroup::groupSelectedBoxes()
 
 	float avgX = 0.0f;
 	float avgY = 0.0f;
+	vector<JPbox *> members;
 	vector<string> selectedNames;
+	members.reserve(selectedIndices.size());
 	selectedNames.reserve(selectedIndices.size());
 	for (int index : selectedIndices)
 	{
 		JPbox *box = (*currentBoxes)[index];
 		avgX += box->x;
 		avgY += box->y;
+		members.push_back(box);
 		selectedNames.push_back(box->name);
-		if (box->getTipo() == JPbox::PRESETBOX)
-		{
-			JPbox_preset *selectedPreset =
-				dynamic_cast<JPbox_preset *>(box);
-			if (selectedPreset != nullptr)
-			{
-				selectedPreset->save();
-			}
-		}
 	}
 	avgX /= (float)selectedIndices.size();
 	avgY /= (float)selectedIndices.size();
 
+	// Cables coming from OUTSIDE into a member become public inputs of the group,
+	// so the member keeps receiving its texture through the group's own inlet.
+	// Resolved before anything moves, while both ends are still siblings.
 	struct IncomingGroupTextureLink
 	{
 		string targetBoxName;
@@ -9972,186 +10022,160 @@ void JPboxgroup::groupSelectedBoxes()
 		}
 	}
 
-	// Build XML in the EXACT format that JPbox_preset::setup() expects
-	// (same format as JPboxgroup::save() but only for selected boxes)
-	ofXml xml;
-	xml.appendChild("activerender").set(groupedActiveRender);
+	// The group's own file. NOTHING is written here.
+	//
+	// Grouping used to serialise the selection to this path and rebuild the group
+	// by reading it back, which recompiled every child's shader, re-decoded its
+	// images and restarted its videos - for what is really just a move. It also
+	// destroyed the originals, so it could not be undone. The boxes are
+	// transplanted alive instead, and JPbox_preset::save() writes this file when
+	// the session is saved.
+	const string outputPath = "data/groups/group_" +
+		ofGetTimestampString() + ".xml";
 
-	for (int newIndex = 0;
-		newIndex < (int)selectedIndices.size();
-		newIndex++)
+	JPbox_preset *newPreset = new JPbox_preset();
+	// The BASE setup: geometry, buttons and the FBO, with no disk access.
+	// JPbox_preset::setup() is the one that loads children from a file, which is
+	// exactly what must not happen here.
+	newPreset->JPbox::setup(outputPath, groupName);
+	newPreset->setTipo(JPbox::PRESETBOX);
+	newPreset->setonoff(true);
+	newPreset->setPos(avgX, avgY);
+	newPreset->activeRenderTransitionRunning = false;
+	newPreset->activeRenderTransitionInitialized = false;
+	newPreset->activeRenderTransitionTarget = -1;
+	newPreset->lastCompositedActiveRender = -1;
+
+	// One entry for the whole operation, so a single Ctrl+Z unwinds it.
+	JPGraphEdit edit;
+	edit.kind = JPGraphEdit::GroupBoxes;
+	edit.groups.push_back(JPGraphEdit::GroupPayload());
+	JPGraphEdit::GroupPayload &payload = edit.groups.back();
+	payload.groupBox = newPreset;
+	payload.groupUid = newPreset->uid;
+
+	// Cables from a member OUT to a box that stays behind get re-pointed at the
+	// group's output. Recorded per member so undo can aim them back at it.
+	for (std::size_t m = 0; m < members.size(); m++)
 	{
-		const int sourceIndex = selectedIndices[newIndex];
-		JPbox *box = (*currentBoxes)[sourceIndex];
-		auto data = xml.appendChild("box");
-		data.appendChild("nombre").set(box->name);
-		data.appendChild("x").set(box->x);
-		data.appendChild("y").set(box->y);
-		data.appendChild("directory").set(box->dir);
-		// Identity rides through grouping: the children below are deleted and
-		// rebuilt by JPbox_preset::setup from this XML, so without <uid> here
-		// grouping would silently break every output bound to a child.
-		data.appendChild("uid").set(box->uid);
-		data.appendChild("tooutput").set(box->getOutputCandidate());
-		data.appendChild("onoff").set(box->getonoff());
-		data.appendChild("bypass").set(box->getBypass());
-		box->saveCustomState(data);
-
-		// Parameters
-		if (box->parameters.getSize() > 0)
+		JPGraphDetachedBox entry;
+		entry.uid = members[m]->uid;
+		entry.index = selectedIndices[m];
+		for (int boxIndex = 0;
+			boxIndex < (int)currentBoxes->size(); boxIndex++)
 		{
-			auto parameters = data.appendChild("parameters");
-			for (int k = 0; k < box->parameters.getSize(); k++)
-			{
-				auto param = parameters.appendChild("param");
-				param.appendChild("name").set(box->parameters.getName(k));
-				if (box->parameters.getType(k) == box->parameters.BOOL)
-				{
-					param.appendChild("value").set(box->parameters.getBoolValue(k));
-				}
-				else
-				{
-					param.appendChild("min").set(box->parameters.getRangeMin(k));
-					param.appendChild("max").set(box->parameters.getRangeMax(k));
-					param.appendChild("value").set(box->parameters.getFloatValue(k));
-					param.appendChild("movtype").set(box->parameters.getMovType(k));
-					param.appendChild("lastmovtype").set(box->parameters.getLastMovType(k));
-					param.appendChild("speed").set(box->parameters.getSpeed(k));
-					param.appendChild("bpmrate").set(box->parameters.getBpmRate(k));
-					param.appendChild("audiosource").set(box->parameters.getAudioSource(k));
-					param.appendChild("audiodiv").set(box->parameters.getAudioDiv(k));
-					param.appendChild("audiobase").set(box->parameters.getAudioBase(k));
-					param.appendChild("audioamount").set(box->parameters.getAudioAmount(k));
-					param.appendChild("audioinvert").set(box->parameters.getAudioInvert(k));
-					param.appendChild("audiothreshold").set(box->parameters.getAudioThreshold(k));
-					param.appendChild("audiocurve").set(box->parameters.getAudioCurve(k));
-					param.appendChild("audioattackms").set(box->parameters.getAudioAttackMs(k));
-					param.appendChild("audioreleasems").set(box->parameters.getAudioReleaseMs(k));
-				}
-				saveParameterUserState(param, box->parameters.getJParameter(k));
-			}
-		}
-
-		// Preserve only links whose source is moving into this group.
-		if (box->fbohandlergroup.getPointerSetsSize() > 0)
-		{
-			auto fboslinks = data.appendChild("fboslinks");
-			for (int k = 0; k < box->fbohandlergroup.getSize(); k++)
-			{
-				if (box->fbohandlergroup.getisPointerSet(k))
-				{
-					const string sourceName =
-						box->fbohandlergroup.getFboName(k);
-					if (std::find(selectedNames.begin(),
-						selectedNames.end(), sourceName) !=
-						selectedNames.end())
-					{
-						fboslinks.appendChild(
-							box->fbohandlergroup.getName(k))
-							.set(sourceName);
-					}
-				}
-			}
-		}
-	}
-
-	// Exposure choices move with their boxes into the generated preset.
-	if (parentPreset != nullptr)
-	{
-		auto exposedNode = xml.appendChild("exposedParams");
-		for (int newIndex = 0;
-			newIndex < (int)selectedIndices.size();
-			newIndex++)
-		{
-			const int sourceIndex = selectedIndices[newIndex];
-			if (sourceIndex < 0 ||
-				sourceIndex >=
-					(int)parentPreset->exposedParams.size())
+			if (std::find(selectedIndices.begin(), selectedIndices.end(),
+				boxIndex) != selectedIndices.end())
 			{
 				continue;
 			}
-			for (int parameterIndex = 0;
-				parameterIndex <
-					(int)parentPreset
-						->exposedParams[sourceIndex].size();
-				parameterIndex++)
+			JPbox *consumer = (*currentBoxes)[boxIndex];
+			if (consumer == nullptr) continue;
+			for (int inlet = 0;
+				inlet < consumer->fbohandlergroup.getSize(); inlet++)
 			{
-				if (!parentPreset
-						->exposedParams[sourceIndex][parameterIndex])
+				if (!consumer->fbohandlergroup.getisPointerSet(inlet))
+					continue;
+				if (consumer->fbohandlergroup.getFboPointerReference(inlet) !=
+					&members[m]->fbo)
 				{
 					continue;
 				}
-				auto boxNode =
-					exposedNode.appendChild("box");
-				boxNode.set(newIndex);
-				boxNode.appendChild("param")
-					.set(parameterIndex);
-				if (sourceIndex <
-						(int)parentPreset
-							->exposedParamOriginalIndices.size() &&
-					parameterIndex <
-						(int)parentPreset
-							->exposedParamOriginalIndices
-								[sourceIndex].size())
-				{
-					const pair<int, int> original =
-						parentPreset
-							->exposedParamOriginalIndices
-								[sourceIndex][parameterIndex];
-					if (original.first >= 0 &&
-						original.second >= 0)
-					{
-						boxNode.appendChild("origBox")
-							.set(original.first);
-						boxNode.appendChild("origParam")
-							.set(original.second);
-					}
-				}
+				entry.severedInlets.push_back(
+					std::make_pair(consumer->uid, inlet));
+			}
+		}
+		payload.members.push_back(entry);
+	}
+
+	// Move the boxes. Descending, so the indices still ahead stay valid; the
+	// pointers themselves are untouched, which is what keeps every compiled
+	// shader, running video and internal cable exactly as it was.
+	for (int i = (int)selectedIndices.size() - 1; i >= 0; i--)
+	{
+		const int index = selectedIndices[(std::size_t)i];
+		currentBoxes->erase(currentBoxes->begin() + index);
+		if (parentPreset != nullptr)
+		{
+			if (index < (int)parentPreset->exposedParams.size())
+			{
+				parentPreset->exposedParams.erase(
+					parentPreset->exposedParams.begin() + index);
+			}
+			if (index <
+				(int)parentPreset->exposedParamOriginalIndices.size())
+			{
+				parentPreset->exposedParamOriginalIndices.erase(
+					parentPreset->exposedParamOriginalIndices.begin() +
+					index);
 			}
 		}
 	}
+	for (JPbox *member : members)
+	{
+		newPreset->boxes.push_back(member);
+	}
+	newPreset->exposedParams.assign(newPreset->boxes.size(), vector<bool>());
+	newPreset->exposedParamOriginalIndices.assign(
+		newPreset->boxes.size(), vector<pair<int, int>>());
+	for (std::size_t i = 0; i < newPreset->boxes.size(); i++)
+	{
+		newPreset->exposedParams[i].assign(
+			newPreset->boxes[i]->parameters.getSize(), false);
+		newPreset->exposedParamOriginalIndices[i].assign(
+			newPreset->boxes[i]->parameters.getSize(),
+			std::make_pair(-1, -1));
+	}
+	newPreset->activeRender = ofClamp(groupedActiveRender, 0,
+		std::max(0, (int)newPreset->boxes.size() - 1));
 
-	// Save to temp XML file in data/groups/
-	string outputDir = "data/groups/";
-	string timestamp = ofGetTimestampString();
-	string outputPath = outputDir + "group_" + timestamp + ".xml";
-	ofFilePath::createEnclosingDirectory(outputPath);
-	if (!xml.save(outputPath))
-	{
-		ofLogError("JPboxgroup")
-			<< "Unable to save generated group to "
-			<< outputPath;
-		return;
-	}
-	cout << "groupSelectedBoxes: saved to " << outputPath << endl;
+	currentBoxes->push_back(newPreset);
+	const int newIndex = (int)currentBoxes->size() - 1;
+	payload.groupIndex = newIndex;
 
-	string setupName = groupName;
-	JPbox *newBox =
-		createBoxForDirectory(outputPath, setupName);
-	if (newBox == nullptr)
+	// Outside consumers now read the group instead of the member they used to.
+	for (const JPGraphDetachedBox &entry : payload.members)
 	{
-		ofLogError("JPboxgroup")
-			<< "Unable to create generated group "
-			<< outputPath;
-		return;
+		for (const pair<string, int> &severed : entry.severedInlets)
+		{
+			JPbox *consumer = findBoxInView(*currentBoxes, severed.first);
+			if (consumer == nullptr) continue;
+			if (severed.second < 0 ||
+				severed.second >= consumer->fbohandlergroup.getSize())
+			{
+				continue;
+			}
+			consumer->fbohandlergroup.setFboPointer(&newPreset->fbo,
+				&newPreset->name, severed.second);
+		}
 	}
-	newBox->setup(outputPath, groupName);
-	newBox->setonoff(true);
-	newBox->setPos(avgX, avgY);
-	JPbox_preset *newPreset =
-		dynamic_cast<JPbox_preset *>(newBox);
-	if (newPreset == nullptr)
+
+	for (IncomingGroupTextureLink &incoming : incomingTextureLinks)
 	{
-		newBox->clear();
-		delete newBox;
-		ofLogError("JPboxgroup")
-			<< "Generated group is not a preset: "
-			<< outputPath;
-		return;
-	}
-	for (IncomingGroupTextureLink &incoming :
-		incomingTextureLinks)
-	{
+		// Hand the inlet over before asking for it to be exposed.
+		//
+		// exposeTextureInput refuses an inlet that already holds a pointer, and
+		// that refusal is deliberate: syncExposedTextureInputs becomes the owner
+		// of an exposed sampler and would clobber whatever was there. The old
+		// grouping never tripped it, because the group was rebuilt by reading an
+		// XML and a preset's loader only resolves links between its OWN children
+		// - so an inlet fed from outside arrived empty. Transplanting keeps the
+		// original pointer, so the guard fires and the group ends up with no
+		// public inlet at all: the cable stops being drawn AND stops being
+		// saved, while the texture keeps flowing through the stale pointer.
+		//
+		// Nothing is lost by letting go here. The loop below points the group's
+		// public inlet at the very same outside box, and syncExposedTextureInputs
+		// pushes that pointer straight back down into this sampler on the next
+		// update.
+		for (JPbox *member : members)
+		{
+			if (member->name != incoming.targetBoxName) continue;
+			const int sampler = member->fbohandlergroup.findIndexByName(
+				incoming.targetSamplerName);
+			if (sampler >= 0) member->fbohandlergroup.deleteFboPointer(sampler);
+			break;
+		}
 		if (!newPreset->exposeTextureInput(
 				incoming.targetBoxName,
 				incoming.targetSamplerName,
@@ -10163,76 +10187,7 @@ void JPboxgroup::groupSelectedBoxes()
 				<< incoming.targetSamplerName;
 		}
 	}
-
-	// Disconnect consumers that remain outside the new group.
-	for (int boxIndex = 0;
-		boxIndex < (int)currentBoxes->size();
-		boxIndex++)
-	{
-		if (std::find(selectedIndices.begin(),
-			selectedIndices.end(), boxIndex) !=
-			selectedIndices.end())
-		{
-			continue;
-		}
-		JPbox *consumer = (*currentBoxes)[boxIndex];
-		if (consumer == nullptr)
-		{
-			continue;
-		}
-		for (int linkIndex = 0;
-			linkIndex < consumer->fbohandlergroup.getSize();
-			linkIndex++)
-		{
-			const string sourceName =
-				consumer->fbohandlergroup
-					.getFboName(linkIndex);
-			if (std::find(selectedNames.begin(),
-				selectedNames.end(), sourceName) !=
-				selectedNames.end())
-			{
-				consumer->fbohandlergroup
-					.deleteFboPointer(linkIndex);
-			}
-		}
-	}
-
-	vector<int> descendingIndices = selectedIndices;
-	std::sort(descendingIndices.begin(),
-		descendingIndices.end(), std::greater<int>());
-	for (int index : descendingIndices)
-	{
-		JPbox *box = (*currentBoxes)[index];
-		box->clear();
-		delete box;
-		currentBoxes->erase(currentBoxes->begin() + index);
-		if (parentPreset != nullptr)
-		{
-			if (index <
-				(int)parentPreset->exposedParams.size())
-			{
-				parentPreset->exposedParams.erase(
-					parentPreset->exposedParams.begin() +
-					index);
-			}
-			if (index <
-				(int)parentPreset
-					->exposedParamOriginalIndices.size())
-			{
-				parentPreset
-					->exposedParamOriginalIndices.erase(
-						parentPreset
-							->exposedParamOriginalIndices
-							.begin() + index);
-			}
-		}
-	}
-
-	currentBoxes->push_back(newBox);
-
-	const int newIndex = (int)currentBoxes->size() - 1;
-	for (const IncomingGroupTextureLink &incoming :
-		incomingTextureLinks)
+	for (const IncomingGroupTextureLink &incoming : incomingTextureLinks)
 	{
 		if (incoming.newPublicName.empty())
 		{
@@ -10244,7 +10199,7 @@ void JPboxgroup::groupSelectedBoxes()
 			for (JPbox *candidate : *currentBoxes)
 			{
 				if (candidate != nullptr &&
-					candidate != newBox &&
+					candidate != newPreset &&
 					candidate->name == incoming.sourceName)
 				{
 					sourceBox = candidate;
@@ -10274,10 +10229,7 @@ void JPboxgroup::groupSelectedBoxes()
 		parentPreset->syncExposedTextureInputs();
 	}
 	newPreset->syncExposedTextureInputs();
-	if (!incomingTextureLinks.empty())
-	{
-		newPreset->save();
-	}
+
 	*currentActiveRender = newIndex;
 	clearSelection();
 	shaderboxagarrado = false;
@@ -10293,10 +10245,10 @@ void JPboxgroup::groupSelectedBoxes()
 		parentPreset->exposedParamOriginalIndices.resize(
 			currentBoxes->size());
 		parentPreset->exposedParams[newIndex].assign(
-			newBox->parameters.getSize(), false);
+			newPreset->parameters.getSize(), false);
 		parentPreset
 			->exposedParamOriginalIndices[newIndex].assign(
-				newBox->parameters.getSize(), {-1, -1});
+				newPreset->parameters.getSize(), {-1, -1});
 		parentPreset->activeRenderTransitionRunning = false;
 		parentPreset->activeRenderTransitionInitialized = false;
 		parentPreset->activeRenderTransitionTarget = -1;
@@ -10306,10 +10258,12 @@ void JPboxgroup::groupSelectedBoxes()
 	else
 	{
 		openguinumber = newIndex;
-		transition.setFboPointer1(&newBox->fbo);
-		transition.setFboPointer2(&newBox->fbo);
+		transition.setFboPointer1(&newPreset->fbo);
+		transition.setFboPointer2(&newPreset->fbo);
 		transition.setLerpValue(0);
 	}
+
+	pushEdit(std::move(edit));
 
 	setControllers();
 	ensureTabStateSize();
@@ -10320,6 +10274,172 @@ void JPboxgroup::groupSelectedBoxes()
 		 << ", boxes=" << currentBoxes->size()
 		 << " activeRender=" << *currentActiveRender
 		 << endl;
+}
+
+bool JPboxgroup::ungroupSelectedBoxes()
+{
+	// Same reason grouping does it: this restructures the real graph, and a cue
+	// holds pointers into the very list about to be rewritten.
+	if (hasCue())
+	{
+		clearCue();
+	}
+
+	vector<JPbox *> *currentBoxes = getCurrentViewBoxes();
+	int *currentActiveRender = getCurrentViewActiveRenderPointer();
+	JPbox_preset *parentPreset =
+		isGroupViewActive() ? getActivePreset() : nullptr;
+	if (currentBoxes == nullptr || currentActiveRender == nullptr)
+	{
+		return false;
+	}
+
+	// A plain click CLEARS selectedBoxIndices and leaves only the inspector
+	// index, so reading the selection alone would miss the ordinary case of
+	// clicking one group and hitting the shortcut. Same fallback copySelectedBoxes
+	// uses.
+	vector<int> candidates = selectedBoxIndices;
+	if (candidates.empty())
+	{
+		const int selected = getCurrentViewSelectedIndex();
+		if (selected >= 0) candidates.push_back(selected);
+	}
+
+	vector<int> groupIndices;
+	for (int index : candidates)
+	{
+		if (index < 0 || index >= (int)currentBoxes->size()) continue;
+		JPbox *box = (*currentBoxes)[index];
+		if (box == nullptr || box->getTipo() != JPbox::PRESETBOX) continue;
+		// Never dissolve the group being looked into: activeGroupPath is a path
+		// of indices into the list this is about to erase from.
+		if (parentPreset != nullptr && box == parentPreset) continue;
+		groupIndices.push_back(index);
+	}
+	std::sort(groupIndices.begin(), groupIndices.end(), std::greater<int>());
+	groupIndices.erase(
+		std::unique(groupIndices.begin(), groupIndices.end()),
+		groupIndices.end());
+	if (groupIndices.empty())
+	{
+		return false;
+	}
+
+	// One entry for every group in the selection, so a multi-selection comes
+	// back with a single Ctrl+Z. `inverted` marks it as an ungroup: applying it
+	// dissolves, undoing it re-forms - the same pointer surgery grouping uses,
+	// read the other way round.
+	JPGraphEdit edit;
+	edit.kind = JPGraphEdit::GroupBoxes;
+	edit.inverted = true;
+
+	for (int index : groupIndices)
+	{
+		JPbox_preset *group =
+			static_cast<JPbox_preset *>((*currentBoxes)[index]);
+
+		edit.groups.push_back(JPGraphEdit::GroupPayload());
+		JPGraphEdit::GroupPayload &payload = edit.groups.back();
+		payload.groupBox = group;
+		payload.groupUid = group->uid;
+		payload.groupIndex = index;
+
+		// A group's FBO is nothing but a copy of its active child, so that is
+		// where a cable reading the group has to land. With no valid active
+		// child there is nothing to point at and the cable is cut, which is the
+		// honest answer rather than leaving it aimed at a box that is leaving.
+		JPbox *outputChild = (group->activeRender >= 0 &&
+			group->activeRender < (int)group->boxes.size()) ?
+			group->boxes[(std::size_t)group->activeRender] : nullptr;
+
+		for (std::size_t m = 0; m < group->boxes.size(); m++)
+		{
+			JPbox *child = group->boxes[m];
+			if (child == nullptr) continue;
+
+			// The child moves up into a list it did not come from, which may
+			// already hold that name. Two boxes with one name break both cable
+			// drawing and save/load, since each matches by name.
+			const string unique =
+				makeUniqueBoxName(child->name, *currentBoxes);
+			if (unique != child->name)
+			{
+				// The group keeps pointing at it by name, and a redo needs that
+				// to still resolve.
+				group->renameExposedTextureInputTarget(child->name, unique);
+				child->name = unique;
+			}
+
+			JPGraphDetachedBox entry;
+			entry.uid = child->uid;
+			// Landing where the group was, in child order.
+			entry.index = index + (int)m;
+			if (child == outputChild)
+			{
+				// Cables that read the group are recorded against this child, so
+				// dissolving aims them at it and re-forming aims them back at
+				// the group. That is exactly what the two directions already do
+				// with severedInlets.
+				for (JPbox *consumer : *currentBoxes)
+				{
+					if (consumer == nullptr || consumer == group) continue;
+					JPFbohandlerGroup &inlets = consumer->fbohandlergroup;
+					for (int inlet = 0; inlet < inlets.getSize(); inlet++)
+					{
+						if (!inlets.getisPointerSet(inlet)) continue;
+						if (inlets.getFboPointerReference(inlet) != &group->fbo)
+						{
+							continue;
+						}
+						entry.severedInlets.push_back(
+							std::make_pair(consumer->uid, inlet));
+					}
+				}
+			}
+			payload.members.push_back(entry);
+		}
+
+		// The children's own samplers already hold the pointers their public
+		// inlets were feeding them - syncExposedTextureInputs put them there -
+		// so an incoming cable survives the dissolve untouched. Deliberately NOT
+		// calling removeExposedTextureInput, which would cut exactly that
+		// pointer; and the entries have to stay on the group anyway for a redo
+		// to rebuild it as it was.
+		if (!revertGroupPayload(*currentBoxes, payload, parentPreset))
+		{
+			ofLogError("JPboxgroup")
+				<< "Unable to ungroup " << group->name;
+			edit.groups.pop_back();
+		}
+	}
+
+	if (edit.groups.empty())
+	{
+		return false;
+	}
+	pushEdit(std::move(edit));
+
+	*currentActiveRender = ofClamp(*currentActiveRender, 0,
+		std::max(0, (int)currentBoxes->size() - 1));
+	clearSelection();
+	openguinumber = -1;
+	groupInspectorIndex = -1;
+	groupPreviewBoxIndex = -1;
+	shaderboxagarrado = false;
+	ouletagarrado = false;
+	cualestaagarrado = -1;
+	outlet_cualestaagarrado = -1;
+
+	setControllers();
+	// A nested group that just moved up is a direct child of this view now, so
+	// it has gained a tab.
+	ensureTabStateSize();
+	requestCueRebuild();
+	if (!isGroupViewActive())
+	{
+		updateTransition(*currentActiveRender);
+	}
+	return true;
 }
 
 void JPboxgroup::deleteSelectedShader()
@@ -10359,44 +10479,22 @@ void JPboxgroup::deleteSelectedShader()
 			sortedIndices.erase(std::unique(sortedIndices.begin(), sortedIndices.end()), sortedIndices.end());
 			clearSelection();
 
+			// One entry for the whole selection, and the boxes come out alive -
+			// the same contract as the main graph, through the same helper.
+			JPGraphEdit edit;
+			edit.kind = JPGraphEdit::DeleteBoxes;
 			for (int idx : sortedIndices)
 			{
 				if (idx < 0 || idx >= (int)preset->boxes.size()) continue;
-
-				string deletedName = preset->boxes[idx]->name;
-				preset->removeExposedTextureInputsForBox(
-					deletedName);
-
-				// Remove FBO links pointing to the deleted box
-				for (int k = (int)preset->boxes.size() - 1; k >= 0; k--)
-				{
-					if (k == idx) continue;
-					for (int l = 0; l < preset->boxes[k]->fbohandlergroup.getSize(); l++)
-					{
-						if (preset->boxes[k]->fbohandlergroup.getFboName(l) == deletedName)
-						{
-							preset->boxes[k]->fbohandlergroup.deleteFboPointer(l);
-						}
-					}
-				}
-
-				preset->boxes[idx]->clear();
-				delete preset->boxes[idx];
-				preset->boxes[idx] = nullptr;
-				preset->boxes.erase(preset->boxes.begin() + idx);
-				if (idx < (int)preset->exposedParams.size())
-				{
-					preset->exposedParams.erase(
-						preset->exposedParams.begin() + idx);
-				}
-				if (idx < (int)preset
-						->exposedParamOriginalIndices.size())
-				{
-					preset->exposedParamOriginalIndices.erase(
-						preset
-							->exposedParamOriginalIndices.begin() +
-						idx);
-				}
+				JPGraphDetachedBox detached =
+					detachBoxFromView(preset->boxes, idx, preset);
+				if (detached.box != nullptr) edit.detached.push_back(detached);
+			}
+			// Deleted highest index first; ascending is what reattaching needs.
+			std::reverse(edit.detached.begin(), edit.detached.end());
+			if (!edit.detached.empty())
+			{
+				pushEdit(std::move(edit));
 			}
 
 			// After bulk delete, check if empty
@@ -10425,40 +10523,14 @@ void JPboxgroup::deleteSelectedShader()
 		if (preset != nullptr && groupInspectorIndex >= 0 && groupInspectorIndex < (int)preset->boxes.size())
 		{
 			int idx = groupInspectorIndex;
-			string deletedName = preset->boxes[idx]->name;
-			preset->removeExposedTextureInputsForBox(
-				deletedName);
-
-			// Remove FBO links pointing to the deleted box
-			for (int k = (int)preset->boxes.size() - 1; k >= 0; k--)
+			JPGraphDetachedBox detached =
+				detachBoxFromView(preset->boxes, idx, preset);
+			if (detached.box != nullptr)
 			{
-				if (k == idx) continue;
-				for (int l = 0; l < preset->boxes[k]->fbohandlergroup.getSize(); l++)
-				{
-					if (preset->boxes[k]->fbohandlergroup.getFboName(l) == deletedName)
-					{
-						preset->boxes[k]->fbohandlergroup.deleteFboPointer(l);
-					}
-				}
-			}
-
-			// Delete and remove
-			preset->boxes[idx]->clear();
-			delete preset->boxes[idx];
-			preset->boxes[idx] = nullptr;
-			preset->boxes.erase(preset->boxes.begin() + idx);
-			if (idx < (int)preset->exposedParams.size())
-			{
-				preset->exposedParams.erase(
-					preset->exposedParams.begin() + idx);
-			}
-			if (idx < (int)preset
-					->exposedParamOriginalIndices.size())
-			{
-				preset->exposedParamOriginalIndices.erase(
-					preset
-						->exposedParamOriginalIndices.begin() +
-					idx);
+				JPGraphEdit edit;
+				edit.kind = JPGraphEdit::DeleteBoxes;
+				edit.detached.push_back(detached);
+				pushEdit(std::move(edit));
 			}
 
 			// Adjust preset's activeRender
@@ -10515,7 +10587,14 @@ void JPboxgroup::deleteSelectedShader()
 		if (boxes[i]->mouseOver())
 		{
 			JPdragobject::clearMouseOverride();
-			deleteBoxAtIndex(i);
+			JPGraphDetachedBox detached;
+			if (deleteBoxAtIndex(i, &detached) && detached.box != nullptr)
+			{
+				JPGraphEdit edit;
+				edit.kind = JPGraphEdit::DeleteBoxes;
+				edit.detached.push_back(detached);
+				pushEdit(std::move(edit));
+			}
 			break;
 		}
 		JPdragobject::clearMouseOverride();
@@ -10904,6 +10983,9 @@ void JPboxgroup::pasteBoxes()
 	// identities. The clipboard deliberately omits <uid> for the top-level
 	// boxes, but it cannot reach inside a group file - this is what covers it.
 	repairBoxUids();
+	// Pasting is an add, and adds are not undoable - but they still have to drop
+	// the redo tail so a later redo cannot replay against a graph that grew.
+	invalidateCurrentViewRedo();
 
 	requestCueRebuild();
 	cout << "pasteBoxes: pasted " << newBoxes.size() << " box(es)" << endl;

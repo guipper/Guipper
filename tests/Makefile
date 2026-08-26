@@ -9,7 +9,10 @@ MEDIA_HEADERS := ../src/JPbox/jp_media_state.h
 PAINT_TARGET := paint_core_tests
 PAINT_SOURCES := paint_core_tests.cpp
 PAINT_HEADERS := ../src/JPbox/jp_paint_doc.h ../src/JPbox/jp_media_state.h
-TARGETS := $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET)
+GRAPH_TARGET := graph_history_tests
+GRAPH_SOURCES := graph_history_tests.cpp
+GRAPH_HEADERS := ../src/JPutils/jp_graph_history.h
+TARGETS := $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET)
 
 .PHONY: all run tsan clean
 
@@ -24,10 +27,14 @@ $(MEDIA_TARGET): $(MEDIA_SOURCES) $(MEDIA_HEADERS)
 $(PAINT_TARGET): $(PAINT_SOURCES) $(PAINT_HEADERS)
 	$(CXX) $(CXXFLAGS) $(PAINT_SOURCES) -o $@
 
+$(GRAPH_TARGET): $(GRAPH_SOURCES) $(GRAPH_HEADERS)
+	$(CXX) $(CXXFLAGS) $(GRAPH_SOURCES) -o $@
+
 run: $(TARGETS)
 	./$(AUDIO_TARGET)
 	./$(MEDIA_TARGET)
 	./$(PAINT_TARGET)
+	./$(GRAPH_TARGET)
 
 tsan:
 	$(CXX) -std=c++17 -O1 -g -Wall -Wextra -pthread \

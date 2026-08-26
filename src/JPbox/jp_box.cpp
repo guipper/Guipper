@@ -521,6 +521,14 @@ int JPbox::getTipo()
 {
 	return tipo;
 }
+// Declared since forever but never defined, because every box type has always
+// assigned the protected member from inside its own setup(). A group built by
+// transplanting live boxes has no such setup() to run - it is deliberately never
+// read from disk - so it needs the setter the header already promised.
+void JPbox::setTipo(int _tipo)
+{
+	tipo = _tipo;
+}
 void JPbox::setonoff(bool _val)
 {
 	onoff.boolValue = _val;

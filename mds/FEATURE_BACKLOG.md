@@ -33,8 +33,8 @@
 ## Node Graph UX
 - Add copy/paste/duplicate for boxes and selections.
 - Add multi-select move and align/distribute tools.
-- Add undo/redo stack for graph edits.
 - Add minimap and zoom/pan controls.
+- Extend undo to renaming, exposing parameters and the active-render change.
 
 ## Automation and Control
 - Add envelopes/LFO modulators as native automation sources.
@@ -66,6 +66,6 @@
 ## Suggested Milestone Plan
 1. Core stability pass (memory safety + save/load hardening + autosave).
 2. Internal editor and file browser.
-3. Node UX improvements (undo/redo, selection tools, minimap).
+3. Node UX improvements (selection tools, minimap).
 4. MIDI + advanced automation.
 5. Content ecosystem (library metadata, packaging, community sync).

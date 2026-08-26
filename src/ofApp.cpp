@@ -5251,7 +5251,11 @@ void ofApp::keyPressed(int key) {
 	if (pantallaActiva == NODOS &&
 		ofGetKeyPressed(OF_KEY_CONTROL) &&
 		(key == 'c' || key == 'C' || key == 'v' || key == 'V' ||
-		 key == 'd' || key == 'D')) {
+		 key == 'd' || key == 'D' ||
+		 // 'z' and 'g' bare are cue-toggle and (formerly) group. keyPressed and
+		 // keycodePressed are two callbacks on the SAME event, so without this
+		 // Ctrl+Z would undo AND toggle the cue in one press.
+		 key == 'z' || key == 'Z' || key == 'g' || key == 'G')) {
 		return;
 	}
 
@@ -5406,10 +5410,6 @@ void ofApp::keyPressed(int key) {
 			boxes.activeSequence = !boxes.activeSequence;
 		}
 
-		if (key == 'u') {
-			boxes.groupSelectedBoxes();
-		}
-
 		if (key == 'z') {
 			// Cue the selected box for the graph on screen; falls back to that
 			// graph's active render (works in main and inside any box-group).
@@ -5507,6 +5507,11 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 			(e.keycode == GLFW_KEY_V || e.key == 'v' || e.key == 'V'));
 	const bool duplicateLayerShortcut = ctrlOrCmd &&
 		(e.keycode == GLFW_KEY_J || e.key == 'j' || e.key == 'J');
+	// Plain Ctrl/Cmd+G only: Ctrl+Shift+G and Ctrl+Alt+G are the GIF and sprite
+	// sheet exports, so both modifiers have to be absent.
+	const bool groupShortcut = ctrlOrCmd &&
+		!e.hasModifier(OF_KEY_SHIFT) && !e.hasModifier(OF_KEY_ALT) &&
+		(e.keycode == GLFW_KEY_G || e.key == 'g' || e.key == 'G');
 	const bool mergeLayerShortcut = ctrlOrCmd &&
 		(e.keycode == GLFW_KEY_E || e.key == 'e' || e.key == 'E');
 	const bool exportPngShortcut = ctrlOrCmd && e.hasModifier(OF_KEY_SHIFT) &&
@@ -5531,9 +5536,26 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		!saveModalActive) {
 		// Shift makes it a redo. Tested BEFORE the clipboard chords so an undo
 		// can never be read as something else.
-		if (boxes.paintUndoShortcut(e.hasModifier(OF_KEY_SHIFT))) {
+		const bool wantRedo = e.hasModifier(OF_KEY_SHIFT);
+		// Innermost surface first. Each returns false when its panel is not the
+		// one being edited, so the chord lands on whatever the user is actually
+		// looking at; the graph is last and always consumes it.
+		if (boxes.paintUndoShortcut(wantRedo)) {
 			return;
 		}
+		if (boxes.mappingUndoShortcut(wantRedo)) {
+			return;
+		}
+		if (boxes.graphUndoShortcut(wantRedo)) {
+			return;
+		}
+	}
+
+	if (groupShortcut && pantallaActiva == NODOS &&
+		!shaderEditor.wantsKeyCapture() && !anyFieldFocused() &&
+		!saveModalActive) {
+		boxes.groupSelectedBoxes();
+		return;
 	}
 
 	if (selectAllShortcut && pantallaActiva == NODOS &&
@@ -5571,6 +5593,19 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		boxes.paintExportShortcut(2)) return;
 	if (exportSheetShortcut && pantallaActiva == NODOS &&
 		boxes.paintExportShortcut(3)) return;
+
+	// Ctrl+Shift+G ungroups. It sits AFTER the GIF export deliberately: the two
+	// share the chord, and paintExportShortcut returns false unless a paint box
+	// is actually being edited, so the export wins whenever its panel is open and
+	// the chord falls through to here otherwise. Same innermost-surface-first
+	// rule the undo chain follows. exportGifShortcut is reused rather than
+	// redeclared - it is already exactly Ctrl+Shift+G with Alt excluded.
+	if (exportGifShortcut && pantallaActiva == NODOS &&
+		!shaderEditor.wantsKeyCapture() && !anyFieldFocused() &&
+		!saveModalActive) {
+		boxes.ungroupSelectedBoxes();
+		return;
+	}
 
 	if (prevKey == 12) {
 		openloader.startThread();

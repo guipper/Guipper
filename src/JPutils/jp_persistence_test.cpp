@@ -3423,6 +3423,591 @@ bool jp_persistence_test::run(ofApp &app)
 			(!jp_media::isVideo(smokePath)||(target->mediaState().muted&&
 				target->mediaDurationSeconds()>0.0&&target->mediaFrameCount()>1));
 	}
+	// Ctrl+G is a MOVE, and Ctrl+Z puts it back.
+	//
+	// The pointer comparisons are the point. Grouping used to serialise the
+	// selection to a file and rebuild the group from it, so a grouped box was a
+	// DIFFERENT object with a freshly recompiled shader and a restarted video.
+	// Comparing contents would pass either way; comparing identity is what pins
+	// down that the boxes were transplanted alive.
+	bool graphUndo = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			graphUndo = false;
+			ofLogNotice("graphundo") << why;
+		};
+		app.boxes.clear();
+		app.boxes.addBox("shaders/imageprocessing/transform.frag", 100, 100);
+		app.boxes.addBox("shaders/imageprocessing/feedback_advance.frag", 200, 140);
+		app.boxes.addBox("shaders/imageprocessing/transform.frag", 300, 180);
+
+		vector<JPbox *> &top = app.boxes.boxes;
+		if (top.size() != 3)
+		{
+			fail("fixture did not build three boxes");
+		}
+		else
+		{
+			JPbox *a = top[0];
+			JPbox *b = top[1];
+			JPbox *c = top[2];
+			const float ax = a->x, ay = a->y, bx = b->x, by = b->y;
+			// c reads a. That cable crosses the group boundary, so grouping has
+			// to re-point it at the group and undo has to aim it back.
+			const bool hasInlet = c->fbohandlergroup.getSize() > 0;
+			if (hasInlet)
+			{
+				c->fbohandlergroup.setFboPointer(&a->fbo, &a->name, 0);
+			}
+
+			app.boxes.clearSelection();
+			app.boxes.toggleBoxSelection(0);
+			app.boxes.toggleBoxSelection(1);
+			app.boxes.groupSelectedBoxes();
+
+			JPbox_preset *group = top.size() == 2 ?
+				dynamic_cast<JPbox_preset *>(top.back()) : nullptr;
+			if (group == nullptr)
+			{
+				fail("grouping did not leave one preset beside the survivor");
+			}
+			else
+			{
+				if (group->boxes.size() != 2 ||
+					group->boxes[0] != a || group->boxes[1] != b)
+				{
+					fail("the grouped boxes are not the same objects - they "
+						"were rebuilt rather than moved, which recompiles "
+						"every child shader and restarts every video");
+				}
+				if (!group->dir.empty() && ofFile::doesFileExist(group->dir))
+				{
+					fail("grouping wrote " + group->dir + " to disk; the file "
+						"belongs to session save, not to the gesture");
+				}
+				if (hasInlet &&
+					c->fbohandlergroup.getFboPointerReference(0) != &group->fbo)
+				{
+					fail("the cable from outside was not re-pointed at the group");
+				}
+			}
+
+			app.boxes.graphUndoShortcut(false);
+			if (top.size() != 3)
+			{
+				fail("undo did not restore the three boxes");
+			}
+			else if (top[0] != a || top[1] != b || top[2] != c)
+			{
+				fail("undo restored the boxes out of order, or as new objects");
+			}
+			else
+			{
+				if (a->x != ax || a->y != ay || b->x != bx || b->y != by)
+				{
+					fail("undo did not restore the grouped boxes' positions");
+				}
+				if (hasInlet &&
+					c->fbohandlergroup.getFboPointerReference(0) != &a->fbo)
+				{
+					fail("undo left the cable pointing at the group instead of "
+						"aiming it back at the box it came from");
+				}
+			}
+
+			app.boxes.graphUndoShortcut(true);
+			if (top.size() != 2)
+			{
+				fail("redo did not put the group back");
+			}
+		}
+
+		// A cable from OUTSIDE into a box that gets grouped.
+		//
+		// The mirror of the case above, and the one that regressed. A group can
+		// only show an incoming cable by publishing the child's inlet as one of
+		// its own, and exposeTextureInput refuses an inlet that still holds a
+		// pointer. Transplanting keeps that pointer, so the exposure was being
+		// refused and the group ended up with no inlet at all: nothing to draw,
+		// and nothing to serialise either.
+		{
+			app.boxes.clear();
+			app.boxes.addBox("shaders/imageprocessing/transform.frag", 100, 100);
+			app.boxes.addBox("shaders/imageprocessing/feedback_advance.frag", 200, 140);
+			app.boxes.addBox("shaders/imageprocessing/transform.frag", 300, 180);
+
+			vector<JPbox *> &top = app.boxes.boxes;
+			if (top.size() != 3)
+			{
+				fail("incoming-cable fixture did not build three boxes");
+			}
+			else if (top[0]->fbohandlergroup.getSize() == 0)
+			{
+				fail("incoming-cable fixture has no inlet to feed");
+			}
+			else
+			{
+				JPbox *a = top[0];
+				JPbox *b = top[1];
+				JPbox *outside = top[2];
+				// outside -> a, and a is about to be grouped with b.
+				a->fbohandlergroup.setFboPointer(&outside->fbo, &outside->name, 0);
+
+				app.boxes.clearSelection();
+				app.boxes.toggleBoxSelection(0);
+				app.boxes.toggleBoxSelection(1);
+				app.boxes.groupSelectedBoxes();
+
+				JPbox_preset *group = top.size() == 2 ?
+					dynamic_cast<JPbox_preset *>(top.back()) : nullptr;
+				if (group == nullptr)
+				{
+					fail("incoming-cable fixture did not produce a group");
+				}
+				else
+				{
+					// Exactly what draw_conections tests: an inlet on a box in
+					// this view naming another box in this view. Asserting it is
+					// asserting the cable is visible.
+					bool drawn = false;
+					for (int i = 0; i < group->fbohandlergroup.getSize(); i++)
+					{
+						if (!group->fbohandlergroup.getisPointerSet(i)) continue;
+						if (group->fbohandlergroup.getFboName(i) == outside->name)
+						{
+							drawn = true;
+						}
+					}
+					if (!drawn)
+					{
+						fail("grouping did not publish the incoming cable as an "
+							"inlet of the group, so it is neither drawn nor saved");
+					}
+					// And the child still receives the texture, through the
+					// group's inlet rather than its own stale pointer.
+					group->syncExposedTextureInputs();
+					if (a->fbohandlergroup.getFboPointerReference(0) !=
+						&outside->fbo)
+					{
+						fail("the grouped child stopped receiving the texture "
+							"from outside");
+					}
+					(void)b;
+				}
+			}
+		}
+
+		// Ctrl+Shift+G, and Ctrl+Z after it.
+		{
+			app.boxes.clear();
+			app.boxes.addBox("shaders/imageprocessing/transform.frag", 100, 100);
+			app.boxes.addBox("shaders/imageprocessing/feedback_advance.frag", 200, 140);
+			app.boxes.addBox("shaders/imageprocessing/transform.frag", 300, 180);
+
+			vector<JPbox *> &top = app.boxes.boxes;
+			if (top.size() != 3)
+			{
+				fail("ungroup fixture did not build three boxes");
+			}
+			else
+			{
+				JPbox *a = top[0];
+				JPbox *b = top[1];
+				JPbox *c = top[2];
+				const bool hasInlet = c->fbohandlergroup.getSize() > 0;
+				if (hasInlet)
+				{
+					// c reads a; grouping a+b makes it read the group instead.
+					c->fbohandlergroup.setFboPointer(&a->fbo, &a->name, 0);
+				}
+
+				app.boxes.clearSelection();
+				app.boxes.toggleBoxSelection(0);
+				app.boxes.toggleBoxSelection(1);
+				app.boxes.groupSelectedBoxes();
+
+				JPbox_preset *group = top.size() == 2 ?
+					dynamic_cast<JPbox_preset *>(top.back()) : nullptr;
+				if (group == nullptr)
+				{
+					fail("ungroup fixture did not produce a group");
+				}
+				else
+				{
+					// Grouping leaves the group as the inspector selection, so
+					// this also exercises the fallback for "one group clicked",
+					// where selectedBoxIndices is empty.
+					JPbox *outputChild = group->boxes[
+						(std::size_t)group->activeRender];
+					if (!app.boxes.ungroupSelectedBoxes())
+					{
+						fail("ungroup refused a selected group");
+					}
+					if (top.size() != 3)
+					{
+						fail("ungroup did not return both children to the parent");
+					}
+					// Where the GROUP was, in child order - not where they came
+					// from originally. A group carries no memory of that, and a
+					// group loaded from a file never had it; "dissolve this
+					// here" is the only meaning available.
+					else if (top[0] != c || top[1] != a || top[2] != b)
+					{
+						fail("ungroup did not drop the children where the group "
+							"stood, or returned different objects - they must be "
+							"transplanted, not rebuilt");
+					}
+					if (hasInlet &&
+						c->fbohandlergroup.getFboPointerReference(0) !=
+							&outputChild->fbo)
+					{
+						fail("after ungroup the cable that read the group was "
+							"not aimed at the child that produced its output");
+					}
+
+					app.boxes.graphUndoShortcut(false);
+					if (top.size() != 2 || top.back() != group)
+					{
+						fail("undoing an ungroup did not put the very same group "
+							"box back");
+					}
+					else if (group->boxes.size() != 2 ||
+						group->boxes[0] != a || group->boxes[1] != b)
+					{
+						fail("undoing an ungroup did not put the same children "
+							"back inside");
+					}
+					if (hasInlet &&
+						c->fbohandlergroup.getFboPointerReference(0) !=
+							&group->fbo)
+					{
+						fail("undoing an ungroup left the cable on the child "
+							"instead of the group");
+					}
+
+					app.boxes.graphUndoShortcut(true);
+					if (top.size() != 3)
+					{
+						fail("redo did not dissolve the group again");
+					}
+				}
+			}
+		}
+
+		// Two groups dissolved by one Ctrl+Shift+G, and rebuilt by one Ctrl+Z.
+		//
+		// What this pins down is that a multi-group entry round-trips as ONE
+		// step and lands on the same box order it started from. It does NOT
+		// prove the payload iteration order: reversing it leaves the same end
+		// state here, because each insertion is corrected by the removals that
+		// follow. The order is kept descending anyway so every intermediate
+		// state is coherent too, but do not read this test as covering that.
+		{
+			app.boxes.clear();
+			for (int i = 0; i < 5; i++)
+			{
+				app.boxes.addBox("shaders/imageprocessing/transform.frag",
+					100.0f + 60.0f * i, 100.0f);
+			}
+			vector<JPbox *> &top = app.boxes.boxes;
+			if (top.size() != 5)
+			{
+				fail("two-group fixture did not build five boxes");
+			}
+			else
+			{
+				vector<string> before;
+				for (JPbox *box : top) before.push_back(box->uid);
+
+				app.boxes.clearSelection();
+				app.boxes.toggleBoxSelection(0);
+				app.boxes.toggleBoxSelection(1);
+				app.boxes.groupSelectedBoxes();
+				app.boxes.clearSelection();
+				app.boxes.toggleBoxSelection(0);
+				app.boxes.toggleBoxSelection(1);
+				app.boxes.groupSelectedBoxes();
+
+				// [e, G1, G2] - one plain box and two groups.
+				int groups = 0;
+				for (JPbox *box : top)
+					if (box->getTipo() == JPbox::PRESETBOX) groups++;
+				if (top.size() != 3 || groups != 2)
+				{
+					fail("two-group fixture did not end up with two groups");
+				}
+				else
+				{
+					vector<string> grouped;
+					for (JPbox *box : top) grouped.push_back(box->uid);
+
+					app.boxes.clearSelection();
+					app.boxes.toggleBoxSelection(1);
+					app.boxes.toggleBoxSelection(2);
+					if (!app.boxes.ungroupSelectedBoxes())
+					{
+						fail("ungroup refused a two-group selection");
+					}
+					if (top.size() != 5)
+					{
+						fail("dissolving two groups did not return all four "
+							"children");
+					}
+					for (JPbox *box : top)
+					{
+						if (box->getTipo() == JPbox::PRESETBOX)
+						{
+							fail("a group survived a two-group ungroup");
+						}
+					}
+
+					// One press, both groups back, and in the same order they
+					// were in.
+					app.boxes.graphUndoShortcut(false);
+					vector<string> after;
+					for (JPbox *box : top) after.push_back(box->uid);
+					if (after != grouped)
+					{
+						fail("one undo did not rebuild both groups in the same "
+							"order they stood in");
+					}
+					app.boxes.graphUndoShortcut(true);
+					if (top.size() != 5)
+					{
+						fail("one redo did not dissolve both groups again");
+					}
+				}
+			}
+		}
+
+		// The active render, by uid rather than by index: after an undo that
+		// reorders the list, an index would point at whatever box now sits in
+		// that slot.
+		{
+			app.boxes.clear();
+			app.boxes.addBox("shaders/imageprocessing/transform.frag", 100, 100);
+			app.boxes.addBox("shaders/imageprocessing/transform.frag", 200, 100);
+			if (app.boxes.boxes.size() != 2)
+			{
+				fail("active-render fixture did not build two boxes");
+			}
+			else
+			{
+				const int before = app.activerender;
+				const int other = before == 0 ? 1 : 0;
+				const string uidBefore = app.boxes.boxes[before]->uid;
+				const string uidOther = app.boxes.boxes[other]->uid;
+
+				app.boxes.editActiveRenderForCurrentView(other);
+				if (app.activerender != other)
+				{
+					fail("the fixture did not change the active render");
+				}
+
+				app.boxes.graphUndoShortcut(false);
+				if (app.activerender != before ||
+					app.boxes.boxes[app.activerender]->uid != uidBefore)
+				{
+					fail("undo did not restore the previous active render");
+				}
+				app.boxes.graphUndoShortcut(true);
+				if (app.activerender != other ||
+					app.boxes.boxes[app.activerender]->uid != uidOther)
+				{
+					fail("redo did not re-activate the box");
+				}
+				// The sequencer and OSC drive the same call. Neither is an edit,
+				// so neither may leave a step behind.
+				const std::size_t depth = app.boxes.currentViewHistory().size();
+				app.boxes.requestSetActiveRenderForCurrentView(before);
+				if (app.boxes.currentViewHistory().size() != depth)
+				{
+					fail("an unrecorded active-render change still grew the "
+						"history, so OSC and the sequencer would fill it");
+				}
+			}
+		}
+
+		// One timeline for the whole composition: a step taken INSIDE a group is
+		// undone from outside it, and the canvas goes there to show it.
+		//
+		// This is the case per-view histories could not express at all. There,
+		// the group kept its own stack, so undoing from the main view reached
+		// the grouping first and the work done inside was simply gone.
+		{
+			app.boxes.clear();
+			app.boxes.addBox("shaders/imageprocessing/transform.frag", 100, 100);
+			app.boxes.addBox("shaders/imageprocessing/transform.frag", 200, 100);
+			app.boxes.addBox("shaders/imageprocessing/transform.frag", 300, 100);
+
+			vector<JPbox *> &top = app.boxes.boxes;
+			if (top.size() != 3)
+			{
+				fail("global-history fixture did not build three boxes");
+			}
+			else
+			{
+				app.boxes.clearSelection();
+				app.boxes.toggleBoxSelection(0);
+				app.boxes.toggleBoxSelection(1);
+				app.boxes.groupSelectedBoxes();
+
+				JPbox_preset *group = top.size() == 2 ?
+					dynamic_cast<JPbox_preset *>(top.back()) : nullptr;
+				if (group == nullptr || group->boxes.size() != 2)
+				{
+					fail("global-history fixture did not produce a group of two");
+				}
+				else if (!app.boxes.navigateToChildPreset(0))
+				{
+					fail("could not enter the group");
+				}
+				else
+				{
+					// A recorded edit that lives INSIDE the group.
+					const int activeBefore = group->activeRender;
+					const int activeAfter = activeBefore == 0 ? 1 : 0;
+					const string uidAfter = group->boxes[
+						(std::size_t)activeAfter]->uid;
+					app.boxes.editActiveRenderForCurrentView(activeAfter);
+					if (group->activeRender != activeAfter)
+					{
+						fail("the in-group fixture edit did not take");
+					}
+
+					// Back out to the main graph and undo from there.
+					app.boxes.navigateToBreadcrumbLevel(0);
+					if (app.boxes.isGroupViewActive())
+					{
+						fail("could not return to the main view");
+					}
+
+					app.boxes.graphUndoShortcut(false);
+					if (!app.boxes.isGroupViewActive())
+					{
+						fail("undoing a step taken inside a group did not take "
+							"the canvas into that group, so the change happened "
+							"where the user could not see it");
+					}
+					if (group->activeRender != activeBefore)
+					{
+						fail("the in-group step was not reverted");
+					}
+					// And the inspector points at the box that ended up active.
+					const int selected = app.boxes.getCurrentViewSelectedIndex();
+					if (selected < 0 ||
+						selected >= (int)group->boxes.size() ||
+						group->boxes[(std::size_t)selected]->uid ==
+							uidAfter)
+					{
+						fail("the inspector was not pointed at the box the undo "
+							"left active");
+					}
+
+					// The next step back is the grouping itself, which lives in
+					// the same timeline and returns us to the main view.
+					app.boxes.graphUndoShortcut(false);
+					if (app.boxes.isGroupViewActive() || top.size() != 3)
+					{
+						fail("undoing the grouping from inside it did not return "
+							"to the main view with the boxes back");
+					}
+
+					// Forward again: regroup, then re-enter to re-apply.
+					app.boxes.graphUndoShortcut(true);
+					if (top.size() != 2)
+					{
+						fail("redo did not rebuild the group");
+					}
+					app.boxes.graphUndoShortcut(true);
+					if (!app.boxes.isGroupViewActive())
+					{
+						fail("redoing an in-group step did not go back into the "
+							"group");
+					}
+					if (group->activeRender != activeAfter)
+					{
+						fail("redo did not re-apply the in-group step");
+					}
+					app.boxes.navigateToBreadcrumbLevel(0);
+				}
+			}
+		}
+
+		// A load must not leave the previous composition's history reachable:
+		// undoing across it would reattach a box that no longer belongs to
+		// anything. Same invariant the paint ring is checked for above.
+		app.boxes.clear();
+		if (app.boxes.currentViewHistory().canUndo() ||
+			app.boxes.currentViewHistory().canRedo())
+		{
+			fail("clear left a stale graph history");
+		}
+	}
+
+	// The crossfade must fill its canvas whatever rect mode it inherits.
+	//
+	// Same trap groupComposite covers, one layer up. TransitionSR::update runs
+	// during UPDATE, so the global rect mode is whatever the previous frame's
+	// draw left behind, and JPbox::draw leaves OF_RECTMODE_CENTER. A rectangle
+	// placed at (0,0) with the FBO's full size then lands three quarters outside
+	// it, and the crossfade is painted into the top-left quadrant alone.
+	//
+	// It only ever showed on screen while a fade was actually running - about a
+	// second, right after an undo, a group or an ungroup - because a finished
+	// transition is not what gets drawn.
+	bool transitionRectMode = true;
+	{
+		const int size = 256;
+		ofFbo first, second, probe;
+		first.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
+		second.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
+		probe.allocate(size, size);
+		for (ofFbo *source : {&first, &second})
+		{
+			source->begin();
+			ofClear(255, 255, 255, 255);
+			source->end();
+		}
+
+		TransitionSR fade;
+		fade.setup(&first, &second);
+		fade.setLerpValue(0.5f); // mid-fade, so `este` is what gets drawn
+
+		ofSetRectMode(OF_RECTMODE_CENTER); // the hostile inherited state
+		fade.update();
+		ofSetRectMode(OF_RECTMODE_CORNER);
+
+		probe.begin();
+		ofClear(0, 0, 0, 255);
+		fade.draw(0, 0, size, size);
+		probe.end();
+
+		ofPixels pixels;
+		probe.readToPixels(pixels);
+		// One sample per quadrant. Under the bug only the top-left survives,
+		// which is precisely the quarter-filled screen being reported.
+		const int lo = size / 4;
+		const int hi = size * 3 / 4;
+		const ofColor topLeft = pixels.getColor(lo, lo);
+		const ofColor bottomRight = pixels.getColor(hi, hi);
+		if (topLeft.r < 128)
+		{
+			transitionRectMode = false;
+			ofLogNotice("transitionrect")
+				<< "the crossfade painted nothing at all";
+		}
+		else if (bottomRight.r < 128)
+		{
+			transitionRectMode = false;
+			ofLogNotice("transitionrect")
+				<< "the crossfade filled only its top-left quadrant, so the "
+				   "live output shows a quarter-filled screen for as long as "
+				   "the fade lasts";
+		}
+	}
+
 	ofLogNotice("jp_persistence_test") << "current=" << current
 		<< " legacy=" << old << " invalid=" << clamped
 		<< " shaderReload=" << shaderReload
@@ -3448,6 +4033,8 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " outputBinding=" << outputBinding
 		<< " boxHitboxes=" << boxHitboxes
 		<< " groupComposite=" << groupComposite
+		<< " graphUndo=" << graphUndo
+		<< " transitionRectMode=" << transitionRectMode
 		<< " transitionClock=" << transitionClock
 		<< " paramMorph=" << paramMorph
 		<< " morphArming=" << morphArming
@@ -3478,5 +4065,6 @@ bool jp_persistence_test::run(ofApp &app)
 		transitionShaders && camDepthBox && camDepthParallax && camDepthRamp && selfLink &&
 		renderSchedule && scheduleObeyed && tooltipLayout &&
 		tooltipTransform &&
-		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke;
+		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke &&
+		graphUndo && transitionRectMode;
 }
