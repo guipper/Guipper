@@ -5248,8 +5248,13 @@ void ofApp::keyPressed(int key) {
 
 	// The detailed key event handles graph clipboard shortcuts below. Consume
 	// their legacy key callback so Ctrl+C cannot also create a camera box.
+	//
+	// Command as well as Control, or the whole guard is a no-op on macOS: the
+	// chords themselves are recognised there via ctrlOrCmd, so Cmd+Z would undo
+	// AND toggle the cue, and Cmd+C would copy AND add a camera box. Polling
+	// both is what paintCtrlHeld already does.
 	if (pantallaActiva == NODOS &&
-		ofGetKeyPressed(OF_KEY_CONTROL) &&
+		(ofGetKeyPressed(OF_KEY_CONTROL) || ofGetKeyPressed(OF_KEY_COMMAND)) &&
 		(key == 'c' || key == 'C' || key == 'v' || key == 'V' ||
 		 key == 'd' || key == 'D' ||
 		 // 'z' and 'g' bare are cue-toggle and (formerly) group. keyPressed and
