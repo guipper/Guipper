@@ -1352,6 +1352,12 @@ private:
 	bool resolveParameterOwner(JPParameter *parameter, string &uid,
 		int &index) const;
 
+	// MIDI-driven edits. Coalesced in pushEdit so a knob sweep is one step.
+	void recordExternalParameterChange(JPParameter *parameter,
+		const JPGraphParamState &before);
+	void recordBoxStateChange(JPbox *box, bool onoffBefore, bool bypassBefore);
+	JPGraphParamState captureParamState(JPParameter *parameter) const;
+
 	void recordConnectionChange(JPbox *consumer, int inlet,
 		const string &producerBefore, const string &producerAfter);
 	void recordInputReorder(JPbox *consumer, int first, int second);

@@ -110,6 +110,11 @@ struct JPGraphEdit
 	// cueState rather than in any preset. It keeps a separate ring for the same
 	// reason: those clones are destroyed when the cue is applied or dropped.
 	bool cueDraft = false;
+	// When this entry was recorded, in milliseconds since app start. Only used to
+	// decide whether an incoming change continues the same gesture - see
+	// amendableNewest(). Plain integer so this header keeps no dependency on any
+	// clock of its own.
+	unsigned long long stampMs = 0;
 
 	// --- MoveBoxes -------------------------------------------------------
 	struct BoxMove
@@ -250,6 +255,21 @@ public:
 	// the history - must still invalidate the redo tail. Leaving it in place would
 	// let a later redo run against a graph that changed behind its back.
 	void invalidateRedo() { dropRedoTail(); }
+
+	// The newest entry, but only when it is safe to rewrite in place: something
+	// must have been recorded, and nothing may have been undone since. With a
+	// redo tail present, amending would silently change a step the user can still
+	// walk forward into.
+	//
+	// This is what lets a continuous stream of changes - a MIDI knob sends one
+	// message per step of its travel - collapse into the single gesture the user
+	// actually performed, instead of flooding the ring and evicting everything
+	// else within a couple of seconds.
+	JPGraphEdit *amendableNewest()
+	{
+		if (cursor == 0 || cursor != entries.size()) return nullptr;
+		return &entries[cursor - 1];
+	}
 
 	bool canUndo() const { return cursor > 0; }
 	bool canRedo() const { return cursor < entries.size(); }

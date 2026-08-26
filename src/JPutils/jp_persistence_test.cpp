@@ -4132,6 +4132,100 @@ bool jp_persistence_test::run(ofApp &app)
 		}
 	}
 
+	// MIDI-driven changes are undoable, and a knob sweep is ONE step.
+	//
+	// The second half is what makes the first half usable: a CC knob reports
+	// every step of its travel, so recording each message would push a hundred
+	// entries per sweep and evict everything else within a couple of seconds.
+	bool midiUndo = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			midiUndo = false;
+			ofLogNotice("midiundo") << why;
+		};
+
+		app.boxes.clear();
+		app.boxes.addBox("shaders/imageprocessing/transform.frag", 100, 100);
+		if (app.boxes.boxes.empty())
+		{
+			fail("midi fixture did not build a box");
+		}
+		else
+		{
+			JPbox *box = app.boxes.boxes.front();
+			app.boxes.selectOpenBoxByIndex(0);
+			app.boxes.setControllers();
+
+			// Through the same accessor the MIDI path uses: index 0 is a BIND
+			// SLOT, and resolveBindableParameterIndex maps it to an array
+			// position that is not 0 on every box type.
+			JPParameter *parameter = app.boxes.getOpenParameterAtIndex(0);
+			if (parameter == nullptr)
+			{
+				fail("midi fixture box has no parameter");
+			}
+			else
+			{
+				const float original = parameter->floatValue;
+				const std::size_t depth =
+					app.boxes.currentViewHistory().size();
+
+				// A sweep: what a knob actually sends.
+				for (int step = 0; step <= 32; step++)
+				{
+					app.boxes.setOpenBoxParameterAtIndex(0,
+						(float)step / 32.0f);
+				}
+				const std::size_t grown =
+					app.boxes.currentViewHistory().size() - depth;
+				if (grown == 0)
+				{
+					fail("a MIDI sweep left no undo step at all");
+				}
+				else if (grown > 1)
+				{
+					fail("a MIDI sweep pushed " + ofToString((int)grown) +
+						" steps instead of one, which would evict the rest of "
+						"the history within seconds of use");
+				}
+
+				if (parameter->floatValue == original)
+				{
+					fail("the midi fixture did not move the parameter");
+				}
+
+				// And one press takes the whole sweep back to where it started.
+				app.boxes.graphUndoShortcut(false);
+				if (std::abs(parameter->floatValue - original) > 0.0001f)
+				{
+					fail("undo did not return the parameter to where the sweep "
+						"began");
+				}
+
+				// Bypass over MIDI is a step too. Asserted by undoing it rather
+				// than by watching the entry count: the undo above left a redo
+				// tail, and pushing drops that tail first, so the count can stay
+				// where it was even though a step really was recorded.
+				const bool bypassBefore = box->getBypass();
+				app.boxes.setBypassForBox(box->name, !bypassBefore);
+				if (box->getBypass() == bypassBefore)
+				{
+					fail("the midi fixture did not move the bypass");
+				}
+				if (!app.boxes.currentViewHistory().canUndo())
+				{
+					fail("a MIDI bypass left nothing to undo");
+				}
+				app.boxes.graphUndoShortcut(false);
+				if (box->getBypass() != bypassBefore)
+				{
+					fail("undo did not restore the bypass MIDI changed");
+				}
+			}
+		}
+	}
+
 	ofLogNotice("jp_persistence_test") << "current=" << current
 		<< " legacy=" << old << " invalid=" << clamped
 		<< " shaderReload=" << shaderReload
@@ -4159,6 +4253,7 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " groupComposite=" << groupComposite
 		<< " graphUndo=" << graphUndo
 		<< " exposeParams=" << exposeParams
+		<< " midiUndo=" << midiUndo
 		<< " transitionRectMode=" << transitionRectMode
 		<< " transitionClock=" << transitionClock
 		<< " paramMorph=" << paramMorph
@@ -4191,5 +4286,5 @@ bool jp_persistence_test::run(ofApp &app)
 		renderSchedule && scheduleObeyed && tooltipLayout &&
 		tooltipTransform &&
 		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke &&
-		graphUndo && transitionRectMode && exposeParams;
+		graphUndo && transitionRectMode && exposeParams && midiUndo;
 }

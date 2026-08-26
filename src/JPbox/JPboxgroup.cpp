@@ -7069,11 +7069,10 @@ bool JPboxgroup::toggleBypassForBox(string boxName)
 	JPbox *box = getEditableBoxForRealIndex(index);
 	if (box != nullptr)
 	{
-		// Not recorded: this is the MIDI path, and live control of a bypass
-		// during a set is a performance, not an edit somebody wants to walk
-		// back with Ctrl+Z. Clicking the same toggle IS recorded, by the
-		// gesture capture around mouse press and release.
+		const bool onoffBefore = box->getonoff();
+		const bool bypassBefore = box->getBypass();
 		box->setBypass(!box->getBypass());
+		recordBoxStateChange(box, onoffBefore, bypassBefore);
 		markCueDraftDirty(index, CUE_DIRTY_BYPASS_PAUSE);
 		return true;
 	}
@@ -7085,8 +7084,10 @@ bool JPboxgroup::togglePauseForBox(string boxName)
 	JPbox *box = getEditableBoxForRealIndex(index);
 	if (box != nullptr)
 	{
-		// Not recorded, same as toggleBypassForBox above.
+		const bool onoffBefore = box->getonoff();
+		const bool bypassBefore = box->getBypass();
 		box->setonoff(!box->getonoff());
+		recordBoxStateChange(box, onoffBefore, bypassBefore);
 		markCueDraftDirty(index, CUE_DIRTY_BYPASS_PAUSE);
 		return true;
 	}
@@ -7098,7 +7099,10 @@ bool JPboxgroup::setBypassForBox(string boxName, bool value)
 	JPbox *box = getEditableBoxForRealIndex(index);
 	if (box != nullptr)
 	{
+		const bool onoffBefore = box->getonoff();
+		const bool bypassBefore = box->getBypass();
 		box->setBypass(value);
+		recordBoxStateChange(box, onoffBefore, bypassBefore);
 		markCueDraftDirty(index, CUE_DIRTY_BYPASS_PAUSE);
 		return true;
 	}
@@ -7110,7 +7114,10 @@ bool JPboxgroup::setPauseForBox(string boxName, bool value)
 	JPbox *box = getEditableBoxForRealIndex(index);
 	if (box != nullptr)
 	{
+		const bool onoffBefore = box->getonoff();
+		const bool bypassBefore = box->getBypass();
 		box->setonoff(value);
+		recordBoxStateChange(box, onoffBefore, bypassBefore);
 		markCueDraftDirty(index, CUE_DIRTY_BYPASS_PAUSE);
 		return true;
 	}
@@ -9569,10 +9576,12 @@ bool JPboxgroup::setOpenBoxParameterAtIndex(int parameterIndex, float value)
 	{
 		return false;
 	}
+	const JPGraphParamState before = captureParamState(parameter);
 	if (!applyMidiParameterValue(parameter, controllers[resolved], value))
 	{
 		return false;
 	}
+	recordExternalParameterChange(parameter, before);
 	markCueDraftDirty(cueSelectedIndex());
 	return true;
 }
@@ -9606,11 +9615,13 @@ bool JPboxgroup::setBoxParameterAtIndex(string boxName, int parameterIndex,
 	{
 		return false;
 	}
-	if (!applyMidiParameterValue(
-			box->parameters.getJParameter(resolved), nullptr, value))
+	JPParameter *parameter = box->parameters.getJParameter(resolved);
+	const JPGraphParamState before = captureParamState(parameter);
+	if (!applyMidiParameterValue(parameter, nullptr, value))
 	{
 		return false;
 	}
+	recordExternalParameterChange(parameter, before);
 	markCueDraftDirty(index);
 	return true;
 }

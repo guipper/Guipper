@@ -107,6 +107,11 @@ JPGraphUndoRing &JPboxgroup::currentViewHistory()
 	return isCueDraftMode() ? cueDraftHistory : graphHistory;
 }
 
+// How long a stream of changes to one parameter still counts as the same
+// gesture. Long enough to bridge the gaps in a knob sweep, short enough that
+// coming back to the same knob later is its own step.
+static const unsigned long long kParameterCoalesceMs = 600;
+
 void JPboxgroup::pushEdit(JPGraphEdit &&edit)
 {
 	// The one place an entry is stamped with the view it belongs to. Doing it
@@ -114,6 +119,32 @@ void JPboxgroup::pushEdit(JPGraphEdit &&edit)
 	// forget, and forgetting would silently file it against the main graph.
 	edit.cueDraft = isCueDraftMode();
 	edit.viewUid = currentViewUid();
+	edit.stampMs = (unsigned long long)ofGetElapsedTimeMillis();
+
+	// One gesture, one step. A MIDI knob reports every step of its travel, so
+	// without this a single sweep would push dozens of entries and evict the
+	// whole history. A mouse drag never gets here more than once - it commits on
+	// release - so this only ever folds together streams that have no release to
+	// wait for.
+	if (edit.kind == JPGraphEdit::SetParameter)
+	{
+		JPGraphEdit *newest = currentViewHistory().amendableNewest();
+		if (newest != nullptr &&
+			newest->kind == JPGraphEdit::SetParameter &&
+			newest->cueDraft == edit.cueDraft &&
+			newest->viewUid == edit.viewUid &&
+			newest->boxUid == edit.boxUid &&
+			newest->paramIndex == edit.paramIndex &&
+			edit.stampMs - newest->stampMs <= kParameterCoalesceMs)
+		{
+			// Keep the ORIGINAL before: undo has to land where the gesture
+			// started, not one message back.
+			newest->paramAfter = edit.paramAfter;
+			newest->stampMs = edit.stampMs;
+			return;
+		}
+	}
+
 	currentViewHistory().push(std::move(edit));
 }
 
@@ -214,11 +245,9 @@ void JPboxgroup::focusInspectorOnEditBox(const JPGraphEdit &edit, bool applying)
 
 namespace
 {
-	JPGraphParamState readParamState(JPbox *box, int index)
+	JPGraphParamState readParamState(JPParameter *parameter)
 	{
 		JPGraphParamState state;
-		if (box == nullptr) return state;
-		JPParameter *parameter = box->parameters.getJParameter(index);
 		if (parameter == nullptr) return state;
 		state.floatValue = parameter->floatValue;
 		state.lerpValue = parameter->floatLerpValue;
@@ -234,6 +263,12 @@ namespace
 		state.defaultFloat = parameter->defaultFloatValue;
 		state.defaultBool = parameter->defaultBoolValue;
 		return state;
+	}
+
+	JPGraphParamState readParamState(JPbox *box, int index)
+	{
+		if (box == nullptr) return JPGraphParamState();
+		return readParamState(box->parameters.getJParameter(index));
 	}
 
 	void writeParamState(JPbox *box, int index, const JPGraphParamState &state)
@@ -416,6 +451,56 @@ void JPboxgroup::commitMoveCapture()
 }
 
 // ------------------------------------------------------------- other records
+
+// Changes arriving from MIDI. They are edits like any other - the earlier
+// reading, that a bind driven live was a performance rather than something to
+// walk back, turned out to be the wrong call: it is exactly the surface where a
+// knob knocked by accident needs an undo.
+//
+// What is still NOT recorded is the binding itself. Learning or clearing a MIDI
+// bind changes the controller layout, not the composition.
+void JPboxgroup::recordExternalParameterChange(JPParameter *parameter,
+	const JPGraphParamState &before)
+{
+	if (parameter == nullptr) return;
+	string uid;
+	int index = -1;
+	if (!resolveParameterOwner(parameter, uid, index)) return;
+
+	const JPGraphParamState after = readParamState(parameter);
+	if (!parameterEditIsMeaningful(before, after)) return;
+
+	JPGraphEdit edit;
+	edit.kind = JPGraphEdit::SetParameter;
+	edit.boxUid = uid;
+	edit.paramIndex = index;
+	edit.paramBefore = before;
+	edit.paramAfter = after;
+	pushEdit(std::move(edit));
+}
+
+void JPboxgroup::recordBoxStateChange(JPbox *box, bool onoffBefore,
+	bool bypassBefore)
+{
+	if (box == nullptr) return;
+	const bool onoffAfter = box->getonoff();
+	const bool bypassAfter = box->getBypass();
+	if (onoffBefore == onoffAfter && bypassBefore == bypassAfter) return;
+
+	JPGraphEdit edit;
+	edit.kind = JPGraphEdit::SetBoxState;
+	edit.boxUid = box->uid;
+	edit.onoffBefore = onoffBefore;
+	edit.onoffAfter = onoffAfter;
+	edit.bypassBefore = bypassBefore;
+	edit.bypassAfter = bypassAfter;
+	pushEdit(std::move(edit));
+}
+
+JPGraphParamState JPboxgroup::captureParamState(JPParameter *parameter) const
+{
+	return readParamState(parameter);
+}
 
 void JPboxgroup::recordConnectionChange(JPbox *consumer, int inlet,
 	const string &producerBefore, const string &producerAfter)

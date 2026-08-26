@@ -160,6 +160,59 @@ namespace
 		}
 	}
 
+	JPGraphEdit paramEdit(const std::string &uid, int index,
+		float before, float after, unsigned long long stamp)
+	{
+		JPGraphEdit edit;
+		edit.kind = JPGraphEdit::SetParameter;
+		edit.boxUid = uid;
+		edit.paramIndex = index;
+		edit.paramBefore.floatValue = before;
+		edit.paramAfter.floatValue = after;
+		edit.stampMs = stamp;
+		return edit;
+	}
+
+	// amendableNewest is what lets a stream of changes collapse into one step.
+	// A MIDI knob reports every step of its travel, so without it a single sweep
+	// would push dozens of entries and evict the rest of the history.
+	void testAmendableNewest()
+	{
+		FakeGraph graph;
+		JPGraphUndoRing ring(&graph);
+
+		expect(ring.amendableNewest() == nullptr,
+			"an empty ring has nothing to amend");
+
+		ring.push(paramEdit("a", 0, 0.0f, 0.1f, 1000));
+		JPGraphEdit *newest = ring.amendableNewest();
+		expect(newest != nullptr, "the entry just pushed is amendable");
+
+		// Fold a sweep into the one entry, keeping the ORIGINAL before.
+		if (newest != nullptr)
+		{
+			newest->paramAfter.floatValue = 0.9f;
+			newest->stampMs = 1200;
+		}
+		expect(ring.size() == 1, "amending did not add an entry");
+		newest = ring.amendableNewest();
+		expect(newest != nullptr && newest->paramBefore.floatValue == 0.0f,
+			"undo would land where the gesture started, not one message back");
+		expect(newest != nullptr && newest->paramAfter.floatValue == 0.9f,
+			"the amended entry carries the newest value");
+
+		// Once something has been undone there IS a redo tail, and rewriting the
+		// entry under the cursor would silently change a step the user can still
+		// walk forward into.
+		expect(ring.undo(), "undo");
+		expect(ring.amendableNewest() == nullptr,
+			"nothing is amendable while a redo tail exists");
+
+		expect(ring.redo(), "redo");
+		expect(ring.amendableNewest() != nullptr,
+			"amending is available again once the tail is consumed");
+	}
+
 	void testUndoRedoCycle()
 	{
 		FakeGraph graph;
@@ -329,6 +382,7 @@ namespace
 int main()
 {
 	testUndoRedoCycle();
+	testAmendableNewest();
 	testGroupPayloadAccounting();
 	testGroupOwnershipPolarity();
 	testInverseOverManySteps();
