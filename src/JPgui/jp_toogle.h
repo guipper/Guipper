@@ -13,7 +13,18 @@ public:
 	void drawSelectedTexture();
 	void draw();
 
-	void update_movtype(); // Esto es para poner dentro de una funcion directamente el trigger
+	// Draw as an on/off SWITCH rather than a filled bar: a dim row with the
+	// label on the left and a small pill on the right, matching how a slider row
+	// reads (label left, indicator right). The filled bar spanned the whole row
+	// exactly like a slider at maximum, so a boolean looked like a value.
+	//
+	// Opt-in, because the same class also backs the little on/off and bypass
+	// squares on a box header, which paint over it and must keep their shape.
+	void setSwitchStyle(bool enabled) { switchStyle = enabled; }
+	bool switchStyle = false;
+
+	void update_movtype();
+	void drawAsSwitch(); // Esto es para poner dentro de una funcion directamente el trigger
 
 	bool activable; // VARIABLE DE CONTROL
 

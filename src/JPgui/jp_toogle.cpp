@@ -245,6 +245,10 @@ void JPToogle::draw()
 	{
 		drawSelectedTexture();
 	}
+	else if (switchStyle)
+	{
+		drawAsSwitch();
+	}
 	else
 	{
 		// Semantic two-state color: ON = green (live), OFF = dim red.
@@ -259,7 +263,7 @@ void JPToogle::draw()
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		ofRect(x, y, width, height);
 	}
-	if (showtext)
+	if (showtext && !switchStyle)
 	{
 		string Strvalue = name;
 		ofTrueTypeFont &labelFont = font_p != nullptr ?
@@ -271,6 +275,52 @@ void JPToogle::draw()
 	}
 	ofSetColor(255, 0, 0);
 }
+// Label on the left, pill on the right - the same shape a slider row has, so a
+// column of mixed parameters scans as one list.
+void JPToogle::drawAsSwitch()
+{
+	const ofRectMode previousRectMode = ofGetRectMode();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+
+	const float left = x - width * 0.5f;
+	const float top = y - height * 0.5f;
+	const float radius = std::min(6.0f, height * 0.35f);
+	const bool hover = mouseOver();
+
+	ofFill();
+	ofSetColor(COL_BG_INPUT, hover ? 235 : 200);
+	ofDrawRectRounded(left, top, width, height, radius);
+
+	// The pill, right-aligned where a slider shows its number.
+	const float trackH = std::min(16.0f, height - 6.0f);
+	const float trackW = trackH * 2.0f;
+	const float trackX = left + width - trackW - 8.0f;
+	const float trackY = y - trackH * 0.5f;
+
+	ofSetColor(boolValue ? ofColor(COL_ACCENT_GREEN)
+						 : ofColor(COL_MAPPED_OFF),
+		hover ? 255 : 220);
+	ofDrawRectRounded(trackX, trackY, trackW, trackH, trackH * 0.5f);
+
+	const float knobR = trackH * 0.5f - 2.0f;
+	const float knobX = boolValue ? trackX + trackW - knobR - 2.0f
+								  : trackX + knobR + 2.0f;
+	ofSetColor(boolValue ? ofColor(0, 210) : ofColor(COL_TEXT_SECONDARY, 230));
+	ofDrawCircle(knobX, y, knobR);
+
+	if (showtext)
+	{
+		ofTrueTypeFont &labelFont = font_p != nullptr ?
+			*font_p : jp_constants::p_font;
+		ofSetColor(boolValue ? ofColor(COL_TEXT_PRIMARY)
+							 : ofColor(COL_TEXT_SECONDARY));
+		labelFont.drawString(name, left + 10.0f,
+			y + labelFont.stringHeight(name) * 0.5f);
+	}
+
+	ofSetRectMode(previousRectMode);
+}
+
 void JPToogle::update_movtype()
 {
 	if (useTexture)

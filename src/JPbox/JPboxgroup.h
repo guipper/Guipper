@@ -472,6 +472,17 @@ public:
 	};
 	vector<InspectorColorSwatch> inspectorColorSwatches;
 
+	// A small dim breadcrumb above each run of exposed rows, naming the group and
+	// box they came from. The origin used to be jammed into every row's own label
+	// as "group.box.param", which truncated to uselessness ("group12.edges...")
+	// exactly when there was nesting to explain.
+	struct ExposedOriginHeader
+	{
+		ofRectangle bounds;
+		string text;
+	};
+	vector<ExposedOriginHeader> exposedOriginHeaders;
+
 	vector<ofRectangle> parameterLockButtons;
 	vector<ofRectangle> parameterRangeButtons;
 	vector<JPbox *> boxes;				// TODOS LOS SHADERRENDERS QUE TIENE EL OBJETO.
@@ -571,6 +582,10 @@ private:
 	void draw_cursorrect();
 	vector<JPParameter *> getInspectorActionParameters() const;
 	void rebuildControllersIfLayoutStale();
+	// Exposing a parameter applies immediately and is never staged by the cue.
+	void setExposedParamDirect(int childIndex, int controllerIndex, bool exposed);
+	// Set when an expose toggle changed; consumed by rebuildControllersIfLayoutStale.
+	bool exposedParamsDirty = false;
 	void setupShaderRendersFromDataFolder(); // Esta es para que levante todos
 	int findBoxIndexByName(string boxName) const;
 	JPbox *findBoxByName(string boxName) const;

@@ -35,103 +35,88 @@ void JPExposeButton::draw()
 		boolValue = !boolValue;
 	}
 
-	ofSetRectMode(OF_RECTMODE_CENTER);
+	const ofRectMode previousRectMode = ofGetRectMode();
+	// CORNER, because the plate below is given corner coordinates. Under CENTER
+	// - which is what the panel usually leaves behind - those same numbers draw
+	// the plate centred on its own top-left corner, so it lands half a box up and
+	// to the left and sits on top of the lock button next to it.
+	ofSetRectMode(OF_RECTMODE_CORNER);
 
-	bool hover = mouseOver();
+	const bool hover = mouseOver();
+	const float radius = std::min(width, height) * 0.28f;
 
+	// Rounded, like every other action chip in the panel. A square plate read as
+	// a different family of control from the lock button beside it.
 	if (boolValue)
-	{
-		// Exposed: cyan background
-		if (hover)
-			ofSetColor(COL_ACCENT_CYAN, 220);
-		else
-			ofSetColor(COL_ACCENT_CYAN_DIM, 200);
-	}
+		ofSetColor(COL_ACCENT_CYAN, hover ? 90 : 60);
 	else
-	{
-		// Not exposed: dark background
-		if (hover)
-			ofSetColor(COL_MAPPED_OFF, 200);
-		else
-			ofSetColor(COL_BG_INPUT, 180);
-	}
-	ofDrawRectangle(x, y, width, height);
+		ofSetColor(COL_BG_INPUT, hover ? 220 : 170);
+	ofFill();
+	ofDrawRectRounded(x - width * 0.5f, y - height * 0.5f,
+		width, height, radius);
 
-	// Border
 	ofNoFill();
 	ofSetLineWidth(1);
-	if (hover)
-		ofSetColor(COL_TEXT_SECONDARY, 200);
-	else
-		ofSetColor(COL_TEXT_DIM, 180);
-	ofDrawRectangle(x, y, width, height);
+	if (boolValue) ofSetColor(COL_ACCENT_CYAN, hover ? 255 : 210);
+	else ofSetColor(hover ? COL_TEXT_SECONDARY : COL_TEXT_DIM, 180);
+	ofDrawRectRounded(x - width * 0.5f, y - height * 0.5f,
+		width, height, radius);
 	ofFill();
-	ofSetLineWidth(1);
 
-	// Eye icon
-	if (boolValue)
-	{
-		drawEyeIcon(x, y, width * 0.55f);
-	}
-	else
-	{
-		// Small dim dot when not exposed
-		ofSetColor(COL_TEXT_DIM, 180);
-		ofDrawRectangle(x, y, width * 0.3f, width * 0.3f);
-	}
+	// Same eye either way, open or struck through. The off state used to be an
+	// unrelated little square, so the two states did not read as one object with
+	// two settings - you could not tell at a glance which rows were exposed.
+	drawEyeIcon(x, y, width * 0.58f);
 
-	jp_tooltip::draw("Expose parameter to visualizer",
+	jp_tooltip::draw(boolValue ?
+		"Exposed to the group. Click to hide" :
+		"Expose parameter to the group",
 		x - width / 2.0f, y - height / 2.0f, width, height);
+
+	ofSetRectMode(previousRectMode);
 	ofSetColor(255);
 }
 
 void JPExposeButton::drawEyeIcon(float cx, float cy, float size)
 {
-	float halfW = size * 0.5f;
-	float halfH = size * 0.35f;
-	float left = cx - halfW;
-	float right = cx + halfW;
-	float top = cy - halfH;
-	float bottom = cy + halfH;
+	const float halfW = size * 0.5f;
+	const float halfH = size * 0.35f;
+	const float left = cx - halfW;
+	const float right = cx + halfW;
+	const float cpOffsetX = halfW * 0.7f;
+	const float cpOffsetY = halfH * 1.05f;
 
-	// Draw almond/eye shape using two bezier curves
-	ofSetColor(255);
+	const ofColor tint = boolValue ? ofColor(COL_ACCENT_CYAN)
+								   : ofColor(COL_TEXT_DIM);
+	const int alpha = boolValue ? 255 : 190;
+
+	ofSetColor(tint, alpha);
 	ofNoFill();
-	ofSetLineWidth(1.8f);
+	ofSetLineWidth(boolValue ? 1.6f : 1.3f);
 
-	// Left point, right point, control points for top curve
-	float cpOffsetX = halfW * 0.7f;
-	float cpOffsetY = halfH * 0.8f;
-
-	// Top curve: left -> right, arching up
-	ofDrawBezier(
-		left, cy,                          // P0: left point
-		left + cpOffsetX, cy - cpOffsetY,  // P1: control up-left
-		right - cpOffsetX, cy - cpOffsetY, // P2: control up-right
-		right, cy                          // P3: right point
-	);
-
-	// Bottom curve: right -> left, arching down
-	ofDrawBezier(
-		right, cy,                          // P0: right point
-		right - cpOffsetX, cy + cpOffsetY,  // P1: control down-right
-		left + cpOffsetX, cy + cpOffsetY,   // P2: control down-left
-		left, cy                            // P3: left point
-	);
+	ofDrawBezier(left, cy, left + cpOffsetX, cy - cpOffsetY,
+		right - cpOffsetX, cy - cpOffsetY, right, cy);
+	ofDrawBezier(right, cy, right - cpOffsetX, cy + cpOffsetY,
+		left + cpOffsetX, cy + cpOffsetY, left, cy);
 
 	ofFill();
-
-	// Iris (outer circle)
-	ofSetColor(255);
-	ofDrawCircle(cx, cy, size * 0.18f);
-
-	// Pupil (inner circle)
-	ofSetColor(0);
-	ofDrawCircle(cx, cy, size * 0.10f);
-
-	// Bright highlight dot on the iris
-	ofSetColor(255);
-	ofDrawCircle(cx - size * 0.05f, cy - size * 0.05f, size * 0.04f);
+	if (boolValue)
+	{
+		// Open: a solid pupil, so an exposed row is obvious from across the panel.
+		ofSetColor(tint, 255);
+		ofDrawCircle(cx, cy, size * 0.17f);
+	}
+	else
+	{
+		// Closed: a hollow pupil plus a slash, the usual "hidden" reading.
+		ofNoFill();
+		ofSetLineWidth(1.3f);
+		ofSetColor(tint, alpha);
+		ofDrawCircle(cx, cy, size * 0.15f);
+		ofDrawLine(left + size * 0.06f, cy + halfH * 0.95f,
+			right - size * 0.06f, cy - halfH * 0.95f);
+		ofFill();
+	}
 
 	ofSetLineWidth(1);
 }

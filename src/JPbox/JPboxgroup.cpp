@@ -3057,8 +3057,60 @@ bool JPboxgroup::handleInspectorAutomationClick()
 // A row's geometry - its height, and where the mode chips sit - depends on the
 // parameter's movtype. Rebuild when a mode changes so modifier rows and audio
 // shaping controls always use geometry for their current state.
+// Exposing a parameter is a DIRECT edit, not something the cue stages.
+//
+// The flag is written to the live preset AND mirrored onto its cue-draft
+// counterpart. Both are needed, and for different reasons.
+//
+// Live, because that is where the exposure has to survive: cancelling the cue
+// must not undo it.
+//
+// The draft, because everything that turns the flag into a slider reads it from
+// getInspectorBox(), which deliberately returns the draft clone while a cue is
+// open. The clone's exposedParams is a snapshot taken when the draft was built
+// and is never resynced, so writing only to the live preset left the two sides
+// unable to see each other: nothing appeared until the cue closed and the reader
+// went back to looking at the live object. Keeping them equal also turns the
+// wholesale exposedParams copy that applyCueDraftToSource performs from
+// something that reverts the change into a no-op.
+void JPboxgroup::setExposedParamDirect(int childIndex, int controllerIndex,
+	bool exposed)
+{
+	JPbox_preset *preset = getActivePreset();
+	if (preset == nullptr) return;
+	preset->setExposedParam(childIndex, controllerIndex, exposed);
+
+	JPbox_preset *draft = getDraftPresetForCurrentView();
+	if (draft != nullptr)
+	{
+		draft->setExposedParam(childIndex, controllerIndex, exposed);
+	}
+
+	// Deferred on purpose. This runs from inside draw_paramswindow's loop over
+	// `controllers` - the expose button toggles itself from its own draw(), so
+	// there is no click handler to hang this off - and setControllers() begins by
+	// deleting every controller in that vector.
+	exposedParamsDirty = true;
+}
+
 void JPboxgroup::rebuildControllersIfLayoutStale()
 {
+	// Runs at the top of draw_paramswindow, before the controller loop starts,
+	// which is the only safe place to honour an expose toggle.
+	//
+	// And not until the button is released. Rebuilding destroys and recreates
+	// every expose button, and a fresh one comes back with its `activable` edge
+	// guard reset - the flag that makes one press produce one toggle. With the
+	// mouse still down over the same spot, the new button fires again, flips the
+	// value back and marks the panel dirty again: it toggles once per frame for
+	// as long as the click is held, so the result depends on how long you held
+	// it. Waiting for the release costs nothing perceptible and removes the loop.
+	if (exposedParamsDirty && !ofGetMousePressed())
+	{
+		exposedParamsDirty = false;
+		setControllers();
+		return;
+	}
 	if (JPMediaInspectable *media = dynamic_cast<JPMediaInspectable *>(getInspectorBox()))
 	{
 		const bool playable = media->mediaPlayable() || !media->mediaReady();
@@ -3410,16 +3462,28 @@ void JPboxgroup::draw_paramswindow()
 				// Sync button state back to preset's exposedParams on toggle
 				if (exposeButtons[i]->boolValue != prevBoolValue)
 				{
-					JPbox_preset *preset = getActivePreset();
-					if (preset != nullptr && groupInspectorIndex >= 0 &&
-						groupInspectorIndex < (int)preset->exposedParams.size() &&
-						i < (int)preset->exposedParams[groupInspectorIndex].size())
-					{
-						preset->exposedParams[groupInspectorIndex][i] = exposeButtons[i]->boolValue;
-					}
+					setExposedParamDirect(groupInspectorIndex, i,
+						exposeButtons[i]->boolValue);
 				}
 			}
 		}
+		// Origin breadcrumbs, in the same clipped span as the rows so they
+		// scroll with the run they label.
+		for (const ExposedOriginHeader &header : exposedOriginHeaders)
+		{
+			if (!header.bounds.intersects(inspectorBodyViewport)) continue;
+			// The 9pt face. Named for the media panel, but it is simply the
+			// smallest inspector size and this is a caption, not a control label.
+			ofTrueTypeFont &headerFont = jp_constants::inspector_media_font;
+			ofSetColor(COL_TEXT_DIM, 220);
+			headerFont.drawString(header.text, header.bounds.x + 2.0f,
+				header.bounds.y + header.bounds.height - 2.0f);
+			ofSetColor(COL_TEXT_DIM, 60);
+			ofDrawRectangle(header.bounds.x,
+				header.bounds.y + header.bounds.height - 1.0f,
+				header.bounds.width, 1.0f);
+		}
+
 		// Colour swatches. Inside the clipped span on purpose, so they scroll
 		// and clip with the rows instead of floating over the header.
 		for (const InspectorColorSwatch &swatch : inspectorColorSwatches)
@@ -5878,6 +5942,7 @@ void JPboxgroup::setControllers(){
 	parameterLockButtons.clear();
 	parameterRangeButtons.clear();
 	inspectorColorSwatches.clear();
+	exposedOriginHeaders.clear();
 
 	// Clean up expose buttons
 	for (int i = 0; i < exposeButtons.size(); i++)
@@ -5928,7 +5993,6 @@ void JPboxgroup::setControllers(){
 		advancedShader->getAdvancedMappingState() : nullptr;
 	int lastAdvancedLayer = -1;
 
-	float slider_width = inspectorwindow_width * 3 / 4;
 	float slider_height = inspectorLayout.minControlHeight;
 	// Keep parameter controls clear of the per-row lock button. Group view
 	// reserves an additional column for its existing expose button.
@@ -6159,6 +6223,7 @@ void JPboxgroup::setControllers(){
 			float complexsliderheight = standardControllerHeight;
 			JPToogle *toogle = new JPToogle();
 			toogle->setParametersPointer(inspectorBox->parameters.getJParameter(k));
+			toogle->setSwitchStyle(true);
 			toogle->setFontPointer(jp_constants::inspector_body_font);
 			// usesCanonicalOrder, not mediaBox: the camera, Spout, NDI and
 			// transform-style shader boxes are ordered the same way. Testing
@@ -6169,7 +6234,7 @@ void JPboxgroup::setControllers(){
 				mediaParameterTop[k] : layoutCursor;
 			toogle->setup(controllerX,
 						  parameterTop + complexsliderheight * 0.5f,
-						  std::min(slider_width, controllerWidth), slider_height,
+						  controllerWidth, slider_height,
 						  inspectorBox->parameters.getName(k), inspectorBox->parameters.getBoolValue(k));
 			if (parameterHidden)
 			{
@@ -6185,6 +6250,19 @@ void JPboxgroup::setControllers(){
 
 		// Clear exposed controller mapping
 		exposedControllerMapping.clear();
+		// A caption, not a row: it only has to be readable, and every pixel it
+		// takes is one the parameters do not get.
+		const float exposedHeaderHeight = 12.0f;
+		const float exposedGroupGap = 4.0f;
+		auto pushExposedHeader = [&](const string &text)
+		{
+			ExposedOriginHeader header;
+			header.bounds.set(inspectorBodyViewport.x, layoutCursor,
+				controllerWidth, exposedHeaderHeight);
+			header.text = text;
+			exposedOriginHeaders.push_back(header);
+			layoutCursor += exposedHeaderHeight + 1.0f;
+		};
 
 		// Recursive lambda: walk through preset children and collect exposed params
 		std::function<void(JPbox_preset *, const string &)> collectExposedParams;
@@ -6204,7 +6282,7 @@ void JPboxgroup::setControllers(){
 					{
 						string childPrefix = namePrefix.empty()
 							? preset->boxes[bi]->name
-							: namePrefix + "." + preset->boxes[bi]->name;
+							: namePrefix + "  /  " + preset->boxes[bi]->name;
 						collectExposedParams(childPreset, childPrefix);
 					}
 				}
@@ -6218,9 +6296,12 @@ void JPboxgroup::setControllers(){
 						cout << "  collectExposedParams: found exposed param bi=" << bi << " ei=" << ei
 							 << " in preset \"" << preset->name << "\" child \""
 							 << preset->boxes[bi]->name << "\"" << endl;
-						if (!hasExposedInThisChild && bi > 0)
+						if (!hasExposedInThisChild)
 						{
-							layoutCursor += controllerRowGap;
+							if (bi > 0) layoutCursor += exposedGroupGap;
+							pushExposedHeader(namePrefix.empty()
+								? preset->boxes[bi]->name
+								: namePrefix + "  /  " + preset->boxes[bi]->name);
 						}
 						hasExposedInThisChild = true;
 
@@ -6237,16 +6318,40 @@ void JPboxgroup::setControllers(){
 									  controllerWidth, complexsliderheight,
 									  preset->boxes[bi]->parameters.parameters[ei]);
 
-							// Prepend full path to the slider name
-							string fullName = namePrefix.empty()
-								? preset->boxes[bi]->name + "." + sl->name
-								: namePrefix + "." + preset->boxes[bi]->name + "." + sl->name;
-							sl->name = fullName;
-
+							// Just the parameter. Where it comes from is the
+							// header above this run of rows.
 							controllers.push_back(sl);
 							exposedControllerMapping.push_back({bi, ei});
 
 							layoutCursor += complexsliderheight + controllerRowGap;
+						}
+						else if (ei < preset->boxes[bi]->parameters.getSize() &&
+							preset->boxes[bi]->parameters.getType(ei) ==
+								preset->boxes[bi]->parameters.BOOL)
+						{
+							// Without this an exposed bool was found, counted and
+							// then silently dropped: the eye button appeared, the
+							// flag was stored and saved, and no control was ever
+							// built for it.
+							JPToogle *toogle = new JPToogle();
+							toogle->setParametersPointer(
+								preset->boxes[bi]->parameters.getJParameter(ei));
+							toogle->setSwitchStyle(true);
+							toogle->setFontPointer(
+								jp_constants::inspector_body_font);
+							const string fullName =
+								preset->boxes[bi]->parameters.getName(ei);
+							toogle->setup(controllerX,
+								layoutCursor + standardControllerHeight * 0.5f,
+								controllerWidth,
+								slider_height, fullName,
+								preset->boxes[bi]->parameters.getBoolValue(ei));
+
+							controllers.push_back(toogle);
+							exposedControllerMapping.push_back({bi, ei});
+
+							layoutCursor += standardControllerHeight +
+								controllerRowGap;
 						}
 					}
 				}
@@ -6264,6 +6369,10 @@ void JPboxgroup::setControllers(){
 			JPbox_preset *rootPreset = dynamic_cast<JPbox_preset *>(inspectorBox);
 			if (rootPreset != nullptr)
 			{
+				// Headers are keyed on the resolved owner path, not on the child
+				// index, so consecutive exposures from the same grandchild share
+				// one heading and a change of grandchild starts a new one.
+				string lastExposedOwnerPath;
 				for (int bi = 0; bi < (int)rootPreset->boxes.size() && bi < (int)rootPreset->exposedParams.size(); bi++)
 				{
 					if (rootPreset->boxes[bi] == nullptr) continue;
@@ -6273,9 +6382,35 @@ void JPboxgroup::setControllers(){
 					{
 						if (rootPreset->exposedParams[bi][ei])
 						{
-							if (!hasExposedInThisChild && bi > 0)
+							// The full path, resolved before the header is
+							// emitted: an exposure that actually belongs to a
+							// grandchild has to name the subgroup AND the box
+							// inside it, or two different sources collapse under
+							// one heading.
+							string ownerPath = rootPreset->boxes[bi]->name;
+							if (ei >= rootPreset->boxes[bi]->parameters.getSize() &&
+								rootPreset->boxes[bi]->getTipo() == JPbox::PRESETBOX &&
+								bi < (int)rootPreset->exposedParamOriginalIndices.size() &&
+								ei < (int)rootPreset->exposedParamOriginalIndices[bi].size())
 							{
-								layoutCursor += controllerRowGap;
+								JPbox_preset *ownerChild =
+									dynamic_cast<JPbox_preset *>(rootPreset->boxes[bi]);
+								const int oci =
+									rootPreset->exposedParamOriginalIndices[bi][ei].first;
+								if (ownerChild != nullptr && oci >= 0 &&
+									oci < (int)ownerChild->boxes.size() &&
+									ownerChild->boxes[oci] != nullptr)
+								{
+									ownerPath += "  /  " +
+										ownerChild->boxes[oci]->name;
+								}
+							}
+							if (ownerPath != lastExposedOwnerPath)
+							{
+								if (!lastExposedOwnerPath.empty())
+									layoutCursor += exposedGroupGap;
+								pushExposedHeader(ownerPath);
+								lastExposedOwnerPath = ownerPath;
 							}
 							hasExposedInThisChild = true;
 
@@ -6292,14 +6427,39 @@ void JPboxgroup::setControllers(){
 										  controllerWidth, complexsliderheight,
 										  rootPreset->boxes[bi]->parameters.parameters[ei]);
 
-								// Prepend child name to the slider label
-								string fullName = rootPreset->boxes[bi]->name + "." + sl->name;
-								sl->name = fullName;
-
+								// Just the parameter; the header names the box.
 								controllers.push_back(sl);
 								exposedControllerMapping.push_back({bi, ei});
 
 								layoutCursor += complexsliderheight + controllerRowGap;
+							}
+							// A bool of the child itself. This has to come before the
+							// propagated branch below: that one requires the index to
+							// be PAST the child's own parameters, so an in-range bool
+							// failed both tests and fell through the middle.
+							else if (ei < rootPreset->boxes[bi]->parameters.getSize() &&
+								rootPreset->boxes[bi]->parameters.getType(ei) ==
+									rootPreset->boxes[bi]->parameters.BOOL)
+							{
+								JPToogle *toogle = new JPToogle();
+								toogle->setParametersPointer(
+									rootPreset->boxes[bi]->parameters.getJParameter(ei));
+								toogle->setSwitchStyle(true);
+							toogle->setFontPointer(
+									jp_constants::inspector_body_font);
+								const string fullName =
+									rootPreset->boxes[bi]->parameters.getName(ei);
+								toogle->setup(controllerX,
+									layoutCursor + standardControllerHeight * 0.5f,
+									controllerWidth,
+									slider_height, fullName,
+									rootPreset->boxes[bi]->parameters.getBoolValue(ei));
+
+								controllers.push_back(toogle);
+								exposedControllerMapping.push_back({bi, ei});
+
+								layoutCursor += standardControllerHeight +
+									controllerRowGap;
 							}
 							// Propagated expose: the exposed param comes from a grandchild (child's child)
 							// Use exposedParamOriginalIndices[bi][ei] to find the original parameter
@@ -6325,14 +6485,39 @@ void JPboxgroup::setControllers(){
 												  controllerWidth, complexsliderheight,
 												  childPreset->boxes[ci]->parameters.parameters[pi]);
 
-									string fullName = rootPreset->boxes[bi]->name + "."
-										+ childPreset->boxes[ci]->name + "." + sl->name;
-									sl->name = fullName;
-
 									controllers.push_back(sl);
 									exposedControllerMapping.push_back({bi, ei});
 
 									layoutCursor += complexsliderheight + controllerRowGap;
+								}
+								else if (childPreset != nullptr && ci >= 0 &&
+									ci < (int)childPreset->boxes.size() &&
+									pi >= 0 &&
+									pi < childPreset->boxes[ci]->parameters.getSize() &&
+									childPreset->boxes[ci]->parameters.getType(pi) ==
+										childPreset->boxes[ci]->parameters.BOOL)
+								{
+									JPToogle *toogle = new JPToogle();
+									toogle->setParametersPointer(
+										childPreset->boxes[ci]->parameters
+											.getJParameter(pi));
+									toogle->setSwitchStyle(true);
+							toogle->setFontPointer(
+										jp_constants::inspector_body_font);
+									const string fullName =
+										childPreset->boxes[ci]->parameters.getName(pi);
+									toogle->setup(controllerX,
+										layoutCursor + standardControllerHeight * 0.5f,
+										controllerWidth,
+										slider_height, fullName,
+										childPreset->boxes[ci]->parameters
+											.getBoolValue(pi));
+
+									controllers.push_back(toogle);
+									exposedControllerMapping.push_back({bi, ei});
+
+									layoutCursor += standardControllerHeight +
+										controllerRowGap;
 								}
 							}
 						}
@@ -6411,8 +6596,13 @@ void JPboxgroup::setControllers(){
 			float btnRightMargin = 4;
 			for (int k = 0; k < (int)controllers.size(); k++)
 			{
-				// Position button at the far right edge of the inspector panel
-				float btnX = inspectorwindow_x + inspectorwindow_width / 2 - btnSize / 2 - btnRightMargin;
+				// Against the BODY viewport's right edge, which is what the lock
+				// column below is measured from. Measuring from the window edge
+				// instead put the eye outerInset pixels further right than every
+				// other row action - past the body's own right edge, so it sat
+				// off the grid and overhung the panel.
+				float btnX = inspectorBodyViewport.getRight() -
+					btnSize * 0.5f - btnRightMargin;
 				float btnY = controllers[k]->y;
 				if (JPComplexSlider *slider =
 					dynamic_cast<JPComplexSlider *>(controllers[k]))
@@ -6420,16 +6610,30 @@ void JPboxgroup::setControllers(){
 
 				JPExposeButton *btn = new JPExposeButton();
 				btn->setup(btnX, btnY, btnSize);
+				// A button that comes into being under an already-held mouse must
+				// not fire until that press ends, or a rebuild mid-click reads as
+				// a second click. setup() leaves this true, which is right for the
+				// ordinary case of building the panel between gestures.
+				btn->activable = !ofGetMousePressed();
 				// Sync initial state with stored exposed params
 				if (k < (int)preset->exposedParams[groupInspectorIndex].size())
 				{
 					btn->boolValue = preset->exposedParams[groupInspectorIndex][k];
 				}
-				// For propagated controllers (beyond child's own params), store original indices
-				if (k >= childOwnParams && k < (int)exposedControllerMapping.size())
+				// For propagated controllers (beyond child's own params), store original indices.
+				//
+				// exposedControllerMapping is cleared per rebuild and only ever gains
+				// an entry for an EXPOSED controller, so its base is 0 - while k
+				// counts the child's own parameters first. Indexing it with k read
+				// the wrong pair, and the size test silently skipped every entry
+				// whenever the child had at least as many parameters as there were
+				// exposed controllers.
+				const int exposedSlot = k - childOwnParams;
+				if (exposedSlot >= 0 &&
+					exposedSlot < (int)exposedControllerMapping.size())
 				{
-					int ci = exposedControllerMapping[k].first;
-					int pi = exposedControllerMapping[k].second;
+					int ci = exposedControllerMapping[exposedSlot].first;
+					int pi = exposedControllerMapping[exposedSlot].second;
 					preset->exposedParamOriginalIndices[groupInspectorIndex][k] = {ci, pi};
 				}
 				exposeButtons.push_back(btn);

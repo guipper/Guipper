@@ -4008,6 +4008,130 @@ bool jp_persistence_test::run(ofApp &app)
 		}
 	}
 
+	// Exposing a parameter: it must work for BOOLS, and it must apply at once
+	// rather than waiting for a cue to close.
+	//
+	// Both halves were broken independently. Every factory that turns an
+	// exposed-parameter flag into a control was gated on FLOAT with no BOOL
+	// branch, so exposing a toggle set the flag, saved it and rebuilt it from
+	// disk while never building anything. And the flag was written to the live
+	// preset while the panel renders from the cue's draft clone, so with a cue
+	// open the two sides could not see each other.
+	bool exposeParams = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			exposeParams = false;
+			ofLogNotice("exposeparams") << why;
+		};
+
+		app.boxes.clear();
+		// flip.frag carries a bool uniform, so the child has a real toggle.
+		app.boxes.addBox("shaders/imageprocessing/flip.frag", 100, 100);
+		app.boxes.addBox("shaders/imageprocessing/transform.frag", 200, 100);
+
+		if (app.boxes.boxes.size() != 2)
+		{
+			fail("expose fixture did not build two boxes");
+		}
+		else
+		{
+			app.boxes.clearSelection();
+			app.boxes.toggleBoxSelection(0);
+			app.boxes.toggleBoxSelection(1);
+			app.boxes.groupSelectedBoxes();
+
+			JPbox_preset *group = app.boxes.boxes.size() == 1 ?
+				dynamic_cast<JPbox_preset *>(app.boxes.boxes.back()) : nullptr;
+			if (group == nullptr || group->boxes.size() != 2)
+			{
+				fail("expose fixture did not produce a group of two");
+			}
+			else
+			{
+				// Find a bool and a float parameter on the first child.
+				JPbox *child = group->boxes[0];
+				int boolIndex = -1, floatIndex = -1;
+				for (int i = 0; i < child->parameters.getSize(); i++)
+				{
+					if (boolIndex < 0 &&
+						child->parameters.getType(i) == child->parameters.BOOL)
+						boolIndex = i;
+					if (floatIndex < 0 &&
+						child->parameters.getType(i) == child->parameters.FLOAT)
+						floatIndex = i;
+				}
+				if (boolIndex < 0)
+				{
+					ofLogNotice("exposeparams")
+						<< "fixture shader has no bool uniform - skipped";
+				}
+				else
+				{
+					group->setExposedParam(0, boolIndex, true);
+
+					// Inspect the GROUP from the main view, which is where an
+					// exposed parameter is meant to surface.
+					app.boxes.navigateToBreadcrumbLevel(0);
+					app.boxes.selectOpenBoxByIndex(0);
+					app.boxes.setControllers();
+
+					JPParameter *target =
+						child->parameters.getJParameter(boolIndex);
+					JPToogle *exposed = nullptr;
+					for (JPcontroller *controller : app.boxes.controllers)
+					{
+						JPToogle *toogle = dynamic_cast<JPToogle *>(controller);
+						if (toogle != nullptr && toogle->parameters == target)
+							exposed = toogle;
+					}
+					if (exposed == nullptr)
+					{
+						fail("an exposed BOOL produced no control at all - the "
+							"eye lights up, the flag is stored and saved, and "
+							"nothing is ever built for it");
+					}
+					else
+					{
+						// Wired well enough to actually commit: JPToogle writes
+						// through this pointer from its own draw().
+						const bool before = target->boolValue;
+						exposed->boolValue = !before;
+						target->boolValue = exposed->boolValue;
+						if (target->boolValue == before)
+						{
+							fail("the exposed toggle is not bound to the child's "
+								"parameter");
+						}
+						target->boolValue = before;
+					}
+
+					// The float path must not have regressed.
+					if (floatIndex >= 0)
+					{
+						group->setExposedParam(0, floatIndex, true);
+						app.boxes.setControllers();
+						JPParameter *ftarget =
+							child->parameters.getJParameter(floatIndex);
+						bool foundFloat = false;
+						for (JPcontroller *controller : app.boxes.controllers)
+						{
+							JPComplexSlider *slider =
+								dynamic_cast<JPComplexSlider *>(controller);
+							if (slider != nullptr && slider->parameters == ftarget)
+								foundFloat = true;
+						}
+						if (!foundFloat)
+						{
+							fail("exposing a FLOAT stopped producing a slider");
+						}
+						group->setExposedParam(0, floatIndex, false);
+					}
+				}
+			}
+		}
+	}
+
 	ofLogNotice("jp_persistence_test") << "current=" << current
 		<< " legacy=" << old << " invalid=" << clamped
 		<< " shaderReload=" << shaderReload
@@ -4034,6 +4158,7 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " boxHitboxes=" << boxHitboxes
 		<< " groupComposite=" << groupComposite
 		<< " graphUndo=" << graphUndo
+		<< " exposeParams=" << exposeParams
 		<< " transitionRectMode=" << transitionRectMode
 		<< " transitionClock=" << transitionClock
 		<< " paramMorph=" << paramMorph
@@ -4066,5 +4191,5 @@ bool jp_persistence_test::run(ofApp &app)
 		renderSchedule && scheduleObeyed && tooltipLayout &&
 		tooltipTransform &&
 		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke &&
-		graphUndo && transitionRectMode;
+		graphUndo && transitionRectMode && exposeParams;
 }
