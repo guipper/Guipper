@@ -4226,6 +4226,193 @@ bool jp_persistence_test::run(ofApp &app)
 		}
 	}
 
+	// Grouping, ungrouping and deleting from INSIDE a group.
+	//
+	// Every other structural test in this file works in the main view, which is
+	// the easy path: the parent is the JPboxgroup itself and there are no
+	// exposedParams arrays to keep in step. One level down, a JPbox_preset owns
+	// the list, and exposedParams / exposedParamOriginalIndices run parallel to
+	// it - a structural edit that forgets either one leaves every later child
+	// reading another child's flags.
+	bool groupNesting = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			groupNesting = false;
+			ofLogNotice("groupnesting") << why;
+		};
+		// The invariant that silently rots: the parallel arrays must never
+		// disagree with the box list they index.
+		auto checkParallel = [&](JPbox_preset *preset, const string &when)
+		{
+			if (preset == nullptr) return;
+			if ((int)preset->exposedParams.size() < (int)preset->boxes.size())
+			{
+				fail("exposedParams fell behind the box list " + when);
+			}
+			if ((int)preset->exposedParamOriginalIndices.size() <
+				(int)preset->boxes.size())
+			{
+				fail("exposedParamOriginalIndices fell behind the box list " +
+					when);
+			}
+		};
+
+		app.boxes.clear();
+		for (int i = 0; i < 4; i++)
+		{
+			app.boxes.addBox("shaders/imageprocessing/transform.frag",
+				100.0f + 60.0f * i, 100.0f);
+		}
+		vector<JPbox *> &top = app.boxes.boxes;
+		if (top.size() != 4)
+		{
+			fail("nesting fixture did not build four boxes");
+		}
+		else
+		{
+			// Group three of them, then work entirely inside that group.
+			app.boxes.clearSelection();
+			app.boxes.toggleBoxSelection(0);
+			app.boxes.toggleBoxSelection(1);
+			app.boxes.toggleBoxSelection(2);
+			app.boxes.groupSelectedBoxes();
+
+			JPbox_preset *group = top.size() == 2 ?
+				dynamic_cast<JPbox_preset *>(top.back()) : nullptr;
+			if (group == nullptr || group->boxes.size() != 3)
+			{
+				fail("nesting fixture did not produce a group of three");
+			}
+			else if (!app.boxes.navigateToChildPreset(0))
+			{
+				fail("could not enter the group");
+			}
+			else
+			{
+				JPbox *a = group->boxes[0];
+				JPbox *b = group->boxes[1];
+				JPbox *c = group->boxes[2];
+				checkParallel(group, "after grouping");
+
+				// --- a SUBGROUP, made from inside the group -----------------
+				app.boxes.clearSelection();
+				app.boxes.toggleBoxSelection(0);
+				app.boxes.toggleBoxSelection(1);
+				app.boxes.groupSelectedBoxes();
+
+				if (group->boxes.size() != 2)
+				{
+					fail("subgrouping did not leave the survivor beside the "
+						"new subgroup");
+				}
+				JPbox_preset *sub = group->boxes.size() == 2 ?
+					dynamic_cast<JPbox_preset *>(group->boxes.back()) : nullptr;
+				if (sub == nullptr)
+				{
+					fail("subgrouping produced no nested preset");
+				}
+				else
+				{
+					if (sub->boxes.size() != 2 ||
+						sub->boxes[0] != a || sub->boxes[1] != b)
+					{
+						fail("the subgroup does not hold the same objects - "
+							"they were rebuilt rather than transplanted");
+					}
+					checkParallel(group, "after subgrouping");
+					checkParallel(sub, "inside the new subgroup");
+
+					// --- undo / redo of the subgrouping ---------------------
+					app.boxes.graphUndoShortcut(false);
+					if (group->boxes.size() != 3 ||
+						group->boxes[0] != a || group->boxes[1] != b ||
+						group->boxes[2] != c)
+					{
+						fail("undoing a subgrouping did not restore the group's "
+							"three children in order");
+					}
+					checkParallel(group, "after undoing the subgrouping");
+
+					app.boxes.graphUndoShortcut(true);
+					if (group->boxes.size() != 2)
+					{
+						fail("redo did not rebuild the subgroup");
+					}
+
+					// --- ungroup, from inside the parent group --------------
+					// This is the path nothing covered: ungroupSelectedBoxes
+					// resolving its owner preset instead of the main graph.
+					app.boxes.clearSelection();
+					app.boxes.toggleBoxSelection(1);
+					if (!app.boxes.ungroupSelectedBoxes())
+					{
+						fail("ungroup refused a subgroup selected inside a group");
+					}
+					if (group->boxes.size() != 3)
+					{
+						fail("ungrouping inside a group did not return both "
+							"children to the parent group");
+					}
+					else
+					{
+						bool sawA = false, sawB = false, sawSub = false;
+						for (JPbox *child : group->boxes)
+						{
+							if (child == a) sawA = true;
+							if (child == b) sawB = true;
+							if (child == sub) sawSub = true;
+						}
+						if (!sawA || !sawB)
+							fail("ungrouping lost the transplanted children");
+						if (sawSub)
+							fail("the dissolved subgroup is still in the list");
+					}
+					checkParallel(group, "after ungrouping inside a group");
+
+					app.boxes.graphUndoShortcut(false);
+					if (group->boxes.size() != 2)
+					{
+						fail("undoing an ungroup inside a group did not rebuild "
+							"the subgroup");
+					}
+					app.boxes.graphUndoShortcut(true);
+				}
+
+				// --- delete a child of the group, and undo it ---------------
+				const std::size_t before = group->boxes.size();
+				app.boxes.clearSelection();
+				app.boxes.groupInspectorIndex = 0;
+				JPbox *doomed = group->boxes[0];
+				app.boxes.deleteSelectedShader();
+				if (group->boxes.size() != before - 1)
+				{
+					fail("deleting inside a group did not remove the child");
+				}
+				checkParallel(group, "after deleting inside a group");
+
+				app.boxes.graphUndoShortcut(false);
+				if (group->boxes.size() != before)
+				{
+					fail("undo did not bring the deleted child back");
+				}
+				else if (group->boxes[0] != doomed)
+				{
+					fail("the child came back as a different object, or in the "
+						"wrong slot - a delete inside a group must hand the box "
+						"over alive, like the main graph does");
+				}
+				checkParallel(group, "after undoing a delete inside a group");
+
+				app.boxes.navigateToBreadcrumbLevel(0);
+				if (app.boxes.isGroupViewActive())
+				{
+					fail("could not leave the group view");
+				}
+			}
+		}
+	}
+
 	ofLogNotice("jp_persistence_test") << "current=" << current
 		<< " legacy=" << old << " invalid=" << clamped
 		<< " shaderReload=" << shaderReload
@@ -4254,6 +4441,7 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " graphUndo=" << graphUndo
 		<< " exposeParams=" << exposeParams
 		<< " midiUndo=" << midiUndo
+		<< " groupNesting=" << groupNesting
 		<< " transitionRectMode=" << transitionRectMode
 		<< " transitionClock=" << transitionClock
 		<< " paramMorph=" << paramMorph
@@ -4286,5 +4474,5 @@ bool jp_persistence_test::run(ofApp &app)
 		renderSchedule && scheduleObeyed && tooltipLayout &&
 		tooltipTransform &&
 		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke &&
-		graphUndo && transitionRectMode && exposeParams && midiUndo;
+		graphUndo && transitionRectMode && exposeParams && midiUndo && groupNesting;
 }

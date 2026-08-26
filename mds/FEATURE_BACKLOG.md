@@ -34,7 +34,7 @@
 - Add copy/paste/duplicate for boxes and selections.
 - Add multi-select move and align/distribute tools.
 - Add minimap and zoom/pan controls.
-- Extend undo to renaming, exposing parameters and the active-render change.
+- Extend undo to renaming boxes and to exposing parameters and texture inputs.
 
 ## Automation and Control
 - Add envelopes/LFO modulators as native automation sources.
