@@ -3,6 +3,7 @@
 #include "jp_media.h"
 #include "../JPutils/jp_pointer.h"
 #include "../JPutils/jp_audio.h"
+#include "../JPutils/jp_osc_address.h"
 #include "../JPgui/jp_shader_editor.h"
 #include "../JPutils/jp_textfield.h"
 #include "../JPutils/jp_tooltip.h"
@@ -6889,26 +6890,24 @@ void JPboxgroup::listenToOsc(string _dir, float _val){
 			}
 		}
 	}
-	//LEO POR NOMBRE DEL OPENGUIQUE ESTA ACTIVO
-	if (shadername == "openguinumber"){
+	// Address the open inspector by a strict decimal bind-slot index. The old
+	// parser looked at character 5 of the suffix, so `/openguinumber/3`
+	// accidentally changed slot zero and multi-digit indices were unusable.
+	int openParameterIndex = -1;
+	if (jp_osc_address::indexed(
+		_dir, "/openguinumber/", openParameterIndex)){
 		JPbox *inspectorBox = getInspectorBox();
-		string index = "NULL";
-		// cout << "parametername.size()" << parametername.size() << endl;
-		// NO TENGO NI PUTA IDEA QUE HACES ESTE CODIGO DE ACA :  ONDA . PORQUE SI ES IGUAL A 6 O A / O SEA QUE CARAJO
-		if (parametername.size() == 6){
-			index = parametername.at(5);
-		}
-		if (parametername.size() == 7){
-			index = parametername.at(5);
-			index.push_back(parametername.at(6));
-		}
-		int Intindex = ofToInt(index);
-		if (Intindex < controllers.size() && inspectorBox != nullptr &&
-			inspectorBox->parameters.getMovType(Intindex) == 0){
-			inspectorBox->parameters.setFloatValue(_val, Intindex);
-			inspectorBox->parameters.setFloatLerpValue(_val, Intindex);
+		const int resolved = resolveBindableParameterIndex(
+			inspectorBox, openParameterIndex);
+		if (resolved >= 0 && resolved < (int)controllers.size() &&
+			controllers[resolved] != nullptr && inspectorBox != nullptr &&
+			inspectorBox->parameters.getType(resolved) == JPParameterGroup::FLOAT &&
+			inspectorBox->parameters.getMovType(resolved) == JPParameter::STANDART){
+			inspectorBox->parameters.setFloatValue(_val, resolved);
+			inspectorBox->parameters.setFloatLerpValue(_val, resolved);
 			markCueDraftDirty(cueSelectedIndex());
-			controllers[Intindex]->value = inspectorBox->parameters.getFloatValue(Intindex);
+			controllers[resolved]->value =
+				inspectorBox->parameters.getFloatValue(resolved);
 		}
 	}
 }
