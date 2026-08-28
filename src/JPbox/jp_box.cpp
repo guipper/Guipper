@@ -51,6 +51,16 @@ void apply(const std::vector<JPbox *> &boxes,
 
 	for (int root : roots) mark(root);
 
+	// Pins are roots the caller could not name by index: a GO TO FINAL overlay
+	// or a quick-image source may sit at any depth, and only the box itself
+	// knows. Marking it pulls its whole input chain up with it, exactly like a
+	// named root, so this also covers boxes nested inside a group - the group's
+	// own apply() call sees the pin its child carries.
+	for (int i = 0; i < boxCount; ++i)
+	{
+		if (boxes[i] != nullptr && boxes[i]->isRenderPinned()) mark(i);
+	}
+
 	for (int i = 0; i < boxCount; ++i)
 	{
 		if (boxes[i] == nullptr) continue;
@@ -603,6 +613,19 @@ bool JPbox::getOutputCandidate() const
 {
 	return outputCandidate;
 }
+jp_finaloverlay::Legacy jp_finaloverlay::readLegacy(const ofXml &boxNode)
+{
+	Legacy legacy;
+	auto flag = boxNode.getChild("finaloverlay");
+	if (!flag || !flag.getBoolValue()) return legacy;
+	legacy.present = true;
+	auto opacity = boxNode.getChild("finaloverlayopacity");
+	if (opacity) legacy.opacity = ofClamp(opacity.getFloatValue(), 0.0f, 1.0f);
+	auto order = boxNode.getChild("finaloverlayorder");
+	if (order) legacy.order = order.getIntValue();
+	return legacy;
+}
+
 bool JPbox::tryPassThroughFBO()
 {
 	if (!bypass.boolValue)

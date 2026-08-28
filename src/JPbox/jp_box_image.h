@@ -6,6 +6,7 @@
 #include "../JPutils/jp_parametergroup.h"
 #include "../JPutils/jp_fbohandler.h"
 #include "jp_media.h"
+#include "jp_quick_image.h"
 #include "../JPutils/jp_media_stats.h"
 #include <future>
 //#include "Shaderrender.h"
@@ -61,9 +62,8 @@ public:
 	// ofFbo fbo;
 	// ofShader shader;
 private:
-	struct GifData;
-	std::shared_ptr<const GifData> gif;
-	std::shared_future<std::shared_ptr<const GifData>> gifFuture;
+	std::shared_ptr<const JPQuickGifData> gif;
+	std::shared_future<std::shared_ptr<const JPQuickGifData>> gifFuture;
 	ofTexture gifTexture;
 	int gifFrame = -1;
 	double gifLastUpdate = 0.0;

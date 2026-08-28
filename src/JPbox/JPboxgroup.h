@@ -93,6 +93,18 @@ public:
 	bool toggleMappingGuides();
 	bool toggleMappingGrid();
 	void endMappingEdit();
+	// Box-less image composition. Both targets share the same editor; FINAL is
+	// project-global, MAP addresses the selected Advanced Mapping layer.
+	bool toggleQuickImageEditor();
+	bool isQuickImageEditorOpen() const { return quickImagePanelOpen; }
+	void closeQuickImageEditor() { clearQuickImageEditor(); }
+	ofRectangle getQuickImagePanelBounds() const;
+	bool update_quickImageMousePressed(int mouseButton);
+	bool update_quickImageMouseDragged(int mouseButton);
+	bool update_quickImageMouseReleased(int mouseButton);
+	bool quickImageKeyPressed(int key);
+	bool quickImageUndoShortcut(bool redo);
+	bool update_quickImageMouseScrolled(int x, int y, float scrollY);
 
 	void update();
 	void setActiveOnlyBox(int _val);
@@ -208,9 +220,13 @@ public:
 	// Guarda los valores a un XML
 	void load(string _dirinput);
 
-	void addBox(string directory, float _x, float _y);
+	// Returns the box it created (nullptr when the directory maps to no box
+	// type), so callers that need to keep a handle - the quick-image panel
+	// links a layer to its source box by uid - do not have to guess which
+	// entry of `boxes` is theirs.
+	JPbox *addBox(string directory, float _x, float _y);
 
-	void addBox(string dir);
+	JPbox *addBox(string dir);
 	void triggerCodeOnActiveShader();
 	void deleteSelectedShader();
 	void keyPressed(int key); // Inline tab renaming and the media IN/OUT fields
@@ -261,6 +277,55 @@ public:
 	};
 	// Marked boxes anywhere in the composition, group children included.
 	vector<OutputCandidate> getOutputCandidates() const;
+	// ---------------------------------------------------- GO TO FINAL overlays
+	struct ResolvedOverlay
+	{
+		uint64_t layerId = 0;      // the FINAL stack layer this resolves
+		JPbox *source = nullptr;   // the box the layer names
+		JPbox *terminal = nullptr; // last box of its chain - what gets drawn
+		// Null when the layer must not draw this frame: the box is paused, or
+		// drawing it would be the final image over itself.
+		const ofTexture *texture = nullptr;
+	};
+	// Rebuilt from scratch every frame, in update(), BEFORE the scheduler runs,
+	// so the scheduler and the composite can never disagree within a frame.
+	// Never cached across frames: invalidating it would mean hooking every
+	// setFboPointer caller plus delete, paste, undo, group and ungroup, and the
+	// recompute is a few hundred pointer compares. Holding raw JPbox* is safe
+	// precisely because the vector does not outlive the frame.
+	vector<ResolvedOverlay> frameOverlays;
+	void collectFinalOverlays();
+	// This layer's resolution for the current frame, or null when the layer is
+	// not a box-backed FINAL layer. Answered from the frame's resolution
+	// rather than by walking the graph again per draw call. A non-null entry
+	// whose `texture` is null means "this layer must not draw right now".
+	const ResolvedOverlay *finalOverlayFor(
+		const JPQuickImageLayerState &layer) const;
+	// Membership in the FINAL stack, which is what the inspector's FINAL
+	// button toggles. A box can back more than one layer, so removing takes
+	// them all.
+	bool hasFinalLayerForBox(const JPbox *box) const;
+	void addFinalLayerForBox(JPbox *box);
+	// The stack panel is where a layer is placed, scaled and reordered, and
+	// since the top bar no longer carries an entry for it, sending a box to the
+	// final is what opens it.
+	void openFinalStackPanel();
+	void removeFinalLayersForBox(const JPbox *box);
+	JPQuickImageLayerState *finalLayerForBox(const JPbox *box);
+	JPQuickImageLayerState *finalLayerById(uint64_t id);
+	size_t finalStackSize() const { return finalQuickImages.layers.size(); }
+	// Marks every box that is on screen this frame without being the active
+	// render, so the scheduler keeps it at full rate: overlay chains, and the
+	// boxes feeding quick-image layers.
+	void applyRenderPins();
+	// The list that CONTAINS this box - the main graph, or a preset's children.
+	// Consumer scans and chain resolution are only meaningful within one list.
+	const vector<JPbox *> *owningList(const JPbox *box) const;
+	// Whether this box' pixels are already the final image, directly or as the
+	// active render of a group that is itself the active render. Such a box
+	// cannot be an overlay: it would be drawn over itself.
+	bool feedsActiveRender(const JPbox *box) const;
+
 	// These walk the whole tree, unlike their name-based counterparts which are
 	// top-level-only and have callers that rely on that.
 	JPbox *findBoxByUid(const string &boxUid) const;
@@ -276,6 +341,10 @@ public:
 	bool toggleBypassForBox(string boxName);
 	bool togglePauseForBox(string boxName);
 	bool setBypassForBox(string boxName, bool value);
+	// FINAL stack, addressed by box name for MIDI.
+	bool setFinalLayerForBoxName(const string &boxName, bool value);
+	bool toggleFinalLayerForBoxName(const string &boxName);
+	JPbox *liveBoxByName(const string &boxName);
 	bool setPauseForBox(string boxName, bool value);
 	bool selectOpenBoxByName(string boxName);
 	bool selectOpenBoxByIndex(int index);
@@ -770,6 +839,19 @@ private:
 	int mediaRangeDragging = 0;
 	void layoutMediaInspector(JPMediaInspectable *media, float &cursorY);
 	void drawMediaInspector(JPMediaInspectable *media);
+	// FINAL card: the layer's opacity and whether it follows the chain, plus
+	// which box is actually being drawn. Placement and stacking order live in
+	// the FINAL panel, which owns the stack. Only laid out while the box is in
+	// the stack, so every other box' panel is unchanged.
+	struct FinalOverlayInspectorLayout
+	{
+		ofRectangle card, follow, opacityBar;
+		void clear() { *this = FinalOverlayInspectorLayout(); }
+	} finalOverlayInspector;
+	bool finalOverlayOpacityDragging = false;
+	void layoutFinalOverlayInspector(JPbox *box, float &cursorY);
+	void drawFinalOverlayInspector(JPbox *box);
+	bool handleFinalOverlayInspectorClick();
 	struct InspectorParameterGroupHeader
 	{
 		int layerIndex = -1;
@@ -790,6 +872,7 @@ private:
 	JPBang paintbutton;                  // Opens the paint canvas editor
 	JPBang camerarefreshbutton;          // Re-enumerates camera capture devices
 	JPBang tooutputbutton;               // Marks the box selectable as a live output source
+	JPBang finaloverlaybutton;           // GO TO FINAL: composites this chain over the final image
 	std::array<ofRectangle, 3> kinectStreamButtons;
 	float inspectorwindow_setactivesize; // Para el size del setactive:
 
@@ -997,6 +1080,49 @@ private:
 	int advancedMappingPendingDeleteNode = -1;
 	ofVec2f advancedMappingViewPanStartMouse;
 	ofVec2f advancedMappingViewPanStartCenter;
+
+	// ------------------------------------------------------ quick image editor
+	enum QuickImageDrag
+	{
+		QUICK_IMAGE_DRAG_NONE = 0,
+		QUICK_IMAGE_DRAG_PANEL,
+	};
+	JPQuickImageStackState finalQuickImages;
+	JPQuickImageRenderer finalQuickImageRenderer;
+	ofFbo finalQuickImageFbo;
+	// True once renderFinalComposite has actually produced a frame. The five
+	// consumers used to each ask "are there quick-image layers?", which claimed
+	// a composite existed from the moment a layer was added - one frame before
+	// anything had been drawn into the FBO.
+	bool finalCompositeActive = false;
+	// The one place that answers "is there a composed final image, and where".
+	// Null means every consumer falls back to the active render's own FBO, as
+	// it did before this existed.
+	ofFbo *finalCompositeFboOrNull();
+	const ofFbo *finalCompositeFboOrNull() const;
+
+
+	bool quickImagePanelOpen = false;
+	float quickImagePanelX = 610.0f;
+	float quickImagePanelY = 96.0f;
+	float quickImagePanelW = 620.0f;
+	float quickImagePanelH = 540.0f;
+	int quickImageListScroll = 0;
+	uint64_t quickImageSelectedId = 0;
+	QuickImageDrag quickImageDrag = QUICK_IMAGE_DRAG_NONE;
+	ofVec2f quickImageDragMouse;
+	ofVec2f quickImagePanelDragOrigin;
+	vector<JPQuickImageStackState> finalQuickImageHistory;
+	size_t finalQuickImageHistoryCursor = 0;
+	static constexpr size_t kMaxQuickImageHistory = 100;
+	void drawQuickImagePanel();
+	int quickImageVisibleRows() const;
+	void renderFinalComposite();
+	JPQuickImageStackState *quickImageStack();
+	const JPQuickImageStackState *quickImageStack() const;
+	ofRectangle quickImagePreviewRect() const;
+	void pushFinalQuickImageHistory(const JPQuickImageStackState &before);
+	void clearQuickImageEditor();
 
 	// ------------------------------------------------------------ paint editor
 	enum PaintAction

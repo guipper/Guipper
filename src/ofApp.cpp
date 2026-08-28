@@ -265,6 +265,13 @@ void ofApp::registerSurfaces()
 	s.bounds = [this]() { return boxes.getPaintPanelBounds(); };
 	surfaces.add(s);
 
+	s = JPSurface();
+	s.id = s.order = SURFACE_QUICK_IMAGES;
+	s.isOpen = [this]() { return boxes.isQuickImageEditorOpen(); };
+	s.close = [this]() { boxes.closeQuickImageEditor(); };
+	s.bounds = [this]() { return boxes.getQuickImagePanelBounds(); };
+	surfaces.add(s);
+
 	// The paint panel's shortcuts dialog, registered separately from the panel so
 	// the app-wide ESC rule closes it FIRST and its modality blocks the window
 	// while it is up - the same shape as the MIDI conflict prompt.
@@ -344,7 +351,6 @@ void ofApp::registerSurfaces()
 	// Space pans the canvas, but space is also a character. anyFieldFocused does
 	// not cover the save modal, so both are asked here rather than letting the
 	// canvas guess.
-	boxes.setHelpLanguageProvider([this]() { return language; });
 	boxes.setExternalTextCaptureTest([this]() {
 		return anyFieldFocused() || saveModalActive;
 	});
@@ -6219,14 +6225,14 @@ void ofApp::keyPressed(int key) {
 	}
 
 	if (pantallaActiva == NODOS) {
+		if (boxes.quickImageKeyPressed(key)) {
+			return;
+		}
 		if (boxes.handleInspectorRangeShortcut(key)) {
 			return;
 		}
 		if (key == 't') {
 			loadAspreset = !loadAspreset;
-		}
-		if (key == 'f') {
-			// ofToggleFullscreen();
 		}
 		if (key == 'h') {
 #ifdef SPOUT
@@ -6457,6 +6463,9 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		// Innermost surface first. Each returns false when its panel is not the
 		// one being edited, so the chord lands on whatever the user is actually
 		// looking at; the graph is last and always consumes it.
+		if (boxes.quickImageUndoShortcut(wantRedo)) {
+			return;
+		}
 		if (boxes.paintUndoShortcut(wantRedo)) {
 			return;
 		}
@@ -6600,6 +6609,9 @@ void ofApp::mouseDragged(int x, int y, int button) {
 	}
 
 	if (pantallaActiva == NODOS) {
+		if (boxes.update_quickImageMouseDragged(button)) {
+			return;
+		}
 		if (boxes.update_mappingMouseDragged(button)) {
 			return;
 		}
@@ -6696,6 +6708,11 @@ void ofApp::mousePressed(int x, int y, int button) {
 				boxes.toggleMappingEdit();
 				return;
 			}
+			if (tabScreen == kFinalStackBarItem) {
+				pantallaActiva = NODOS;
+				boxes.toggleQuickImageEditor();
+				return;
+			}
 			if (tabScreen >= 0) {
 				if (pantallaActiva != tabScreen) {
 					pantallaActiva = tabScreen;
@@ -6732,6 +6749,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 	}
 
 	if (pantallaActiva == NODOS) {
+		if (boxes.update_quickImageMousePressed(button)) {
+			return;
+		}
 		if (boxes.update_mappingMousePressed(button)) {
 			return;
 		}
@@ -7074,6 +7094,10 @@ void ofApp::mouseReleased(int x, int y, int button) {
 		return;
 	}
 	if (pantallaActiva == NODOS) {
+		if (boxes.update_quickImageMouseReleased(button)) {
+			saveSettings();
+			return;
+		}
 		if (boxes.update_paintMouseReleased(button)) {
 			saveSettings();
 			return;
@@ -7194,7 +7218,6 @@ void ofApp::mouseEntered(int x, int y) { }
 void ofApp::mouseExited(int x, int y) { }
 void ofApp::gotMessage(ofMessage msg) { }
 void ofApp::dragEvent(ofDragInfo dragInfo) {
-
 	cout << "WHAT " << dragInfo.position.t << endl;
 	cout << "DIR : " << dragInfo.files[0] << endl;
 
@@ -8513,7 +8536,8 @@ vector<ofApp::ScreenBarItem> ofApp::buildScreenBar() const {
 		{"EDITOR", EDITOR, "Edit the selected shader source"},
 		{"MIDI", MIDI_KEYMAP, "Bind MIDI controls to boxes and parameters"},
 		{"CUE", kCuePanelBarItem, "Cue preview panel"},
-		{"MAP", kMappingPanelBarItem, "Projection mapping editor (needs a mapping shader selected)"}
+		{"MAP", kMappingPanelBarItem, "Projection mapping editor (needs a mapping shader selected)"},
+		{"FINAL", kFinalStackBarItem, "Layers composited on top of the final output"}
 	};
 
 	// Every floating panel now has one discoverable home. Cue was only on 'z'
@@ -8524,6 +8548,9 @@ vector<ofApp::ScreenBarItem> ofApp::buildScreenBar() const {
 		switch (item.action) {
 		case kCuePanelBarItem:
 			item.lit = self->boxes.getCuePreviewBox() != nullptr;
+			break;
+		case kFinalStackBarItem:
+			item.lit = boxes.isQuickImageEditorOpen();
 			break;
 		case kMappingPanelBarItem:
 			item.lit = boxes.isMappingEditActive();

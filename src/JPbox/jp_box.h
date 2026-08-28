@@ -39,6 +39,22 @@ namespace jp_boxuid
 
 class JPbox;
 
+// LEGACY only. The first cut of GO TO FINAL stored the flag, an opacity and a
+// stacking order on every box. That state now lives on a FINAL stack layer -
+// one list, which is also what gives a shader overlay a placement - so these
+// elements are read to migrate an existing composition and are never written
+// again.
+namespace jp_finaloverlay
+{
+	struct Legacy
+	{
+		bool present = false;
+		float opacity = 1.0f;
+		int order = 0;
+	};
+	Legacy readLegacy(const ofXml &boxNode);
+}
+
 // Render scheduling, shared by the top level and by groups.
 //
 // It lives here rather than in JPboxgroup because JPbox_preset needs the exact
@@ -100,6 +116,13 @@ public:
 	// boxes ignore this hint unless their implementation explicitly opts in.
 	void setRenderThisFrame(bool enabled) { renderThisFrame = enabled; }
 	bool shouldRenderThisFrame() const { return renderThisFrame; }
+	// Pinned boxes are scheduling roots wherever they live, nesting included.
+	// A box that is only ever seen as a GO TO FINAL overlay - or as a
+	// quick-image layer source - is on screen every frame but is not the active
+	// render, so without this it falls to the staggered preview rate and
+	// visibly stutters against a full-rate background.
+	void setRenderPinned(bool enabled) { renderPinned = enabled; }
+	bool isRenderPinned() const { return renderPinned; }
 	void draw_outlet();
 	// Shared texture-input rendering. Hovering an IN gives it a brighter fill,
 	// a small scale-up and a soft pulse so the pending OUT -> IN drop target is
@@ -212,6 +235,7 @@ protected:
 
 	int tipo; // Habra una manera menos cacuija de hacer esto? no se, pero ya me pudrio si, esta bien o mal me la chupa.
 	bool renderThisFrame = true;
+	bool renderPinned = false;
 
 
 	float padding_top;

@@ -383,6 +383,7 @@ public:
 		SURFACE_CUE_PANEL = jp_pointer::kCuePanel,
 		SURFACE_MAPPING_PANEL = jp_pointer::kMappingPanel,
 		SURFACE_PAINT_PANEL = jp_pointer::kPaintPanel,
+		SURFACE_QUICK_IMAGES = jp_pointer::kQuickImages,
 		SURFACE_PAINT_HELP = jp_pointer::kPrompt,
 		SURFACE_SHADER_EDITOR = jp_pointer::kShaderEditor,
 		SURFACE_FIELD_EDIT = jp_pointer::kFieldEdit,
@@ -402,6 +403,7 @@ public:
 	static constexpr int kMidiPanelBarItem = -2;
 	static constexpr int kCuePanelBarItem = -3;
 	static constexpr int kMappingPanelBarItem = -4;
+	static constexpr int kFinalStackBarItem = -5;
 	struct ScreenBarItem
 	{
 		string label;

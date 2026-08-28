@@ -6,6 +6,8 @@
 #include "../JPbox/jp_box_video.h"
 #include "../JPbox/jp_media.h"
 #include "../JPbox/jp_box_paint.h"
+#include "../JPbox/jp_quick_image.h"
+#include "../JPbox/jp_graph_walk.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -460,6 +462,34 @@ bool jp_persistence_test::run(ofApp &app)
 		mediaStraightMix = false, mediaSingleComposite = false,
 		mediaPausePreserves = false,
 		mediaBoundary = false, mediaTransforms = false;
+	bool quickImages = false;
+	bool mediaFitReload = true;
+	{
+		JPQuickImageStackState source;
+		JPQuickImageLayerState a;
+		a.id = 7; a.path = "missing/overlay.png"; a.name = "overlay";
+		a.center.set(-0.2f, 1.3f); a.size.set(0.25f, 0.4f);
+		a.rotationDegrees = 90.0f; a.opacity = 0.42f;
+		a.media.playing = false; a.media.rate = 1.75f;
+		// The link to the box that feeds this layer has to survive a save, or a
+		// reloaded composition draws the still file and quietly drops whatever
+		// effect chain was patched in front of it.
+		a.sourceUid = "quickimage-source-uid";
+		source.layers.push_back(a); source.nextId = 8;
+		ofXml xml; jp_quick_image::saveStack(xml, source);
+		JPQuickImageStackState loaded;
+		jp_quick_image::loadStack(xml, loaded);
+		ofXml legacy; legacy.appendChild("activerender").set(0);
+		JPQuickImageStackState legacyLoaded;
+		legacyLoaded.layers.push_back(a);
+		jp_quick_image::loadStack(legacy, legacyLoaded);
+		const bool hit = jp_quick_image::hitTest(loaded.layers.front(),
+			loaded.layers.front().center);
+		const bool miss = !jp_quick_image::hitTest(loaded.layers.front(),
+			loaded.layers.front().center + ofVec2f(1.0f, 1.0f));
+		quickImages = loaded == source && legacyLoaded.layers.empty() &&
+			legacyLoaded.nextId == 1 && hit && miss;
+	}
 	{
 		const ofRectangle custom = jp_media::transformedRect(400, 200,
 			1000, 1000, JPMediaFitMode::Custom, .5f, .5f, .5f, .5f, 1.0f, .5f, .5f);
@@ -2693,6 +2723,244 @@ bool jp_persistence_test::run(ofApp &app)
 				fail(string(type) + " rendered while the schedule said not to: "
 					"expected " + ofToString(sentinel) + ", got " +
 					ofToString(held));
+			}
+		}
+		app.boxes.clear();
+	}
+	// GO TO FINAL: the flag says WHICH chain is composited over the final
+	// image, and the chain says WHICH BOX of it is actually drawn. Both halves
+	// are pointer arithmetic over the patch, so both are testable without GL.
+	bool overlayChain = true;
+	bool overlayOrder = true;
+	bool overlaySchedule = true;
+	{
+		auto fail = [&](bool &flag, const string &tag, const string &why)
+		{
+			flag = false;
+			ofLogNotice(tag) << why;
+		};
+		const string shader = "shaders/imageprocessing/transform.frag";
+		app.boxes.clear();
+		for (int i = 0; i < 5; ++i)
+			app.boxes.addBox(shader, 40.0f + i * 30.0f, 40.0f);
+		if (app.boxes.boxes.size() < 5 ||
+			app.boxes.boxes[1]->fbohandlergroup.getSize() < 1)
+		{
+			ofLogNotice("overlay") << "fixture unavailable - skipped";
+		}
+		else
+		{
+			vector<JPbox *> &bx = app.boxes.boxes;
+			auto link = [&](int consumer, int producer)
+			{
+				bx[consumer]->fbohandlergroup.setFboPointer(
+					&bx[producer]->fbo, &bx[producer]->name, 0);
+			};
+			auto unlink = [&](int consumer)
+			{
+				bx[consumer]->fbohandlergroup.deleteFboPointer(0);
+			};
+
+			// 0 -> 1 -> 2, with 3 and 4 loose. 4 is the final output, so
+			// nothing in the chain is excluded for being the final image.
+			link(1, 0);
+			link(2, 1);
+			app.activerender = 4;
+
+			if (jp_graphwalk::resolveChainTerminal(bx, bx[0]) != bx[2])
+				fail(overlayChain, "overlaychain",
+					"a chain of three did not resolve to its last box");
+			if (jp_graphwalk::resolveChainTerminal(bx, bx[1]) != bx[2])
+				fail(overlayChain, "overlaychain",
+					"resolving from the middle of a chain missed the end");
+			if (jp_graphwalk::resolveChainTerminal(bx, bx[3]) != bx[3])
+				fail(overlayChain, "overlaychain",
+					"an unconnected box did not resolve to itself");
+
+			// Fan-out: 0 now also feeds 3. The documented tie-break is list
+			// order, so the terminal must stay on the branch through 1.
+			link(3, 0);
+			if (jp_graphwalk::resolveChainTerminal(bx, bx[0]) != bx[2])
+				fail(overlayChain, "overlaychain",
+					"fan-out did not follow the lowest-index consumer");
+			unlink(3);
+
+			// Deleting the middle of the chain truncates it instead of
+			// dereferencing anything: 1 is gone, so 0 ends at itself.
+			vector<JPbox *> shortened = bx;
+			shortened.erase(shortened.begin() + 1);
+			if (jp_graphwalk::resolveChainTerminal(shortened, bx[0]) != bx[0])
+				fail(overlayChain, "overlaychain",
+					"a chain whose middle box vanished did not truncate");
+
+			// A cycle. Nothing rejects one at connect time, so the walk has to
+			// survive it: this hangs the whole suite if the guard is missing.
+			link(0, 2);
+			JPbox *cycled = jp_graphwalk::resolveChainTerminal(bx, bx[0]);
+			if (cycled != bx[0] && cycled != bx[1] && cycled != bx[2])
+				fail(overlayChain, "overlaychain",
+					"a cycle resolved to a box outside the cycle");
+			unlink(0);
+
+			// ------------------------------------------------ the FINAL stack
+			// Membership is the stack, not a flag on the box: the layer is what
+			// carries placement and opacity, which is what lets a shader - with
+			// no placement parameters of its own - be an overlay at all.
+			app.boxes.addFinalLayerForBox(bx[0]);
+			app.boxes.addFinalLayerForBox(bx[3]);
+			app.boxes.collectFinalOverlays();
+			if (app.boxes.frameOverlays.size() != 2)
+				fail(overlayOrder, "overlayorder",
+					"expected two layers, got " +
+					ofToString((int)app.boxes.frameOverlays.size()));
+			else
+			{
+				// Stack order IS draw order: last added is drawn last, on top.
+				if (app.boxes.frameOverlays[0].source != bx[0] ||
+					app.boxes.frameOverlays[1].source != bx[3])
+					fail(overlayOrder, "overlayorder",
+						"the stack was not resolved in list order");
+				if (app.boxes.frameOverlays[0].terminal != bx[2])
+					fail(overlayOrder, "overlayorder",
+						"the layer drew its source box instead of the end of "
+						"its chain");
+				if (app.boxes.frameOverlays[0].texture == nullptr)
+					fail(overlayOrder, "overlayorder",
+						"a drawable layer resolved to no texture");
+			}
+
+			// Pinned: the layer stays on the box it names even though the
+			// chain continues past it.
+			if (JPQuickImageLayerState *pinned =
+				app.boxes.finalLayerForBox(bx[0]))
+			{
+				pinned->followChain = false;
+				app.boxes.collectFinalOverlays();
+				if (app.boxes.frameOverlays.empty() ||
+					app.boxes.frameOverlays[0].terminal != bx[0])
+					fail(overlayChain, "overlaychain",
+						"a pinned layer still followed the chain");
+				pinned->followChain = true;
+			}
+			else fail(overlayChain, "overlaychain", "the layer went missing");
+
+			// A paused box holds a stale frame: the entry stays, so the
+			// renderer knows not to fall back to the file, but it must not draw.
+			bx[3]->setonoff(false);
+			app.boxes.collectFinalOverlays();
+			for (const auto &overlay : app.boxes.frameOverlays)
+				if (overlay.source == bx[3] && overlay.texture != nullptr)
+					fail(overlayOrder, "overlayorder",
+						"a paused box was still drawn");
+			bx[3]->setonoff(true);
+
+			// The chain ends ON the final output: drawing it would be the
+			// final image over itself.
+			app.activerender = 2;
+			app.boxes.collectFinalOverlays();
+			for (const auto &overlay : app.boxes.frameOverlays)
+				if (overlay.source == bx[0] && overlay.texture != nullptr)
+					fail(overlayOrder, "overlayorder",
+						"a chain terminating on the active render was drawn "
+						"over the active render");
+			app.activerender = 4;
+
+			// ------------------------------------------------ scheduling
+			// A layer's chain is on screen every frame while being nobody's
+			// active render. Without the pin it drops to one frame in four and
+			// visibly stutters against a full-rate background.
+			app.boxes.removeFinalLayersForBox(bx[3]);
+			app.boxes.collectFinalOverlays();
+			app.boxes.applyRenderPins();
+			// Frame 1 with five boxes: 0, 1 and 2 are all off-phase, so any
+			// full-rate verdict here comes from the pin and not the stagger.
+			jp_renderschedule::apply(bx, {4}, 1, false);
+			for (int i : {0, 1, 2})
+				if (!bx[i]->shouldRenderThisFrame())
+					fail(overlaySchedule, "overlayschedule",
+						"box " + ofToString(i) + " feeds a FINAL layer but was "
+						"left at preview rate");
+
+			// ------------------------------------------------ the outputs.
+			// Spout, NDI and the PNG export all read getActiverender(), and the
+			// windows read the same composite through drawLiveOutput - so if
+			// this accessor keeps handing back the raw active render, the
+			// overlay exists only in the preview.
+			ofFbo *plain = app.boxes.getActiverender();
+			app.boxes.update();
+			ofFbo *composed = app.boxes.getActiverender();
+			if (composed == nullptr)
+				fail(overlaySchedule, "overlayschedule",
+					"the final image went missing while a layer was on");
+			else if (composed == plain || composed == &bx[4]->fbo)
+				fail(overlaySchedule, "overlayschedule",
+					"a layer was in the stack but the outputs still read the "
+					"active render directly");
+			else if (app.boxes.getActiveTexture() != &composed->getTexture())
+				fail(overlaySchedule, "overlayschedule",
+					"the texture accessor and the fbo accessor disagree");
+
+			// And with an empty stack, everything falls back exactly as it did
+			// before this feature existed.
+			app.boxes.removeFinalLayersForBox(bx[0]);
+			app.boxes.update();
+			if (app.boxes.getActiverender() != &bx[4]->fbo)
+				fail(overlaySchedule, "overlayschedule",
+					"the composite outlived the last layer");
+
+			// ------------------------------------------------ box-only layer
+			// A layer fed by a shader has no file to fall back to. It must
+			// still resolve a texture, and nothing may try to load "".
+			app.boxes.addFinalLayerForBox(bx[0]);
+			if (JPQuickImageLayerState *shaderLayer =
+				app.boxes.finalLayerForBox(bx[0]))
+			{
+				if (!shaderLayer->path.empty())
+					fail(overlayChain, "overlaychain",
+						"a box-backed layer invented a file path");
+				app.boxes.collectFinalOverlays();
+				if (jp_quick_image::resolveSource(*shaderLayer) == nullptr)
+					fail(overlayChain, "overlaychain",
+						"a box-backed layer resolved to no texture");
+			}
+			app.boxes.removeFinalLayersForBox(bx[0]);
+
+			// ------------------------------------------------ migration
+			// A composition written by the first cut carried the flag on the
+			// box. Those overlays have to come back as layers, in the order
+			// they were stacked, or a saved set loses them silently.
+			{
+				const string legacyPath = directory + "legacyoverlay.xml";
+				app.boxes.save(legacyPath);
+				ofXml legacyXml;
+				legacyXml.load(legacyPath);
+				auto legacyBoxes = legacyXml.find("/box");
+				int tagged = 0;
+				for (auto &node : legacyBoxes)
+				{
+					if (tagged >= 2) break;
+					node.appendChild("finaloverlay").set(true);
+					// Descending, so a loader that ignores the order would
+					// produce the opposite stack to the right one.
+					node.appendChild("finaloverlayorder").set(5 - tagged);
+					++tagged;
+				}
+				legacyXml.save(legacyPath);
+				app.boxes.clear();
+				app.boxes.load(legacyPath);
+				if ((int)app.boxes.finalStackSize() != tagged)
+					fail(overlayOrder, "overlayorder",
+						"migration produced " +
+						ofToString((int)app.boxes.finalStackSize()) +
+						" layer(s) instead of " + ofToString(tagged));
+				else if (app.boxes.boxes.size() >= 2)
+				{
+					// Order 4 was tagged second, so it must land FIRST.
+					if (app.boxes.finalLayerForBox(app.boxes.boxes[1]) == nullptr ||
+						app.boxes.finalLayerForBox(app.boxes.boxes[0]) == nullptr)
+						fail(overlayOrder, "overlayorder",
+							"migration lost a box' layer");
+				}
 			}
 		}
 		app.boxes.clear();

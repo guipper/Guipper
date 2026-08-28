@@ -207,9 +207,13 @@
     <ClCompile Include="src\JPbox\jp_box_kinect2.cpp" />
     <ClCompile Include="src\JPbox\jp_box_sequencer.cpp" />
     <ClCompile Include="src\JPbox\jp_box_shader_mapping.cpp" />
+	<ClCompile Include="src\JPbox\jp_graph_walk.cpp" />
+	<ClCompile Include="src\JPbox\jp_quick_image.cpp" />
     <ClCompile Include="src\JPbox\jp_box_image.cpp" />
     <ClCompile Include="src\JPbox\jp_box_cam.cpp" />
     <ClCompile Include="src\JPbox\JPboxgroup.cpp" />
+	<ClCompile Include="src\JPbox\JPboxgroup_overlays.cpp" />
+	<ClCompile Include="src\JPbox\JPboxgroup_quick_images.cpp" />
     <ClCompile Include="src\JPbox\jp_box_video.cpp" />
     <ClCompile Include="src\JPbox\jp_box_preset.cpp" />
     <ClCompile Include="src\JPbox\jp_box_spout.cpp" />
@@ -287,6 +291,9 @@
     <ClInclude Include="src\JPbox\jp_box_preset.h" />
     <ClInclude Include="src\JPbox\jp_box_image.h" />
     <ClInclude Include="src\JPbox\jp_box_shader.h" />
+    <ClInclude Include="src\JPbox\jp_mapping_boolean.h" />
+	<ClInclude Include="src\JPbox\jp_graph_walk.h" />
+	<ClInclude Include="src\JPbox\jp_quick_image.h" />
     <ClInclude Include="src\JPbox\jp_box_ndi.h" />
     <ClInclude Include="src\JPbox\jp_box_framedifference.h" />
     <ClInclude Include="src\JPbox\jp_box_pointercloud.h" />

@@ -627,6 +627,24 @@ void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 	font_p = &_font;
 	activerender = &_activerender;
 
+	// Quick-image layers name their source box by uid; only this class can walk
+	// the box tree to turn that into pixels. Installed once, read by both the
+	// final stack and every mapping layer's renderer.
+	jp_quick_image::setSourceResolver(
+		[this](const JPQuickImageLayerState &layer) -> const ofTexture *
+	{
+		// A FINAL-stack layer was already resolved for this frame, chain
+		// following and feedback guard included - including the verdict "do
+		// not draw", which is why an entry with a null texture returns null
+		// instead of falling through.
+		if (const ResolvedOverlay *resolved = finalOverlayFor(layer))
+			return resolved->texture;
+		// Anything else - a mapping layer - resolves straight to its box.
+		JPbox *box = findBoxByUid(layer.sourceUid);
+		if (box == nullptr || !box->fbo.isAllocated()) return nullptr;
+		return &box->fbo.getTexture();
+	});
+
 	// Once, here. The rings no longer care which view an entry belongs to - the
 	// entry says so itself - so nothing has to re-bind them when a group appears.
 	bindHistories();
@@ -911,6 +929,42 @@ void JPboxgroup::draw()
 			ofPopStyle();
 		}
 
+		// FINAL stack chips.
+		{
+			const JPbox *node = activeBoxes[i];
+			bool isSource = false, isTerminal = false, drawing = false;
+			for (const ResolvedOverlay &overlay : frameOverlays)
+			{
+				if (overlay.source == node)
+				{
+					isSource = true;
+					drawing = drawing || overlay.texture != nullptr;
+				}
+				if (overlay.terminal == node && overlay.texture != nullptr)
+					isTerminal = true;
+			}
+			if (isSource || isTerminal)
+			{
+				// Two chips, because in a patched chain the box in the stack is
+				// NOT the box whose pixels reach the screen. Dim when the layer
+				// is in the stack but not drawing - paused, or already the
+				// final image - so a lit button over an empty output is
+				// explainable rather than mysterious.
+				const string chip = isTerminal && !isSource ? "OUT" : "FINAL";
+				const float chipW = isTerminal && !isSource ? 26.0f : 36.0f;
+				ofPushStyle();
+				ofSetRectMode(OF_RECTMODE_CORNER);
+				ofSetColor(COL_BG_DARK, 230);
+				ofDrawRectangle(x + node->width / 2 - chipW - 6,
+					y - node->height / 2 + 16, chipW, 13);
+				ofSetColor(!drawing && isSource ? COL_TEXT_MUTED :
+					(isSource ? COL_ACCENT_GOLD : COL_ACCENT_GOLD_DIM), 255);
+				ofDrawBitmapString(chip, x + node->width / 2 - chipW - 3,
+					y - node->height / 2 + 27);
+				ofPopStyle();
+			}
+		}
+
 		ofDrawBitmapString(ofToString(i), x, y);
 
 	}
@@ -925,6 +979,7 @@ void JPboxgroup::draw()
 	drawCuePreview();
 	drawMappingPanel();
 	drawPaintPanel();
+	drawQuickImagePanel();
 
 }
 void JPboxgroup::drawCuePreview()
@@ -1290,9 +1345,11 @@ bool JPboxgroup::drawLiveOutputSource(bool followMainActive,
 			drawLiveOutput(0.0f, 0.0f, _width, _height);
 			return true;
 		}
-		const bool transitioning = transition.getLerpValue() < 1.0f &&
-			transition.isSourceAllocated();
-		ofFbo &active = boxes[*activerender]->fbo;
+		ofFbo *composite = finalCompositeFboOrNull();
+		const bool transitioning = composite == nullptr &&
+			transition.getLerpValue() < 1.0f && transition.isSourceAllocated();
+		ofFbo &active = composite != nullptr ? *composite :
+			boxes[*activerender]->fbo;
 		const float texW = transitioning ? transition.getSourceWidth() : active.getWidth();
 		const float texH = transitioning ? transition.getSourceHeight() : active.getHeight();
 		const ofRectangle rect = effectiveFor(texW, texH);
@@ -2339,9 +2396,11 @@ void JPboxgroup::drawLiveOutput(float x, float y, float w, float h,
 	}
 	const bool whole = srcNorm.x <= 0.0f && srcNorm.y <= 0.0f &&
 		srcNorm.width >= 1.0f && srcNorm.height >= 1.0f;
-	const bool transitioning = transition.getLerpValue() < 1.0f &&
-		transition.isSourceAllocated();
-	ofFbo &active = boxes[*activerender]->fbo;
+	ofFbo *composite = finalCompositeFboOrNull();
+	const bool transitioning = composite == nullptr &&
+		transition.getLerpValue() < 1.0f && transition.isSourceAllocated();
+	ofFbo &active = composite != nullptr ? *composite :
+		boxes[*activerender]->fbo;
 	const float sourceW = transitioning ? transition.getSourceWidth() : active.getWidth();
 	const float sourceH = transitioning ? transition.getSourceHeight() : active.getHeight();
 	const ofRectangle subsection(srcNorm.x * sourceW, srcNorm.y * sourceH,
@@ -3236,6 +3295,13 @@ void JPboxgroup::draw_paramswindow()
 		const float toOutputActionWidth = std::max(72.0f,
 			jp_constants::inspector_secondary_font.stringWidth(toOutputLabel)
 				+ 16.0f);
+		// Any box owns an FBO, so any box can be an overlay - same reasoning as
+		// TO OUTPUT above. Measured for the same reason too.
+		const bool hasFinalOverlayAction = true;
+		const string finalOverlayLabel = "FINAL";
+		const float finalOverlayActionWidth = std::max(52.0f,
+			jp_constants::inspector_secondary_font.stringWidth(finalOverlayLabel)
+				+ 16.0f);
 		const float headerActionHeight = 26.0f;
 		const float headerActionGap = 5.0f;
 		// Count and width are SEPARATE sums - the count only feeds the
@@ -3247,7 +3313,8 @@ void JPboxgroup::draw_paramswindow()
 			(hasPaintAction ? 1 : 0) +
 			(hasCameraAction ? 1 : 0) +
 			(hasEditAction ? 1 : 0) +
-			(hasToOutputAction ? 1 : 0);
+			(hasToOutputAction ? 1 : 0) +
+			(hasFinalOverlayAction ? 1 : 0);
 		const float headerActionWidth =
 			(hasRandomAction ? randomActionWidth : 0.0f) +
 			(hasRandomAction ? defaultActionWidth + saveDefaultActionWidth : 0.0f) +
@@ -3256,6 +3323,7 @@ void JPboxgroup::draw_paramswindow()
 			(hasCameraAction ? cameraActionWidth : 0.0f) +
 			(hasEditAction ? editActionWidth : 0.0f) +
 			(hasToOutputAction ? toOutputActionWidth : 0.0f) +
+			(hasFinalOverlayAction ? finalOverlayActionWidth : 0.0f) +
 			std::max(0, headerActionCount - 1) * headerActionGap;
 		const float headerActionRight = panelRight - 12.0f;
 		const float headerActionLeft =
@@ -3283,6 +3351,8 @@ void JPboxgroup::draw_paramswindow()
 		// expressed for every control in this row.
 		tooutputbutton.width = 0.0f;
 		tooutputbutton.height = 0.0f;
+		finaloverlaybutton.width = 0.0f;
+		finaloverlaybutton.height = 0.0f;
 
 		float titleX = panelLeft + 16.0f;
 		string title = name;
@@ -3342,6 +3412,11 @@ void JPboxgroup::draw_paramswindow()
 			placeHeaderAction(tooutputbutton, toOutputActionWidth);
 		}
 
+		if (hasFinalOverlayAction)
+		{
+			placeHeaderAction(finaloverlaybutton, finalOverlayActionWidth);
+		}
+
 		inspectorClip.set(inspectorBodyViewport);
 		const bool suppressBodyPointer = !inspectorBodyContains(
 			ofGetMouseX(), ofGetMouseY());
@@ -3349,6 +3424,7 @@ void JPboxgroup::draw_paramswindow()
 			JPdragobject::setMouseOverride(ofVec2f(-10000.0f, -10000.0f));
 
 		drawMediaInspector(dynamic_cast<JPMediaInspectable *>(inspectorBox));
+		drawFinalOverlayInspector(inspectorBox);
 		drawInspectorInputRows(inspectorBox);
 		drawAdvancedMappingParameterHeaders(inspectorBox);
 
@@ -3597,6 +3673,29 @@ void JPboxgroup::draw_paramswindow()
 			inspectorBox->getOutputCandidate() ?
 				"Available as a live output source - click to remove" :
 				"Make this box selectable as a live output source");
+		// Same lit-idle-colour trick as MAP and TO OUTPUT: drawHeaderAction has
+		// no toggled state of its own. The tooltip names the box that is
+		// actually drawn, which in a patched chain is not this one.
+		{
+			const bool overlayOn = hasFinalLayerForBox(inspectorBox);
+			string overlayTip = "Add this box to the FINAL stack, on top of "
+				"the output";
+			if (overlayOn)
+			{
+				overlayTip = "In the FINAL stack - click to remove";
+				const JPQuickImageLayerState *layer =
+					const_cast<JPboxgroup *>(this)->finalLayerForBox(inspectorBox);
+				const ResolvedOverlay *resolved =
+					layer != nullptr ? finalOverlayFor(*layer) : nullptr;
+				if (resolved != nullptr && resolved->terminal != nullptr &&
+					resolved->terminal != inspectorBox)
+					overlayTip = "Drawing \"" + resolved->terminal->name +
+						"\", the end of its chain - click to remove";
+			}
+			drawHeaderAction(finaloverlaybutton, finalOverlayLabel,
+				overlayOn ? COL_ACCENT_GOLD : COL_TEXT_SECONDARY,
+				COL_ACCENT_GOLD, overlayTip);
+		}
 
 		if (inspectorMaxScrollY > 0.0f)
 		{
@@ -3793,6 +3892,11 @@ void JPboxgroup::update(){
 	}
 
 	float lerpAmount = 0.3;
+	// Resolved BEFORE the scheduler so both it and renderFinalComposite read
+	// the same answer this frame, and so the pins below are in place when
+	// jp_renderschedule::apply runs.
+	collectFinalOverlays();
+	applyRenderPins();
 	scheduleTopLevelRenders();
 	profileStageStart = ProfileClock::now();
 	for (int i = boxes.size() - 1; i >= 0; i--){
@@ -3955,6 +4059,7 @@ void JPboxgroup::update(){
 	{
 		profileStageStart = ProfileClock::now();
 		transition.update(); //ACTUALIZO EL TRANSITION
+		renderFinalComposite();
 		updateParameterMorph();
 		if (profilingEnabled)
 		{
@@ -4134,6 +4239,15 @@ void JPboxgroup::setinspectorsetactiveparams()
 void JPboxgroup::update_mouseDragged(int mousebutton)
 {
 	ofVec2f screenMouse(ofGetMouseX(), ofGetMouseY());
+	if (mousebutton == OF_MOUSE_BUTTON_LEFT && finalOverlayOpacityDragging)
+	{
+		JPQuickImageLayerState *layer = finalLayerForBox(getInspectorBox());
+		if (layer != nullptr && finalOverlayInspector.opacityBar.width > 0.0f)
+			layer->opacity = ofMap(screenMouse.x,
+				finalOverlayInspector.opacityBar.x,
+				finalOverlayInspector.opacityBar.getRight(), 0.0f, 1.0f, true);
+		return;
+	}
 	if(mousebutton==OF_MOUSE_BUTTON_LEFT && (mediaTimelineDragging || mediaRangeDragging!=0))
 	{
 		auto *target=dynamic_cast<JPMediaInspectable *>(getInspectorBox());
@@ -4430,6 +4544,8 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT && inputInspectorBox != nullptr &&
 		handleMediaInspectorClick()) return;
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT && inputInspectorBox != nullptr &&
+		handleFinalOverlayInspectorClick()) return;
+	if (mouseButton == OF_MOUSE_BUTTON_LEFT && inputInspectorBox != nullptr &&
 		handleInspectorScrollbarPressed(ofGetMouseX(), ofGetMouseY()))
 	{
 		return;
@@ -4663,6 +4779,25 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			markCueDraftDirty(cueSelectedIndex());
 			if (isCueDraftMode()) updateCueDraftGraph();
 		}
+		if (finaloverlaybutton.mouseGrab())
+		{
+			// Resolved to the LIVE box: the stack names boxes by uid, and a cue
+			// draft clone is not in the graph the composite walks.
+			JPbox *live = findBoxByUid(inspectorBox->uid);
+			JPbox *target = live != nullptr ? live : inspectorBox;
+			if (hasFinalLayerForBox(target)) removeFinalLayersForBox(target);
+			else
+			{
+				addFinalLayerForBox(target);
+				// Straight to where it can be placed: a box arrives at full
+				// frame, and the panel is the only place that can move it.
+				openFinalStackPanel();
+			}
+			// The body card appears or disappears with membership, so the
+			// retained layout is now stale.
+			setControllers();
+			return;
+		}
 		if (tooutputbutton.mouseGrab())
 		{
 			// inspectorBox is the cue DRAFT during a cue and the preset child
@@ -4887,6 +5022,7 @@ void JPboxgroup::update_mouseReleased(int mouseButton)
 	{
 		mediaTimelineDragging = false;
 		mediaRangeDragging = 0;
+		finalOverlayOpacityDragging = false;
 		if (rangeDragSlider != nullptr)
 		{
 			rangeDragSlider->rangeHandleDragging = false;
@@ -5131,6 +5267,7 @@ bool JPboxgroup::update_cueMouseReleased(int mouseButton)
 
 bool JPboxgroup::mouseScrolled(int x, int y, float scrollX, float scrollY)
 {
+	if (update_quickImageMouseScrolled(x, y, scrollY)) return true;
 	if (mappingEditActive &&
 		updateAdvancedMappingMouseScrolled(x, y, scrollY))
 	{
@@ -5487,6 +5624,7 @@ void JPboxgroup::save(string outputPath)
 
 	auto activerender_save = xml.appendChild("activerender");
 	activerender_save.set(*activerender);
+	jp_quick_image::saveStack(xml, finalQuickImages);
 
 	for (int i = 0; i < boxes.size(); i++)
 	{
@@ -5640,11 +5778,19 @@ void JPboxgroup::load(string _dirinput)
 	// if(dir.doesDirectoryExist(_dirinput)){
 
 	xml.load(_dirinput);
+	jp_quick_image::loadStack(xml, finalQuickImages);
+	finalQuickImageHistory.clear();
+	finalQuickImageHistoryCursor = 0;
 	// Carga inicial de las cajitas :
 	auto boxloader = xml.find("/box");
 	// Kept in lockstep with `boxes`, so the link pass below can pair a box
 	// with the node it came from even when some nodes produce no box.
 	vector<ofXml> loadedBoxNodes;
+	// Boxes carrying the pre-stack GO TO FINAL flag, migrated into FINAL layers
+	// once every box exists - the stack is loaded before them, and a layer has
+	// to name a box that is already there.
+	struct LegacyOverlay { JPbox *box; float opacity; int order; };
+	vector<LegacyOverlay> legacyOverlays;
 
 	cout << "******************************************************************" << endl;
 	for (auto &box : boxloader)
@@ -5741,6 +5887,15 @@ void JPboxgroup::load(string _dirinput)
 		if (uidNode && !uidNode.getValue().empty()) bx->uid = uidNode.getValue();
 		auto toOutput = box.getChild("tooutput");
 		bx->setOutputCandidate(toOutput ? toOutput.getBoolValue() : false);
+		// Compositions written by the first cut of GO TO FINAL carry the flag
+		// per box. Collected here and turned into FINAL stack layers once every
+		// box exists, so those overlays survive the move to the stack.
+		{
+			const jp_finaloverlay::Legacy legacy =
+				jp_finaloverlay::readLegacy(box);
+			if (legacy.present)
+				legacyOverlays.push_back({bx, legacy.opacity, legacy.order});
+		}
 
 		int positionalIndex = 0;
 		auto parameters = box.getChild("parameters").getChildren();
@@ -5927,6 +6082,28 @@ void JPboxgroup::load(string _dirinput)
 	// Hand-edited XML, or the same group .xml placed twice, can deliver
 	// duplicate identities. Shallowest box keeps the uid; the rest are re-minted.
 	repairBoxUids();
+
+	// Migration, after repairBoxUids so the layers name the identities the rest
+	// of this session will use. Full frame, because that is what the per-box
+	// overlay always was; the old order becomes stack order.
+	if (!legacyOverlays.empty())
+	{
+		std::stable_sort(legacyOverlays.begin(), legacyOverlays.end(),
+			[](const LegacyOverlay &a, const LegacyOverlay &b)
+			{
+				return a.order < b.order;
+			});
+		for (const LegacyOverlay &legacy : legacyOverlays)
+		{
+			if (legacy.box == nullptr) continue;
+			JPQuickImageLayerState layer = jp_quick_image::makeBoxLayer(
+				finalQuickImages, legacy.box->uid, legacy.box->name);
+			layer.opacity = legacy.opacity;
+			finalQuickImages.layers.push_back(layer);
+		}
+		ofLogNotice("finaloverlay") << "migrated " << legacyOverlays.size()
+			<< " box overlay(s) into the FINAL stack";
+	}
 }
 vector<JPParameter *> JPboxgroup::getInspectorActionParameters() const
 {
@@ -6030,6 +6207,7 @@ void JPboxgroup::setControllers(){
 		inspectorLayout.contentPadding - inspectorScrollY;
 	layoutMediaInspector(dynamic_cast<JPMediaInspectable *>(inspectorBox),
 		layoutCursor);
+	layoutFinalOverlayInspector(inspectorBox, layoutCursor);
 	layoutCursor = layoutInspectorInputRows(inspectorBox, layoutCursor);
 	if (inspectorBox->getTipo() == inspectorBox->KINECT2BOX)
 	{
@@ -6949,6 +7127,8 @@ int JPboxgroup::findBoxIndexByName(string boxName) const
 }
 ofVec2f JPboxgroup::getMasterCanvasSize() const
 {
+	if (const ofFbo *composite = finalCompositeFboOrNull())
+		return ofVec2f(composite->getWidth(), composite->getHeight());
 	if (transition.isSourceAllocated())
 		return ofVec2f(transition.getSourceWidth(),
 			transition.getSourceHeight());
@@ -9725,6 +9905,7 @@ bool JPboxgroup::mouseOverGui()
 	const float my = ofGetMouseY();
 	// Surfaces this class owns...
 	if (getMappingPanelBounds().inside(mx, my)) return true;
+	if (getQuickImagePanelBounds().inside(mx, my)) return true;
 	if (getPaintPanelBounds().inside(mx, my)) return true;
 	if (getInspectorBounds().inside(mx, my)) return true;
 	if (getCuePanelBounds().inside(mx, my)) return true;
@@ -9734,7 +9915,7 @@ bool JPboxgroup::mouseOverGui()
 	if (externalGuiHitTest && externalGuiHitTest(mx, my)) return true;
 	return false;
 }
-void JPboxgroup::addBox(string directory, float _x, float _y)
+JPbox *JPboxgroup::addBox(string directory, float _x, float _y)
 {
 	// Adding a box is deliberately NOT undoable - that was the ask. It still has
 	// to drop the redo tail: a redo recorded before this box existed would be
@@ -9751,7 +9932,7 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 			JPbox *bx = createBoxForDirectory(directory, nombre);
 			if (bx == nullptr)
 			{
-				return;
+				return nullptr;
 			}
 			bx->setup(directory, nombre);
 			bx->setonoff(true);
@@ -9766,7 +9947,7 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 			// cue is applied or cancelled (adds are not part of cue staging).
 			setControllers();
 			cout << "addBox: added sub-box \"" << nombre << "\" to active preset (group view)" << endl;
-			return;
+			return bx;
 		}
 	}
 
@@ -9774,7 +9955,7 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 	JPbox *bx = createBoxForDirectory(directory, nombre);
 	if (bx == nullptr)
 	{
-		return;
+		return nullptr;
 	}
 
 	bx->setup(directory, nombre);
@@ -9791,11 +9972,12 @@ void JPboxgroup::addBox(string directory, float _x, float _y)
 		openguinumber = int(boxes.size()) - 1;
 	}
 	requestCueRebuild();
+	return bx;
 }
-void JPboxgroup::addBox(string directory)
+JPbox *JPboxgroup::addBox(string directory)
 {
 	ofVec2f canvasMouse = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
-	addBox(directory, canvasMouse.x, canvasMouse.y);
+	return addBox(directory, canvasMouse.x, canvasMouse.y);
 }
 void JPboxgroup::triggerCodeOnActiveShader() {
 
@@ -9866,6 +10048,17 @@ void JPboxgroup::clear()
 	transition.setFboPointer1(nullptr);
 	transition.setFboPointer2(nullptr);
 	activeSequence = false;
+	finalQuickImages = JPQuickImageStackState();
+	finalQuickImageRenderer.clear();
+	if (finalQuickImageFbo.isAllocated()) finalQuickImageFbo.clear();
+	finalQuickImageHistory.clear();
+	finalQuickImageHistoryCursor = 0;
+	clearQuickImageEditor();
+	// The overlays hold raw box pointers for the length of one frame; the boxes
+	// are about to be deleted below, and every consumer must stop reading a
+	// composite that no longer describes anything.
+	frameOverlays.clear();
+	finalCompositeActive = false;
 
 	for (int i = boxes.size() - 1; i >= 0; i--)
 	{
@@ -11232,6 +11425,8 @@ void JPboxgroup::pasteBoxes()
 
 ofTexture *JPboxgroup::getActiveTexture()
 {
+	if (ofFbo *composite = finalCompositeFboOrNull())
+		return &composite->getTexture();
 	if (boxes.size() >= 1)
 	{
 		return &boxes[*activerender]->fbo.getTexture();
@@ -11245,6 +11440,8 @@ int JPboxgroup::getBoxesSize()
 }
 ofFbo *JPboxgroup::getActiverender()
 {
+	if (ofFbo *composite = finalCompositeFboOrNull())
+		return composite;
 	if (boxes.size() >= 1)
 	{
 		return &boxes[*activerender]->fbo;

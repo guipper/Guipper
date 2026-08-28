@@ -1,35 +1,6 @@
 #include "jp_box_image.h"
 #include "jp_box_cam.h"
-#include <FreeImage.h>
 #include <chrono>
-#include <mutex>
-#include <unordered_map>
-
-struct JPbox_image::GifData
-{
-	std::vector<ofPixels> frames;
-	std::vector<double> ends;
-	double duration = 0.0;
-};
-
-namespace
-{
-	int gifMetadataInt(FIBITMAP *bitmap, const char *key, int fallback)
-	{
-		FITAG *tag = nullptr;
-		if (!FreeImage_GetMetadata(FIMD_ANIMATION, bitmap, key, &tag) || tag == nullptr)
-			return fallback;
-		const void *value = FreeImage_GetTagValue(tag);
-		if (value == nullptr) return fallback;
-		switch (FreeImage_GetTagType(tag))
-		{
-		case FIDT_BYTE: return *(const BYTE *)value;
-		case FIDT_SHORT: return *(const WORD *)value;
-		case FIDT_LONG: return (int)*(const DWORD *)value;
-		default: return fallback;
-		}
-	}
-}
 
 JPbox_image::JPbox_image() {}
 JPbox_image::~JPbox_image() {}
@@ -187,63 +158,7 @@ void JPbox_image::updateFBO()
 void JPbox_image::startGifLoad()
 {
 	gif.reset(); gifTexture.clear(); gifFrame = -1; loadStatus = "Loading GIF";
-	string path = ofToDataPath(dir, true);
-	try { path = std::filesystem::weakly_canonical(path).string(); }
-	catch (...) {}
-	using Result = std::shared_ptr<const GifData>;
-	static std::mutex cacheMutex;
-	static std::unordered_map<string, std::shared_future<Result>> cache;
-	string key = path;
-	try { key += ":" + std::to_string((long long)std::filesystem::last_write_time(path).time_since_epoch().count()); }
-	catch (...) {}
-	std::lock_guard<std::mutex> lock(cacheMutex);
-	auto found = cache.find(key);
-	if (found != cache.end()) { gifFuture = found->second; return; }
-	gifFuture = std::async(std::launch::async, [path]() -> Result
-	{
-		auto result = std::make_shared<GifData>();
-		FIMULTIBITMAP *multi = FreeImage_OpenMultiBitmap(FIF_GIF,
-			path.c_str(), FALSE, TRUE, TRUE, GIF_LOAD256);
-		if (multi == nullptr) return {};
-		const int pages = FreeImage_GetPageCount(multi);
-		ofPixels canvas, restore;
-		int canvasW = 0, canvasH = 0;
-		for (int i=0; i<pages; ++i)
-		{
-			FIBITMAP *page = FreeImage_LockPage(multi, i);
-			if (!page) continue;
-			FIBITMAP *rgba = FreeImage_ConvertTo32Bits(page);
-			const int pw = FreeImage_GetWidth(rgba), ph = FreeImage_GetHeight(rgba);
-			const int left = gifMetadataInt(page, "FrameLeft", 0);
-			const int top = gifMetadataInt(page, "FrameTop", 0);
-			canvasW = std::max(canvasW, left+pw); canvasH = std::max(canvasH, top+ph);
-			if (!canvas.isAllocated()) { canvas.allocate(canvasW,canvasH,OF_PIXELS_RGBA); canvas.set(0); }
-			else if (canvas.getWidth()<canvasW || canvas.getHeight()<canvasH)
-			{
-				ofPixels grown; grown.allocate(canvasW,canvasH,OF_PIXELS_RGBA); grown.set(0);
-				canvas.pasteInto(grown,0,0); canvas.swap(grown);
-			}
-			const int disposal = gifMetadataInt(page, "DisposalMethod", 0);
-			if (disposal == 3) restore = canvas;
-			const BYTE *bits = FreeImage_GetBits(rgba); const int pitch = FreeImage_GetPitch(rgba);
-			for (int y=0;y<ph;++y) for(int x=0;x<pw;++x)
-			{
-				const BYTE *src = bits + (ph-1-y)*pitch + x*4;
-				ofColor c(src[FI_RGBA_RED],src[FI_RGBA_GREEN],src[FI_RGBA_BLUE],src[FI_RGBA_ALPHA]);
-				if(c.a>0) canvas.setColor(left+x,top+y,c);
-			}
-			result->frames.push_back(canvas);
-			const int ms = std::max(10, gifMetadataInt(page,"FrameTime",100));
-			result->duration += ms/1000.0; result->ends.push_back(result->duration);
-			if (disposal == 2)
-				for(int y=0;y<ph;++y) for(int x=0;x<pw;++x) canvas.setColor(left+x,top+y,ofColor(0,0));
-			else if (disposal == 3 && restore.isAllocated()) canvas = restore;
-			FreeImage_Unload(rgba); FreeImage_UnlockPage(multi,page,FALSE);
-		}
-		FreeImage_CloseMultiBitmap(multi,0);
-		return result->frames.empty() ? Result{} : result;
-	}).share();
-	cache[key] = gifFuture;
+	gifFuture = jp_quick_image::requestGif(dir);
 }
 
 void JPbox_image::updateGif()

@@ -31,6 +31,9 @@ namespace jp_pointer
 	// include the popover instead, so ESC still dismisses one thing at a time
 	// without a second z-order constant to keep in step.
 	constexpr int kPaintPanel = 35;
+	// Quick image composition is drawn after the mapping/paint panels and owns
+	// direct manipulation of its preview while it is open.
+	constexpr int kQuickImages = 38;
 	constexpr int kShaderEditor = 40;
 	constexpr int kFieldEdit = 60;
 	// The MIDI panel body sits just below its own dropdowns.

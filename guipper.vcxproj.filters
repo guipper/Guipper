@@ -61,6 +61,15 @@
     <ClCompile Include="src\JPbox\jp_box_shader_mapping.cpp">
       <Filter>src\JPbox</Filter>
     </ClCompile>
+	<ClCompile Include="src\JPbox\jp_graph_walk.cpp">
+	  <Filter>src\JPbox</Filter>
+	</ClCompile>
+	<ClCompile Include="src\JPbox\JPboxgroup_overlays.cpp">
+	  <Filter>src\JPbox</Filter>
+	</ClCompile>
+	<ClCompile Include="src\JPbox\jp_quick_image.cpp">
+	  <Filter>src\JPbox</Filter>
+	</ClCompile>
     <ClCompile Include="src\JPbox\jp_box_image.cpp">
       <Filter>src\JPbox</Filter>
     </ClCompile>
@@ -70,6 +79,9 @@
     <ClCompile Include="src\JPbox\JPboxgroup.cpp">
       <Filter>src\JPbox</Filter>
     </ClCompile>
+	<ClCompile Include="src\JPbox\JPboxgroup_quick_images.cpp">
+	  <Filter>src\JPbox</Filter>
+	</ClCompile>
     <ClCompile Include="src\JPbox\jp_box_video.cpp">
       <Filter>src\JPbox</Filter>
     </ClCompile>
@@ -356,6 +368,15 @@
     <ClInclude Include="src\JPbox\jp_box_shader.h">
       <Filter>src\JPbox</Filter>
     </ClInclude>
+    <ClInclude Include="src\JPbox\jp_mapping_boolean.h">
+      <Filter>src\JPbox</Filter>
+    </ClInclude>
+	<ClInclude Include="src\JPbox\jp_graph_walk.h">
+	  <Filter>src\JPbox</Filter>
+	</ClInclude>
+	<ClInclude Include="src\JPbox\jp_quick_image.h">
+	  <Filter>src\JPbox</Filter>
+	</ClInclude>
     <ClInclude Include="src\JPbox\jp_box_ndi.h">
       <Filter>src\JPbox</Filter>
     </ClInclude>
