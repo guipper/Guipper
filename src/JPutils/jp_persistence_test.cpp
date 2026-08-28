@@ -355,6 +355,8 @@ bool jp_persistence_test::run(ofApp &app)
 		near(box->parameters.getAudioReleaseMs(0), 5000.0f);
 
 	bool midiRange = false;
+	bool midiAudioAmount = false;
+	bool oscIndexed = false;
 	if (box != nullptr)
 	{
 		JPParameter *parameter = box->parameters.getJParameter(0);
@@ -375,6 +377,28 @@ bool jp_persistence_test::run(ofApp &app)
 				std::isfinite(parameter->floatValue);
 			midiRange = low && high && zeroWidth;
 		}
+		parameter->setAutomationMode(JPParameter::AUDIO);
+		parameter->audioAmount = 0.15f;
+		parameter->speed = 0.42f;
+		if (app.boxes.setOpenBoxParameterAtIndex(0, 0.73f))
+		{
+			midiAudioAmount = near(parameter->audioAmount, 0.73f) &&
+				near(parameter->speed, 0.42f);
+		}
+		parameter->setAutomationMode(JPParameter::STANDART);
+		parameter->setRangeEnabled(false);
+		parameter->floatValue = parameter->floatLerpValue = 0.31f;
+		app.boxes.listenToOsc("/openguinumber/0", 0.55f);
+		const bool validOsc = near(parameter->floatValue, 0.55f);
+		app.boxes.listenToOsc("/openguinumber/999", 0.91f);
+		app.boxes.listenToOsc("/openguinumber/-1", 0.91f);
+		app.boxes.listenToOsc("/openguinumber/0/extra", 0.91f);
+		const bool invalidOscIgnored = near(parameter->floatValue, 0.55f);
+		parameter->setAutomationMode(JPParameter::AUDIO);
+		app.boxes.listenToOsc("/openguinumber/0", 0.91f);
+		const bool automatedOscIgnored = near(parameter->floatValue, 0.55f);
+		oscIndexed = validOsc && invalidOscIgnored && automatedOscIgnored;
+		parameter->setAutomationMode(JPParameter::STANDART);
 	}
 
 	bool cueState = false;

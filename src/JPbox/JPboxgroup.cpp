@@ -9524,6 +9524,14 @@ static bool applyMidiParameterValue(JPParameter *parameter,
 	const float normalized = ofClamp(value, 0.0f, 1.0f);
 	if (parameter->variabletype == JPParameter::FLOAT)
 	{
+		if (parameter->movtype == JPParameter::AUDIO)
+		{
+			// AUDIO does not consume the generic automation-speed field. A live
+			// MIDI binding therefore controls the useful depth control instead.
+			parameter->audioAmount = normalized;
+			parameter->update();
+			return true;
+		}
 		if (parameter->movtype != JPParameter::STANDART)
 		{
 			// Automation speed is its own 0..1 control and is NOT in [min,max].

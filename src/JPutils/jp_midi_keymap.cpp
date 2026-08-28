@@ -1940,9 +1940,12 @@ void JPMidiKeymap::drawInspectorMappingTargets()
 		}
 		bool over = controller->mouseOver();
 		bool bound = hasBindingForAction(PARAMETER, "", i);
+		const bool mapsAudioAmount =
+			parameter->variabletype == JPParameter::FLOAT &&
+			parameter->movtype == JPParameter::AUDIO;
 		bool mapsAutomationSpeed =
 			parameter->variabletype == JPParameter::FLOAT &&
-			parameter->movtype != JPParameter::STANDART;
+			parameter->movtype != JPParameter::STANDART && !mapsAudioAmount;
 		ofNoFill();
 		ofSetLineWidth((over || bound) ? 3 : 2);
 		ofSetColor(bound ? ofColor(COL_MAPPED_ON, over ? 255 : 220) :
@@ -1950,8 +1953,9 @@ void JPMidiKeymap::drawInspectorMappingTargets()
 		ofSetRectMode(OF_RECTMODE_CENTER);
 		ofDrawRectRounded(controller->x, controller->y, controller->width + 8, controller->height + 8, 4.0f);
 		jp_tooltip::draw(
-			(mapsAutomationSpeed ? "Map automation speed p" :
-				"Map parameter p") + ofToString(i),
+			(mapsAudioAmount ? "Map audio amount p" :
+				(mapsAutomationSpeed ? "Map automation speed p" :
+					"Map parameter p")) + ofToString(i),
 			controller->x - (controller->width + 8) / 2,
 			controller->y - (controller->height + 8) / 2,
 			controller->width + 8, controller->height + 8);
@@ -1962,7 +1966,8 @@ void JPMidiKeymap::drawInspectorMappingTargets()
 					   ofColor(COL_ACCENT_CYAN, over ? 255 : 190));
 		jp_constants::p_font.drawString(
 										"p" + ofToString(i) +
-											(mapsAutomationSpeed ? " SPD" : ""),
+											(mapsAudioAmount ? " AMT" :
+												(mapsAutomationSpeed ? " SPD" : "")),
 										controller->x + controller->width / 2 + 8,
 										controller->y + 4);
 	}
@@ -2038,9 +2043,12 @@ void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 			boxes->getOpenParameterAtIndex(i);
 		bool isBoolParameter = parameter != nullptr &&
 			parameter->variabletype == JPParameter::BOOL;
+		const bool mapsAudioAmount = parameter != nullptr &&
+			parameter->variabletype == JPParameter::FLOAT &&
+			parameter->movtype == JPParameter::AUDIO;
 		bool mapsAutomationSpeed = parameter != nullptr &&
 			parameter->variabletype == JPParameter::FLOAT &&
-			parameter->movtype != JPParameter::STANDART;
+			parameter->movtype != JPParameter::STANDART && !mapsAudioAmount;
 		bool boolValue = isBoolParameter &&
 			parameter->boolValue;
 
@@ -2083,7 +2091,8 @@ void JPMidiKeymap::drawParameterIndexSelector(float x, float y, float w)
 		ofColor textColor = boolValue ? COL_TEXT_DARK : COL_TEXT_PRIMARY;
 		ofSetColor(textColor);
 		const string parameterLabel = "p" + ofToString(i) +
-			(mapsAutomationSpeed ? " speed" : "");
+			(mapsAudioAmount ? " amount" :
+				(mapsAutomationSpeed ? " speed" : ""));
 		jp_constants::p_font.drawString(
 			parameterLabel, x + 8, rowY + ROW_H - 7);
 		if (isBoolParameter)
