@@ -662,6 +662,15 @@ void JPMidiKeymap::applyBinding(const Binding &binding, float midiValue)
 			boxes->toggleBypassForBox(binding.boxName);
 		}
 	}
+	else if (binding.action == FINAL_OVERLAY)
+	{
+		// Same cc/note split BYPASS and PAUSE use: a knob sets the state, a pad
+		// toggles it.
+		if (binding.key.messageType == "cc")
+			boxes->setFinalLayerForBoxName(binding.boxName, midiValue > 0.5f);
+		else
+			boxes->toggleFinalLayerForBoxName(binding.boxName);
+	}
 	else if (binding.action == PAUSE)
 	{
 		if (binding.key.messageType == "cc")
@@ -1425,6 +1434,7 @@ vector<JPMidiKeymap::Action> JPMidiKeymap::getBoxActions() const
 	actions.push_back(PAUSE);
 	actions.push_back(SELECT_OPEN_BOX);
 	actions.push_back(PARAMETER);
+	actions.push_back(FINAL_OVERLAY);
 	return actions;
 }
 
@@ -1515,6 +1525,7 @@ string JPMidiKeymap::getActionName(Action action) const
 	if (action == TOGGLE_GALLERY) return "Toggle Gallery Mode";
 	if (action == BPM_TAP) return "BPM Tap";
 	if (action == ADD_SHADER_BOX) return "Add Shader Box";
+	if (action == FINAL_OVERLAY) return "Final Overlay";
 	return "Unknown";
 }
 
@@ -1534,6 +1545,7 @@ string JPMidiKeymap::actionToXml(Action action) const
 	if (action == TOGGLE_GALLERY) return "toggle_gallery";
 	if (action == BPM_TAP) return "bpm_tap";
 	if (action == ADD_SHADER_BOX) return "add_shader_box";
+	if (action == FINAL_OVERLAY) return "final_overlay";
 	return "bypass";
 }
 
@@ -1552,6 +1564,7 @@ JPMidiKeymap::Action JPMidiKeymap::actionFromXml(string value) const
 	if (value == "toggle_gallery") return TOGGLE_GALLERY;
 	if (value == "bpm_tap") return BPM_TAP;
 	if (value == "add_shader_box") return ADD_SHADER_BOX;
+	if (value == "final_overlay") return FINAL_OVERLAY;
 	return BYPASS;
 }
 

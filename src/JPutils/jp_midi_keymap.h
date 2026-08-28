@@ -26,7 +26,10 @@ public:
 		PREV_SHADER_GALLERY,
 		TOGGLE_GALLERY,
 		BPM_TAP,
-		ADD_SHADER_BOX
+		ADD_SHADER_BOX,
+		// FINAL stack, per box: membership and the layer's opacity. Appended -
+		// the enum is in-memory only, bindings are stored by string.
+		FINAL_OVERLAY
 	};
 
 	struct MidiKey
