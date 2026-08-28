@@ -69,6 +69,12 @@ private:
 	double gifLastUpdate = 0.0;
 	std::string loadStatus;
 	bool lastLegacyStretch = true;
+	// The legacy shadows above answer "did the USER just move this control".
+	// They cannot answer that on the first frame of a box' life, because a
+	// freshly constructed object has never seen the parameters a load just
+	// wrote into it. Until they are seeded from the real values, any
+	// difference reads as a user edit and overwrites the loaded state.
+	bool legacyShadowsPrimed = false;
 	// jp_media::isGif() lowercases a fresh std::string out of the path every
 	// time it is asked. That used to happen twice per frame per image box, to
 	// answer a question that can only change when the file does.

@@ -88,6 +88,13 @@ void JPbox_image::updateFBO()
 		// Legacy parameter sync stays outside the gate: it is state, not
 		// pixels, and the inspector reads it back every frame.
 		const bool legacyStretch=parameters.getBoolValue(4);
+		// First frame: adopt what is there instead of comparing against a
+		// default nobody set. loadCustomState has already decided fitMode - from
+		// <media>, or from this very `strech` value for a pre-media file - and
+		// comparing a loaded `false` against the constructor's `true` used to
+		// read as "stretch was just unticked" and rewrote that fit to Custom.
+		// The symptom was every image coming back deformed after a reload.
+		if(!legacyShadowsPrimed){legacyShadowsPrimed=true;lastLegacyStretch=legacyStretch;}
 		if(legacyStretch!=lastLegacyStretch)media.fitMode=legacyStretch?JPMediaFitMode::Stretch:JPMediaFitMode::Custom;
 		parameters.setBoolValue(media.fitMode==JPMediaFitMode::Stretch,4);
 		lastLegacyStretch=parameters.getBoolValue(4);

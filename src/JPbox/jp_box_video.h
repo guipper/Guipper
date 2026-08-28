@@ -60,6 +60,10 @@ public:
 	float lastLegacyPosition = 0.0f;
 	bool lastLegacyPlay = true;
 	bool lastLegacyStretch = true;
+	// See JPbox_image: until these are seeded from the parameters a load just
+	// wrote, the first comparison reads as a user edit and overwrites the
+	// loaded fit, rate, position and play state.
+	bool legacyShadowsPrimed = false;
 	bool mediaSeekPending = false;
 	double sourceDuration = 0.0;
 	int sourceFrames = 0;

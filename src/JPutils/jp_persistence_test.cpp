@@ -550,6 +550,56 @@ bool jp_persistence_test::run(ofApp &app)
 				near(restored->parameters.getNativeMax(5),4.0f);
 		}
 
+		// A loaded fit must survive the FIRST FRAME after the load, not just the
+		// load itself. The legacy `strech` bool shadows media.fitMode at
+		// runtime, and the existing check above uses Stretch - the one value
+		// whose shadow happens to agree with a freshly constructed box, which
+		// is why this went unnoticed.
+		{
+			const string fitPath = directory + "mediafit.xml";
+			for (JPMediaFitMode mode : {JPMediaFitMode::Original,
+				JPMediaFitMode::Fit, JPMediaFitMode::Fill})
+			{
+				app.boxes.clear();
+				app.boxes.addBox(alphaPath, 120, 180);
+				auto *fitBox = app.boxes.boxes.empty() ? nullptr :
+					dynamic_cast<JPbox_image *>(app.boxes.boxes.front());
+				if (fitBox == nullptr) { mediaFitReload = false; break; }
+				fitBox->setonoff(true);
+				fitBox->media.fitMode = mode;
+				// A frame BEFORE saving, because that is the state a real
+				// composition is saved from: the box has been on screen, so
+				// the legacy `strech` parameter has already been synced down
+				// from fitMode. Saving without it stores the constructor's
+				// default and the reload accidentally agrees with itself.
+				fitBox->update();
+				app.boxes.save(fitPath);
+				app.boxes.clear();
+				app.boxes.load(fitPath);
+				auto *back = app.boxes.boxes.empty() ? nullptr :
+					dynamic_cast<JPbox_image *>(app.boxes.boxes.front());
+				if (back == nullptr) { mediaFitReload = false; break; }
+				if (back->media.fitMode != mode)
+				{
+					mediaFitReload = false;
+					ofLogNotice("mediafit") << "fit " << (int)mode
+						<< " came back as " << (int)back->media.fitMode
+						<< " straight from load";
+					break;
+				}
+				// The clobber happens in updateFBO, so it takes a frame.
+				back->update();
+				if (back->media.fitMode != mode)
+				{
+					mediaFitReload = false;
+					ofLogNotice("mediafit") << "fit " << (int)mode
+						<< " survived the load but became "
+						<< (int)back->media.fitMode << " on the first frame";
+					break;
+				}
+			}
+		}
+
 		// The master transition canvas must erase transparent pixels when media
 		// moves. Otherwise the old position remains visible as a trail.
 		ofFbo moving, probe;
@@ -4828,9 +4878,14 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " camDepthBox=" << camDepthBox
 		<< " saveKeepsDefault=" << saveKeepsDefaultCompo
 		<< " paintBox=" << paintBox
-		<< " mediaSmoke=" << mediaSmoke;
-	return current && old && clamped && shaderReload && modeMemory &&
-		rangeCapture && midiRange && cueState && lockDefault && mediaState &&
+		<< " mediaSmoke=" << mediaSmoke
+		<< " quickImages=" << quickImages
+		<< " mediaFitReload=" << mediaFitReload
+		<< " overlayChain=" << overlayChain
+		<< " overlayOrder=" << overlayOrder
+		<< " overlaySchedule=" << overlaySchedule;
+	return current && old && clamped && shaderReload && feedbackFrames && modeMemory &&
+		rangeCapture && midiRange && midiAudioAmount && oscIndexed && cueState && lockDefault && mediaState &&
 		mediaBoundary && mediaAlpha && mediaMotionClear && mediaStraightMix &&
 		mediaSingleComposite && mediaPausePreserves && mediaTransforms &&
 		mediaSkipsStatic && mediaTurnaround && mediaMidiIndex && camScaleRatio && camLegacyLoad && shaderScaleRatio && realCompoLoad &&
@@ -4839,6 +4894,7 @@ bool jp_persistence_test::run(ofApp &app)
 		transitionShaders && camDepthBox && camDepthParallax && camDepthRamp && selfLink &&
 		renderSchedule && scheduleObeyed && tooltipLayout &&
 		tooltipTransform &&
-		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke &&
+		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke && quickImages && mediaFitReload &&
+		overlayChain && overlayOrder && overlaySchedule &&
 		graphUndo && transitionRectMode && exposeParams && midiUndo && groupNesting;
 }

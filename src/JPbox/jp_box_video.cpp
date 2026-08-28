@@ -159,6 +159,12 @@ void JPbox_video::updateFBO() {
 			const float legacyPosition=parameters.getFloatValue(6);
 			const bool legacyPlay=parameters.getBoolValue(7);
 			const bool legacyStretch=parameters.getBoolValue(4);
+			if(!legacyShadowsPrimed)
+			{
+				legacyShadowsPrimed=true;
+				lastLegacySpeed=legacySpeed;lastLegacyPosition=legacyPosition;
+				lastLegacyPlay=legacyPlay;lastLegacyStretch=legacyStretch;
+			}
 			if(std::abs(legacySpeed-lastLegacySpeed)>0.0001f)media.rate=ofClamp(legacySpeed*4.0f,0.25f,4.0f);
 			if(std::abs(legacyPosition-lastLegacyPosition)>0.0001f)mediaSeek(legacyPosition);
 			if(legacyPlay!=lastLegacyPlay)media.playing=legacyPlay;
