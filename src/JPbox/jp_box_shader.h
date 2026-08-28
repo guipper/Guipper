@@ -4,6 +4,7 @@
 #include "ofMain.h"
 #include "jp_box.h"
 #include "jp_media_state.h"
+#include "jp_mapping_boolean.h"
 #include "../JPutils/jp_parametergroup.h"
 #include "../JPutils/jp_fbohandler.h"
 #include <array>
@@ -29,6 +30,7 @@ public:
 
 	struct AdvancedMappingContour
 	{
+		int id = -1;
 		std::vector<AdvancedMappingNode> nodes;
 		bool closed = false;
 	};
@@ -48,6 +50,7 @@ public:
 		std::array<ofVec2f, 4> corners;
 		std::array<ofVec2f, 8> edgeHandles;
 		std::vector<AdvancedMappingContour> masks;
+		std::vector<JPMappingBooleanGroup> booleanGroups;
 		bool inspectorExpanded = true;
 		// Kept out of the parameter list on purpose: it reaches the shader as a
 		// uniform int, which the uniform parser ignores, so it adds no slider
@@ -168,6 +171,7 @@ private:
 	bool advancedMappingInitialized = false;
 	std::array<ofFbo, ADVANCED_MAPPING_LAYER_COUNT>
 		advancedMappingMasks;
+	ofFbo advancedMappingBooleanScratch;
 	std::array<bool, ADVANCED_MAPPING_LAYER_COUNT>
 		advancedMappingMaskDirty;
 	ofImage advancedMappingGuide;

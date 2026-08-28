@@ -1904,12 +1904,26 @@ bool JPboxgroup::toggleMappingEdit()
 	advancedMappingSelectedMaskContour = -1;
 	advancedMappingSelectedMaskNode = -1;
 	advancedMappingSelectedMaskContours.clear();
+	advancedMappingSelectedMaskItems.clear();
 	if (JPbox_shader *advanced = getAdvancedMappingEditBox())
 	{
 		if (auto *state = advanced->getAdvancedMappingState())
 		{
 			const auto &masks = state->layers[state->selectedLayer].masks;
 			advancedMappingSelectedMaskContour = masks.empty() ? -1 : 0;
+			if (!masks.empty())
+			{
+				const auto &groups =
+					state->layers[state->selectedLayer].booleanGroups;
+				const int groupIndex =
+					jp_mapping_boolean::groupIndexForContour(groups, masks[0].id);
+				advancedMappingSelectedMaskItems.assign(1, groupIndex >= 0 ?
+					JPMappingMaskItem{JPMappingMaskItemKind::Group,
+						groups[groupIndex].id} :
+					JPMappingMaskItem{JPMappingMaskItemKind::Contour, masks[0].id});
+				syncAdvancedMappingMaskSelection(
+					state->layers[state->selectedLayer]);
+			}
 		}
 	}
 	clampMappingPanelLayout();
@@ -1963,6 +1977,7 @@ void JPboxgroup::endMappingEdit()
 	advancedMappingSelectedMaskContour = -1;
 	advancedMappingSelectedMaskNode = -1;
 	advancedMappingSelectedMaskContours.clear();
+	advancedMappingSelectedMaskItems.clear();
 	advancedMappingDragLayer = -1;
 	advancedMappingDragContour = -1;
 	advancedMappingDragContours.clear();
@@ -1971,6 +1986,7 @@ void JPboxgroup::endMappingEdit()
 	advancedMappingRightPanPending = false;
 	advancedMappingPendingDeleteContour = -1;
 	advancedMappingPendingDeleteNode = -1;
+	advancedMappingEllipseValid = false;
 }
 
 void JPboxgroup::markMappingParameterChanged()
@@ -2042,7 +2058,7 @@ void JPboxgroup::clampMappingPanelLayout()
 	const float topMargin = tabBarOffsetY + 40.0f;
 	JPbox *box = getMappingEditBox();
 	const float minimumWidth = isAdvancedMappingShaderBox(box) ?
-		420.0f : 320.0f;
+		510.0f : 320.0f;
 	const float minimumHeight = 220.0f;
 	const float maximumWidth = std::max(
 		minimumWidth, ofGetWidth() - margin * 2.0f);

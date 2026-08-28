@@ -855,6 +855,7 @@ private:
 	{
 		ADVANCED_MAPPING_PEN = 0,
 		ADVANCED_MAPPING_MESH,
+		ADVANCED_MAPPING_ELLIPSE,
 		ADVANCED_MAPPING_MOVE
 	};
 	// Which shape the move tool is acting on. Persists across drags so the
@@ -875,7 +876,8 @@ private:
 		ADVANCED_MAPPING_DRAG_MOVE_SHAPE,
 		ADVANCED_MAPPING_DRAG_SCALE_SHAPE,
 		ADVANCED_MAPPING_DRAG_ROTATE_SHAPES,
-		ADVANCED_MAPPING_DRAG_MASK_MARQUEE
+		ADVANCED_MAPPING_DRAG_MASK_MARQUEE,
+		ADVANCED_MAPPING_DRAG_CREATE_ELLIPSE
 	};
 	// Toolbar order is the grouping the user sees: pick a layer, pick a tool,
 	// shape what the tool selected, reference image, file in/out. Layers must
@@ -889,9 +891,12 @@ private:
 		ADVANCED_MAPPING_LAYER_4,
 		ADVANCED_MAPPING_TOOL_MESH,
 		ADVANCED_MAPPING_TOOL_PEN,
+		ADVANCED_MAPPING_TOOL_ELLIPSE,
 		ADVANCED_MAPPING_TOOL_MOVE,
 		ADVANCED_MAPPING_BEZIER,
 		ADVANCED_MAPPING_SMOOTH,
+		ADVANCED_MAPPING_BOOLEAN_UNION,
+		ADVANCED_MAPPING_BOOLEAN_DIFFERENCE,
 		ADVANCED_MAPPING_FIT,
 		ADVANCED_MAPPING_GUIDE,
 		ADVANCED_MAPPING_SVG_IMPORT,
@@ -911,6 +916,12 @@ private:
 		ofRectangle &box) const;
 	ofVec2f getAdvancedMappingRotationHandle(
 		const ofRectangle &box, const ofRectangle &preview) const;
+	void syncAdvancedMappingMaskSelection(
+		const JPbox_shader::AdvancedMappingLayer &layer);
+	bool advancedMappingBooleanSelectionValid(
+		const JPbox_shader::AdvancedMappingLayer &layer) const;
+	void applyAdvancedMappingBoolean(JPbox_shader *box,
+		JPMappingBooleanOperation operation);
 	void drawAdvancedMappingPanel();
 	// interactive: only the editor panel passes true. The render window draws
 	// the same overlay in another GL context, where editor chrome (move box,
@@ -953,6 +964,7 @@ private:
 	int advancedMappingSelectedMaskContour = -1;
 	int advancedMappingSelectedMaskNode = -1;
 	vector<int> advancedMappingSelectedMaskContours;
+	vector<JPMappingMaskItem> advancedMappingSelectedMaskItems;
 	// Bezier edge handles are off until asked for, so a fresh surface is a
 	// plain corner-pin quad. See advancedMappingBezierActive for how a layer
 	// that already carries a curve overrides this.
@@ -974,6 +986,7 @@ private:
 	ofVec2f advancedMappingMarqueeStart;
 	ofVec2f advancedMappingMarqueeEnd;
 	bool advancedMappingMarqueeAdditive = false;
+	bool advancedMappingEllipseValid = false;
 	int advancedMappingDragLayer = -1;
 	int advancedMappingDragContour = -1;
 	float advancedMappingViewZoom = 1.0f;

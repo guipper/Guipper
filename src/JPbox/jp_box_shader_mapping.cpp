@@ -53,9 +53,20 @@ namespace
 	bool readSvgAttribute(const std::string &tag,
 		const std::string &name, std::string &value)
 	{
-		const size_t namePos = tag.find(name);
-		if (namePos == std::string::npos)
-			return false;
+		size_t namePos = 0;
+		while ((namePos = tag.find(name, namePos)) != std::string::npos)
+		{
+			const bool leftBoundary = namePos == 0 ||
+				std::isspace(static_cast<unsigned char>(tag[namePos - 1])) ||
+				tag[namePos - 1] == '<';
+			const size_t after = namePos + name.size();
+			const bool rightBoundary = after >= tag.size() ||
+				std::isspace(static_cast<unsigned char>(tag[after])) ||
+				tag[after] == '=';
+			if (leftBoundary && rightBoundary) break;
+			namePos = after;
+		}
+		if (namePos == std::string::npos) return false;
 		const size_t equals = tag.find('=', namePos + name.size());
 		if (equals == std::string::npos)
 			return false;
@@ -92,6 +103,20 @@ namespace
 			return false;
 		return readSvgAttribute(
 			svg.substr(pathStart, pathEnd - pathStart + 1), "d", data);
+	}
+
+	std::vector<std::string> extractSvgPathTags(const std::string &svg)
+	{
+		std::vector<std::string> tags;
+		size_t cursor = 0;
+		while ((cursor = svg.find("<path", cursor)) != std::string::npos)
+		{
+			const size_t end = svg.find('>', cursor);
+			if (end == std::string::npos) break;
+			tags.push_back(svg.substr(cursor, end - cursor + 1));
+			cursor = end + 1;
+		}
+		return tags;
 	}
 
 	ofRectangle parseSvgViewBox(const std::string &svg)
@@ -351,6 +376,78 @@ namespace
 	{
 		stream << point.x * 1000.0f << ',' << point.y * 1000.0f;
 	}
+
+	void writeSvgContourData(std::ostringstream &stream,
+		const JPbox_shader::AdvancedMappingContour &contour)
+	{
+		if (!contour.closed || contour.nodes.size() < 3) return;
+		stream << "M ";
+		writeSvgPoint(stream, contour.nodes[0].anchor);
+		for (size_t i = 0; i < contour.nodes.size(); i++)
+		{
+			const auto &from = contour.nodes[i];
+			const auto &to = contour.nodes[(i + 1) % contour.nodes.size()];
+			if (from.smooth || to.smooth)
+			{
+				stream << " C "; writeSvgPoint(stream, from.outHandle);
+				stream << ' '; writeSvgPoint(stream, to.inHandle);
+				stream << ' '; writeSvgPoint(stream, to.anchor);
+			}
+			else
+			{
+				stream << " L "; writeSvgPoint(stream, to.anchor);
+			}
+		}
+		stream << " Z";
+	}
+
+	int nextContourId(const JPbox_shader::AdvancedMappingLayer &layer)
+	{
+		int next = 1;
+		for (const auto &contour : layer.masks)
+			next = std::max(next, contour.id + 1);
+		return next;
+	}
+
+	void normalizeMappingBooleanState(
+		JPbox_shader::AdvancedMappingLayer &layer)
+	{
+		std::vector<int> ids;
+		for (auto &contour : layer.masks)
+		{
+			if (contour.id < 0 ||
+				std::find(ids.begin(), ids.end(), contour.id) != ids.end())
+				contour.id = nextContourId(layer);
+			ids.push_back(contour.id);
+		}
+		jp_mapping_boolean::sanitize(layer.booleanGroups, ids);
+	}
+
+	void drawMappingMaskContour(
+		const JPbox_shader::AdvancedMappingContour &contour,
+		int width, int height, const ofColor &color)
+	{
+		if (!contour.closed || contour.nodes.size() < 3) return;
+		ofPath path;
+		path.setFilled(true);
+		path.setFillColor(color);
+		path.moveTo(contour.nodes[0].anchor.x * width,
+			contour.nodes[0].anchor.y * height);
+		for (size_t i = 0; i < contour.nodes.size(); i++)
+		{
+			const auto &from = contour.nodes[i];
+			const auto &to = contour.nodes[(i + 1) % contour.nodes.size()];
+			if (from.smooth || to.smooth)
+				path.bezierTo(from.outHandle.x * width,
+					from.outHandle.y * height, to.inHandle.x * width,
+					to.inHandle.y * height, to.anchor.x * width,
+					to.anchor.y * height);
+			else
+				path.lineTo(to.anchor.x * width, to.anchor.y * height);
+		}
+		path.close();
+		path.draw();
+	}
 }
 
 bool JPbox_shader::isAdvancedMappingShader() const
@@ -415,6 +512,8 @@ void JPbox_shader::clearAdvancedMappingResources()
 	{
 		if (mask.isAllocated()) mask.clear();
 	}
+	if (advancedMappingBooleanScratch.isAllocated())
+		advancedMappingBooleanScratch.clear();
 	advancedMappingGuide.clear();
 	advancedMappingMaskDirty.fill(true);
 }
@@ -445,47 +544,79 @@ void JPbox_shader::rebuildAdvancedMappingMask(int layerIndex)
 		advancedMappingMasks[layerIndex].allocate(settings);
 	}
 
-	const AdvancedMappingLayer &layer =
-		advancedMappingState.layers[layerIndex];
-	advancedMappingMasks[layerIndex].begin();
+	AdvancedMappingLayer &layer = advancedMappingState.layers[layerIndex];
+	normalizeMappingBooleanState(layer);
 	const bool hasClosedMask = std::any_of(layer.masks.begin(),
 		layer.masks.end(), [](const AdvancedMappingContour &contour) {
 			return contour.closed && contour.nodes.size() >= 3;
 		});
 	if (!hasClosedMask)
 	{
+		advancedMappingMasks[layerIndex].begin();
 		ofClear(255, 255, 255, 255);
+		advancedMappingMasks[layerIndex].end();
 	}
 	else
 	{
-		ofClear(0, 0, 0, 255);
-		// Draw contours independently so overlaps are a union, not XOR holes.
-		for (const AdvancedMappingContour &contour : layer.masks)
+		if (!advancedMappingBooleanScratch.isAllocated() ||
+			advancedMappingBooleanScratch.getWidth() != width ||
+			advancedMappingBooleanScratch.getHeight() != height)
 		{
-			if (!contour.closed || contour.nodes.size() < 3) continue;
-			ofPath path;
-			path.setFilled(true);
-			path.setFillColor(ofColor::white);
-			path.moveTo(contour.nodes[0].anchor.x * width,
-				contour.nodes[0].anchor.y * height);
-			for (size_t i = 0; i < contour.nodes.size(); i++)
+			ofFbo::Settings scratchSettings;
+			scratchSettings.width = width;
+			scratchSettings.height = height;
+			scratchSettings.internalformat = GL_R8;
+			scratchSettings.textureTarget = GL_TEXTURE_2D;
+			scratchSettings.useDepth = false;
+			scratchSettings.useStencil = false;
+			scratchSettings.numSamples = 4;
+			advancedMappingBooleanScratch.allocate(scratchSettings);
+		}
+
+		advancedMappingMasks[layerIndex].begin();
+		ofClear(0, 0, 0, 255);
+		advancedMappingMasks[layerIndex].end();
+
+		// Standalone contours retain the legacy union behaviour.
+		advancedMappingMasks[layerIndex].begin();
+		for (const auto &contour : layer.masks)
+		{
+			if (jp_mapping_boolean::groupIndexForContour(
+				layer.booleanGroups, contour.id) < 0)
+				drawMappingMaskContour(contour, width, height, ofColor::white);
+		}
+		advancedMappingMasks[layerIndex].end();
+
+		// Each chain is evaluated in isolation, then additively composited onto
+		// the final R8 mask. A subtractive term therefore cannot punch through a
+		// different standalone contour or boolean result.
+		for (const auto &group : layer.booleanGroups)
+		{
+			advancedMappingBooleanScratch.begin();
+			ofClear(0, 0, 0, 255);
+			for (size_t termIndex = 0; termIndex < group.terms.size(); ++termIndex)
 			{
-				const AdvancedMappingNode &from = contour.nodes[i];
-				const AdvancedMappingNode &to =
-					contour.nodes[(i + 1) % contour.nodes.size()];
-				if (from.smooth || to.smooth)
-					path.bezierTo(from.outHandle.x * width,
-						from.outHandle.y * height, to.inHandle.x * width,
-						to.inHandle.y * height, to.anchor.x * width,
-						to.anchor.y * height);
-				else
-					path.lineTo(to.anchor.x * width, to.anchor.y * height);
+				const auto &term = group.terms[termIndex];
+				auto contour = std::find_if(layer.masks.begin(), layer.masks.end(),
+					[&](const AdvancedMappingContour &candidate) {
+						return candidate.id == term.contourId;
+					});
+				if (contour == layer.masks.end()) continue;
+				const bool subtract = termIndex > 0 && term.operation ==
+					JPMappingBooleanOperation::Difference;
+				drawMappingMaskContour(*contour, width, height,
+					subtract ? ofColor::black : ofColor::white);
 			}
-			path.close();
-			path.draw();
+			advancedMappingBooleanScratch.end();
+
+			advancedMappingMasks[layerIndex].begin();
+			ofEnableBlendMode(OF_BLENDMODE_ADD);
+			ofSetColor(255);
+			advancedMappingBooleanScratch.draw(0, 0, width, height);
+			ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+			advancedMappingMasks[layerIndex].end();
 		}
 	}
-	advancedMappingMasks[layerIndex].end();
 	advancedMappingMaskDirty[layerIndex] = false;
 }
 
@@ -511,7 +642,6 @@ void JPbox_shader::updateAdvancedMappingUniforms()
 			shader.setUniformTexture(prefix + "_mask",
 				advancedMappingMasks[layerIndex].getTexture(), 5 + layerIndex);
 		}
-
 		float surface[24];
 		for (int i = 0; i < 4; i++)
 		{
@@ -587,22 +717,65 @@ bool JPbox_shader::importAdvancedMappingSvg(int layerIndex,
 		return false;
 	}
 	const ofRectangle viewBox = parseSvgViewBox(svg);
-	std::string maskData;
-	if (!extractSvgPathData(svg, "mask", maskData) &&
-		!extractSvgPathData(svg, "", maskData))
-	{
-		error = "SVG has no path";
-		return false;
-	}
 	std::vector<AdvancedMappingContour> masks;
-	if (!parseSvgPaths(maskData, viewBox, masks, error))
-		return false;
+	std::vector<JPMappingBooleanGroup> booleanGroups;
+	for (const std::string &tag : extractSvgPathTags(svg))
+	{
+		std::string idText;
+		std::string data;
+		if (!readSvgAttribute(tag, "data-guipper-contour-id", idText) ||
+			!readSvgAttribute(tag, "d", data)) continue;
+		std::vector<AdvancedMappingContour> parsed;
+		std::string pathError;
+		if (!parseSvgPaths(data, viewBox, parsed, pathError) || parsed.empty())
+			continue;
+		AdvancedMappingContour contour = parsed.front();
+		contour.id = ofToInt(idText);
+		contour.closed = true;
+		masks.push_back(contour);
+
+		std::string groupText;
+		if (!readSvgAttribute(tag, "data-guipper-group-id", groupText))
+			continue;
+		const int groupId = ofToInt(groupText);
+		if (groupId < 0) continue;
+		auto group = std::find_if(booleanGroups.begin(), booleanGroups.end(),
+			[&](const JPMappingBooleanGroup &candidate) {
+				return candidate.id == groupId;
+			});
+		if (group == booleanGroups.end())
+		{
+			booleanGroups.push_back(JPMappingBooleanGroup());
+			booleanGroups.back().id = groupId;
+			group = booleanGroups.end() - 1;
+		}
+		std::string operation;
+		readSvgAttribute(tag, "data-guipper-operation", operation);
+		group->terms.push_back({contour.id,
+			operation == "difference" ?
+				JPMappingBooleanOperation::Difference :
+				JPMappingBooleanOperation::Union});
+	}
+	if (masks.empty())
+	{
+		std::string maskData;
+		if (!extractSvgPathData(svg, "mask", maskData) &&
+			!extractSvgPathData(svg, "", maskData))
+		{
+			error = "SVG has no path";
+			return false;
+		}
+		if (!parseSvgPaths(maskData, viewBox, masks, error))
+			return false;
+	}
 
 	initializeAdvancedMappingState();
 	AdvancedMappingLayer &layer = advancedMappingState.layers[layerIndex];
 	layer.masks = masks;
+	layer.booleanGroups = booleanGroups;
 	for (AdvancedMappingContour &contour : layer.masks)
 		contour.closed = contour.closed || contour.nodes.size() >= 3;
+	normalizeMappingBooleanState(layer);
 
 	std::string surfaceData;
 	std::vector<AdvancedMappingNode> surface;
@@ -656,37 +829,60 @@ bool JPbox_shader::exportAdvancedMappingSvg(int layerIndex,
 	svg << ' '; writeSvgPoint(svg, layer.edgeHandles[6]);
 	svg << ' '; writeSvgPoint(svg, layer.corners[0]);
 	svg << " Z\"/>\n";
-	svg << "  <path id=\"mask\" fill=\"#ffffff\" stroke=\"#ffbd4a\" d=\"";
-	bool wroteMask = false;
-	for (const AdvancedMappingContour &contour : layer.masks)
+	auto contourById = [&](int id) -> const AdvancedMappingContour * {
+		for (const auto &contour : layer.masks)
+			if (contour.id == id) return &contour;
+		return nullptr;
+	};
+	svg << "  <defs>\n";
+	for (const auto &group : layer.booleanGroups)
 	{
-		if (!contour.closed || contour.nodes.size() < 3) continue;
-		if (wroteMask) svg << ' ';
-		svg << "M "; writeSvgPoint(svg, contour.nodes[0].anchor);
-		for (size_t i = 0; i < contour.nodes.size(); i++)
+		svg << "    <mask id=\"guipper-mask-" << group.id
+			<< "\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" "
+			<< "width=\"1000\" height=\"1000\">\n";
+		svg << "      <rect width=\"1000\" height=\"1000\" fill=\"#000000\"/>\n";
+		for (size_t termIndex = 0; termIndex < group.terms.size(); ++termIndex)
 		{
-			const AdvancedMappingNode &from = contour.nodes[i];
-			const AdvancedMappingNode &to =
-				contour.nodes[(i + 1) % contour.nodes.size()];
-			if (from.smooth || to.smooth)
-			{
-				svg << " C "; writeSvgPoint(svg, from.outHandle);
-				svg << ' '; writeSvgPoint(svg, to.inHandle);
-				svg << ' '; writeSvgPoint(svg, to.anchor);
-			}
-			else
-			{
-				svg << " L "; writeSvgPoint(svg, to.anchor);
-			}
+			const auto &term = group.terms[termIndex];
+			const AdvancedMappingContour *contour = contourById(term.contourId);
+			if (contour == nullptr || !contour->closed ||
+				contour->nodes.size() < 3) continue;
+			const bool subtract = termIndex > 0 && term.operation ==
+				JPMappingBooleanOperation::Difference;
+			svg << "      <path fill=\"" << (subtract ? "#000000" : "#ffffff")
+				<< "\" data-guipper-contour-id=\"" << contour->id
+				<< "\" data-guipper-group-id=\"" << group.id
+				<< "\" data-guipper-operation=\""
+				<< (subtract ? "difference" : "union") << "\" d=\"";
+			writeSvgContourData(svg, *contour);
+			svg << "\"/>\n";
 		}
-		svg << " Z";
+		svg << "    </mask>\n";
+	}
+	svg << "  </defs>\n";
+	svg << "  <g id=\"mask-visual\" fill=\"#ffffff\" stroke=\"#ffbd4a\">\n";
+	bool wroteMask = false;
+	for (const auto &contour : layer.masks)
+	{
+		if (!contour.closed || contour.nodes.size() < 3 ||
+			jp_mapping_boolean::groupIndexForContour(
+				layer.booleanGroups, contour.id) >= 0) continue;
+		svg << "    <path data-guipper-contour-id=\"" << contour.id
+			<< "\" data-guipper-group-id=\"-1\" "
+			<< "data-guipper-operation=\"union\" d=\"";
+		writeSvgContourData(svg, contour);
+		svg << "\"/>\n";
+		wroteMask = true;
+	}
+	for (const auto &group : layer.booleanGroups)
+	{
+		svg << "    <rect width=\"1000\" height=\"1000\" stroke=\"none\" "
+			<< "mask=\"url(#guipper-mask-" << group.id << ")\"/>\n";
 		wroteMask = true;
 	}
 	if (!wroteMask)
-	{
-		svg << "M 0,0 L 1000,0 L 1000,1000 L 0,1000 Z";
-	}
-	svg << "\"/>\n</svg>\n";
+		svg << "    <path id=\"mask\" d=\"M 0,0 L 1000,0 L 1000,1000 L 0,1000 Z\"/>\n";
+	svg << "  </g>\n</svg>\n";
 	const std::string output = svg.str();
 	const ofBuffer outputBuffer(output.c_str(), output.size());
 	if (!ofBufferToFile(path, outputBuffer))
@@ -725,6 +921,7 @@ void JPbox_shader::saveCustomState(ofXml &boxNode) const
 		{
 			if (contour.nodes.empty()) continue;
 			auto pathNode = mask.appendChild("path");
+			pathNode.appendChild("id").set(contour.id);
 			pathNode.appendChild("closed").set(contour.closed);
 			for (const AdvancedMappingNode &point : contour.nodes)
 			{
@@ -733,6 +930,20 @@ void JPbox_shader::saveCustomState(ofXml &boxNode) const
 				appendXmlPoint(pointNode, "in", point.inHandle);
 				appendXmlPoint(pointNode, "out", point.outHandle);
 				pointNode.appendChild("smooth").set(point.smooth);
+			}
+		}
+		auto groupsNode = layerNode.appendChild("booleanGroups");
+		for (const auto &group : layer.booleanGroups)
+		{
+			auto groupNode = groupsNode.appendChild("group");
+			groupNode.appendChild("id").set(group.id);
+			for (const auto &term : group.terms)
+			{
+				auto termNode = groupNode.appendChild("term");
+				termNode.appendChild("contour").set(term.contourId);
+				termNode.appendChild("operation").set(
+					term.operation == JPMappingBooleanOperation::Difference ?
+					"difference" : "union");
 			}
 		}
 	}
@@ -790,6 +1001,8 @@ void JPbox_shader::loadCustomState(const ofXml &boxNode)
 			layer.masks.clear();
 			auto readContour = [&](const ofXml &pathNode) {
 				AdvancedMappingContour contour;
+				contour.id = pathNode.getChild("id") ?
+					pathNode.getChild("id").getIntValue() : -1;
 				contour.closed = pathNode.getChild("closed") &&
 					pathNode.getChild("closed").getBoolValue();
 				for (auto &pointNode : pathNode.getChildren("point"))
@@ -813,6 +1026,32 @@ void JPbox_shader::loadCustomState(const ofXml &boxNode)
 			if (!foundPath)
 				readContour(mask); // Legacy single-contour save format.
 		}
+		layer.booleanGroups.clear();
+		auto groupsNode = layerNode.getChild("booleanGroups");
+		if (groupsNode)
+		{
+			for (const auto &groupNode : groupsNode.getChildren("group"))
+			{
+				JPMappingBooleanGroup group;
+				group.id = groupNode.getChild("id") ?
+					groupNode.getChild("id").getIntValue() : -1;
+				for (const auto &termNode : groupNode.getChildren("term"))
+				{
+					if (!termNode.getChild("contour")) continue;
+					JPMappingBooleanTerm term;
+					term.contourId =
+						termNode.getChild("contour").getIntValue();
+					const std::string operation = termNode.getChild("operation") ?
+						termNode.getChild("operation").getValue() : "union";
+					term.operation = operation == "difference" ?
+						JPMappingBooleanOperation::Difference :
+						JPMappingBooleanOperation::Union;
+					group.terms.push_back(term);
+				}
+				layer.booleanGroups.push_back(group);
+			}
+		}
+		normalizeMappingBooleanState(layer);
 	}
 	markAdvancedMappingMaskDirty();
 	if (!advancedMappingState.guideImagePath.empty())
@@ -862,6 +1101,7 @@ namespace
 		if (a.size() != b.size()) return false;
 		for (std::size_t i = 0; i < a.size(); i++)
 		{
+			if (a[i].id != b[i].id) return false;
 			if (a[i].closed != b[i].closed) return false;
 			if (a[i].nodes.size() != b[i].nodes.size()) return false;
 			for (std::size_t n = 0; n < a[i].nodes.size(); n++)
@@ -911,6 +1151,7 @@ bool JPbox_shader::sameMappingSnapshot(const MappingSnapshot &a,
 		if (x.fitMode != y.fitMode) return false;
 		if (x.inspectorExpanded != y.inspectorExpanded) return false;
 		if (!sameNodeList(x.masks, y.masks)) return false;
+		if (x.booleanGroups != y.booleanGroups) return false;
 	}
 	return true;
 }

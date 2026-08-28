@@ -41,6 +41,44 @@ namespace
 			ofClamp(point.y, 0.0f, 1.0f));
 	}
 
+	int nextMappingContourId(
+		const JPbox_shader::AdvancedMappingLayer &layer)
+	{
+		int next = 1;
+		for (const auto &contour : layer.masks)
+			next = std::max(next, contour.id + 1);
+		return next;
+	}
+
+	void setEllipseContour(
+		JPbox_shader::AdvancedMappingContour &contour,
+		const ofVec2f &center, float radiusX, float radiusY)
+	{
+		constexpr float kappa = 0.5522847498307936f;
+		contour.closed = true;
+		contour.nodes.resize(4);
+		auto setNode = [&](int index, const ofVec2f &anchor,
+			const ofVec2f &inHandle, const ofVec2f &outHandle) {
+			auto &node = contour.nodes[index];
+			node.anchor = anchor;
+			node.inHandle = inHandle;
+			node.outHandle = outHandle;
+			node.smooth = true;
+		};
+		setNode(0, center + ofVec2f(0.0f, -radiusY),
+			center + ofVec2f(-radiusX * kappa, -radiusY),
+			center + ofVec2f(radiusX * kappa, -radiusY));
+		setNode(1, center + ofVec2f(radiusX, 0.0f),
+			center + ofVec2f(radiusX, -radiusY * kappa),
+			center + ofVec2f(radiusX, radiusY * kappa));
+		setNode(2, center + ofVec2f(0.0f, radiusY),
+			center + ofVec2f(radiusX * kappa, radiusY),
+			center + ofVec2f(-radiusX * kappa, radiusY));
+		setNode(3, center + ofVec2f(-radiusX, 0.0f),
+			center + ofVec2f(-radiusX, radiusY * kappa),
+			center + ofVec2f(-radiusX, -radiusY * kappa));
+	}
+
 	// The four surface edges, as (corner A, corner B, handle at 1/3, handle at
 	// 2/3). Same winding the shader and projectAdvancedMappingPoint use.
 	struct MappingEdge
@@ -385,8 +423,7 @@ ofRectangle JPboxgroup::getAdvancedMappingToolbarBounds(
 	AdvancedMappingToolbarAction action) const
 {
 	const float gap = 3.0f;
-	// 8, not 11: with thirteen buttons the row has to stay inside the 420 px
-	// minimum panel width (rightmost edge lands at 403).
+	// Sixteen compact buttons fit inside the advanced panel's 510 px minimum.
 	const float groupGap = 8.0f;
 	const float buttonWidth = 25.0f;
 	const float buttonHeight = 22.0f;
@@ -463,6 +500,92 @@ bool JPboxgroup::getAdvancedMappingMoveBox(
 		box.height = 0.01f;
 	}
 	return true;
+}
+
+void JPboxgroup::syncAdvancedMappingMaskSelection(
+	const JPbox_shader::AdvancedMappingLayer &layer)
+{
+	vector<JPMappingMaskItem> validItems;
+	vector<int> contours;
+	auto appendContour = [&](int contourId) {
+		for (int i = 0; i < static_cast<int>(layer.masks.size()); ++i)
+		{
+			if (layer.masks[i].id != contourId) continue;
+			if (std::find(contours.begin(), contours.end(), i) == contours.end())
+				contours.push_back(i);
+			return true;
+		}
+		return false;
+	};
+	for (const auto &item : advancedMappingSelectedMaskItems)
+	{
+		if (item.kind == JPMappingMaskItemKind::Contour)
+		{
+			if (!appendContour(item.id)) continue;
+			validItems.push_back(item);
+			continue;
+		}
+		const int groupIndex = jp_mapping_boolean::groupIndexById(
+			layer.booleanGroups, item.id);
+		if (groupIndex < 0) continue;
+		bool found = false;
+		for (const auto &term : layer.booleanGroups[groupIndex].terms)
+			found = appendContour(term.contourId) || found;
+		if (found) validItems.push_back(item);
+	}
+	advancedMappingSelectedMaskItems.swap(validItems);
+	advancedMappingSelectedMaskContours.swap(contours);
+	advancedMappingSelectedMaskContour =
+		advancedMappingSelectedMaskContours.empty() ? -1 :
+		advancedMappingSelectedMaskContours.back();
+}
+
+bool JPboxgroup::advancedMappingBooleanSelectionValid(
+	const JPbox_shader::AdvancedMappingLayer &layer) const
+{
+	if (advancedMappingSelectedMaskItems.size() != 2) return false;
+	auto closedContour = [&](int id) {
+		for (const auto &contour : layer.masks)
+			if (contour.id == id)
+				return contour.closed && contour.nodes.size() >= 3;
+		return false;
+	};
+	const auto &left = advancedMappingSelectedMaskItems[0];
+	const auto &right = advancedMappingSelectedMaskItems[1];
+	if (right.kind != JPMappingMaskItemKind::Contour ||
+		!closedContour(right.id) ||
+		jp_mapping_boolean::groupIndexForContour(
+			layer.booleanGroups, right.id) >= 0)
+		return false;
+	if (left.kind == JPMappingMaskItemKind::Contour)
+		return left.id != right.id && closedContour(left.id) &&
+			jp_mapping_boolean::groupIndexForContour(
+				layer.booleanGroups, left.id) < 0;
+	const int groupIndex = jp_mapping_boolean::groupIndexById(
+		layer.booleanGroups, left.id);
+	if (groupIndex < 0) return false;
+	for (const auto &term : layer.booleanGroups[groupIndex].terms)
+		if (!closedContour(term.contourId)) return false;
+	return true;
+}
+
+void JPboxgroup::applyAdvancedMappingBoolean(JPbox_shader *box,
+	JPMappingBooleanOperation operation)
+{
+	if (box == nullptr) return;
+	auto *state = box->getAdvancedMappingState();
+	if (state == nullptr) return;
+	auto &layer = state->layers[state->selectedLayer];
+	if (!advancedMappingBooleanSelectionValid(layer)) return;
+	const int groupId = jp_mapping_boolean::apply(layer.booleanGroups,
+		advancedMappingSelectedMaskItems[0],
+		advancedMappingSelectedMaskItems[1].id, operation);
+	if (groupId < 0) return;
+	advancedMappingSelectedMaskItems.assign(1,
+		JPMappingMaskItem{JPMappingMaskItemKind::Group, groupId});
+	syncAdvancedMappingMaskSelection(layer);
+	advancedMappingSelectedMaskNode = -1;
+	markAdvancedMappingChanged(box, state->selectedLayer, true);
 }
 
 ofVec2f JPboxgroup::getAdvancedMappingRotationHandle(
@@ -658,8 +781,16 @@ void JPboxgroup::drawAdvancedMappingOverlay(float x, float y,
 				advancedMappingSelectedMaskContours.begin(),
 				advancedMappingSelectedMaskContours.end(), contourIndex) !=
 				advancedMappingSelectedMaskContours.end();
-			ofSetColor(selected ? COL_ACCENT_GOLD :
-				ofColor(COL_ACCENT_GOLD, 135));
+			bool subtractive = false;
+			for (const auto &group : layer.booleanGroups)
+				for (size_t termIndex = 1; termIndex < group.terms.size(); ++termIndex)
+					if (group.terms[termIndex].contourId == contour.id &&
+						group.terms[termIndex].operation ==
+							JPMappingBooleanOperation::Difference)
+						subtractive = true;
+			ofSetColor(subtractive ?
+				(selected ? COL_ACCENT_RED : ofColor(COL_ACCENT_RED, 145)) :
+				(selected ? COL_ACCENT_GOLD : ofColor(COL_ACCENT_GOLD, 135)));
 			ofSetLineWidth(selected ? 2.0f : 1.3f);
 			const size_t edgeCount = contour.closed ?
 				contour.nodes.size() : contour.nodes.size() - 1;
@@ -673,6 +804,56 @@ void JPboxgroup::drawAdvancedMappingOverlay(float x, float y,
 						canvasX, canvasY, canvasW, canvasH);
 				else
 					ofDrawLine(screen(from.anchor), screen(to.anchor));
+			}
+		}
+
+		if (interactive && advancedMappingSelectedMaskItems.size() == 2)
+		{
+			auto itemBox = [&](const JPMappingMaskItem &item,
+				ofRectangle &bounds) {
+				bool found = false;
+				auto includeId = [&](int id) {
+					for (const auto &contour : layer.masks)
+					{
+						if (contour.id != id) continue;
+						const auto outline = buildMaskOutline(contour);
+						if (outline.size() == 0) return;
+						if (!found) bounds = outline.getBoundingBox();
+						else bounds.growToInclude(outline.getBoundingBox());
+						found = true;
+						return;
+					}
+				};
+				if (item.kind == JPMappingMaskItemKind::Contour)
+					includeId(item.id);
+				else
+				{
+					const int groupIndex = jp_mapping_boolean::groupIndexById(
+						layer.booleanGroups, item.id);
+					if (groupIndex >= 0)
+						for (const auto &term :
+							layer.booleanGroups[groupIndex].terms)
+							includeId(term.contourId);
+				}
+				return found;
+			};
+			for (int operand = 0; operand < 2; ++operand)
+			{
+				ofRectangle bounds;
+				if (!itemBox(advancedMappingSelectedMaskItems[operand], bounds))
+					continue;
+				const ofVec2f badge = screen(ofVec2f(bounds.x, bounds.y));
+				ofFill();
+				ofSetColor(COL_BG_DARK);
+				ofDrawCircle(badge, 9.0f);
+				ofSetColor(operand == 0 ? COL_ACCENT_CYAN : COL_ACCENT_GOLD);
+				ofDrawCircle(badge, 7.0f);
+				ofSetColor(COL_BG_DARK);
+				const string label = operand == 0 ? "A" : "B";
+				jp_constants::p_font.drawString(label,
+					badge.x - jp_constants::p_font.stringWidth(label) * 0.5f,
+					badge.y + 4.0f);
+				ofNoFill();
 			}
 		}
 
@@ -883,6 +1064,8 @@ void JPboxgroup::drawAdvancedMappingPanel()
 	JPbox_shader::AdvancedMappingState *state =
 		box->getAdvancedMappingState();
 	if (state == nullptr) return;
+	syncAdvancedMappingMaskSelection(
+		state->layers[state->selectedLayer]);
 	clampMappingPanelLayout();
 
 	const ofRectangle preview = getMappingPanelPreviewRect();
@@ -996,6 +1179,8 @@ void JPboxgroup::drawAdvancedMappingPanel()
 				advancedMappingMoveTarget == ADVANCED_MAPPING_TARGET_SURFACE);
 		else if (action == ADVANCED_MAPPING_TOOL_MOVE)
 			active = advancedMappingTool == ADVANCED_MAPPING_MOVE;
+		else if (action == ADVANCED_MAPPING_TOOL_ELLIPSE)
+			active = advancedMappingTool == ADVANCED_MAPPING_ELLIPSE;
 		else if (action == ADVANCED_MAPPING_BEZIER)
 			active = advancedMappingBezierActive(
 				state->layers[state->selectedLayer]);
@@ -1021,6 +1206,13 @@ void JPboxgroup::drawAdvancedMappingPanel()
 				JPbox_shader::ADVANCED_MAPPING_FIT_STRETCH;
 		else if (action == ADVANCED_MAPPING_GUIDE)
 			active = state->guideVisible && box->hasAdvancedMappingGuide();
+		else if (action == ADVANCED_MAPPING_BOOLEAN_UNION ||
+			action == ADVANCED_MAPPING_BOOLEAN_DIFFERENCE)
+		{
+			active = false;
+			disabled = !advancedMappingBooleanSelectionValid(
+				state->layers[state->selectedLayer]);
+		}
 		const bool hovered = !disabled &&
 			bounds.inside(ofGetMouseX(), ofGetMouseY());
 		const bool maskTargetIndicator = action == ADVANCED_MAPPING_TOOL_PEN &&
@@ -1061,6 +1253,12 @@ void JPboxgroup::drawAdvancedMappingPanel()
 			ofDrawRectangle(center.x - 6.0f, center.y - 6.0f, 12.0f, 12.0f);
 			ofDrawLine(center.x, center.y - 6.0f, center.x, center.y + 6.0f);
 			ofDrawLine(center.x - 6.0f, center.y, center.x + 6.0f, center.y);
+			ofFill();
+		}
+		else if (action == ADVANCED_MAPPING_TOOL_ELLIPSE)
+		{
+			ofNoFill();
+			ofDrawEllipse(center, 13.0f, 10.0f);
 			ofFill();
 		}
 		else if (action == ADVANCED_MAPPING_TOOL_MOVE)
@@ -1117,6 +1315,26 @@ void JPboxgroup::drawAdvancedMappingPanel()
 				center.x - 2.0f, center.y - 6.0f,
 				center.x + 6.0f, center.y - 6.0f);
 			ofFill();
+		}
+		else if (action == ADVANCED_MAPPING_BOOLEAN_UNION)
+		{
+			ofNoFill();
+			ofDrawCircle(center.x - 3.0f, center.y, 5.0f);
+			ofDrawCircle(center.x + 3.0f, center.y, 5.0f);
+			ofFill();
+			ofDrawLine(center.x, center.y - 3.0f,
+				center.x, center.y + 3.0f);
+			ofDrawLine(center.x - 3.0f, center.y,
+				center.x + 3.0f, center.y);
+		}
+		else if (action == ADVANCED_MAPPING_BOOLEAN_DIFFERENCE)
+		{
+			ofNoFill();
+			ofDrawCircle(center.x - 3.0f, center.y, 5.0f);
+			ofDrawCircle(center.x + 3.0f, center.y, 5.0f);
+			ofFill();
+			ofDrawLine(center.x - 3.0f, center.y,
+				center.x + 3.0f, center.y);
 		}
 		else if (action == ADVANCED_MAPPING_FIT)
 		{
@@ -1244,6 +1462,8 @@ void JPboxgroup::drawAdvancedMappingPanel()
 		advancedMappingTool == ADVANCED_MAPPING_MOVE ?
 		"Leave MOVE and return to the highlighted target editor" :
 		"Move the highlighted surface or mask target");
+	tooltip(ADVANCED_MAPPING_TOOL_ELLIPSE,
+		"Draw an ellipse from its center; hold Shift for a circle");
 	tooltip(ADVANCED_MAPPING_BEZIER,
 		advancedMappingBezierActive(state->layers[state->selectedLayer]) ?
 		"Hide bezier handles and straighten the surface edges" :
@@ -1261,6 +1481,14 @@ void JPboxgroup::drawAdvancedMappingPanel()
 			"Toggle smooth selected mask point" :
 			"Click a mask point first, then smooth it");
 	}
+	const bool booleanReady = advancedMappingBooleanSelectionValid(
+		state->layers[state->selectedLayer]);
+	tooltip(ADVANCED_MAPPING_BOOLEAN_UNION, booleanReady ?
+		"Combine A and B; the result remains editable" :
+		"Select A, then Shift-click an independent closed shape B");
+	tooltip(ADVANCED_MAPPING_BOOLEAN_DIFFERENCE, booleanReady ?
+		"Subtract the last selected shape B from A" :
+		"Select A, then Shift-click an independent closed shape B");
 	{
 		const int fit = state->layers[state->selectedLayer].fitMode;
 		tooltip(ADVANCED_MAPPING_FIT,
@@ -1335,9 +1563,14 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 				static_cast<int>(layer.masks.size()) &&
 			layer.masks[advancedMappingSelectedMaskContour].closed)
 		{
-			layer.masks.push_back(JPbox_shader::AdvancedMappingContour());
+			JPbox_shader::AdvancedMappingContour contour;
+			contour.id = nextMappingContourId(layer);
+			layer.masks.push_back(contour);
 			advancedMappingSelectedMaskContour =
 				static_cast<int>(layer.masks.size()) - 1;
+			advancedMappingSelectedMaskItems.assign(1,
+				JPMappingMaskItem{JPMappingMaskItemKind::Contour,
+					layer.masks.back().id});
 			advancedMappingSelectedMaskContours.assign(1,
 				advancedMappingSelectedMaskContour);
 			advancedMappingSelectedMaskNode = -1;
@@ -1358,6 +1591,7 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 			advancedMappingSelectedMaskContour =
 				state->layers[actionIndex].masks.empty() ? -1 : 0;
 			advancedMappingSelectedMaskContours.clear();
+			advancedMappingSelectedMaskItems.clear();
 			advancedMappingSelectedMaskNode = -1;
 			// The new layer may have no mask at all, and a move target left
 			// pointing at one would leave the tool with nothing to show.
@@ -1390,6 +1624,14 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 			mappingGuidesVisible = true;
 			return true;
 		}
+		if (action == ADVANCED_MAPPING_TOOL_ELLIPSE &&
+			mouseButton == OF_MOUSE_BUTTON_LEFT)
+		{
+			advancedMappingTool = ADVANCED_MAPPING_ELLIPSE;
+			advancedMappingMoveTarget = ADVANCED_MAPPING_TARGET_MASK;
+			mappingGuidesVisible = true;
+			return true;
+		}
 		if (action == ADVANCED_MAPPING_TOOL_MOVE &&
 			mouseButton == OF_MOUSE_BUTTON_LEFT)
 		{
@@ -1403,7 +1645,8 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 				return true;
 			}
 			advancedMappingTool = ADVANCED_MAPPING_MOVE;
-			if (previousTool == ADVANCED_MAPPING_PEN)
+			if (previousTool == ADVANCED_MAPPING_PEN ||
+				previousTool == ADVANCED_MAPPING_ELLIPSE)
 			{
 				advancedMappingMoveTarget = ADVANCED_MAPPING_TARGET_MASK;
 				if (advancedMappingSelectedMaskContour >= 0)
@@ -1477,6 +1720,20 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 			}
 			return true;
 		}
+		if (action == ADVANCED_MAPPING_BOOLEAN_UNION &&
+			mouseButton == OF_MOUSE_BUTTON_LEFT)
+		{
+			applyAdvancedMappingBoolean(box,
+				JPMappingBooleanOperation::Union);
+			return true;
+		}
+		if (action == ADVANCED_MAPPING_BOOLEAN_DIFFERENCE &&
+			mouseButton == OF_MOUSE_BUTTON_LEFT)
+		{
+			applyAdvancedMappingBoolean(box,
+				JPMappingBooleanOperation::Difference);
+			return true;
+		}
 		if (action == ADVANCED_MAPPING_FIT &&
 			mouseButton == OF_MOUSE_BUTTON_LEFT)
 		{
@@ -1521,6 +1778,13 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 					advancedMappingSelectedMaskContour =
 						state->layers[state->selectedLayer].masks.empty() ? -1 : 0;
 					advancedMappingSelectedMaskContours.clear();
+					advancedMappingSelectedMaskItems.clear();
+					if (!state->layers[state->selectedLayer].masks.empty())
+						advancedMappingSelectedMaskItems.assign(1,
+							JPMappingMaskItem{JPMappingMaskItemKind::Contour,
+								state->layers[state->selectedLayer].masks[0].id});
+					syncAdvancedMappingMaskSelection(
+						state->layers[state->selectedLayer]);
 					advancedMappingSelectedMaskNode = -1;
 					markAdvancedMappingChanged(box, state->selectedLayer, true);
 				}
@@ -1632,6 +1896,30 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 		return true;
 	}
 
+	if (advancedMappingTool == ADVANCED_MAPPING_ELLIPSE)
+	{
+		if (mouseButton != OF_MOUSE_BUTTON_LEFT) return true;
+		mappingPanelPointerCaptured = true;
+		advancedMappingDragKind = ADVANCED_MAPPING_DRAG_CREATE_ELLIPSE;
+		advancedMappingDragLayer = state->selectedLayer;
+		advancedMappingDragPreview = preview;
+		advancedMappingDragStartUv = rawUv;
+		advancedMappingEllipseValid = false;
+		JPbox_shader::AdvancedMappingContour contour;
+		contour.id = nextMappingContourId(layer);
+		setEllipseContour(contour, rawUv, 0.0f, 0.0f);
+		// Keep the zero-size preview out of the render mask until the drag has
+		// produced a useful ellipse. This also keeps a simple click visually inert.
+		contour.closed = false;
+		layer.masks.push_back(contour);
+		advancedMappingDragContour = static_cast<int>(layer.masks.size()) - 1;
+		advancedMappingSelectedMaskItems.assign(1,
+			JPMappingMaskItem{JPMappingMaskItemKind::Contour, contour.id});
+		syncAdvancedMappingMaskSelection(layer);
+		advancedMappingSelectedMaskNode = -1;
+		return true;
+	}
+
 	if (advancedMappingTool == ADVANCED_MAPPING_MOVE)
 	{
 		if (mouseButton != OF_MOUSE_BUTTON_LEFT) return true;
@@ -1709,24 +1997,33 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 		const bool shift = ofGetKeyPressed(OF_KEY_SHIFT);
 		if (hitMask >= 0)
 		{
-			auto selected = std::find(advancedMappingSelectedMaskContours.begin(),
-				advancedMappingSelectedMaskContours.end(), hitMask);
+			const int contourId = layer.masks[hitMask].id;
+			JPMappingMaskItem hitItem{
+				JPMappingMaskItemKind::Contour, contourId};
+			if (!ofGetKeyPressed(OF_KEY_ALT))
+			{
+				const int groupIndex = jp_mapping_boolean::groupIndexForContour(
+					layer.booleanGroups, contourId);
+				if (groupIndex >= 0)
+					hitItem = {JPMappingMaskItemKind::Group,
+						layer.booleanGroups[groupIndex].id};
+			}
+			auto selected = std::find(advancedMappingSelectedMaskItems.begin(),
+				advancedMappingSelectedMaskItems.end(), hitItem);
 			if (shift)
 			{
-				if (selected == advancedMappingSelectedMaskContours.end())
-					advancedMappingSelectedMaskContours.push_back(hitMask);
+				if (selected == advancedMappingSelectedMaskItems.end())
+					advancedMappingSelectedMaskItems.push_back(hitItem);
 				else
-					advancedMappingSelectedMaskContours.erase(selected);
+					advancedMappingSelectedMaskItems.erase(selected);
+				syncAdvancedMappingMaskSelection(layer);
 				advancedMappingDragContours = advancedMappingSelectedMaskContours;
-				advancedMappingSelectedMaskContour =
-					advancedMappingSelectedMaskContours.empty() ? -1 :
-					advancedMappingSelectedMaskContours.back();
 				advancedMappingSelectedMaskNode = -1;
 				return true;
 			}
-			if (selected == advancedMappingSelectedMaskContours.end())
-				advancedMappingSelectedMaskContours.assign(1, hitMask);
-			advancedMappingSelectedMaskContour = hitMask;
+			if (selected == advancedMappingSelectedMaskItems.end())
+				advancedMappingSelectedMaskItems.assign(1, hitItem);
+			syncAdvancedMappingMaskSelection(layer);
 			advancedMappingSelectedMaskNode = -1;
 			advancedMappingDragContours = advancedMappingSelectedMaskContours;
 			advancedMappingDragKind = ADVANCED_MAPPING_DRAG_MOVE_SHAPE;
@@ -1788,6 +2085,9 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 		{
 			auto &contour = layer.masks[hitContour];
 			advancedMappingSelectedMaskContour = hitContour;
+			advancedMappingSelectedMaskItems.assign(1,
+				JPMappingMaskItem{JPMappingMaskItemKind::Contour, contour.id});
+			advancedMappingSelectedMaskContours.assign(1, hitContour);
 			if (hitAnchor == 0 && !contour.closed && contour.nodes.size() >= 3)
 			{
 				contour.closed = true;
@@ -1865,6 +2165,9 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 			const int insertAt = edgeIndex + 1;
 			contour.nodes.insert(contour.nodes.begin() + insertAt, inserted);
 			advancedMappingSelectedMaskContour = edgeContour;
+			advancedMappingSelectedMaskItems.assign(1,
+				JPMappingMaskItem{JPMappingMaskItemKind::Contour, contour.id});
+			advancedMappingSelectedMaskContours.assign(1, edgeContour);
 			advancedMappingSelectedMaskNode = insertAt;
 			markAdvancedMappingChanged(box, state->selectedLayer, true);
 			return true;
@@ -1872,8 +2175,13 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 
 		if (layer.masks.empty())
 		{
-			layer.masks.push_back(JPbox_shader::AdvancedMappingContour());
+			JPbox_shader::AdvancedMappingContour contour;
+			contour.id = nextMappingContourId(layer);
+			layer.masks.push_back(contour);
 			advancedMappingSelectedMaskContour = 0;
+			advancedMappingSelectedMaskItems.assign(1,
+				JPMappingMaskItem{JPMappingMaskItemKind::Contour, contour.id});
+			advancedMappingSelectedMaskContours.assign(1, 0);
 		}
 		if (advancedMappingSelectedMaskContour >= 0 &&
 			advancedMappingSelectedMaskContour < static_cast<int>(layer.masks.size()) &&
@@ -1930,6 +2238,10 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 				.distance(mouse) <= 11.0f)
 			{
 				advancedMappingSelectedMaskContour = contourIndex;
+				advancedMappingSelectedMaskItems.assign(1,
+					JPMappingMaskItem{JPMappingMaskItemKind::Contour,
+						layer.masks[contourIndex].id});
+				advancedMappingSelectedMaskContours.assign(1, contourIndex);
 				advancedMappingSelectedMaskNode = i;
 				advancedMappingDragKind = ADVANCED_MAPPING_DRAG_MASK_ANCHOR;
 				advancedMappingDragIndex = i;
@@ -2000,6 +2312,46 @@ bool JPboxgroup::updateAdvancedMappingMouseDragged(int mouseButton)
 			((mouse.y - preview.y) / preview.height - 0.5f) /
 			advancedMappingViewZoom));
 	auto &layer = state->layers[state->selectedLayer];
+	if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_CREATE_ELLIPSE)
+	{
+		if (advancedMappingDragLayer != state->selectedLayer ||
+			advancedMappingDragContour < 0 ||
+			advancedMappingDragContour >= static_cast<int>(layer.masks.size()))
+			return true;
+		const ofRectangle &start = advancedMappingDragPreview;
+		if (start.width <= 0.0f || start.height <= 0.0f) return true;
+		const ofVec2f cursor(
+			advancedMappingViewCenter.x +
+				((mouse.x - start.x) / start.width - 0.5f) /
+				advancedMappingViewZoom,
+			advancedMappingViewCenter.y +
+				((mouse.y - start.y) / start.height - 0.5f) /
+				advancedMappingViewZoom);
+		float radiusPixelsX = std::abs(
+			(cursor.x - advancedMappingDragStartUv.x) * start.width *
+			advancedMappingViewZoom);
+		float radiusPixelsY = std::abs(
+			(cursor.y - advancedMappingDragStartUv.y) * start.height *
+			advancedMappingViewZoom);
+		if (ofGetKeyPressed(OF_KEY_SHIFT))
+		{
+			const float radius = std::max(radiusPixelsX, radiusPixelsY);
+			radiusPixelsX = radius;
+			radiusPixelsY = radius;
+		}
+		const float radiusX = radiusPixelsX /
+			(start.width * advancedMappingViewZoom);
+		const float radiusY = radiusPixelsY /
+			(start.height * advancedMappingViewZoom);
+		setEllipseContour(layer.masks[advancedMappingDragContour],
+			advancedMappingDragStartUv, radiusX, radiusY);
+		advancedMappingEllipseValid =
+			radiusPixelsX >= 2.0f && radiusPixelsY >= 2.0f;
+		layer.masks[advancedMappingDragContour].closed =
+			advancedMappingEllipseValid;
+		markAdvancedMappingChanged(box, state->selectedLayer, true);
+		return true;
+	}
 	if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_MASK_MARQUEE)
 	{
 		advancedMappingMarqueeEnd = mouse;
@@ -2242,6 +2594,7 @@ bool JPboxgroup::updateAdvancedMappingMouseReleased(int mouseButton)
 				advancedMappingPendingDeleteNode <
 					static_cast<int>(contour.nodes.size()))
 			{
+				const int contourId = contour.id;
 				contour.nodes.erase(contour.nodes.begin() +
 					advancedMappingPendingDeleteNode);
 				if (contour.nodes.size() < 3) contour.closed = false;
@@ -2249,22 +2602,16 @@ bool JPboxgroup::updateAdvancedMappingMouseReleased(int mouseButton)
 				if (removedContour)
 				{
 					layer.masks.erase(layer.masks.begin() + contourIndex);
-					advancedMappingSelectedMaskContours.erase(std::remove(
-						advancedMappingSelectedMaskContours.begin(),
-						advancedMappingSelectedMaskContours.end(), contourIndex),
-						advancedMappingSelectedMaskContours.end());
-					for (int &selected : advancedMappingSelectedMaskContours)
-						if (selected > contourIndex) selected--;
+					jp_mapping_boolean::removeContour(
+						layer.booleanGroups, contourId);
 				}
 				else
 				{
-					advancedMappingSelectedMaskContour = contourIndex;
-					advancedMappingSelectedMaskContours.assign(1, contourIndex);
+					advancedMappingSelectedMaskItems.assign(1,
+						JPMappingMaskItem{JPMappingMaskItemKind::Contour,
+							contourId});
 				}
-				if (removedContour)
-					advancedMappingSelectedMaskContour =
-						advancedMappingSelectedMaskContours.empty() ? -1 :
-						advancedMappingSelectedMaskContours.back();
+				syncAdvancedMappingMaskSelection(layer);
 				advancedMappingSelectedMaskNode = -1;
 				markAdvancedMappingChanged(box, state->selectedLayer, true);
 			}
@@ -2277,7 +2624,26 @@ bool JPboxgroup::updateAdvancedMappingMouseReleased(int mouseButton)
 	else if (mouseButton == OF_MOUSE_BUTTON_LEFT)
 	{
 		if (advancedMappingViewPanning) return false;
-		if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_MASK_MARQUEE &&
+		if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_CREATE_ELLIPSE &&
+			state != nullptr)
+		{
+			auto &layer = state->layers[state->selectedLayer];
+			if (!advancedMappingEllipseValid && advancedMappingDragContour >= 0 &&
+				advancedMappingDragContour < static_cast<int>(layer.masks.size()))
+			{
+				const int contourId = layer.masks[advancedMappingDragContour].id;
+				layer.masks.erase(layer.masks.begin() + advancedMappingDragContour);
+				jp_mapping_boolean::removeContour(layer.booleanGroups, contourId);
+				advancedMappingSelectedMaskItems.clear();
+				syncAdvancedMappingMaskSelection(layer);
+				markAdvancedMappingChanged(box, state->selectedLayer, true);
+			}
+			else
+			{
+				syncAdvancedMappingMaskSelection(layer);
+			}
+		}
+		else if (advancedMappingDragKind == ADVANCED_MAPPING_DRAG_MASK_MARQUEE &&
 			state != nullptr)
 		{
 			ofRectangle marquee(advancedMappingMarqueeStart,
@@ -2285,7 +2651,7 @@ bool JPboxgroup::updateAdvancedMappingMouseReleased(int mouseButton)
 				advancedMappingMarqueeEnd.y - advancedMappingMarqueeStart.y);
 			marquee.standardize();
 			if (!advancedMappingMarqueeAdditive)
-				advancedMappingSelectedMaskContours.clear();
+				advancedMappingSelectedMaskItems.clear();
 			if (marquee.width > 3.0f || marquee.height > 3.0f)
 			{
 				const ofRectangle preview = getMappingPanelPreviewRect();
@@ -2311,15 +2677,23 @@ bool JPboxgroup::updateAdvancedMappingMouseReleased(int mouseButton)
 					}
 					if (!polylineTouchesRectangle(screenOutline, marquee,
 						layer.masks[contourIndex].closed)) continue;
-					if (std::find(advancedMappingSelectedMaskContours.begin(),
-						advancedMappingSelectedMaskContours.end(), contourIndex) ==
-						advancedMappingSelectedMaskContours.end())
-						advancedMappingSelectedMaskContours.push_back(contourIndex);
+					JPMappingMaskItem item{
+						JPMappingMaskItemKind::Contour,
+						layer.masks[contourIndex].id};
+					const int groupIndex =
+						jp_mapping_boolean::groupIndexForContour(
+							layer.booleanGroups, item.id);
+					if (groupIndex >= 0)
+						item = {JPMappingMaskItemKind::Group,
+							layer.booleanGroups[groupIndex].id};
+					if (std::find(advancedMappingSelectedMaskItems.begin(),
+						advancedMappingSelectedMaskItems.end(), item) ==
+						advancedMappingSelectedMaskItems.end())
+						advancedMappingSelectedMaskItems.push_back(item);
 				}
 			}
-			advancedMappingSelectedMaskContour =
-				advancedMappingSelectedMaskContours.empty() ? -1 :
-				advancedMappingSelectedMaskContours.back();
+			syncAdvancedMappingMaskSelection(
+				state->layers[state->selectedLayer]);
 			advancedMappingSelectedMaskNode = -1;
 		}
 	}
@@ -2334,6 +2708,7 @@ bool JPboxgroup::updateAdvancedMappingMouseReleased(int mouseButton)
 	advancedMappingRightPanPending = false;
 	advancedMappingPendingDeleteContour = -1;
 	advancedMappingPendingDeleteNode = -1;
+	advancedMappingEllipseValid = false;
 	mappingPanelDragging = false;
 	mappingPanelResizing = false;
 	mappingPanelPointerCaptured = false;
