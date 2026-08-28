@@ -821,11 +821,6 @@ void JPboxgroup::closePaintHelp()
 	paintHelpScroll = 0.0f;
 }
 
-void JPboxgroup::setHelpLanguageProvider(std::function<int()> provider)
-{
-	helpLanguageProvider = std::move(provider);
-}
-
 ofRectangle JPboxgroup::getPaintHelpRect() const
 {
 	if (!isPaintHelpOpen()) return ofRectangle();
@@ -2844,7 +2839,10 @@ void JPboxgroup::drawPaintHelp()
 	// button is drawn at the panel body's layer, and the modal rule - a modal
 	// blocks the whole window for everything below it - then blocks that button.
 	jp_pointer::Scope promptScope(jp_pointer::kPrompt);
-	const int language = 1;
+	// Follows the HELP screen's toggle instead of forcing Spanish, so one
+	// table does not read as two different languages depending on where you
+	// open it.
+	const int language = jp_help::language();
 
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);

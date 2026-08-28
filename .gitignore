@@ -28,4 +28,10 @@ tests/paint_core_tests
 tests/paint_core_tests_tsan
 tests/graph_history_tests
 tests/graph_history_tests_tsan
+tests/textwrap_tests
+tests/textwrap_tests_tsan
+tests/keymap_tests
+tests/keymap_tests_tsan
+tests/osc_address_tests
+tests/editor_shortcut_tests
 bin/data/paint_palette.xml

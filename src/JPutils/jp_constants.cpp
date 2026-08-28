@@ -1,4 +1,5 @@
 #include "jp_constants.h"
+#include "jp_font.h"
 #include <cmath>
 
 int jp_constants::renderWidth;
@@ -38,13 +39,13 @@ void jp_constants::init(int _renderwidth, int _renderheight, int _window_width, 
 	window_width = _window_width;
 	window_height = _window_height;
 
-	p_font.loadFont("font/Montserrat-Regular.ttf", 11);
-	h_font.loadFont("font/Montserrat-Regular.ttf", 20);
-	p2_font.loadFont("font/Montserrat-Regular.ttf", 10);
-	inspector_title_font.loadFont("font/Montserrat-Regular.ttf", 18);
-	inspector_body_font.loadFont("font/Montserrat-Regular.ttf", 12);
-	inspector_secondary_font.loadFont("font/Montserrat-Regular.ttf", 11);
-	inspector_media_font.loadFont("font/Montserrat-Regular.ttf", 9);
+	jp_font::loadLatin(p_font, "font/Montserrat-Regular.ttf", 11);
+	jp_font::loadLatin(h_font, "font/Montserrat-Regular.ttf", 20);
+	jp_font::loadLatin(p2_font, "font/Montserrat-Regular.ttf", 10);
+	jp_font::loadLatin(inspector_title_font, "font/Montserrat-Regular.ttf", 18);
+	jp_font::loadLatin(inspector_body_font, "font/Montserrat-Regular.ttf", 12);
+	jp_font::loadLatin(inspector_secondary_font, "font/Montserrat-Regular.ttf", 11);
+	jp_font::loadLatin(inspector_media_font, "font/Montserrat-Regular.ttf", 9);
 
 	CmouseOver.clear();
 	Cfront.clear();

@@ -19,6 +19,9 @@ namespace
 	// minimum and one above it. Keeping this separate avoids changing the
 	// established inspector baselines.
 	const Resolution kLayoutResolutions[] = {{1024, 768}, {1440, 810}};
+	// Same widths, deliberately short enough that the 15-entry HELP index must
+	// scroll instead of fitting by accident.
+	const Resolution kShortHelpResolutions[] = {{1024, 430}, {1440, 430}};
 	// Captured column: the panel is [W-450, W]; 20px of canvas margin makes any
 	// overflow past the panel edge visible instead of cropped.
 	constexpr int kShotW = 470;
@@ -46,7 +49,10 @@ namespace
 		ARM_MIXED, ARM_BOOL, ARM_INPUTS, ARM_INPUTS_COLLAPSED, ARM_LONG_TITLE,
 		ARM_MEDIA, ARM_MEDIA_TRANSPORT, ARM_SCROLL_TOP, ARM_SCROLL_MIDDLE, ARM_SCROLL_BOTTOM,
 		ARM_WINDOW_SELECTED, ARM_WINDOW_UNSELECTED, ARM_SETTINGS_TOP,
-		ARM_SETTINGS_BOTTOM, ARM_SCREEN_HELP, ARM_SCREEN_MIDI, ARM_COUNT
+		ARM_SETTINGS_BOTTOM, ARM_SCREEN_HELP, ARM_SCREEN_HELP_BOTTOM,
+		ARM_SCREEN_HELP_ES, ARM_SCREEN_HELP_QUICK, ARM_SCREEN_HELP_KEYS,
+		ARM_SCREEN_HELP_SHORT,
+		ARM_SCREEN_MIDI, ARM_COUNT
 	};
 	struct StateDef { const char *name; const char *fixture; Arm arm; };
 	const StateDef kStates[ARM_COUNT] = {
@@ -70,10 +76,31 @@ namespace
 		{"window_unselected","",             ARM_WINDOW_UNSELECTED},
 		{"settings_top",     "",             ARM_SETTINGS_TOP},
 		{"settings_bottom",  "",             ARM_SETTINGS_BOTTOM},
-		{"screen_help",      "",             ARM_SCREEN_HELP},
+		{"screen_help",         "",          ARM_SCREEN_HELP},
+		// The list is six or seven screenfuls; shooting only the top left the
+		// whole body of it uncovered.
+		{"screen_help_bottom",  "",          ARM_SCREEN_HELP_BOTTOM},
+		// Spanish was never photographed, so a translation long enough to
+		// overrun its column could not be caught.
+		{"screen_help_es",      "",          ARM_SCREEN_HELP_ES},
+		// The redesigned five-stage workflow at its own scroll position.
+		{"screen_help_quick",   "",          ARM_SCREEN_HELP_QUICK},
+		// A section that actually has a keyboard. The plain state opens on the
+		// orientation section, which is all prose and correctly draws none.
+		{"screen_help_keys",    "",          ARM_SCREEN_HELP_KEYS},
+		{"screen_help_short",   "",          ARM_SCREEN_HELP_SHORT},
 		{"screen_midi",      "",             ARM_SCREEN_MIDI},
 	};
 	constexpr int kLayoutFirstState = ARM_WINDOW_SELECTED;
+
+	// One place that answers "is this a HELP state", because there are two
+	// arming sites and they must not drift.
+	bool isHelpState(Arm arm)
+	{
+		return arm == ARM_SCREEN_HELP || arm == ARM_SCREEN_HELP_BOTTOM ||
+			arm == ARM_SCREEN_HELP_ES || arm == ARM_SCREEN_HELP_QUICK ||
+			arm == ARM_SCREEN_HELP_KEYS || arm == ARM_SCREEN_HELP_SHORT;
+	}
 
 	bool isWindowLayoutState(Arm arm)
 	{
@@ -87,6 +114,8 @@ namespace
 
 	const Resolution &currentResolution()
 	{
+		if (kStates[gState].arm == ARM_SCREEN_HELP_SHORT)
+			return kShortHelpResolutions[gResolution];
 		return gLayoutOnly ? kLayoutResolutions[gResolution] :
 			kResolutions[gResolution];
 	}
@@ -233,17 +262,49 @@ namespace
 		default: break;
 		}
 
-		app.pantallaActiva = def.arm == ARM_SCREEN_HELP ? ofApp::TUTORIAL :
+		const bool helpState = isHelpState(def.arm);
+		app.pantallaActiva = helpState ? ofApp::TUTORIAL :
 			(def.arm == ARM_SCREEN_MIDI ? ofApp::MIDI_KEYMAP :
 				(isSettingsState(def.arm) ? ofApp::OPCIONES : ofApp::NODOS));
 		if (def.arm == ARM_WINDOW_UNSELECTED || isSettingsState(def.arm) ||
-			def.arm == ARM_SCREEN_HELP || def.arm == ARM_SCREEN_MIDI)
+			helpState || def.arm == ARM_SCREEN_MIDI)
 		{
 			app.boxes.openguinumber = -1;
 		}
 		else
 		{
 			app.boxes.selectOpenBoxForCurrentView(0);
+		}
+		// HELP scroll and language, reset for the plain state so it stays the
+		// deterministic top-of-list shot it always was.
+		app.setHelpLanguage(def.arm == ARM_SCREEN_HELP_ES ||
+			def.arm == ARM_SCREEN_HELP_QUICK ? 1 : 0);
+		if (def.arm == ARM_SCREEN_HELP_BOTTOM)
+		{
+			const ofApp::HelpLayout help = app.getHelpLayout();
+			app.setHelpContentScroll(help.maxScroll, help);
+		}
+		if (def.arm == ARM_SCREEN_HELP_KEYS)
+		{
+			const ofApp::HelpLayout help = app.getHelpLayout();
+			for (const ofApp::HelpSection &section : help.sections)
+			{
+				if (section.caps.empty()) continue;
+				app.setHelpContentScroll(section.y, help);
+				break;
+			}
+		}
+		if (def.arm == ARM_SCREEN_HELP_QUICK)
+		{
+			const ofApp::HelpLayout help = app.getHelpLayout();
+			if (help.quick.active)
+				app.setHelpContentScroll(help.quick.y, help);
+		}
+		if (def.arm == ARM_SCREEN_HELP_SHORT)
+		{
+			const ofApp::HelpLayout help = app.getHelpLayout();
+			if (!help.sections.empty())
+				app.setHelpContentScroll(help.sections.back().y, help);
 		}
 		app.settingsScroll = 0.0f;
 		if (def.arm == ARM_SETTINGS_BOTTOM)
@@ -308,6 +369,171 @@ namespace
 				(!glIsEnabled(GL_SCISSOR_TEST) && viewport[0] == 0 &&
 				 viewport[1] == 0 && viewport[2] == ofGetWidth() &&
 				 viewport[3] == ofGetHeight()) << "\n";
+			if (state.find("screen_help") != std::string::npos)
+			{
+				const ofApp::HelpLayout help = app.getHelpLayout();
+				out << "language=" << app.language << "\n";
+				out << "sections=" << (int)help.sections.size() << "\n";
+				out << "contentH=" << (int)help.contentH
+					<< " viewH=" << (int)help.viewH
+					<< " scroll=" << (int)app.helpScroll << "\n";
+				out << "indexW=" << (int)help.indexPanel.width
+					<< " contentH=" << (int)help.indexContentH
+					<< " viewH=" << (int)help.indexViewH
+					<< " scroll=" << (int)app.helpIndexScroll
+					<< " maxScroll=" << (int)help.indexMaxScroll << "\n";
+				const bool indexViewportInsideBody = help.indexPanel.isEmpty() ||
+					(help.indexViewport.x >= help.body.x - 0.5f &&
+					 help.indexViewport.y >= help.body.y - 0.5f &&
+					 help.indexViewport.getMaxX() <= help.body.getMaxX() + 0.5f &&
+					 help.indexViewport.getMaxY() <= help.body.getMaxY() + 0.5f);
+				out << "assert.indexViewportInsideBody=" <<
+					(int)indexViewportInsideBody << "\n";
+				const bool indexOverflows =
+					help.indexContentH > help.indexViewH + 0.5f;
+				const bool overflowState =
+					help.showIndexScrollbar == indexOverflows &&
+					std::abs(help.indexMaxScroll - std::max(0.0f,
+						help.indexContentH - help.indexViewH)) < 0.5f;
+				out << "assert.indexOverflowState=" << (int)overflowState << "\n";
+				out << "assert.shortIndexOverflows=" <<
+					(int)(state.find("screen_help_short") == std::string::npos ||
+						help.showIndexScrollbar) << "\n";
+				const bool thumbInside = !help.showIndexScrollbar ||
+					(help.indexScrollThumb.y >= help.indexScrollTrack.y - 0.5f &&
+					 help.indexScrollThumb.getMaxY() <=
+						help.indexScrollTrack.getMaxY() + 0.5f);
+				out << "assert.indexThumbInsideTrack=" << (int)thumbInside << "\n";
+				const bool endsReachable = help.sections.empty() ||
+					(help.sections.front().indexY >= -0.5f &&
+					 help.sections.back().indexY + help.indexItemH <=
+						help.indexMaxScroll + help.indexViewH + 0.5f);
+				out << "assert.indexEndsReachable=" << (int)endsReachable << "\n";
+				const int active = app.helpSectionAtScroll(help);
+				const bool activeVisible = active < 0 ||
+					(help.sections[(std::size_t)active].indexY >=
+						app.helpIndexScroll - 0.5f &&
+					 help.sections[(std::size_t)active].indexY + help.indexItemH <=
+						app.helpIndexScroll + help.indexViewH + 0.5f);
+				out << "assert.activeIndexItemVisible=" <<
+					(int)activeVisible << "\n";
+
+				// Structural rather than falsifiable today - contentX is derived
+				// from the index width - but it pins the relationship for
+				// whoever later computes the two independently.
+				bool indexClear = true;
+				for (const ofApp::HelpSection &section : help.sections)
+				{
+					if (section.bounds.isEmpty()) continue;
+					if (section.bounds.getMaxX() > help.contentX)
+						indexClear = false;
+				}
+				out << "assert.indexClearOfText=" << (int)indexClear << "\n";
+				// Every section must be reachable: the last heading has to sit
+				// within the scrollable range, or the index would point at
+				// somewhere the reader cannot get to.
+				const bool reachable = help.sections.empty() ||
+					help.sections.back().y <= help.maxScroll + help.viewH;
+				out << "assert.sectionsReachable=" << (int)reachable << "\n";
+				out << "assert.scrollClamped=" <<
+					(int)(app.helpScroll <= help.maxScroll + 0.5f) << "\n";
+				out << "assert.indexScrollClamped=" <<
+					(int)(app.helpIndexScroll >= -0.5f &&
+						app.helpIndexScroll <= help.indexMaxScroll + 0.5f) << "\n";
+
+				// The keyboard map, per section.
+				int withBoard = 0, litTotal = 0;
+				bool boardClear = true;
+				bool boardShape = true;
+				bool keyboardFooterReserved = true;
+				for (const ofApp::HelpSection &section : help.sections)
+				{
+					if (section.caps.empty()) continue;
+					++withBoard;
+					if (section.keyboardW > std::min(help.contentW, 720.0f) + 0.5f ||
+						std::abs(section.keyboardX + section.keyboardW * 0.5f -
+							(help.contentX + help.contentW * 0.5f)) > 0.5f)
+					{
+						boardShape = false;
+					}
+					if (section.keyboardH < section.keyboardKeysH + 31.5f)
+						keyboardFooterReserved = false;
+					for (const ofApp::HelpKeyCap &cap : section.caps)
+					{
+						if (cap.lit) ++litTotal;
+						if (cap.bounds.x < help.contentX ||
+							cap.bounds.getMaxX() > help.contentX +
+								help.contentW + 0.5f ||
+							cap.bounds.y < section.keyboardY - 0.5f ||
+							cap.bounds.getMaxY() > section.keyboardY +
+								section.keyboardKeysH + 0.5f)
+						{
+							boardClear = false;
+						}
+					}
+				}
+				out << "sectionsWithBoard=" << withBoard
+					<< " litKeys=" << litTotal << "\n";
+				// A board that reached past the text column would sit on the
+				// index or off the frame.
+				out << "assert.boardWithinContent=" << (int)boardClear << "\n";
+				out << "assert.keyboardNaturalWidth=" << (int)boardShape << "\n";
+				out << "assert.keyboardFooterReserved=" <<
+					(int)keyboardFooterReserved << "\n";
+				// Sections that name no keys must draw no board at all, rather
+				// than an empty keyboard that says less than nothing.
+				out << "assert.someSectionsHaveNoBoard=" <<
+					(int)(withBoard < (int)help.sections.size()) << "\n";
+
+				// The visual orientation block should spend the width that the old
+				// centred 620px column left empty, without escaping the document.
+				bool cardsInside = help.intro.active &&
+					help.intro.cards.size() == 3;
+				for (const ofApp::HelpIntroCard &card : help.intro.cards)
+				{
+					if (card.bounds.x < help.contentX - 0.5f ||
+						card.bounds.getMaxX() >
+							help.contentX + help.contentW + 0.5f)
+					{
+						cardsInside = false;
+					}
+				}
+				out << "introCards=" << help.intro.cards.size()
+					<< " contentW=" << (int)help.contentW << "\n";
+				out << "assert.introCardsInsideContent=" <<
+					(int)cardsInside << "\n";
+				const bool introUsesWidth = help.intro.cards.size() == 3 &&
+					std::abs(help.intro.cards.back().bounds.width -
+						help.contentW) < 0.5f;
+				out << "assert.introUsesContentWidth=" <<
+					(int)introUsesWidth << "\n";
+
+				bool quickInside = help.quick.active &&
+					help.quick.steps.size() == 5;
+				bool quickSeparated = true;
+				for (std::size_t i = 0; i < help.quick.steps.size(); i++)
+				{
+					const ofRectangle &card = help.quick.steps[i].bounds;
+					if (card.x < help.contentX - 0.5f ||
+						card.getMaxX() > help.contentX + help.contentW + 0.5f ||
+						card.y < help.quick.y - 0.5f ||
+						card.getMaxY() > help.quick.y + help.quick.h + 0.5f)
+					{
+						quickInside = false;
+					}
+					for (std::size_t j = i + 1; j < help.quick.steps.size(); j++)
+					{
+						if (card.getIntersection(
+							help.quick.steps[j].bounds).getArea() > 0.5f)
+							quickSeparated = false;
+					}
+				}
+				out << "quickCards=" << help.quick.steps.size() << "\n";
+				out << "assert.quickCardsInsideContent=" <<
+					(int)quickInside << "\n";
+				out << "assert.quickCardsDoNotOverlap=" <<
+					(int)quickSeparated << "\n";
+			}
 			return;
 		}
 		if (state.find("settings_") != std::string::npos)
@@ -554,7 +780,11 @@ void jp_uishot::update(ofApp &app)
 	}
 
 	const Arm arm = kStates[gState].arm;
-	app.pantallaActiva = arm == ARM_SCREEN_HELP ? ofApp::TUTORIAL :
+	// Every HELP state, not just the first. This runs per frame and overrides
+	// what armState chose, so a state missing from this test silently captured
+	// the node canvas instead - which is how screen_help_bottom and
+	// screen_help_es came out blank while their sidecars still looked right.
+	app.pantallaActiva = isHelpState(arm) ? ofApp::TUTORIAL :
 		(arm == ARM_SCREEN_MIDI ? ofApp::MIDI_KEYMAP :
 			(isSettingsState(arm) ? ofApp::OPCIONES : ofApp::NODOS));
 

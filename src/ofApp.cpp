@@ -1,6 +1,7 @@
 #include "ofApp.h"
 #include "JPutils/jp_uishot.h"
 #include "JPutils/jp_persistence_test.h"
+#include "JPutils/jp_font.h"
 #include "JPutils/jp_textfield.h"
 #include <iostream>
 #include <algorithm>
@@ -57,10 +58,10 @@ void ofApp::setup() {
 	// when reading someone else's crash log.
 	queryGpuInfo();
 
-	font_p.loadFont("font/Montserrat-Regular.ttf", 11); // Inicio fuente.
+	jp_font::loadLatin(font_p, "font/Montserrat-Regular.ttf", 11);
 
 	// Modal font - loaded at readable size for the save dialog
-	modalFont.loadFont("font/Montserrat-Medium.ttf", 14);
+	jp_font::loadLatin(modalFont, "font/Montserrat-Medium.ttf", 14);
 
 	// Shader editor
 	shaderEditor.setup();
@@ -1000,25 +1001,207 @@ void ofApp::draw_debugInfo() {
 static vector<string> wrapText(const ofTrueTypeFont &font, const string &text,
 	float maxWidth)
 {
-	vector<string> out;
-	string line, word;
-	istringstream words(text);
-	while (words >> word)
+	// The wrapping itself lives in jp_textwrap so it can be tested without a GL
+	// context; this only binds the font to it.
+	return jp_textwrap::wrap(
+		[&font](const string &s) { return font.stringWidth(s); },
+		text, maxWidth);
+}
+
+// Which section the reader is currently inside: the last one whose heading has
+// passed the top of the view. Answered in one place so the highlight and any
+// future "you are here" cue cannot disagree.
+int ofApp::helpSectionAtScroll(const HelpLayout &l) const
+{
+	int current = l.sections.empty() ? -1 : 0;
+	for (int i = 0; i < (int)l.sections.size(); i++)
 	{
-		const string candidate = line.empty() ? word : line + " " + word;
-		if (!line.empty() && font.stringWidth(candidate) > maxWidth)
-		{
-			out.push_back(line);
-			line = word;
-		}
-		else
-		{
-			line = candidate;
-		}
+		// A few pixels of tolerance, so clicking an item highlights it rather
+		// than the one above by a rounding error.
+		if (l.sections[(std::size_t)i].y <= helpScroll + 4.0f) current = i;
 	}
-	if (!line.empty()) out.push_back(line);
-	if (out.empty()) out.push_back("");
-	return out;
+	return current;
+}
+
+void ofApp::setHelpLanguage(int selected)
+{
+	language = ofClamp(selected, 0, 1);
+	jp_help::setLanguage(language);
+	helpScroll = 0.0f;
+	helpIndexScroll = 0.0f;
+	helpScrollbarDragging = false;
+	helpIndexScrollbarDragging = false;
+	helpIndexFollowPending = true;
+	helpCacheLang = -1;
+}
+
+void ofApp::setHelpIndexScroll(float value, const HelpLayout &l)
+{
+	helpIndexScroll = ofClamp(value, 0.0f, l.indexMaxScroll);
+	// A reader deliberately browsing the index gets to keep that position until
+	// the document itself moves again.
+	helpIndexFollowPending = false;
+}
+
+void ofApp::keepActiveHelpSectionVisible(const HelpLayout &l)
+{
+	if (l.indexPanel.isEmpty() || l.sections.empty())
+	{
+		helpIndexScroll = 0.0f;
+		helpIndexFollowPending = false;
+		return;
+	}
+
+	const int active = helpSectionAtScroll(l);
+	if (active < 0 || active >= (int)l.sections.size()) return;
+	const HelpSection &section = l.sections[(std::size_t)active];
+	const float top = section.indexY;
+	const float bottom = top + l.indexItemH;
+	if (top < helpIndexScroll)
+	{
+		helpIndexScroll = top;
+	}
+	else if (bottom > helpIndexScroll + l.indexViewH)
+	{
+		helpIndexScroll = bottom - l.indexViewH;
+	}
+	helpIndexScroll = ofClamp(helpIndexScroll, 0.0f, l.indexMaxScroll);
+	helpIndexFollowPending = false;
+}
+
+void ofApp::setHelpContentScroll(float value, const HelpLayout &l)
+{
+	helpScroll = ofClamp(value, 0.0f, l.maxScroll);
+	helpIndexFollowPending = true;
+	keepActiveHelpSectionVisible(l);
+}
+
+// Lays out one keyboard per section and pushes the rows below it down.
+//
+// Runs after the rows are measured, because a section's keys come from its own
+// rows. It lives INSIDE the content rather than pinned under the header: a
+// pinned board whose height depends on the section you are reading would feed
+// back into the scroll clamp - scroll picks the section, the section picks the
+// height, the height changes maxScroll - and could oscillate at a boundary.
+// Scrolling with its section also puts each board where its shortcuts are.
+//
+// Keyed on the SECTION, not on Scope, and those differ: the SHADER EDITOR
+// section carries a row tagged Scope::Nodes. It is also what keeps a cap
+// honest - DEL means four different things across the table, and the letters
+// mean one thing in NODES and another in PAINT - because only one section's
+// board is ever on screen.
+void ofApp::buildHelpKeyboards(HelpLayout &l) const
+{
+	if (l.sections.empty() || l.rows.empty()) return;
+
+	const std::vector<jp_help::Line> &table = jp_help::table();
+
+	// Geometry is the same for every board, so measure it once.
+	float widest = 0.0f;
+	for (const auto &row : jp_keymap::board())
+	{
+		float units = 0.0f;
+		for (const jp_keymap::Key &key : row) units += key.units;
+		widest = std::max(widest, units);
+	}
+	const float pad = 8.0f;
+	const float gap = 3.0f;
+	// A keyboard has a natural size. Stretching it across the document made
+	// every key extremely wide and only 21px tall, which read as a strip of
+	// buttons rather than a keyboard. Cap the unit and centre the resulting
+	// board; on narrow windows it still contracts to the available width.
+	const float maxBoardW = std::min(l.contentW, 720.0f);
+	const float availableUnit = std::max(8.0f,
+		(maxBoardW - pad * 2.0f - gap * (widest - 1.0f)) / widest);
+	const float unitW = ofClamp(availableUnit, 8.0f, 36.0f);
+	const float keysNaturalW = pad * 2.0f + widest * unitW +
+		gap * (widest - 1.0f);
+	const float boardW = std::min(l.contentW, keysNaturalW);
+	const float boardX = l.contentX + (l.contentW - boardW) * 0.5f;
+	const float capH = ofClamp(unitW * 0.68f, 16.0f, 24.0f);
+	const float keysH = pad * 2.0f +
+		(float)jp_keymap::board().size() * (capH + gap) - gap;
+	// The hover explanation belongs to the keyboard. Keeping a permanent
+	// footer makes its presence layout-neutral and prevents it from painting
+	// over the first shortcut row below.
+	const float footerH = 32.0f;
+	const float boardH = keysH + footerH;
+
+	float shift = 0.0f;
+	std::size_t sectionIndex = 0;
+	for (std::size_t i = 0; i < l.rows.size(); i++)
+	{
+		HelpRow &row = l.rows[i];
+		row.y += shift;
+
+		const bool opensSection = row.kind == jp_help::Kind::Heading &&
+			sectionIndex < l.sections.size();
+		if (!opensSection) continue;
+
+		HelpSection &section = l.sections[sectionIndex++];
+		section.y = row.y;
+
+		// Which keys the rows of this section name, and what each one does.
+		// First claim wins, so a section mentioning a key twice does not flip
+		// between two labels.
+		std::vector<std::pair<string, string>> claimed;
+		for (std::size_t k = i + 1; k < l.rows.size() && k < table.size(); k++)
+		{
+			if (l.rows[k].kind == jp_help::Kind::Heading) break;
+			const string phys = table[k].phys;
+			if (phys.empty()) continue;
+			const string what = l.rows[k].desc.empty() ? l.rows[k].keys
+													   : l.rows[k].desc[0];
+			for (const string &id : jp_keymap::parse(phys))
+			{
+				bool already = false;
+				for (const auto &c : claimed) if (c.first == id) already = true;
+				if (!already) claimed.push_back({id, what});
+			}
+		}
+		// No keys, no keyboard. OSC, the shader uniforms and audio have none,
+		// and an empty board would say less than no board at all.
+		if (claimed.empty()) continue;
+
+		section.keyboardY = row.y + row.h + 6.0f;
+		section.keyboardH = boardH;
+		section.keyboardKeysH = keysH;
+		section.keyboardX = boardX;
+		section.keyboardW = boardW;
+		float capY = pad;
+		for (const auto &boardRow : jp_keymap::board())
+		{
+			float rowUnits = 0.0f;
+			for (const jp_keymap::Key &key : boardRow) rowUnits += key.units;
+			const float rowW = rowUnits * unitW + gap * (rowUnits - 1.0f);
+			// Real keyboard rows are staggered. Centring each row provides that
+			// silhouette while keeping the declarative key map unchanged.
+			float x = pad + std::max(0.0f,
+				(boardW - pad * 2.0f - rowW) * 0.5f);
+			for (const jp_keymap::Key &key : boardRow)
+			{
+				const float w = unitW * key.units + gap * (key.units - 1.0f);
+				HelpKeyCap cap;
+				cap.bounds = ofRectangle(boardX + x,
+					section.keyboardY + capY, w, capH);
+				cap.cap = key.cap;
+				for (const auto &c : claimed)
+				{
+					if (c.first != key.id) continue;
+					cap.label = c.second;
+					cap.lit = true;
+				}
+				section.caps.push_back(cap);
+				x += w + gap;
+			}
+			capY += capH + gap;
+		}
+
+		// Everything after this heading moves down by the board plus its air.
+		const float band = boardH + 14.0f;
+		shift += band;
+	}
+	l.contentH += shift;
 }
 
 ofApp::HelpLayout ofApp::getHelpLayout() const
@@ -1042,11 +1225,25 @@ ofApp::HelpLayout ofApp::getHelpLayout() const
 		l.langBtn = jp_screen::actionSlot(frame, 0, 52.0f);
 
 		const float scrollbarW = 6.0f;
+		// Wide HELP is a document workspace: the index stays at the left and the
+		// content uses everything to its right. Long prose is still wrapped to a
+		// readable measure below; cards, rules and keyboards get the extra width.
+		const float kIndexW = 190.0f;
+		const float kIndexGap = 24.0f;
+		const bool roomForIndex = body.width >=
+			jp_screen::kContentMaxW + kIndexW + kIndexGap + scrollbarW + 20.0f;
+		const float indexW = roomForIndex ? kIndexW : 0.0f;
+		if (roomForIndex)
+		{
+			l.indexPanel = ofRectangle(body.x, body.y, indexW, body.height);
+		}
+
+		const float textLeft = body.x + indexW + (roomForIndex ? kIndexGap : 0.0f);
 		const float availableW = std::max(0.0f,
-			body.width - scrollbarW - 10.0f);
-		l.contentW = std::min(availableW, jp_screen::kContentMaxW);
-		l.contentX = body.x + (availableW - l.contentW) * 0.5f;
-		l.keysW = 118.0f;
+			body.getMaxX() - textLeft - scrollbarW - 10.0f);
+		l.contentW = availableW;
+		l.contentX = textLeft;
+		l.keysW = ofClamp(l.contentW * 0.18f, 118.0f, 160.0f);
 		l.descX = l.contentX + l.keysW + 12.0f;
 
 		const float kRowH = 17.0f;    // first line of a row
@@ -1056,14 +1253,208 @@ ofApp::HelpLayout ofApp::getHelpLayout() const
 		const float kHeadH = 26.0f;   // heading text plus its rule
 		const float kTagW = 62.0f;    // reserved so a NODES tag never collides
 
+		const std::vector<jp_help::Line> &helpTable = jp_help::table();
+		const float readableW = std::min(860.0f, l.contentW);
 		float y = 0.0f;
-		for (const jp_help::Line &src : jp_help::table())
+		for (std::size_t lineIndex = 0; lineIndex < helpTable.size(); lineIndex++)
 		{
+			const jp_help::Line &src = helpTable[lineIndex];
 			HelpRow r;
 			r.kind = src.kind;
 			r.scope = src.scope;
 			r.keys = src.keys;
 			const string copy = jp_help::text(src, language);
+
+			// The first six source rows form one visual orientation block. They stay
+			// present as rows so buildHelpKeyboards keeps exact table alignment.
+			if (lineIndex == 0 && helpTable.size() >= 6)
+			{
+				l.intro.active = true;
+				l.intro.y = y;
+				l.intro.titleY = y + 24.0f;
+				l.intro.title = copy;
+				l.intro.leadY = y + 52.0f;
+				l.intro.lead = wrapText(jp_constants::inspector_body_font,
+					jp_help::text(helpTable[1], language),
+					std::min(820.0f, std::max(120.0f, l.contentW - 24.0f)));
+
+				const float cardGap = 14.0f;
+				const float cardPad = 16.0f;
+				const float diagramH = 96.0f;
+				const float lineH = 18.0f;
+				const bool twoColumns = l.contentW >= 680.0f;
+				const float cardsY = l.intro.leadY +
+					(float)l.intro.lead.size() * 18.0f + 28.0f;
+
+				auto card = [&](const char *number, const char *title,
+					const string &text, int kind, float x, float cardY,
+					float width, float bodyWidth, bool sideDiagram)
+				{
+					HelpIntroCard c;
+					c.number = number;
+					c.title = title;
+					c.kind = kind;
+					c.body = wrapText(jp_constants::inspector_body_font,
+						text, std::max(100.0f, bodyWidth));
+					const float bodyH = (float)c.body.size() * lineH;
+					if (sideDiagram)
+					{
+						const float height = std::max(166.0f, 58.0f + bodyH + cardPad);
+						c.bounds = ofRectangle(x, cardY, width, height);
+						c.bodyArea = ofRectangle(x + cardPad, cardY + 50.0f,
+							bodyWidth, bodyH);
+						c.diagram = ofRectangle(x + width * 0.57f, cardY + 44.0f,
+							width * 0.43f - cardPad, height - 60.0f);
+					}
+					else
+					{
+						const float height = 56.0f + bodyH + cardGap + diagramH + cardPad;
+						c.bounds = ofRectangle(x, cardY, width, height);
+						c.bodyArea = ofRectangle(x + cardPad, cardY + 50.0f,
+							bodyWidth, bodyH);
+						c.diagram = ofRectangle(x + cardPad,
+							cardY + height - cardPad - diagramH,
+							width - cardPad * 2.0f, diagramH);
+					}
+					return c;
+				};
+
+				const string boxTitle = language == 0 ? "THE BOX" : "LA CAJA";
+				const string flowTitle = language == 0 ? "SIGNAL FLOW" : "FLUJO DE SEÑAL";
+				const string renderTitle = language == 0 ? "ACTIVE RENDER" : "RENDER ACTIVO";
+				const float halfW = twoColumns ?
+					(l.contentW - cardGap) * 0.5f : l.contentW;
+				const float halfBodyW = halfW - cardPad * 2.0f;
+				HelpIntroCard first = card("01", boxTitle.c_str(),
+					jp_help::text(helpTable[2], language), 0,
+					l.contentX, cardsY, halfW, halfBodyW, false);
+				HelpIntroCard second = card("02", flowTitle.c_str(),
+					jp_help::text(helpTable[3], language), 1,
+					twoColumns ? l.contentX + halfW + cardGap : l.contentX,
+					twoColumns ? cardsY : first.bounds.getMaxY() + cardGap,
+					halfW, halfBodyW, false);
+				if (twoColumns)
+				{
+					const float sharedH = std::max(first.bounds.height,
+						second.bounds.height);
+					for (HelpIntroCard *c : {&first, &second})
+					{
+						c->bounds.height = sharedH;
+						c->diagram.y = c->bounds.getMaxY() - cardPad - diagramH;
+					}
+				}
+				l.intro.cards.push_back(first);
+				l.intro.cards.push_back(second);
+
+				const float thirdY = twoColumns ?
+					first.bounds.getMaxY() + cardGap : second.bounds.getMaxY() + cardGap;
+				const string renderText = string(jp_help::text(helpTable[4], language)) +
+					" " + jp_help::text(helpTable[5], language);
+				const bool sideDiagram = l.contentW >= 760.0f;
+				const float thirdBodyW = sideDiagram ?
+					l.contentW * 0.50f - cardPad * 2.0f :
+					l.contentW - cardPad * 2.0f;
+				HelpIntroCard third = card("03", renderTitle.c_str(), renderText, 2,
+					l.contentX, thirdY, l.contentW, thirdBodyW, sideDiagram);
+				l.intro.cards.push_back(third);
+				l.intro.h = third.bounds.getMaxY() - y + 12.0f;
+
+				r.customDrawn = true;
+				r.y = y;
+				r.h = l.intro.h;
+				HelpSection section;
+				section.title = copy;
+				section.y = y;
+				l.sections.push_back(section);
+				y += r.h;
+				l.rows.push_back(r);
+				continue;
+			}
+			if (l.intro.active && lineIndex >= 1 && lineIndex <= 5)
+			{
+				r.customDrawn = true;
+				r.y = y;
+				l.rows.push_back(r);
+				continue;
+			}
+
+			// QUICK START is a five-stage path rather than a dense paragraph list.
+			// Keep all six table rows in `rows` (the heading plus five steps) so
+			// table indexes remain stable for keyboard metadata and tests.
+			if (lineIndex == 7 && helpTable.size() >= 13)
+			{
+				if (y > 0.0f) y += kHeadLead;
+				l.quick.active = true;
+				l.quick.y = y;
+				l.quick.titleY = y + 20.0f;
+				l.quick.title = copy;
+
+				const int columns = l.contentW >= 980.0f ? 5 :
+					(l.contentW >= 650.0f ? 3 :
+					(l.contentW >= 420.0f ? 2 : 1));
+				const float cardGap = 12.0f;
+				const float lineH = 17.0f;
+				const char *titlesEn[] = {
+					"SOURCE", "EFFECT", "CONNECT", "INSPECT", "PERFORM"
+				};
+				const char *titlesEs[] = {
+					"FUENTE", "EFECTO", "CONECTA", "INSPECCIONA", "PRESENTA"
+				};
+				float cardY = y + 48.0f;
+				for (int first = 0; first < 5; first += columns)
+				{
+					const int count = std::min(columns, 5 - first);
+					// A partial final row grows to the document edges instead of
+					// leaving an arbitrary empty column (3+2 and 2+2+1 layouts).
+					const float rowCardW = std::max(40.0f,
+						(l.contentW - cardGap * (count - 1)) / count);
+					std::vector<std::vector<string>> bodies;
+					float rowH = 108.0f;
+					for (int column = 0; column < count; column++)
+					{
+						const int step = first + column;
+						bodies.push_back(wrapText(
+							jp_constants::inspector_body_font,
+							jp_help::text(helpTable[(std::size_t)8 + step], language),
+							std::max(40.0f, rowCardW - 28.0f)));
+						rowH = std::max(rowH,
+							58.0f + (float)bodies.back().size() * lineH + 15.0f);
+					}
+					for (int column = 0; column < count; column++)
+					{
+						const int step = first + column;
+						HelpQuickStep item;
+						item.bounds = ofRectangle(
+							l.contentX + column * (rowCardW + cardGap),
+							cardY, rowCardW, rowH);
+						item.number = helpTable[(std::size_t)8 + step].keys;
+						item.title = language == 0 ? titlesEn[step] : titlesEs[step];
+						item.body = bodies[(std::size_t)column];
+						item.kind = step;
+						l.quick.steps.push_back(item);
+					}
+					cardY += rowH + cardGap;
+				}
+				l.quick.h = cardY - cardGap - y + 12.0f;
+
+				r.customDrawn = true;
+				r.y = y;
+				r.h = l.quick.h;
+				HelpSection section;
+				section.title = copy;
+				section.y = y;
+				l.sections.push_back(section);
+				y += r.h;
+				l.rows.push_back(r);
+				continue;
+			}
+			if (l.quick.active && lineIndex >= 8 && lineIndex <= 12)
+			{
+				r.customDrawn = true;
+				r.y = y;
+				l.rows.push_back(r);
+				continue;
+			}
 
 			switch (src.kind)
 			{
@@ -1072,19 +1463,40 @@ ofApp::HelpLayout ofApp::getHelpLayout() const
 				break;
 
 			case jp_help::Kind::Heading:
+			{
 				if (y > 0.0f) y += kHeadLead;
-				r.desc.push_back(copy);
-				r.h = kHeadH;
+				// Measured with the font it is actually DRAWN with. It was
+				// measured with p_font (11) and drawn with modalFont (14 Medium)
+				// against a fixed height, so a long translated title could not
+				// wrap and ran off the column unclipped.
+				r.desc = jp_textwrap::wrap(
+					[this](const string &t) {
+						return modalFont.stringWidth(t);
+					}, copy, l.contentW);
+				r.h = kHeadH + (float)(r.desc.size() - 1) * 20.0f;
+				HelpSection section;
+				section.title = copy;
+				section.y = y;
+				l.sections.push_back(section);
 				break;
+			}
 
 			case jp_help::Kind::Note:
-				r.desc = wrapText(jp_constants::p_font, copy, l.contentW);
-				r.h = kRowH + (float)(r.desc.size() - 1) * kWrapH;
+				// The tag column is reserved even though notes do not draw one
+				// today. Leaving it unreserved is a trap set for whoever decides
+				// scoped notes should be tagged.
+				r.desc = wrapText(jp_constants::p_font, copy,
+					readableW - (jp_help::scopeTag(r.scope)[0] != '\0' ?
+						kTagW : 0.0f));
+				// Paragraph spacing. Consecutive notes butted straight against
+				// each other and read as one wall of text - which matters most
+				// in the explanatory sections, where notes come in runs.
+				r.h = kRowH + (float)(r.desc.size() - 1) * kWrapH + 6.0f;
 				break;
 
 			case jp_help::Kind::Step:
 				r.desc = wrapText(jp_constants::p_font, copy,
-					std::max(80.0f, l.contentW - 34.0f));
+					std::max(80.0f, readableW - 34.0f));
 				r.h = kRowH + (float)(r.desc.size() - 1) * kWrapH + 3.0f;
 				break;
 
@@ -1098,8 +1510,9 @@ ofApp::HelpLayout ofApp::getHelpLayout() const
 				const float tagW =
 					jp_help::scopeTag(src.scope)[0] != '\0' ? kTagW : 0.0f;
 				const float descW = r.keysOwnLine ?
-					std::max(80.0f, l.contentW - tagW) :
-					std::max(80.0f, l.contentX + l.contentW - l.descX - tagW);
+					std::max(80.0f, readableW - tagW) :
+					std::max(80.0f, std::min(readableW,
+						l.contentX + l.contentW - l.descX - tagW));
 				r.desc = wrapText(jp_constants::p_font, copy, descW);
 				r.h = kRowH + (float)(r.desc.size() - 1) * kWrapH;
 				if (r.keysOwnLine) r.h += kRowH;
@@ -1113,7 +1526,41 @@ ofApp::HelpLayout ofApp::getHelpLayout() const
 		}
 
 		l.contentH = y + 20.0f;   // a little air under the last row
+		// After the rows are measured: a section's keys come from its own rows,
+		// and inserting a board shifts everything below it.
+		buildHelpKeyboards(l);
 		l.viewH = body.height;
+
+		// The index has its own content coordinates. Screen-space bounds are
+		// refreshed below because its scroll is intentionally not part of the
+		// expensive wrapping cache.
+		if (!l.indexPanel.isEmpty() && !l.sections.empty())
+		{
+			const float itemGap = 2.0f;
+			float itemY = 4.0f;
+			for (HelpSection &section : l.sections)
+			{
+				section.indexY = itemY;
+				itemY += l.indexItemH + itemGap;
+			}
+			l.indexContentH = itemY - itemGap + 4.0f;
+			l.indexViewH = l.indexPanel.height;
+			l.indexMaxScroll = std::max(0.0f,
+				l.indexContentH - l.indexViewH);
+			l.showIndexScrollbar = l.indexMaxScroll > 0.5f;
+
+			const float indexScrollbarW = 5.0f;
+			const float indexScrollbarGap = 4.0f;
+			l.indexViewport = l.indexPanel;
+			if (l.showIndexScrollbar)
+			{
+				l.indexViewport.width = std::max(0.0f,
+					l.indexPanel.width - indexScrollbarW - indexScrollbarGap);
+				l.indexScrollTrack = ofRectangle(
+					l.indexPanel.getMaxX() - indexScrollbarW,
+					l.indexPanel.y, indexScrollbarW, l.indexPanel.height);
+			}
+		}
 		helpCacheLang = language;
 	}
 
@@ -1137,15 +1584,356 @@ ofApp::HelpLayout ofApp::getHelpLayout() const
 		l.scrollTrack = ofRectangle();
 		l.scrollThumb = ofRectangle();
 	}
+
+	// Index bounds and thumb follow their cheaper, independent scroll state.
+	// Keep an unclamped state from a resize harmless until draw() commits the
+	// clamp and optional auto-follow.
+	const float indexOffset = ofClamp(helpIndexScroll,
+		0.0f, l.indexMaxScroll);
+	for (HelpSection &section : l.sections)
+	{
+		if (l.indexViewport.isEmpty())
+		{
+			section.bounds = ofRectangle();
+			continue;
+		}
+		section.bounds = ofRectangle(l.indexViewport.x,
+			l.indexViewport.y + section.indexY - indexOffset,
+			l.indexViewport.width, l.indexItemH);
+	}
+	if (l.showIndexScrollbar)
+	{
+		const float thumbH = std::max(24.0f,
+			l.indexScrollTrack.height * (l.indexViewH / l.indexContentH));
+		const float travel = std::max(0.0f,
+			l.indexScrollTrack.height - thumbH);
+		const float t = l.indexMaxScroll > 0.0f ?
+			indexOffset / l.indexMaxScroll : 0.0f;
+		l.indexScrollThumb = ofRectangle(l.indexScrollTrack.x,
+			l.indexScrollTrack.y + t * travel,
+			l.indexScrollTrack.width, thumbH);
+	}
+	else
+	{
+		l.indexScrollTrack = ofRectangle();
+		l.indexScrollThumb = ofRectangle();
+	}
 	return l;
 }
 
+void ofApp::drawHelpIntro(const HelpLayout &l) const
+{
+	if (!l.intro.active) return;
+	auto screenY = [&](float documentY) {
+		return l.body.y + documentY - helpScroll;
+	};
+	if (screenY(l.intro.y + l.intro.h) < l.body.y ||
+		screenY(l.intro.y) > l.body.getMaxY()) return;
+
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofFill();
+	ofSetColor(COL_ACCENT_CYAN);
+	jp_constants::h_font.drawString(l.intro.title,
+		l.contentX, screenY(l.intro.titleY));
+	ofSetColor(ofColor(COL_BORDER_MUTED, 150));
+	ofDrawLine(l.contentX, screenY(l.intro.titleY + 10.0f),
+		l.contentX + l.contentW, screenY(l.intro.titleY + 10.0f));
+
+	const float leadTop = screenY(l.intro.leadY - 4.0f);
+	const float leadH = std::max(24.0f,
+		(float)l.intro.lead.size() * 18.0f + 2.0f);
+	ofSetColor(COL_ACCENT_CYAN, 95);
+	ofDrawRectangle(l.contentX, leadTop, 2.0f, leadH);
+	ofSetColor(COL_TEXT_SECONDARY);
+	float leadBaseline = screenY(l.intro.leadY + 13.0f);
+	for (const string &line : l.intro.lead)
+	{
+		jp_constants::inspector_body_font.drawString(line,
+			l.contentX + 16.0f, leadBaseline);
+		leadBaseline += 18.0f;
+	}
+
+	auto drawCornerIcon = [&](const HelpIntroCard &card,
+		const ofRectangle &bounds)
+	{
+		const float cx = bounds.getMaxX() - 20.0f;
+		const float cy = bounds.y + 21.0f;
+		ofNoFill();
+		ofSetLineWidth(1.4f);
+		ofSetColor(COL_ACCENT_CYAN, 190);
+		if (card.kind == 0)
+		{
+			for (int row = 0; row < 2; row++)
+				for (int col = 0; col < 2; col++)
+					ofDrawRectangle(cx - 7.0f + col * 8.0f,
+						cy - 7.0f + row * 8.0f, 5.0f, 5.0f);
+		}
+		else if (card.kind == 1)
+		{
+			ofDrawLine(cx - 7.0f, cy - 6.0f, cx - 7.0f, cy + 6.0f);
+			ofDrawLine(cx + 7.0f, cy - 6.0f, cx + 7.0f, cy + 6.0f);
+			ofDrawCircle(cx - 7.0f, cy + 2.0f, 2.0f);
+			ofDrawCircle(cx + 7.0f, cy - 2.0f, 2.0f);
+			ofDrawBezier(cx - 5.0f, cy + 2.0f, cx - 1.0f, cy + 2.0f,
+				cx + 1.0f, cy - 2.0f, cx + 5.0f, cy - 2.0f);
+		}
+		else
+		{
+			ofDrawBezier(cx - 9.0f, cy, cx - 3.0f, cy - 7.0f,
+				cx + 3.0f, cy - 7.0f, cx + 9.0f, cy);
+			ofDrawBezier(cx + 9.0f, cy, cx + 3.0f, cy + 7.0f,
+				cx - 3.0f, cy + 7.0f, cx - 9.0f, cy);
+			ofFill();
+			ofDrawCircle(cx, cy, 2.3f);
+		}
+		ofFill();
+	};
+
+	for (const HelpIntroCard &card : l.intro.cards)
+	{
+		ofRectangle bounds = card.bounds;
+		bounds.y = screenY(card.bounds.y);
+		if (bounds.getMaxY() < l.body.y) continue;
+		if (bounds.y > l.body.getMaxY()) break;
+
+		ofFill();
+		ofSetColor(ofColor(COL_BG_BOX, 238));
+		ofDrawRectangle(bounds);
+		ofNoFill();
+		ofSetLineWidth(1.0f);
+		ofSetColor(ofColor(COL_BORDER_MUTED, 150));
+		ofDrawRectangle(bounds);
+		ofFill();
+
+		const ofRectangle badge(bounds.x + 16.0f, bounds.y + 15.0f, 28.0f, 18.0f);
+		ofSetColor(COL_ACCENT_CYAN_DIM, 210);
+		ofDrawRectangle(badge);
+		ofSetColor(COL_TEXT_PRIMARY);
+		jp_constants::p2_font.drawString(card.number,
+			badge.x + 5.0f, badge.y + 13.0f);
+		modalFont.drawString(card.title, badge.getMaxX() + 9.0f,
+			bounds.y + 29.0f);
+		drawCornerIcon(card, bounds);
+		ofSetColor(ofColor(COL_BORDER_MUTED, 115));
+		ofDrawLine(bounds.x + 16.0f, bounds.y + 40.0f,
+			bounds.getMaxX() - 16.0f, bounds.y + 40.0f);
+
+		ofRectangle body = card.bodyArea;
+		body.y = screenY(card.bodyArea.y);
+		ofSetColor(COL_TEXT_SECONDARY);
+		float bodyBaseline = body.y + 13.0f;
+		for (const string &line : card.body)
+		{
+			jp_constants::inspector_body_font.drawString(line,
+				body.x, bodyBaseline);
+			bodyBaseline += 18.0f;
+		}
+
+		ofRectangle diagram = card.diagram;
+		diagram.y = screenY(card.diagram.y);
+		ofFill();
+		ofSetColor(ofColor(COL_BG_DARK, 245));
+		ofDrawRectangle(diagram);
+		ofNoFill();
+		ofSetColor(ofColor(COL_BORDER_MUTED, 120));
+		ofDrawRectangle(diagram);
+		ofSetLineWidth(1.3f);
+
+		if (card.kind == 0)
+		{
+			const float w = std::min(112.0f, diagram.width * 0.38f);
+			const ofRectangle box(diagram.getCenter().x - w * 0.5f,
+				diagram.getCenter().y - 23.0f, w, 46.0f);
+			ofSetColor(COL_ACCENT_CYAN, 210);
+			ofDrawRectangle(box);
+			ofFill();
+			ofSetColor(COL_TEXT_SECONDARY);
+			ofDrawCircle(box.x - 3.0f, box.getCenter().y, 3.5f);
+			ofSetColor(COL_ACCENT_CYAN);
+			ofDrawCircle(box.getMaxX() + 3.0f, box.getCenter().y, 4.0f);
+			ofSetColor(COL_TEXT_PRIMARY);
+			const string label = language == 0 ? "EFFECT" : "EFECTO";
+			const float tw = jp_constants::p2_font.stringWidth(label);
+			jp_constants::p2_font.drawString(label,
+				box.getCenter().x - tw * 0.5f, box.getCenter().y + 4.0f);
+		}
+		else if (card.kind == 1)
+		{
+			const float nodeW = std::min(74.0f, diagram.width * 0.24f);
+			const float nodeH = 42.0f;
+			const ofRectangle source(diagram.x + diagram.width * 0.12f,
+				diagram.getCenter().y - nodeH * 0.5f, nodeW, nodeH);
+			const ofRectangle target(diagram.getMaxX() - diagram.width * 0.12f - nodeW,
+				diagram.getCenter().y - nodeH * 0.5f, nodeW, nodeH);
+			ofSetColor(COL_BORDER_DEFAULT);
+			ofDrawRectangle(source);
+			ofDrawRectangle(target);
+			ofSetColor(COL_ACCENT_CYAN, 210);
+			ofDrawLine(source.getMaxX(), source.getCenter().y,
+				target.x, target.getCenter().y);
+			ofFill();
+			ofSetColor(COL_BG_DARK);
+			ofDrawCircle(source.getMaxX(), source.getCenter().y, 5.0f);
+			ofNoFill();
+			ofSetColor(COL_BORDER_DEFAULT);
+			ofDrawCircle(source.getMaxX(), source.getCenter().y, 5.0f);
+			ofSetColor(COL_ACCENT_CYAN);
+			ofDrawCircle(target.x, target.getCenter().y, 5.0f);
+		}
+		else
+		{
+			const ofRectangle output(diagram.x + 10.0f, diagram.y + 10.0f,
+				diagram.width - 20.0f, diagram.height - 20.0f);
+			ofSetColor(COL_ACCENT_CYAN, 155);
+			ofDrawRectangle(output);
+			ofFill();
+			ofSetColor(COL_ACCENT_CYAN_DIM, 220);
+			ofDrawRectangle(output.x + 8.0f, output.y + 8.0f, 18.0f, 18.0f);
+			ofSetColor(COL_TEXT_PRIMARY);
+			jp_constants::p2_font.drawString("1", output.x + 14.0f,
+				output.y + 21.0f);
+			ofSetColor(COL_ACCENT_CYAN);
+			const string label = "OUTPUT_ACTIVE";
+			const float tw = jp_constants::p2_font.stringWidth(label);
+			jp_constants::p2_font.drawString(label,
+				output.getCenter().x - tw * 0.5f, output.getCenter().y + 4.0f);
+		}
+		ofFill();
+	}
+	ofPopStyle();
+}
+
+void ofApp::drawHelpQuickStart(const HelpLayout &l) const
+{
+	if (!l.quick.active) return;
+	auto screenY = [&](float documentY) {
+		return l.body.y + documentY - helpScroll;
+	};
+	if (screenY(l.quick.y + l.quick.h) < l.body.y ||
+		screenY(l.quick.y) > l.body.getMaxY()) return;
+
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofFill();
+	ofSetColor(COL_ACCENT_CYAN);
+	jp_constants::h_font.drawString(l.quick.title,
+		l.contentX, screenY(l.quick.titleY));
+	ofSetColor(ofColor(COL_BORDER_MUTED, 150));
+	ofDrawLine(l.contentX, screenY(l.quick.titleY + 10.0f),
+		l.contentX + l.contentW, screenY(l.quick.titleY + 10.0f));
+
+	// Join cards that share a row. The small chevron makes the intended order
+	// visible without turning the layout into a heavy diagram.
+	ofNoFill();
+	ofSetLineWidth(1.2f);
+	ofSetColor(COL_ACCENT_CYAN, 125);
+	for (std::size_t i = 1; i < l.quick.steps.size(); i++)
+	{
+		const HelpQuickStep &previous = l.quick.steps[i - 1];
+		const HelpQuickStep &current = l.quick.steps[i];
+		if (std::abs(previous.bounds.y - current.bounds.y) > 0.5f) continue;
+		const float x1 = previous.bounds.getMaxX() + 2.0f;
+		const float x2 = current.bounds.x - 2.0f;
+		const float cy = screenY(previous.bounds.y + 29.0f);
+		if (x2 <= x1) continue;
+		ofDrawLine(x1, cy, x2, cy);
+		ofDrawLine(x2 - 4.0f, cy - 3.0f, x2, cy);
+		ofDrawLine(x2 - 4.0f, cy + 3.0f, x2, cy);
+	}
+
+	for (const HelpQuickStep &step : l.quick.steps)
+	{
+		ofRectangle bounds = step.bounds;
+		bounds.y = screenY(step.bounds.y);
+		if (bounds.getMaxY() < l.body.y) continue;
+		if (bounds.y > l.body.getMaxY()) break;
+
+		ofFill();
+		ofSetColor(ofColor(COL_BG_BOX, 238));
+		ofDrawRectRounded(bounds, 4.0f);
+		ofSetColor(COL_ACCENT_CYAN, 185);
+		ofDrawRectRounded(bounds.x, bounds.y, bounds.width, 3.0f, 2.0f);
+		ofNoFill();
+		ofSetLineWidth(1.0f);
+		ofSetColor(ofColor(COL_BORDER_MUTED, 145));
+		ofDrawRectRounded(bounds, 4.0f);
+
+		const ofRectangle badge(bounds.x + 14.0f, bounds.y + 15.0f,
+			24.0f, 18.0f);
+		ofFill();
+		ofSetColor(COL_ACCENT_CYAN_DIM, 215);
+		ofDrawRectangle(badge);
+		ofSetColor(COL_TEXT_PRIMARY);
+		const float numberW = jp_constants::p2_font.stringWidth(step.number);
+		jp_constants::p2_font.drawString(step.number,
+			badge.x + (badge.width - numberW) * 0.5f, badge.y + 13.0f);
+
+		const float iconX = bounds.getMaxX() - 18.0f;
+		const float iconY = bounds.y + 24.0f;
+		ofNoFill();
+		ofSetLineWidth(1.2f);
+		ofSetColor(COL_ACCENT_CYAN, 180);
+		switch (step.kind)
+		{
+		case 0:
+			ofDrawCircle(iconX, iconY, 5.0f);
+			ofDrawLine(iconX + 5.0f, iconY, iconX + 9.0f, iconY);
+			break;
+		case 1:
+			ofDrawRectangle(iconX - 6.0f, iconY - 6.0f, 12.0f, 12.0f);
+			ofDrawLine(iconX - 3.0f, iconY, iconX + 3.0f, iconY);
+			break;
+		case 2:
+			ofDrawCircle(iconX - 6.0f, iconY, 3.0f);
+			ofDrawCircle(iconX + 6.0f, iconY, 3.0f);
+			ofDrawLine(iconX - 3.0f, iconY, iconX + 3.0f, iconY);
+			break;
+		case 3:
+			ofDrawRectangle(iconX - 7.0f, iconY - 6.0f, 14.0f, 10.0f);
+			ofDrawLine(iconX, iconY + 4.0f, iconX + 5.0f, iconY + 8.0f);
+			break;
+		default:
+			ofDrawCircle(iconX, iconY, 7.0f);
+			ofFill();
+			ofDrawCircle(iconX, iconY, 2.0f);
+			break;
+		}
+
+		ofSetColor(COL_TEXT_PRIMARY);
+		const string title = jp_tooltip::fit(step.title,
+			std::max(24.0f, bounds.width - 82.0f),
+			[this](const string &text) { return modalFont.stringWidth(text); });
+		modalFont.drawString(title, badge.getMaxX() + 8.0f, bounds.y + 29.0f);
+		ofSetColor(ofColor(COL_BORDER_MUTED, 110));
+		ofDrawLine(bounds.x + 14.0f, bounds.y + 43.0f,
+			bounds.getMaxX() - 14.0f, bounds.y + 43.0f);
+
+		ofSetColor(COL_TEXT_SECONDARY);
+		float baseline = bounds.y + 61.0f;
+		for (const string &line : step.body)
+		{
+			jp_constants::inspector_body_font.drawString(line,
+				bounds.x + 14.0f, baseline);
+			baseline += 17.0f;
+		}
+	}
+	ofPopStyle();
+}
+
 void ofApp::draw_instrucciones() {
-	const HelpLayout L = getHelpLayout();
+	HelpLayout L = getHelpLayout();
 	// Clamped BEFORE drawing, against a height measured in the layout. This
 	// used to be measured as a side effect of drawing, so the clamp ran on the
 	// previous frame's numbers and overshot after a resize or language switch.
 	helpScroll = ofClamp(helpScroll, 0.0f, L.maxScroll);
+	helpIndexScroll = ofClamp(helpIndexScroll, 0.0f, L.indexMaxScroll);
+	if (helpIndexFollowPending)
+	{
+		keepActiveHelpSectionVisible(L);
+		// Bounds and thumb depend on the index offset, unlike wrapped rows.
+		L = getHelpLayout();
+	}
 
 	jp_screen::drawFrame(L.frame,
 		language == 0 ? "HELP" : "AYUDA",
@@ -1161,14 +1949,159 @@ void ofApp::draw_instrucciones() {
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
 
-	// Clip to the body so a partially scrolled row is cut at the frame edge
-	// instead of painting over the header rule. Same primitive the MIDI panel
-	// uses (jp_midi_keymap.cpp:1521).
+	// The index is a viewport of its own. It remains fixed beside the document,
+	// while its entries and thumb follow helpIndexScroll.
+	if (!L.indexPanel.isEmpty() && !L.sections.empty())
+	{
+		const int current = helpSectionAtScroll(L);
+		ofPushStyle();
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		{
+			jp_gl::ScopedScissor indexClip(L.indexViewport);
+			const bool pointerInIndex = L.indexViewport.inside(
+				(float)ofGetMouseX(), (float)ofGetMouseY());
+			for (int i = 0; i < (int)L.sections.size(); i++)
+			{
+				const HelpSection &section = L.sections[(std::size_t)i];
+				if (section.bounds.isEmpty()) continue;
+				if (section.bounds.getMaxY() <= L.indexViewport.y) continue;
+				if (section.bounds.y >= L.indexViewport.getMaxY()) break;
+
+				const bool active = i == current;
+				const bool over = pointerInIndex &&
+					jp_button::hovered(section.bounds);
+				if (active)
+				{
+					ofSetColor(COL_ACCENT_CYAN, 38);
+					ofDrawRectRounded(section.bounds, 4.0f);
+					// A bar on the leading edge, so the current section is legible
+					// even where the tint is subtle.
+					ofSetColor(COL_ACCENT_CYAN, 220);
+					ofDrawRectangle(section.bounds.x, section.bounds.y + 3.0f,
+						2.0f, section.bounds.height - 6.0f);
+				}
+				else if (over)
+				{
+					ofSetColor(COL_BG_HOVER, 120);
+					ofDrawRectRounded(section.bounds, 4.0f);
+				}
+
+				ofSetColor(active ? ofColor(COL_ACCENT_CYAN)
+								  : ofColor(over ? COL_TEXT_SECONDARY
+											 : COL_TEXT_MUTED));
+				const string title = jp_tooltip::fit(section.title,
+					std::max(0.0f, section.bounds.width - 14.0f),
+					[](const string &text) {
+						return jp_constants::p2_font.stringWidth(text);
+					});
+				jp_constants::p2_font.drawString(title,
+					section.bounds.x + 10.0f,
+					section.bounds.y + section.bounds.height * 0.5f + 4.0f);
+				if (title != section.title)
+				{
+					jp_tooltip::drawFor(section.title, section.bounds, over,
+						"help-index-" + ofToString(i));
+				}
+			}
+		}
+		if (L.showIndexScrollbar)
+		{
+			ofFill();
+			ofSetColor(ofColor(COL_BG_SCROLLBAR, 60));
+			ofDrawRectRounded(L.indexScrollTrack, 2.5f);
+			const bool over = L.indexScrollTrack.inside(
+				(float)ofGetMouseX(), (float)ofGetMouseY());
+			ofSetColor(over ? COL_BORDER_HOVER : COL_BORDER_DEFAULT);
+			ofDrawRectRounded(L.indexScrollThumb, 2.5f);
+		}
+		ofPopStyle();
+	}
+
+	// Clip document rows so partial content cannot paint over the frame header.
 	jp_gl::ScopedScissor helpClip(L.body);
+	drawHelpIntro(L);
+	drawHelpQuickStart(L);
+
+	// Each section's keyboard, inside the clipped span so it scrolls with the
+	// section it belongs to.
+	for (const HelpSection &section : L.sections)
+	{
+		if (section.caps.empty()) continue;
+		const float boardTop = L.body.y + section.keyboardY - helpScroll;
+		if (boardTop + section.keyboardH < L.body.y) continue;
+		if (boardTop > L.body.getMaxY()) break;
+
+		ofPushStyle();
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		ofFill();
+		ofSetColor(COL_BG_DARK, 190);
+		ofDrawRectRounded(section.keyboardX, boardTop, section.keyboardW,
+			section.keyboardH, 6.0f);
+		ofNoFill();
+		ofSetColor(COL_BORDER_MUTED, 80);
+		ofDrawRectRounded(section.keyboardX, boardTop, section.keyboardW,
+			section.keyboardH, 6.0f);
+		ofFill();
+
+		const HelpKeyCap *hovered = nullptr;
+		for (const HelpKeyCap &cap : section.caps)
+		{
+			ofRectangle r = cap.bounds;
+			r.y = boardTop + (cap.bounds.y - section.keyboardY);
+			const bool over = cap.lit && jp_button::hovered(r);
+			if (over) hovered = &cap;
+
+			ofFill();
+			ofSetColor(cap.lit ? ofColor(COL_ACCENT_CYAN, over ? 215 : 110)
+							   : ofColor(COL_BG_INPUT, 80));
+			ofDrawRectRounded(r, 3.0f);
+			if (cap.lit)
+			{
+				ofNoFill();
+				ofSetColor(COL_ACCENT_CYAN, 220);
+				ofDrawRectRounded(r, 3.0f);
+				ofFill();
+			}
+
+			// Only if it fits: a cap is narrow, and a label that overflows would
+			// spill onto its neighbours.
+			ofSetColor(cap.lit ? ofColor(COL_TEXT_PRIMARY)
+							   : ofColor(COL_TEXT_MUTED, 140));
+			const float capW = jp_constants::p2_font.stringWidth(cap.cap);
+			if (capW < r.width - 3.0f)
+			{
+				jp_constants::p2_font.drawString(cap.cap,
+					r.x + (r.width - capW) * 0.5f,
+					r.y + r.height * 0.5f + 4.0f);
+			}
+		}
+
+		// A permanent footer owns the hover explanation. Previously this string
+		// was drawn 12px *below* keyboardH, directly over the first shortcut.
+		const float footerTop = boardTop + section.keyboardKeysH;
+		ofSetColor(ofColor(COL_BORDER_MUTED, 105));
+		ofDrawLine(section.keyboardX + 8.0f, footerTop,
+			section.keyboardX + section.keyboardW - 8.0f, footerTop);
+		const string footer = hovered != nullptr ?
+			hovered->cap + "  -  " + hovered->label :
+			(language == 0 ?
+				"Highlighted keys work here. Hover a key for details." :
+				"Las teclas resaltadas funcionan aqui. Pasa el mouse para ver detalles.");
+		ofSetColor(hovered != nullptr ? ofColor(COL_ACCENT_CYAN, 235) :
+			ofColor(COL_TEXT_MUTED, 185));
+		jp_constants::p2_font.drawString(
+			jp_tooltip::fit(footer, std::max(20.0f, section.keyboardW - 16.0f),
+				[](const string &text) {
+					return jp_constants::p2_font.stringWidth(text);
+				}),
+			section.keyboardX + 8.0f, footerTop + 20.0f);
+		ofPopStyle();
+	}
 
 	for (size_t i = 0; i < L.rows.size(); i++)
 	{
 		const HelpRow &r = L.rows[i];
+		if (r.customDrawn) continue;
 		const float top = L.body.y + r.y - helpScroll;
 		if (top + r.h < L.body.y) continue;
 		if (top > L.body.getMaxY()) break;
@@ -1177,12 +2110,16 @@ void ofApp::draw_instrucciones() {
 		if (r.kind == jp_help::Kind::Heading)
 		{
 			ofSetColor(COL_ACCENT_CYAN);
-			modalFont.drawString(r.desc.empty() ? "" : r.desc[0],
-				L.contentX, top + 13.0f);
+			float headY = top + 13.0f;
+			for (const string &line : r.desc)
+			{
+				modalFont.drawString(line, L.contentX, headY);
+				headY += 20.0f;
+			}
+			const float ruleY = top + r.h - 6.0f;
 			ofSetColor(ofColor(COL_BORDER_MUTED, 150));
 			ofSetLineWidth(1.0f);
-			ofDrawLine(L.contentX, top + 20.0f,
-				L.contentX + L.contentW, top + 20.0f);
+			ofDrawLine(L.contentX, ruleY, L.contentX + L.contentW, ruleY);
 			continue;
 		}
 
@@ -1208,6 +2145,23 @@ void ofApp::draw_instrucciones() {
 		}
 		if (r.kind == jp_help::Kind::Entry && !r.keys.empty())
 		{
+			// A chip, not bare text. The keys column is what the reader scans,
+			// and plain type at the same size as the description gave it
+			// nothing to catch on.
+			const float keyW = jp_constants::p_font.stringWidth(r.keys);
+			const ofRectangle chip(L.contentX - 5.0f, lineY - 11.0f,
+				keyW + 10.0f, 16.0f);
+			ofPushStyle();
+			ofSetRectMode(OF_RECTMODE_CORNER);
+			ofFill();
+			ofSetColor(COL_BG_INPUT, 190);
+			ofDrawRectRounded(chip, 3.0f);
+			ofNoFill();
+			ofSetLineWidth(1.0f);
+			ofSetColor(COL_BORDER_MUTED, 110);
+			ofDrawRectRounded(chip, 3.0f);
+			ofPopStyle();
+
 			ofSetColor(COL_TEXT_PRIMARY);
 			jp_constants::p_font.drawString(r.keys, L.contentX, lineY);
 			if (r.keysOwnLine) lineY += 17.0f;
@@ -5322,48 +6276,6 @@ void ofApp::keyPressed(int key) {
 			boxes.deleteSelectedShader();
 		}
 
-		if (key == 'o') {
-			// openloader.startThread();
-			// ESTO ES LO QUE HABRIA QUE PROBAR EN MAC PARA VER SI FUNCA O NO . CUANDO ESTEMOS AH�
-			/*ofFileDialogResult result = ofSystemLoadDialog("Load file");
-			if (result.bSuccess) {
-				string path = result.getPath();
-				cout << "path " << path << endl;
-				if (path.find("data") != std::string::npos) {
-					cout << "IS INSIDE DATA FOLDER SO LETS CONVERT IT TO RELATIVE DIR" << endl;
-					path = path.substr(path.find("data"), path.size());
-					cout << "NEW PATH CONVERSION :" << path << endl;
-				}
-				else {
-					cout << "WARNING: OUTSIDE DATA FOLDER " << endl;
-				}
-				if (path.find(".frag") != std::string::npos) {
-					cout << "LOAD SHADER" << endl;
-					boxes.addShaderBox(path);
-				}
-				else if (path.find(".xml") != std::string::npos) {
-					cout << "LOAD SAVEFILE" << endl;
-					savedirectory = path;
-					boxes.load(savedirectory);
-				}
-				else if (path.find(".png") != std::string::npos ||
-					path.find(".jpg") != std::string::npos ||
-					path.find(".JPEG") != std::string::npos
-					) {
-					cout << "LOAD IMAGE FILE" << endl;
-					boxes.addImageBox(path);
-				}
-				else if (path.find(".mov") != std::string::npos ||
-					path.find(".mkv") != std::string::npos ||
-					path.find(".mp4") != std::string::npos ||
-					path.find(".flv") != std::string::npos ||
-					path.find(".vob") != std::string::npos ||
-					path.find(".avi") != std::string::npos
-					) {
-					boxes.addVideoBox(path);
-				}
-			}*/
-		}
 
 		/*if (key == 'l') {
 			cout << "savedirectory" << savedirectory << endl;
@@ -5426,8 +6338,6 @@ void ofApp::keyPressed(int key) {
 		if (key == 'x') {
 			cout << "Trigger CODE " << endl;
 			boxes.triggerCodeOnActiveShader();
-		}
-		if (key == 'c') {
 		}
 	}
 	/*if (prevKey == OF_KEY_CONTROL && key == 's') {
@@ -5619,6 +6529,24 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	prevKey = e.keycode;
 }
 void ofApp::mouseDragged(int x, int y, int button) {
+	if (pantallaActiva == TUTORIAL && helpIndexScrollbarDragging)
+	{
+		const HelpLayout L = getHelpLayout();
+		if (!L.showIndexScrollbar)
+		{
+			helpIndexScrollbarDragging = false;
+			helpIndexScroll = 0.0f;
+			return;
+		}
+		const float travel = std::max(1.0f,
+			L.indexScrollTrack.height - L.indexScrollThumb.height);
+		const float thumbY = ofClamp(
+			y - helpIndexScrollbarDragOffset,
+			L.indexScrollTrack.y, L.indexScrollTrack.y + travel);
+		setHelpIndexScroll(
+			((thumbY - L.indexScrollTrack.y) / travel) * L.indexMaxScroll, L);
+		return;
+	}
 	if (pantallaActiva == TUTORIAL && helpScrollbarDragging)
 	{
 		const HelpLayout L = getHelpLayout();
@@ -5633,7 +6561,8 @@ void ofApp::mouseDragged(int x, int y, int button) {
 		const float thumbY = ofClamp(
 			y - helpScrollbarDragOffset,
 			L.scrollTrack.y, L.scrollTrack.y + travel);
-		helpScroll = ((thumbY - L.scrollTrack.y) / travel) * L.maxScroll;
+		setHelpContentScroll(
+			((thumbY - L.scrollTrack.y) / travel) * L.maxScroll, L);
 		return;
 	}
 	midiKeymap.mouseDragged(x, y, button);
@@ -5818,12 +6747,43 @@ void ofApp::mousePressed(int x, int y, int button) {
 		// This was a hardcoded rect at panelY+13 with height 22 against a
 		// button drawn at f.y+10 with height 24, so its top 3px was dead.
 		const HelpLayout L = getHelpLayout();
+		// The index owns its scrollbar and visible item region.
+		if (button == OF_MOUSE_BUTTON_LEFT && !L.indexPanel.isEmpty()) {
+			if (L.showIndexScrollbar &&
+				L.indexScrollThumb.inside((float)x, (float)y)) {
+				helpIndexScrollbarDragging = true;
+				helpIndexScrollbarDragOffset = y - L.indexScrollThumb.y;
+				return;
+			}
+			if (L.showIndexScrollbar &&
+				L.indexScrollTrack.inside((float)x, (float)y)) {
+				const float travel = std::max(1.0f,
+					L.indexScrollTrack.height - L.indexScrollThumb.height);
+				const float t = ofClamp(
+					(y - L.indexScrollTrack.y -
+						L.indexScrollThumb.height * 0.5f) / travel,
+					0.0f, 1.0f);
+				setHelpIndexScroll(t * L.indexMaxScroll, L);
+				helpIndexScrollbarDragging = true;
+				helpIndexScrollbarDragOffset =
+					L.indexScrollThumb.height * 0.5f;
+				return;
+			}
+			for (const HelpSection &section : L.sections) {
+				if (section.bounds.isEmpty()) continue;
+				if (!L.indexViewport.inside((float)x, (float)y)) continue;
+				if (!section.bounds.inside((float)x, (float)y)) continue;
+				// Land the heading at the top of the view. Clamped, so the last
+				// sections - which cannot reach the top - still scroll as far as
+				// they go instead of refusing to move.
+				setHelpContentScroll(section.y, L);
+				helpScrollbarDragging = false;
+				return;
+			}
+		}
 		if (button == OF_MOUSE_BUTTON_LEFT &&
 			L.langBtn.inside((float)x, (float)y)) {
-			language = (language == 0) ? 1 : 0;
-			helpScroll = 0.0f;
-			helpScrollbarDragging = false;
-			helpCacheLang = -1;
+			setHelpLanguage(language == 0 ? 1 : 0);
 			return;
 		}
 		if (button == OF_MOUSE_BUTTON_LEFT && L.showScrollbar &&
@@ -5839,7 +6799,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 				(y - L.scrollTrack.y - L.scrollThumb.height * 0.5f) /
 				std::max(1.0f, L.scrollTrack.height - L.scrollThumb.height),
 				0.0f, 1.0f);
-			helpScroll = t * L.maxScroll;
+			setHelpContentScroll(t * L.maxScroll, L);
 			helpScrollbarDragging = true;
 			helpScrollbarDragOffset = L.scrollThumb.height * 0.5f;
 			return;
@@ -6064,6 +7024,8 @@ void ofApp::windowResized(int w, int h) {
 	boxes.update_resized(ofGetWidth(), ofGetHeight());
 	clampSettingsScroll();
 	helpScrollbarDragging = false;
+	helpIndexScrollbarDragging = false;
+	helpIndexFollowPending = true;
 	helpCacheLang = -1;
 	// InitGLtexture(sendertexture, ofGetWidth(), ofGetHeight()); //!?!??!!?
 	//	boxes.update_resized(jp_constants::renderWidth, jp_constants::renderHeight);
@@ -6096,9 +7058,10 @@ void ofApp::mouseReleased(int x, int y, int button) {
 		audioGainDragging = false;
 		saveSettings();
 	}
-	if (helpScrollbarDragging)
+	if (helpScrollbarDragging || helpIndexScrollbarDragging)
 	{
 		helpScrollbarDragging = false;
+		helpIndexScrollbarDragging = false;
 		return;
 	}
 	midiKeymap.mouseReleased(x, y, button);
@@ -6166,7 +7129,15 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 		// Clamp against the layout's own measurement rather than numbers the
 		// last draw pass happened to leave behind.
 		const HelpLayout L = getHelpLayout();
-		helpScroll = ofClamp(helpScroll - scrollY * 34.0f, 0.0f, L.maxScroll);
+		if (L.showIndexScrollbar &&
+			L.indexPanel.inside((float)x, (float)y))
+		{
+			setHelpIndexScroll(helpIndexScroll - scrollY * 48.0f, L);
+		}
+		else
+		{
+			setHelpContentScroll(helpScroll - scrollY * 34.0f, L);
+		}
 		return;
 	}
 	if (pantallaActiva == MIDI_KEYMAP) {
@@ -6709,6 +7680,11 @@ void ofApp::loadSettings() {
 		return std::isfinite(value) ? value : fallback;
 	};
 
+	auto languageaux = settings.getChild("language");
+	if (languageaux)
+	{
+		setHelpLanguage(languageaux.getIntValue());
+	}
 	auto renderwidthaux = settings.getChild("renderwidth");
 	auto renderheightaux = settings.getChild("renderheight");
 	auto windowx = settings.getChild("window_x");
@@ -6971,6 +7947,10 @@ void ofApp::saveSettings() {
 	settings.appendChild("transitionduration").set(
 		boxes.getTransitionDurationMs());
 	settings.appendChild("transitiontype").set(boxes.getTransitionType());
+	// The HELP language. It used to reset to English on every launch, and the
+	// ES/EN toggle exists on exactly one screen, so a Spanish reader had to find
+	// and flip it again every single time.
+	settings.appendChild("language").set(language);
 	settings.appendChild("cue_panel_x").set(cuePanelX);
 	settings.appendChild("cue_panel_y").set(cuePanelY);
 	settings.appendChild("cue_panel_w").set(cuePanelW);

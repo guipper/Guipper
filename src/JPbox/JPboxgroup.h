@@ -184,7 +184,6 @@ public:
 	ofRectangle getPaintHelpRect() const;
 	// The HELP screen's language lives on ofApp, so the panel asks for it the way
 	// it asks for the text-capture state.
-	void setHelpLanguageProvider(std::function<int()> provider);
 	void setPaintPanelLayout(float x, float y, float w, float h);
 	void getPaintPanelLayout(float &x, float &y, float &w, float &h) const;
 
@@ -1205,7 +1204,6 @@ private:
 	uint64_t paintLastClickMillis = 0;
 	int paintLastClickRow = -1;
 	float paintHelpScroll = 0.0f;
-	std::function<int()> helpLanguageProvider;
 	float paintPickerHue = 0.0f;
 	float paintPickerSat = 0.0f;
 	float paintPickerVal = 1.0f;

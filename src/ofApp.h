@@ -25,6 +25,8 @@
 #include "JPutils/jp_tooltip.h"
 #include "JPutils/jp_debug_report.h"
 #include "JPutils/jp_help_content.h"
+#include "JPutils/jp_textwrap.h"
+#include "JPutils/jp_keymap.h"
 #include "JPutils/jp_audio.h"
 #include "JPutils/jp_shader_globals.h"
 #include "JPutils/jp_midi_keymap.h"
@@ -357,13 +359,18 @@ public:
 		             // always meant.
 	};
 	int pantallaActiva;
-	// HELP and MIDI never scrolled; both now have a full-height frame to fill.
-	// helpContentH / helpViewH used to live here and were measured as a side
-	// effect of drawing, so the scroll clamp always ran a frame late. HelpLayout
-	// owns them now.
+	// HELP document and section index scroll independently. Their content/view
+	// metrics live in HelpLayout rather than being measured as a draw side
+	// effect, so resize and input clamps use the current frame's geometry.
 	float helpScroll = 0.0f;
 	bool helpScrollbarDragging = false;
 	float helpScrollbarDragOffset = 0.0f;
+	float helpIndexScroll = 0.0f;
+	bool helpIndexScrollbarDragging = false;
+	float helpIndexScrollbarDragOffset = 0.0f;
+	// A content move requests one minimal adjustment that keeps the active
+	// section visible. Manual index browsing clears this until content moves.
+	bool helpIndexFollowPending = true;
 	float midiScroll = 0.0f;
 
 	// Every floating thing is a surface with a declared z-order, so "who is on
@@ -591,16 +598,102 @@ public:
 		// Key label wider than the gutter: description drops to the next line
 		// at full width instead of colliding with it.
 		bool keysOwnLine = false;
+		// The opening orientation section is rendered as a richer card layout;
+		// its source rows remain here so section/key indexing stays exact.
+		bool customDrawn = false;
+	};
+	struct HelpIntroCard
+	{
+		ofRectangle bounds;       // x is screen-space; y is document-space
+		ofRectangle bodyArea;
+		ofRectangle diagram;
+		string number;
+		string title;
+		vector<string> body;
+		int kind = 0;             // box, signal flow, active output
+	};
+	struct HelpIntroLayout
+	{
+		bool active = false;
+		float y = 0.0f;
+		float h = 0.0f;
+		float titleY = 0.0f;
+		float leadY = 0.0f;
+		string title;
+		vector<string> lead;
+		vector<HelpIntroCard> cards;
+	};
+	struct HelpQuickStep
+	{
+		ofRectangle bounds;       // x is screen-space; y is document-space
+		string number;
+		string title;
+		vector<string> body;
+		int kind = 0;
+	};
+	struct HelpQuickLayout
+	{
+		bool active = false;
+		float y = 0.0f;
+		float h = 0.0f;
+		float titleY = 0.0f;
+		string title;
+		vector<HelpQuickStep> steps;
+	};
+	// One clickable entry in the section index. Sections are not part of the
+	// content model - a Heading opens one and the next closes it - so they are
+	// derived here rather than stored, and nothing in jp_help_content.h has to
+	// know the index exists.
+	// One key cap on the map, already positioned. `label` is what a lit key
+	// does; empty means the key exists but this section does not use it.
+	struct HelpKeyCap
+	{
+		ofRectangle bounds;
+		string cap;
+		string label;
+		bool lit = false;
+	};
+	struct HelpSection
+	{
+		string title;
+		float y = 0.0f;        // top of its heading row, before scrolling
+		float indexY = 0.0f;   // top of its item inside the index content
+		ofRectangle bounds;    // screen-space index item after index scrolling
+		// This section's keyboard, laid out just under its heading and scrolling
+		// with it. Empty when the section names no keys at all.
+		vector<HelpKeyCap> caps;
+		float keyboardX = 0.0f;
+		float keyboardW = 0.0f;
+		float keyboardY = 0.0f;
+		float keyboardKeysH = 0.0f;
+		float keyboardH = 0.0f;
 	};
 	struct HelpLayout
 	{
 		ofRectangle frame, body, langBtn, scrollTrack, scrollThumb;
+		// Empty when the window is too narrow to afford the column.
+		ofRectangle indexPanel, indexViewport;
+		ofRectangle indexScrollTrack, indexScrollThumb;
+		vector<HelpSection> sections;
+		HelpIntroLayout intro;
+		HelpQuickLayout quick;
 		float contentX = 0.0f, contentW = 0.0f, keysW = 0.0f, descX = 0.0f;
 		float contentH = 0.0f, viewH = 0.0f, maxScroll = 0.0f;
+		float indexContentH = 0.0f, indexViewH = 0.0f;
+		float indexMaxScroll = 0.0f, indexItemH = 22.0f;
 		bool showScrollbar = false;
+		bool showIndexScrollbar = false;
 		vector<HelpRow> rows;
 	};
 	HelpLayout getHelpLayout() const;
+	int helpSectionAtScroll(const HelpLayout &l) const;
+	void buildHelpKeyboards(HelpLayout &l) const;
+	void drawHelpIntro(const HelpLayout &l) const;
+	void drawHelpQuickStart(const HelpLayout &l) const;
+	void setHelpLanguage(int selected);
+	void setHelpContentScroll(float value, const HelpLayout &l);
+	void setHelpIndexScroll(float value, const HelpLayout &l);
+	void keepActiveHelpSectionVisible(const HelpLayout &l);
 	// Wrapping every description measures a lot of strings; rebuild only when
 	// the language or the available width actually changes.
 	mutable HelpLayout helpLayoutCache;
