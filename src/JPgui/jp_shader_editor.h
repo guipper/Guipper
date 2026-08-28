@@ -74,7 +74,7 @@ public:
 
 	// ---- Input ----
 	void keyPressed(int key);
-	void keycodePressed(int keycode);
+	bool keycodePressed(const ofKeyEventArgs &event);
 	void mousePressed(int x, int y, int button);
 	void mouseDragged(int x, int y, int button);
 	void mouseScrolled(int x, int y, float scrollX, float scrollY);

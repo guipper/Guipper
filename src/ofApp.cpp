@@ -6355,10 +6355,11 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	// CUANDO APRETAS CONTROL TE TOMA COMO DOS INPUTS EN EL MOMENTO.
 	cout << "-------------------------------------" << endl;
 
-	// Forward Ctrl+key combos to shader editor (copy/paste/cut/select all)
+	// Forward Ctrl/Cmd editing chords to the shader editor. Keep Ctrl/Cmd+S in
+	// this function because it saves the file rather than editing text.
+	bool editorShortcutHandled = false;
 	if (shaderEditor.wantsKeyCapture()) {
-		shaderEditor.keycodePressed(e.key);
-		// Don't return yet — Ctrl+S also needs to save
+		editorShortcutHandled = shaderEditor.keycodePressed(e);
 	}
 
 	// Ctrl+S / Cmd+S -> save the composition. Shift opens the in-app modal.
@@ -6382,6 +6383,7 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 		else saveSessionAs();
 		return;
 	}
+	if (editorShortcutHandled) return;
 
 	// Ctrl+D opens the advanced debug panel. In keycodePressed because the
 	// legacy callback never sees modifiers, and bare 'd' already toggles the

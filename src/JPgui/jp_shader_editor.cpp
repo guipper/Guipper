@@ -1,4 +1,5 @@
 #include "jp_shader_editor.h"
+#include "../JPutils/jp_editor_shortcut.h"
 #include "jp_screen.h"
 #include "jp_button.h"
 #include "../JPutils/jp_constants.h"
@@ -973,6 +974,17 @@ void JPShaderEditor::mouseScrolled(int x, int y, float scrollX, float scrollY)
 void JPShaderEditor::keyPressed(int key)
 {
 	if (!visible || activeTab < 0 || activeTab >= (int)tabs.size()) return;
+	// The detailed event handles platform shortcuts. In particular macOS sends
+	// Cmd+C as the printable character 'c' here as well, so allowing the legacy
+	// callback to continue would insert a letter before the copy action runs.
+	if ((ofGetKeyPressed(OF_KEY_CONTROL) ||
+		ofGetKeyPressed(OF_KEY_COMMAND)) &&
+		(key == 'a' || key == 'A' || key == 'c' || key == 'C' ||
+		 key == 'x' || key == 'X' || key == 'v' || key == 'V' ||
+		 key == 's' || key == 'S'))
+	{
+		return;
+	}
 
 	EditorTab& tab = tabs[activeTab];
 
@@ -1171,22 +1183,24 @@ void JPShaderEditor::keyPressed(int key)
 // Keyboard: Ctrl+key combinations (copy, paste, cut, select all)
 // ============================================================
 
-void JPShaderEditor::keycodePressed(int keycode)
+bool JPShaderEditor::keycodePressed(const ofKeyEventArgs &event)
 {
-	if (!visible || activeTab < 0 || activeTab >= (int)tabs.size()) return;
+	if (!visible || activeTab < 0 || activeTab >= (int)tabs.size()) return false;
 	EditorTab& tab = tabs[activeTab];
+	using jp_editor_shortcut::Action;
+	const Action action = jp_editor_shortcut::resolve(
+		event.key, event.keycode,
+		event.hasModifier(OF_KEY_CONTROL), event.hasModifier(OF_KEY_SUPER));
 
-	// Ctrl+A (key=1): Select all
-	if (keycode == 1) {
+	if (action == Action::SelectAll) {
 		tab.selStartLine = 0;
 		tab.selStartCol = 0;
 		tab.selEndLine = (int)tab.lines.size() - 1;
 		tab.selEndCol = (int)tab.lines.back().size();
-		return;
+		return true;
 	}
 
-	// Ctrl+C (key=3): Copy
-	if (keycode == 3) {
+	if (action == Action::Copy) {
 		if (!tab.hasSelection()) {
 			// Select current line if no selection
 			tab.selStartLine = tab.cursorLine;
@@ -1199,11 +1213,10 @@ void JPShaderEditor::keycodePressed(int keycode)
 		if (!sel.empty()) {
 			_clipboard = sel;
 		}
-		return;
+		return true;
 	}
 
-	// Ctrl+V (key=22): Paste
-	if (keycode == 22) {
+	if (action == Action::Paste) {
 		string clip = _clipboard;
 		if (!clip.empty()) {
 			// Delete selection if any
@@ -1238,11 +1251,10 @@ void JPShaderEditor::keycodePressed(int keycode)
 			tab.modified = true;
 			clampCursor(activeTab);
 		}
-		return;
+		return true;
 	}
 
-	// Ctrl+X (key=24): Cut
-	if (keycode == 24) {
+	if (action == Action::Cut) {
 		if (tab.hasSelection()) {
 			string sel;
 			getSelectedText(sel, activeTab);
@@ -1251,8 +1263,9 @@ void JPShaderEditor::keycodePressed(int keycode)
 			}
 			deleteSelection(activeTab);
 		}
-		return;
+		return true;
 	}
+	return false;
 }
 
 // ============================================================
