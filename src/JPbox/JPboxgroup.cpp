@@ -9905,7 +9905,8 @@ bool JPboxgroup::selectionAddModifier() const
 
 bool JPboxgroup::selectionToggleModifier() const
 {
-	return ofGetKeyPressed(OF_KEY_CONTROL);
+	return ofGetKeyPressed(OF_KEY_CONTROL) ||
+		ofGetKeyPressed(OF_KEY_COMMAND);
 }
 
 void JPboxgroup::toggleBoxSelection(int index)
