@@ -149,6 +149,7 @@ void JPbox_shader::reload()
 		}
 	}
 	shader.load("shaders/default.vert", dir);
+	resetFeedbackFrame();
 
 	fbohandlergroup.setupdragobjects(x, y, outlet_size, outlet_size);
 	setfbohandler_nodepos();
@@ -158,6 +159,7 @@ void JPbox_shader::reload()
 void JPbox_shader::reloadShaderonly()
 {
 	shader.load("shaders/default.vert", dir);
+	resetFeedbackFrame();
 	frameNum = 0;
 }
 void JPbox_shader::setup(ofTrueTypeFont &_font,
@@ -336,6 +338,7 @@ void JPbox_shader::updateFBO()
 	}
 	if (onoff.boolValue && shader.isLoaded())
 	{
+		prepareFeedbackFrame(shader);
 		if (isAdvancedMappingShader())
 		{
 			for (int layerIndex = 0;
@@ -609,7 +612,7 @@ void JPbox_shader::update_globalUniforms()
 	ctx.width = fbo.getWidth();
 	ctx.height = fbo.getHeight();
 	ctx.boxFrameNum = frameNum;
-	ctx.feedback = &fbo.getTexture();
+	ctx.feedback = getFeedbackTexture();
 	jp_shader_globals::apply(shader, ctx);
 }
 

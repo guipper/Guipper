@@ -356,6 +356,52 @@ void JPbox::updateFBO()
 	// is undefined feedback and, with alpha blending enabled, repeatedly
 	// premultiplies soft edges and tints them with the UI text color.
 }
+
+void JPbox::resetFeedbackFrame()
+{
+	feedbackTexture = nullptr;
+	feedbackHasRenderedFrame = false;
+	if (feedbackFrame.isAllocated()) feedbackFrame.destroy();
+}
+
+void JPbox::prepareFeedbackFrame(const ofShader &shader)
+{
+	feedbackTexture = nullptr;
+	if (!shader.isLoaded() || shader.getUniformLocation("feedback") < 0 ||
+		!fbo.isAllocated())
+	{
+		return;
+	}
+
+	const bool sizeChanged = !feedbackFrame.isAllocated() ||
+		feedbackFrame.getWidth() != fbo.getWidth() ||
+		feedbackFrame.getHeight() != fbo.getHeight();
+	if (sizeChanged)
+	{
+		feedbackFrame.allocate(fbo.getWidth(), fbo.getHeight());
+		feedbackFrame.begin();
+		ofClear(0, 0, 0, 255);
+		feedbackFrame.end();
+		feedbackHasRenderedFrame = false;
+	}
+
+	if (feedbackHasRenderedFrame)
+	{
+		ofPushStyle();
+		ofSetRectMode(OF_RECTMODE_CORNER);
+		feedbackFrame.begin();
+		ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+		ofSetColor(255, 255, 255, 255);
+		fbo.draw(0, 0, feedbackFrame.getWidth(), feedbackFrame.getHeight());
+		feedbackFrame.end();
+		ofEnableAlphaBlending();
+		ofPopStyle();
+	}
+	feedbackTexture = &feedbackFrame.getTexture();
+	// On the first pass the allocated black texture is the previous frame. The
+	// next pass snapshots the output produced after this call.
+	feedbackHasRenderedFrame = true;
+}
 void JPbox::draw_outlet()
 {
 	float bordersizemult = 0.6;
@@ -469,6 +515,7 @@ void JPbox::clear()
 	fbohandlergroup.clear();
 
 	fbo.destroy();
+	resetFeedbackFrame();
 	// fbo = nullptr;
 }
 ofRectangle JPbox::outletBounds() const

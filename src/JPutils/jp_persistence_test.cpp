@@ -14,6 +14,75 @@ namespace
 {
 	bool near(float a, float b) { return std::abs(a - b) < 0.002f; }
 
+	class FeedbackProbe : public JPbox
+	{
+	public:
+		using JPbox::getFeedbackTexture;
+		using JPbox::prepareFeedbackFrame;
+		using JPbox::resetFeedbackFrame;
+	};
+
+	bool feedbackFramesWork(const ofShader &shader)
+	{
+		if (!shader.isLoaded() || shader.getUniformLocation("feedback") < 0)
+			return false;
+
+		FeedbackProbe probe;
+		probe.fbo.allocate(4, 4, GL_RGBA);
+		auto fillOutput = [&](const ofColor &color)
+		{
+			probe.fbo.begin();
+			ofClear(color);
+			probe.fbo.end();
+		};
+		auto feedbackIs = [&](const ofColor &expected, int width, int height)
+		{
+			const ofTexture *texture = probe.getFeedbackTexture();
+			if (texture == nullptr || int(texture->getWidth()) != width ||
+				int(texture->getHeight()) != height)
+			{
+				return false;
+			}
+			ofPixels pixels;
+			texture->readToPixels(pixels);
+			if (!pixels.isAllocated()) return false;
+			const ofColor actual = pixels.getColor(width / 2, height / 2);
+			return std::abs(int(actual.r) - int(expected.r)) <= 2 &&
+				std::abs(int(actual.g) - int(expected.g)) <= 2 &&
+				std::abs(int(actual.b) - int(expected.b)) <= 2;
+		};
+
+		// Even if the box's output already contains data, its first previous
+		// frame must be the freshly allocated black buffer.
+		fillOutput(ofColor::red);
+		probe.prepareFeedbackFrame(shader);
+		const bool firstFrameBlack = feedbackIs(ofColor::black, 4, 4);
+
+		// Every later pass snapshots the completed output, never the FBO while it
+		// is being written. Two colours catch a stale one-frame or self-binding bug.
+		fillOutput(ofColor::red);
+		probe.prepareFeedbackFrame(shader);
+		const bool previousRed = feedbackIs(ofColor::red, 4, 4);
+		fillOutput(ofColor::green);
+		probe.prepareFeedbackFrame(shader);
+		const bool previousGreen = feedbackIs(ofColor::green, 4, 4);
+
+		// Reload calls this same reset path.
+		probe.resetFeedbackFrame();
+		probe.prepareFeedbackFrame(shader);
+		const bool reloadBlack = feedbackIs(ofColor::black, 4, 4);
+
+		// A resolution change reallocates lazily and must not copy scaled data
+		// from the old render target.
+		probe.fbo.allocate(7, 3, GL_RGBA);
+		fillOutput(ofColor::blue);
+		probe.prepareFeedbackFrame(shader);
+		const bool resizeBlack = feedbackIs(ofColor::black, 7, 3);
+
+		return firstFrameBlack && previousRed && previousGreen && reloadBlack &&
+			resizeBlack;
+	}
+
 	bool sameParameterOrder(JPbox *box, const std::vector<std::string> &names)
 	{
 		if (box == nullptr || box->parameters.getSize() != int(names.size())) return false;
@@ -190,6 +259,7 @@ bool jp_persistence_test::run(ofApp &app)
 	box->parameters.getJParameter(boolIndex)->defaultBoolValue = true;
 	app.boxes.save(currentPath);
 	bool shaderReload = false;
+	bool feedbackFrames = false;
 	if (auto *shader = dynamic_cast<JPbox_shader *>(box))
 	{
 		shader->reload();
@@ -202,6 +272,7 @@ bool jp_persistence_test::run(ofApp &app)
 			near(shader->parameters.getJParameter(0)->defaultFloatValue, 0.62f) &&
 			shader->parameters.getJParameter(boolIndex)->randomLocked &&
 			shader->parameters.getJParameter(boolIndex)->defaultBoolValue;
+		feedbackFrames = feedbackFramesWork(shader->shader);
 	}
 
 	app.boxes.clear(); app.boxes.load(currentPath);
@@ -4416,9 +4487,12 @@ bool jp_persistence_test::run(ofApp &app)
 	ofLogNotice("jp_persistence_test") << "current=" << current
 		<< " legacy=" << old << " invalid=" << clamped
 		<< " shaderReload=" << shaderReload
+		<< " feedbackFrames=" << feedbackFrames
 		<< " modeMemory=" << modeMemory
 		<< " rangeCapture=" << rangeCapture
 		<< " midiRange=" << midiRange
+		<< " midiAudioAmount=" << midiAudioAmount
+		<< " oscIndexed=" << oscIndexed
 		<< " cueState=" << cueState
 		<< " lockDefault=" << lockDefault
 		<< " mediaState=" << mediaState << " mediaBoundary=" << mediaBoundary

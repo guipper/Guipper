@@ -48,6 +48,7 @@ void JPbox_framedifference::updateFBO()
 	}
 	if (onoff.boolValue)
 	{
+		prepareFeedbackFrame(shader);
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		ofSetColor(COL_TEXT_PRIMARY, 255);
 		fbo.begin();
@@ -122,7 +123,7 @@ void JPbox_framedifference::update_globalUniforms()
 	ctx.width = fbo.getWidth();
 	ctx.height = fbo.getHeight();
 	ctx.boxFrameNum = frameNum;
-	ctx.feedback = &fbo.getTexture();
+	ctx.feedback = getFeedbackTexture();
 	jp_shader_globals::apply(shader, ctx);
 }
 void JPbox_framedifference::setfbohandler_nodepos()

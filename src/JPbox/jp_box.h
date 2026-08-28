@@ -196,9 +196,20 @@ public:
 	bool getOutputCandidate() const;
 	bool outputCandidate = false;
 
+
 	//SHOWCODE
 	bool showCode = false;
 protected:
+	// Stable feedback source. Rendering while sampling `fbo` itself is undefined
+	// in OpenGL, so shader-backed boxes snapshot the completed output before
+	// beginning the next pass and bind this separate texture instead.
+	void prepareFeedbackFrame(const ofShader &shader);
+	const ofTexture *getFeedbackTexture() const { return feedbackTexture; }
+	void resetFeedbackFrame();
+	ofFbo feedbackFrame;
+	const ofTexture *feedbackTexture = nullptr;
+	bool feedbackHasRenderedFrame = false;
+
 	int tipo; // Habra una manera menos cacuija de hacer esto? no se, pero ya me pudrio si, esta bien o mal me la chupa.
 	bool renderThisFrame = true;
 

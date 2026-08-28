@@ -150,6 +150,7 @@ void JPbox_sequencer::updateFBO()
 
     if (onoff.boolValue)
     {
+		prepareFeedbackFrame(shader);
         ofSetRectMode(OF_RECTMODE_CORNER);
         fbo.begin();
         if (!slots.empty() && shader.isLoaded())
@@ -288,7 +289,7 @@ void JPbox_sequencer::update_globalUniforms()
 	ctx.width = fbo.getWidth();
 	ctx.height = fbo.getHeight();
 	ctx.boxFrameNum = frameNum;
-	ctx.feedback = &fbo.getTexture();
+	ctx.feedback = getFeedbackTexture();
 	jp_shader_globals::apply(shader, ctx);
 }
 
