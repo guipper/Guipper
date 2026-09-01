@@ -859,6 +859,10 @@ void JPboxgroup::draw()
 				activeBoxes[i]->setBypass(draftBypassBeforeDraw);
 				activeBoxes[i]->setonoff(draftOnOffBeforeDraw);
 				activeBoxes[i]->draw();
+				// While the DRAFT's flags are still applied, so the icon
+				// matches the body that was just drawn rather than the live
+				// state restored a few lines below.
+				activeBoxes[i]->drawStateOverlay();
 				activeBoxes[i]->clearBackgroundOverride();
 				bool draftBypassAfterDraw = activeBoxes[i]->getBypass();
 				bool draftOnOffAfterDraw = activeBoxes[i]->getonoff();
@@ -880,12 +884,14 @@ void JPboxgroup::draw()
 			else
 			{
 				activeBoxes[i]->draw();
+				activeBoxes[i]->drawStateOverlay();
 			}
 		}
 		else
 		{
 			// No cue targets this graph: plain draw.
 			activeBoxes[i]->draw();
+			activeBoxes[i]->drawStateOverlay();
 		}
 
 		// GUIPPER_HITBOX=1: outline the box's selectable area, its two toggles,

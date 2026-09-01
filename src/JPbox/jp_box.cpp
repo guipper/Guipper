@@ -550,6 +550,50 @@ bool JPbox::mouseOverOutlet()
 		JPdragobject::getMouseX(), JPdragobject::getMouseY());
 }
 
+void JPbox::drawStateOverlay()
+{
+	const bool bypassed = bypass.boolValue;
+	const bool paused = !onoff.boolValue;
+	if (!bypassed && !paused) return;
+
+	// The rect every box type draws its preview into.
+	const float previewX = x;
+	const float previewY = y + padding_top / 2 - 3;
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CENTER);
+	ofFill();
+	ofSetColor(COL_BG_DARK, 170);
+	ofDrawRectangle(previewX, previewY, fbowidth, fboheight);
+
+	// Bypass wins when both are set, and that is not a preference: updateFBO
+	// runs tryPassThroughFBO BEFORE it looks at onoff, so a bypassed box passes
+	// its input through whether or not it is paused. The icon says what the box
+	// is actually doing.
+	const float size = std::min(fbowidth, fboheight) * 0.34f;
+	ofSetColor(COL_TEXT_PRIMARY, 225);
+	if (bypassed)
+	{
+		// An arrow, not a triangle: a triangle here would read as PLAY next to
+		// the pause icon below.
+		const float head = size * 0.42f;
+		ofSetLineWidth(std::max(2.0f, size * 0.13f));
+		ofDrawLine(previewX - size * 0.5f, previewY,
+			previewX + size * 0.5f - head * 0.7f, previewY);
+		ofDrawTriangle(previewX + size * 0.5f, previewY,
+			previewX + size * 0.5f - head, previewY - head * 0.62f,
+			previewX + size * 0.5f - head, previewY + head * 0.62f);
+	}
+	else
+	{
+		const float barW = size * 0.28f;
+		const float barH = size * 0.86f;
+		const float gap = size * 0.22f;
+		ofDrawRectangle(previewX - (barW + gap) * 0.5f, previewY, barW, barH);
+		ofDrawRectangle(previewX + (barW + gap) * 0.5f, previewY, barW, barH);
+	}
+	ofPopStyle();
+}
+
 void JPbox::drawHitboxDebug()
 {
 	if (!jp_hitbox::debugEnabled()) return;

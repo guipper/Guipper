@@ -163,6 +163,12 @@ public:
 	// The rect mouseOverOutlet tests. Shared with the GUIPPER_HITBOX overlay so
 	// the outline and the hit test can never drift apart.
 	ofRectangle outletBounds() const;
+	// Veils the preview and stamps an icon when the box is bypassed or paused,
+	// so the state is readable from the graph instead of only from two small
+	// squares in the header. Called by JPboxgroup AFTER the box has drawn its
+	// preview - from inside draw() it would land UNDER the fbo the subclass
+	// paints afterwards, the same reason drawHitboxDebug lives there.
+	void drawStateOverlay();
 	// Outlines the box's selectable area, its texture OUT and every texture IN,
 	// when GUIPPER_HITBOX is set. No-op otherwise.
 	void drawHitboxDebug();
