@@ -3284,13 +3284,17 @@ void JPboxgroup::draw_paramswindow()
 		const bool hasCameraAction =
 			inspectorBox->getTipo() == inspectorBox->CAMBOX ||
 			inspectorBox->getTipo() == inspectorBox->KINECT2BOX;
-		const float randomActionWidth = 44.0f;
-		const float defaultActionWidth = 42.0f;
-		const float saveDefaultActionWidth = 62.0f;
-		const float mappingActionWidth = 48.0f;
-		const float paintActionWidth = 52.0f;
-		const float editActionWidth = 48.0f;
-		const float cameraActionWidth = 48.0f;
+		// Square, because these seven carry an icon. TO OUTPUT and FINAL keep
+		// their labels: they are STATES you switch on and off, and a lit word
+		// says which one is on far better than a lit glyph.
+		const float iconActionWidth = 30.0f;
+		const float randomActionWidth = iconActionWidth;
+		const float defaultActionWidth = iconActionWidth;
+		const float saveDefaultActionWidth = iconActionWidth;
+		const float mappingActionWidth = iconActionWidth;
+		const float paintActionWidth = iconActionWidth;
+		const float editActionWidth = iconActionWidth;
+		const float cameraActionWidth = iconActionWidth;
 		// Every box owns an FBO, so any of them can drive a live output.
 		const bool hasToOutputAction = true;
 		// Measured, not guessed. drawHeaderAction centres the label on the
@@ -3298,16 +3302,16 @@ void JPboxgroup::draw_paramswindow()
 		// the control to its left and past the panel edge - which is exactly
 		// what a hardcoded 72 did to "TO OUTPUT".
 		const string toOutputLabel = "TO OUTPUT";
-		const float toOutputActionWidth = std::max(72.0f,
-			jp_constants::inspector_secondary_font.stringWidth(toOutputLabel)
-				+ 16.0f);
+		const float toOutputActionWidth = std::max(46.0f,
+			jp_constants::inspector_media_font.stringWidth(toOutputLabel)
+				+ 14.0f);
 		// Any box owns an FBO, so any box can be an overlay - same reasoning as
 		// TO OUTPUT above. Measured for the same reason too.
 		const bool hasFinalOverlayAction = true;
 		const string finalOverlayLabel = "FINAL";
-		const float finalOverlayActionWidth = std::max(52.0f,
-			jp_constants::inspector_secondary_font.stringWidth(finalOverlayLabel)
-				+ 16.0f);
+		const float finalOverlayActionWidth = std::max(40.0f,
+			jp_constants::inspector_media_font.stringWidth(finalOverlayLabel)
+				+ 14.0f);
 		const float headerActionHeight = 26.0f;
 		const float headerActionGap = 5.0f;
 		// Count and width are SEPARATE sums - the count only feeds the
@@ -3331,6 +3335,9 @@ void JPboxgroup::draw_paramswindow()
 			(hasToOutputAction ? toOutputActionWidth : 0.0f) +
 			(hasFinalOverlayAction ? finalOverlayActionWidth : 0.0f) +
 			std::max(0, headerActionCount - 1) * headerActionGap;
+		// Title and buttons share the row, buttons right aligned against the
+		// panel edge. That fits again because seven of the nine are icons now:
+		// the row went from roughly 400px of labels to about 280.
 		const float headerActionRight = panelRight - 12.0f;
 		const float headerActionLeft =
 			headerActionRight - headerActionWidth;
@@ -3640,34 +3647,176 @@ void JPboxgroup::draw_paramswindow()
 			ofDrawRectRounded(left, headerActionTop,
 				button.width, headerActionHeight, 3.0f);
 			ofFill();
+			// The small font: its only two callers are TO OUTPUT and FINAL,
+			// which have to share the row with the title now.
 			ofSetColor(hovered ? hoverColor : idleColor);
-			jp_constants::inspector_secondary_font.drawString(label,
-				button.x - jp_constants::inspector_secondary_font.stringWidth(label) * 0.5f,
-				button.y + jp_constants::inspector_secondary_font.stringHeight(label) * 0.5f - 2.0f);
+			jp_constants::inspector_media_font.drawString(label,
+				button.x - jp_constants::inspector_media_font.stringWidth(label) * 0.5f,
+				button.y + jp_constants::inspector_media_font.stringHeight(label) * 0.5f - 1.0f);
 			if (!tooltip.empty())
 				jp_tooltip::draw(tooltip, left,
 					button.y - button.height * 0.5f,
 					button.width, button.height);
 			drawInspectorClickBounds(button);
 		};
-		drawHeaderAction(inspectorrandom, "RDM", COL_TEXT_SECONDARY,
+
+		// Vector icons, the way the media transport already draws its own: no
+		// assets, and they scale with the button. Each one is handed a centre
+		// and a radius so the shapes stay in step if the button size changes.
+		enum HeaderIcon
+		{
+			ICON_DICE, ICON_REVERT, ICON_PIN, ICON_CODE, ICON_CORNERS,
+			ICON_PENCIL, ICON_CAMERA
+		};
+		auto drawHeaderIcon = [&](JPBang &button, HeaderIcon icon,
+			const ofColor &idleColor, const ofColor &hoverColor,
+			const string &tooltip)
+		{
+			if (button.width <= 0.0f) return;
+			const float left = button.x - button.width * 0.5f;
+			const bool hovered = button.mouseOver();
+			ofSetColor(hovered ? ofColor(COL_BG_HOVER, 245) :
+				ofColor(COL_BG_INPUT, 235));
+			ofDrawRectRounded(left, headerActionTop,
+				button.width, headerActionHeight, 3.0f);
+			ofNoFill();
+			ofSetLineWidth(hovered ? 1.5f : 1.0f);
+			ofSetColor(hovered ? ofColor(hoverColor, 210) :
+				ofColor(COL_BORDER_MUTED, 175));
+			ofDrawRectRounded(left, headerActionTop,
+				button.width, headerActionHeight, 3.0f);
+			ofFill();
+
+			const float cx = button.x;
+			const float cy = headerActionTop + headerActionHeight * 0.5f;
+			const float r = 6.5f;
+			ofSetColor(hovered ? hoverColor : idleColor);
+			ofSetLineWidth(hovered ? 1.6f : 1.3f);
+			switch (icon)
+			{
+			case ICON_DICE:
+				ofNoFill();
+				ofDrawRectRounded(cx - r, cy - r, r * 2.0f, r * 2.0f, 2.0f);
+				ofFill();
+				// Five pips, not three: three on a diagonal merge into a
+				// line at this size and read as an arrow, not as a die.
+				ofDrawCircle(cx - r * 0.48f, cy - r * 0.48f, 1.35f);
+				ofDrawCircle(cx + r * 0.48f, cy - r * 0.48f, 1.35f);
+				ofDrawCircle(cx, cy, 1.35f);
+				ofDrawCircle(cx - r * 0.48f, cy + r * 0.48f, 1.35f);
+				ofDrawCircle(cx + r * 0.48f, cy + r * 0.48f, 1.35f);
+				break;
+			case ICON_REVERT:
+			{
+				// An open ARC with the head on its tip, not a closed circle
+				// with a triangle parked next to it: the first attempt read as
+				// a balloon because the head did not sit on the curve.
+				const float radius = r * 0.85f;
+				const float startDeg = 300.0f;
+				ofNoFill();
+				ofPolyline arc;
+				for (float a = startDeg; a <= startDeg + 275.0f; a += 12.0f)
+					arc.addVertex(cx + radius * cos(ofDegToRad(a)),
+						cy + radius * sin(ofDegToRad(a)));
+				arc.draw();
+				ofFill();
+				const float a0 = ofDegToRad(startDeg);
+				const ofVec2f tip(cx + radius * cos(a0), cy + radius * sin(a0));
+				// Along the curve, pointing back the way it came, and out along
+				// the radius for the two base corners.
+				const ofVec2f along(sin(a0), -cos(a0));
+				const ofVec2f outward(cos(a0), sin(a0));
+				const float head = 4.2f;
+				ofDrawTriangle(tip + along * head * 1.5f,
+					tip + outward * head, tip - outward * head);
+				break;
+			}
+			case ICON_PIN:
+				// A flag: plant the current values as the default.
+				ofDrawRectangle(cx - r * 0.75f, cy - r, 1.4f, r * 2.0f);
+				ofDrawTriangle(cx - r * 0.55f, cy - r,
+					cx - r * 0.55f, cy - r * 0.05f, cx + r * 0.85f, cy - r * 0.52f);
+				break;
+			case ICON_CODE:
+				ofNoFill();
+				ofBeginShape();
+				ofVertex(cx - r * 0.45f, cy - r * 0.85f);
+				ofVertex(cx - r * 1.05f, cy);
+				ofVertex(cx - r * 0.45f, cy + r * 0.85f);
+				ofEndShape(false);
+				ofBeginShape();
+				ofVertex(cx + r * 0.45f, cy - r * 0.85f);
+				ofVertex(cx + r * 1.05f, cy);
+				ofVertex(cx + r * 0.45f, cy + r * 0.85f);
+				ofEndShape(false);
+				ofFill();
+				break;
+			case ICON_CORNERS:
+			{
+				// The corner-pin quad, keystoned so it reads as a projection.
+				const float top = r * 0.62f, bottom = r;
+				ofNoFill();
+				ofBeginShape();
+				ofVertex(cx - top, cy - r * 0.8f);
+				ofVertex(cx + top, cy - r * 0.8f);
+				ofVertex(cx + bottom, cy + r * 0.8f);
+				ofVertex(cx - bottom, cy + r * 0.8f);
+				ofEndShape(true);
+				ofFill();
+				ofDrawRectangle(cx - top - 1.5f, cy - r * 0.8f - 1.5f, 3.0f, 3.0f);
+				ofDrawRectangle(cx + top - 1.5f, cy - r * 0.8f - 1.5f, 3.0f, 3.0f);
+				ofDrawRectangle(cx + bottom - 1.5f, cy + r * 0.8f - 1.5f, 3.0f, 3.0f);
+				ofDrawRectangle(cx - bottom - 1.5f, cy + r * 0.8f - 1.5f, 3.0f, 3.0f);
+				break;
+			}
+			case ICON_PENCIL:
+			{
+				// Body and tip built off one axis. Drawn as a bare diagonal
+				// with a tiny triangle first, it just read as a slash: the tip
+				// has to be wide enough to see next to a thick body.
+				const ofVec2f axis(0.7071f, -0.7071f);
+				const ofVec2f side(0.7071f, 0.7071f);
+				const ofVec2f tip(cx - r * 0.9f, cy + r * 0.9f);
+				const ofVec2f neck = tip + axis * 4.2f;
+				ofDrawTriangle(tip.x, tip.y,
+					neck.x + side.x * 2.4f, neck.y + side.y * 2.4f,
+					neck.x - side.x * 2.4f, neck.y - side.y * 2.4f);
+				ofSetLineWidth(hovered ? 4.0f : 3.4f);
+				ofDrawLine(neck.x, neck.y,
+					cx + r * 0.85f, cy - r * 0.85f);
+				break;
+			}
+			case ICON_CAMERA:
+				ofDrawRectangle(cx - r * 0.35f, cy - r * 0.95f, r * 0.7f, 2.0f);
+				ofNoFill();
+				ofDrawRectRounded(cx - r, cy - r * 0.6f, r * 2.0f, r * 1.55f, 2.0f);
+				ofDrawCircle(cx, cy + r * 0.18f, r * 0.42f);
+				ofFill();
+				break;
+			}
+			if (!tooltip.empty())
+				jp_tooltip::draw(tooltip, left,
+					button.y - button.height * 0.5f,
+					button.width, button.height);
+			drawInspectorClickBounds(button);
+		};
+		drawHeaderIcon(inspectorrandom, ICON_DICE, COL_TEXT_SECONDARY,
 			COL_ACCENT_CYAN, "Randomize parameters");
-		drawHeaderAction(inspectordefault, "DEF", COL_TEXT_SECONDARY,
+		drawHeaderIcon(inspectordefault, ICON_REVERT, COL_TEXT_SECONDARY,
 			COL_ACCENT_CYAN, "Restore unlocked parameter defaults");
-		drawHeaderAction(inspectorsavedefault, "SET DEF", COL_ACCENT_GOLD_DIM,
+		drawHeaderIcon(inspectorsavedefault, ICON_PIN, COL_ACCENT_GOLD_DIM,
 			COL_ACCENT_GOLD, "Save current values as defaults");
-		drawHeaderAction(camerarefreshbutton,
-			inspectorBox->getTipo() == inspectorBox->KINECT2BOX ? "RETRY" : "SCAN",
+		drawHeaderIcon(camerarefreshbutton, ICON_CAMERA,
 			COL_TEXT_SECONDARY, COL_ACCENT_CYAN,
 			inspectorBox->getTipo() == inspectorBox->KINECT2BOX ?
 				"Reconnect the Kinect v2" :
 				"Rescan cameras connected after startup");
-		drawHeaderAction(editbutton, "EDIT", COL_ACCENT_GOLD_DIM,
+		drawHeaderIcon(editbutton, ICON_CODE, COL_ACCENT_GOLD_DIM,
 			COL_ACCENT_GOLD, "Edit shader source");
-		drawHeaderAction(mappingbutton, "MAP",
+		drawHeaderIcon(mappingbutton, ICON_CORNERS,
 			mappingEditActive ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY,
 			COL_ACCENT_CYAN, "Edit mapping corners");
-		drawHeaderAction(paintbutton, "PAINT",
+		drawHeaderIcon(paintbutton, ICON_PENCIL,
 			paintEditActive ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY,
 			COL_ACCENT_CYAN, "Open the drawing and animation editor");
 		// Same on/off treatment MAP uses: drawHeaderAction has no notion of a
