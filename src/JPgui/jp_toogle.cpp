@@ -216,17 +216,22 @@ void JPToogle::draw()
 	// rebuild creates a fresh JPToogle.
 	const bool eventDrivenPatternButton =
 		useTexture && textureindex == IDAYVUELTA;
-	if (!eventDrivenPatternButton && ofGetMousePressed() && mouseOver() &&
-		activable && activable2)
+	// Latch where the press began, on the frame it begins.
+	const bool pressed = ofGetMousePressed();
+	if (pressed && !pressWasDown) pressStartedHere = mouseOver();
+	pressWasDown = pressed;
+	if (!eventDrivenPatternButton && pressed && pressStartedHere &&
+		mouseOver() && activable && activable2)
 	{
 		activeFlag = true;
 		activable = false;
 		update_movtype();
 	}
 
-	if (!ofGetMousePressed())
+	if (!pressed)
 	{
 		activable = true;
+		pressStartedHere = false;
 	}
 
 	if (activeFlag)

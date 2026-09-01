@@ -27,6 +27,17 @@ public:
 	void drawAsSwitch(); // Esto es para poner dentro de una funcion directamente el trigger
 
 	bool activable; // VARIABLE DE CONTROL
+	// A press only counts for this control if it STARTED on it. Without this,
+	// holding the button anywhere - dragging a cable out of a box' OUT, moving a
+	// box, sweeping a marquee - and passing over a toggle fired it, because the
+	// test was just "pressed AND hovered".
+	//
+	// Both default to a press already in progress, so a toggle built while the
+	// button is down stays disarmed until it has seen a full release: a
+	// controller rebuild mid-press must not hand a live press to a fresh
+	// object.
+	bool pressWasDown = true;
+	bool pressStartedHere = false;
 
 	int textureindex;
 
