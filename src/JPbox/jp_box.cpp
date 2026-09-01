@@ -302,40 +302,38 @@ void JPbox::draw()
 	bool bypassMouseOver = bypass.mouseOver();
 	bool onoffMouseOver = onoff.mouseOver();
 
+	// One drawing path for both header toggles, because only their COLOURS are
+	// meant to differ and the two had drifted: bypass lerped its hover 0.35
+	// against pause's 0.25, kept its outline lit while active where pause only
+	// outlines on hover, and never set a line width of its own - so its border
+	// inherited whatever the previous drawer had left behind.
+	auto drawHeaderToggle = [](const JPToogle &toggle, bool hovered,
+		const ofColor &onColor, const ofColor &offColor)
+	{
+		ofSetRectMode(OF_RECTMODE_CENTER);
+		ofColor fill = toggle.boolValue ? onColor : offColor;
+		if (hovered) fill = fill.getLerped(COL_TEXT_PRIMARY, 0.25);
+		ofSetColor(fill);
+		ofDrawRectangle(toggle.x, toggle.y, toggle.width, toggle.height);
+		if (hovered)
+		{
+			ofNoFill();
+			ofSetColor(toggle.boolValue ? ofColor(COL_TEXT_PRIMARY, 220) :
+				ofColor(COL_BG_INPUT, 220));
+			ofSetLineWidth(1);
+			ofDrawRectangle(toggle.x, toggle.y, toggle.width, toggle.height);
+			ofFill();
+		}
+	};
+
 	bypass.draw();
-	ofSetRectMode(OF_RECTMODE_CENTER);
-	ofColor bypassColor = bypass.boolValue ? COL_ACCENT_RED : COL_ACCENT_RED_DIM;
-	if (bypassMouseOver)
-	{
-		bypassColor = bypassColor.getLerped(COL_TEXT_PRIMARY, 0.35);
-	}
-	ofSetColor(bypassColor);
-	ofDrawRectangle(bypass.x, bypass.y, bypass.width, bypass.height);
-	if (bypass.boolValue || bypassMouseOver)
-	{
-		ofNoFill();
-		ofSetColor(bypass.boolValue ? ofColor(COL_TEXT_PRIMARY, 255) : ofColor(COL_TEXT_PRIMARY, 200));
-		ofDrawRectangle(bypass.x, bypass.y, bypass.width, bypass.height);
-		ofFill();
-	}
+	drawHeaderToggle(bypass, bypassMouseOver,
+		COL_ACCENT_RED, COL_ACCENT_RED_DIM);
 	onoff.draw();
-	ofSetRectMode(OF_RECTMODE_CENTER);
 	// Semantic: playing (onoff true) = green (live), paused = amber.
-	ofColor onoffColor = onoff.boolValue ? COL_ACCENT_GREEN : COL_ACCENT_GOLD_DIM;
-	if (onoffMouseOver)
-	{
-		onoffColor = onoffColor.getLerped(COL_TEXT_PRIMARY, 0.25);
-	}
-	ofSetColor(onoffColor);
-	ofDrawRectangle(onoff.x, onoff.y, onoff.width, onoff.height);
-	if (onoffMouseOver)
-	{
-		ofNoFill();
-		ofSetColor(onoff.boolValue ? ofColor(COL_TEXT_PRIMARY, 220) : ofColor(COL_BG_INPUT, 220));
-		ofSetLineWidth(1);
-		ofDrawRectangle(onoff.x, onoff.y, onoff.width, onoff.height);
-		ofFill();
-	}
+	drawHeaderToggle(onoff, onoffMouseOver,
+		COL_ACCENT_GREEN, COL_ACCENT_GOLD_DIM);
+
 	// Tooltips.
 	//
 	// drawFor rather than draw: these anchors are in CANVAS space and the hover
