@@ -228,6 +228,12 @@ public:
 		double physY = 0.0;
 		double physW = 0.0;
 		double physH = 0.0;
+		// Quarter turns applied when drawing into this window, for a projector
+		// or a screen mounted rotated. 0, 90, 180 or 270, clockwise. At 90 and
+		// 270 the render is drawn at the window's height x width and turned
+		// into place, so a 1080x1920 portrait output shows the full landscape
+		// canvas instead of a cropped middle.
+		int rotationDegrees = 0;
 		// Alignment aid: replaces the content with a calibration pattern.
 		bool testPattern = false;
 		// Opens as an ordinary window at width x height with no matching
@@ -752,6 +758,7 @@ public:
 		ofRectangle monitorButton;
 		ofRectangle windowModeButton;
 		ofRectangle fullscreenModeButton;
+		ofRectangle rotationButtons[4];
 		ofRectangle widthField;
 		ofRectangle heightField;
 		// Wall tab. fieldRects is indexed by LiveOutputField so the draw code,

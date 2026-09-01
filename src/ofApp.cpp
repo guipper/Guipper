@@ -3055,6 +3055,11 @@ ofApp::getLiveOutputSettingsLayout() const
 		layout.heightField.set(
 			controlX + controlW * 0.5f + 3.0f, rowY,
 			controlW * 0.5f - 3.0f, 28.0f);
+		rowY += 47.0f;
+		const float rotW = (controlW - 9.0f) * 0.25f;
+		for (int i = 0; i < 4; i++)
+			layout.rotationButtons[i].set(
+				controlX + i * (rotW + 3.0f), rowY, rotW, 28.0f);
 	}
 	else
 	{
@@ -4025,12 +4030,13 @@ void ofApp::drawLiveOutputSettings()
 			layout.sourceButton.getBottom() - 7.0f,
 			layout.monitorButton.getBottom() - 7.0f,
 			layout.windowModeButton.getBottom() - 7.0f,
-			layout.widthField.getBottom() - 7.0f
+			layout.widthField.getBottom() - 7.0f,
+			layout.rotationButtons[0].getBottom() - 7.0f
 		};
 		const char *labels[] = {
-			"Enabled", "Source", "Monitor", "Mode", "Resolution"
+			"Enabled", "Source", "Monitor", "Mode", "Resolution", "Rotation"
 		};
-		for (int i = 0; i < 5; i++)
+		for (int i = 0; i < 6; i++)
 		{
 			ofSetColor(COL_TEXT_SECONDARY);
 			font_p.drawString(labels[i], labelX, labelYs[i]);
@@ -4071,6 +4077,11 @@ void ofApp::drawLiveOutputSettings()
 		drawControl(layout.heightField,
 			liveOutputFieldText[1],
 			focusedLiveOutputField == 1, config.fullscreen);
+		static const int kRotations[4] = {0, 90, 180, 270};
+		for (int i = 0; i < 4; i++)
+			drawControl(layout.rotationButtons[i],
+				ofToString(kRotations[i]) + "\u00b0",
+				config.rotationDegrees == kRotations[i]);
 			if (focusedLiveOutputField >= 0 && !config.fullscreen)
 			{
 				const ofRectangle &field = focusedLiveOutputField == 0 ?
@@ -4132,6 +4143,12 @@ void ofApp::drawLiveOutputSettings()
 			layout.windowModeButton.x, layout.windowModeButton.y,
 			layout.windowModeButton.width,
 			layout.windowModeButton.height);
+		jp_tooltip::draw("Turn the render inside this window, for a screen "
+			"or projector mounted rotated",
+			layout.rotationButtons[0].x, layout.rotationButtons[0].y,
+			layout.rotationButtons[3].getRight() -
+				layout.rotationButtons[0].x,
+			layout.rotationButtons[0].height);
 		jp_tooltip::draw("Use the monitor native fullscreen mode",
 			layout.fullscreenModeButton.x,
 			layout.fullscreenModeButton.y,
@@ -4942,6 +4959,19 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 			saveSettings();
 		}
 		return true;
+	}
+	{
+		static const int kRotations[4] = {0, 90, 180, 270};
+		for (int i = 0; i < 4; i++)
+		{
+			if (!layout.rotationButtons[i].inside(x, y)) continue;
+			// No window recreation: the rotation only changes how the render is
+			// drawn INTO the window, not the window itself. A portrait
+			// projector is already reporting a portrait resolution.
+			output.config.rotationDegrees = kRotations[i];
+			saveSettings();
+			return true;
+		}
 	}
 	if (!output.config.fullscreen &&
 		(layout.widthField.inside(x, y) ||
@@ -7874,6 +7904,12 @@ void ofApp::loadSettings() {
 				floatValue(outputNode, "phys_w", 0.0));
 			output.config.physH = std::max(0.0,
 				floatValue(outputNode, "phys_h", 0.0));
+			// Snapped to a quarter turn: a hand edited file with anything
+			// else would rotate the image off the window with no way to see
+			// what happened.
+			const int storedRotation = intValue(outputNode, "rotation", 0);
+			output.config.rotationDegrees =
+				((storedRotation / 90) % 4 + 4) % 4 * 90;
 			output.config.testPattern = boolValue(
 				outputNode, "test_pattern", false);
 			output.config.virtualMonitor = boolValue(
@@ -8057,6 +8093,7 @@ void ofApp::saveSettings() {
 		outputNode.appendChild("phys_y").set(ofToString(config.physY, 4));
 		outputNode.appendChild("phys_w").set(ofToString(config.physW, 4));
 		outputNode.appendChild("phys_h").set(ofToString(config.physH, 4));
+		outputNode.appendChild("rotation").set(config.rotationDegrees);
 		outputNode.appendChild("test_pattern").set(
 			toXmlString(config.testPattern));
 		outputNode.appendChild("virtual_monitor").set(
@@ -8160,11 +8197,29 @@ void ofApp::window_drawRender(ofEventArgs & args) {
 	}
 
 	const LiveOutputConfig &config = liveOutputs[index].config;
-	const float width = liveOutputs[index].window->getWidth();
-	const float height = liveOutputs[index].window->getHeight();
-	jp_gl::resetWindowDrawState(width, height);
+	const float windowW = liveOutputs[index].window->getWidth();
+	const float windowH = liveOutputs[index].window->getHeight();
+	jp_gl::resetWindowDrawState(windowW, windowH);
 	ofClear(0, 0, 0, 255);
 	ofSetColor(255);
+
+	// Everything below draws into a WIDTH x HEIGHT frame that is then turned
+	// into the window. On a quarter turn the two swap, so a portrait window
+	// gets the whole landscape canvas rather than a cropped middle. The
+	// rotation wraps the mapping overlay and the test pattern too: a guide that
+	// did not turn with its image would be worse than none.
+	const int rotation = ((config.rotationDegrees / 90) % 4 + 4) % 4 * 90;
+	const bool quarterTurn = rotation == 90 || rotation == 270;
+	const float width = quarterTurn ? windowH : windowW;
+	const float height = quarterTurn ? windowW : windowH;
+	ofPushMatrix();
+	if (rotation != 0)
+	{
+		ofTranslate(windowW * 0.5f, windowH * 0.5f);
+		ofRotateDeg((float)rotation);
+		ofTranslate(-width * 0.5f, -height * 0.5f);
+	}
+	struct MatrixGuard { ~MatrixGuard() { ofPopMatrix(); } } matrixGuard;
 	if (config.testPattern)
 	{
 		// Alignment mode: the pattern replaces the content entirely, so what
