@@ -44,6 +44,16 @@ namespace
 	float gClipClock = 0.0f;
 	float gNextRecoveryAttempt = 0.0f;
 	jp_audio::AudioSnapshot gSnapshot;
+// Drops in the last second, not since the stream opened.
+//
+// The cumulative count is nearly useless as a health readout: it always carries
+// the burst from start-up, while the window is being created and a composition
+// is loading, so the panel showed an alarming number that never changed and
+// never meant anything. What you actually want to know is whether audio is
+// being lost RIGHT NOW.
+unsigned long long gDroppedAtWindowStart = 0;
+unsigned long long gRecentDropped = 0;
+float gDropWindowStart = -1.0f;
 
 	void synthesize(float *block, std::size_t count, float &time, int mode)
 	{
@@ -291,7 +301,24 @@ void jp_audio::update()
 		}
 	}
 	copyAnalyzerSnapshot();
+
+	const float dropNow = ofGetElapsedTimef();
+	if (gDropWindowStart < 0.0f)
+	{
+		gDropWindowStart = dropNow;
+		gDroppedAtWindowStart = gQueue.dropped();
+	}
+	else if (dropNow - gDropWindowStart >= 1.0f)
+	{
+		const unsigned long long total = gQueue.dropped();
+		gRecentDropped = total >= gDroppedAtWindowStart ?
+			total - gDroppedAtWindowStart : 0;
+		gDroppedAtWindowStart = total;
+		gDropWindowStart = dropNow;
+	}
 }
+
+unsigned long long jp_audio::getRecentDroppedBlocks() { return gRecentDropped; }
 
 bool jp_audio::isRunning() { return gRunning; }
 std::string jp_audio::getStatus()

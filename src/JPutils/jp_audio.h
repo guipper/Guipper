@@ -141,6 +141,10 @@ public:
 	// Onset flashes for the meter: seconds since the last kick / snare.
 	static float secondsSinceKick();
 	static float secondsSinceSnare();
+	// Blocks lost in the last second. The snapshot's droppedBlocks is
+	// cumulative and therefore always carries the start-up burst; this is the
+	// one that answers "is audio being lost right now".
+	static unsigned long long getRecentDroppedBlocks();
 
 	// Called by ofApp's ofSoundStream listener. Public only because the
 	// listener needs it; nothing else should touch it.

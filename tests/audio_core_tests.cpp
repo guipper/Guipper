@@ -450,6 +450,54 @@ namespace
 			"refractory set before a reset still reaches the detector after it");
 	}
 
+	// A sound card with a DC offset is common and inaudible. It lands in FFT
+	// bin 0, and with no high-pass anywhere in this chain that constant used to
+	// sit inside the Low band forever - one of the five bins that make it up.
+	void testDirectCurrentIsNotBass()
+	{
+		jp_audio_internal::AudioAnalyzer analyzer;
+		analyzer.reset(SampleRate);
+		analyzer.setAutoGain(false);
+		analyzer.setNoiseGate(0.0001f);
+		feed(analyzer, 2.0f, [](float) { return 0.3f; });
+		expect(analyzer.snapshot().low < 0.05f,
+			"a DC offset must not read as bass");
+	}
+
+	// A drone, a held pad, a sustained sub - completely ordinary material, and
+	// the case the percentile normaliser is worst at. Its 10th percentile of a
+	// CONSTANT signal is that signal, so the floor walks up to meet the peak and
+	// the band degrades into a comparator that flips between 0 and 1 on noise.
+	void testSustainedMaterialDoesNotCollapseTheNormaliser()
+	{
+		jp_audio_internal::AudioAnalyzer analyzer;
+		analyzer.reset(SampleRate);
+		analyzer.setNoiseGate(0.0001f);
+		float lowest = 2.0f, highest = -1.0f;
+		std::array<float, 256> block{};
+		int sample = 0;
+		const int blocks = int(30.0f * SampleRate / block.size());
+		for (int b = 0; b < blocks; ++b)
+		{
+			for (std::size_t i = 0; i < block.size(); ++i)
+			{
+				const float t = float(sample++) / SampleRate;
+				block[i] = 0.5f * std::sin(2 * Pi * 60.0f * t);
+			}
+			analyzer.process(block.data(), block.size());
+			// Only the last third, once the floor has had time to climb.
+			if (b < blocks * 2 / 3) continue;
+			const float value = analyzer.sourceValue(0, 0);
+			lowest = std::min(lowest, value);
+			highest = std::max(highest, value);
+		}
+		expect(highest - lowest < 0.02f,
+			"a steady tone must not leave the low band twitching");
+		// The other half of the promise: do not "fix" the twitch by letting
+		// sustained material decay to nothing. It is loud, and it should say so.
+		expect(highest > 0.8f, "a steady loud tone must still read as loud");
+	}
+
 	void testDiagnosticsExplainTheDetectors()
 	{
 		jp_audio_internal::AudioAnalyzer analyzer;
@@ -482,6 +530,8 @@ int main()
 	testTuningSettersClamp();
 	testTuningSurvivesResetButFilterStateDoesNot();
 	testApplyTuningReachesTheDetector();
+	testDirectCurrentIsNotBass();
+	testSustainedMaterialDoesNotCollapseTheNormaliser();
 	testDiagnosticsExplainTheDetectors();
 	testBandSeparationAndSweep();
 	testNoiseCalibrationAndClippingSignal();

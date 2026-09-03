@@ -622,8 +622,12 @@ void ofApp::draw_audio()
 	small.drawString("peak in: " + ofToString(snapshot.inputPeak, 3) +
 		(snapshot.clipping ? "   CLIPPING" : ""), L.rightColumn.x, statusY);
 	statusY += 14.0f;
-	small.drawString("dropped blocks: " +
-		ofToString((long long)snapshot.droppedBlocks), L.rightColumn.x, statusY);
+	const unsigned long long recentDrops = jp_audio::getRecentDroppedBlocks();
+	ofSetColor(recentDrops > 0 ? COL_ACCENT_RED : COL_TEXT_MUTED);
+	small.drawString("dropped: " + ofToString((long long)recentDrops) +
+		"/s   (" + ofToString((long long)snapshot.droppedBlocks) +
+		" since start)", L.rightColumn.x, statusY);
+	ofSetColor(COL_TEXT_MUTED);
 	statusY += 14.0f;
 	if (snapshot.tempoConfidence > 0.0f)
 	{

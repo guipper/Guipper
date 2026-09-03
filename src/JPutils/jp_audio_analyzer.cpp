@@ -13,7 +13,10 @@ namespace jp_audio_internal
 		constexpr int FluxHistory = 43;
 		constexpr float Pi = 3.14159265358979323846f;
 		constexpr float TriggerWidth = 0.040f;
-		constexpr float AttackTau = 0.008f;
+		// How far the percentile window is allowed to close, as a fraction of the
+	// band's own peak. See normalize().
+	constexpr float MinNormalizeSpan = 0.25f;
+	constexpr float AttackTau = 0.008f;
 		constexpr float ReleaseTau = 0.250f;
 
 		template <typename T> T clampValue(T value, T low, T high)
@@ -63,6 +66,8 @@ namespace jp_audio_internal
 		Band low, mid, high, level;
 		Onset kick, snare;
 		std::array<float, SpectrumBins> spectrum{};
+		// DC blocker state. DSP memory, so it belongs here and reset() wipes it.
+		float dcPrevIn = 0.0f, dcPrevOut = 0.0f;
 		// The shaping stage's own state. This is DSP memory, NOT configuration:
 		// it belongs in Impl precisely so reset() wipes it. Leaving a smoothed
 		// value alive across a device change would keep feeding the old level to
@@ -188,9 +193,25 @@ namespace jp_audio_internal
 	void AudioAnalyzer::process(const float *samples, std::size_t count)
 	{
 		if (samples == nullptr) return;
+		// DC blocker, ahead of everything.
+		//
+		// A sound card with a standing offset is common and completely
+		// inaudible, but it is not harmless here: it lands in FFT bin 0, and the
+		// Hann window spreads it across bins 1 and 2 as well - which ARE real
+		// bass. Excluding bin 0 alone does not remove it, so the offset used to
+		// read as a permanent floor under the Low band and, worse, as a level
+		// the noise gate had to clear.
+		//
+		// One-pole high pass at about 4 Hz, far below the 20 Hz the lowest band
+		// starts at, so nothing musical is touched.
+		Impl &s = *impl_;
 		for (std::size_t i = 0; i < count; ++i)
 		{
-			impl_->input[impl_->fill++] = samples[i];
+			const float in = samples[i];
+			const float out = in - s.dcPrevIn + 0.9995f * s.dcPrevOut;
+			s.dcPrevIn = in;
+			s.dcPrevOut = out;
+			impl_->input[impl_->fill++] = out;
 			if (impl_->fill != Window) continue;
 			analyzeHop(impl_->input.data());
 			std::move(impl_->input.begin() + Hop, impl_->input.end(), impl_->input.begin());
@@ -245,11 +266,45 @@ namespace jp_audio_internal
 			return clampValue(int(clampValue(hz, 0.0f, s.sampleRate * 0.5f) /
 				(s.sampleRate * 0.5f) * (Window / 2)), 0, Window / 2);
 		};
+		// Band energy, averaged in LOG frequency rather than linear.
+		//
+		// Two things were wrong with the plain mean this replaces.
+		//
+		// It divided by the bin count, and the bands are wildly uneven: Low is
+		// 5 bins wide, Mid 37, High 299. Above roughly 8 kHz real music carries
+		// almost nothing, but those ~150 near-empty bins counted for as much in
+		// High's divisor as the ones that matter - so High sat permanently
+		// squashed against its floor while Low did not. Averaging equal-RATIO
+		// slices instead gives every octave the same say, which is also how
+		// hearing works.
+		//
+		// And it started at bin 0, which is DC. That is now removed upstream by
+		// the high pass in process(); excluding the bin here is belt and braces,
+		// since a meaningless bin has no business in a band average.
 		auto energy = [&](float lowHz, float highHz) {
-			const int low = binForHz(lowHz), high = std::max(low + 1, binForHz(highHz));
-			float sum = 0.0f;
-			for (int i = low; i < high && i < int(s.magnitude.size()); ++i) sum += s.magnitude[i];
-			return std::log10(1.0f + 40.0f * sum / std::max(1, high - low));
+			constexpr int Slices = 8;
+			const float ratio =
+				std::pow(highHz / std::max(1.0f, lowHz), 1.0f / float(Slices));
+			float total = 0.0f;
+			int counted = 0;
+			float edge = lowHz;
+			for (int slice = 0; slice < Slices; ++slice)
+			{
+				const float next = edge * ratio;
+				const int low = std::max(1, binForHz(edge));
+				const int high = std::max(low + 1, binForHz(next));
+				float sum = 0.0f;
+				int bins = 0;
+				for (int i = low; i < high && i < int(s.magnitude.size()); ++i)
+				{
+					sum += s.magnitude[i];
+					++bins;
+				}
+				if (bins > 0) { total += sum / float(bins); ++counted; }
+				edge = next;
+			}
+			return std::log10(1.0f + 40.0f *
+				(counted > 0 ? total / float(counted) : 0.0f));
 		};
 		auto normalize = [&](Impl::Band &band, float value) {
 			band.raw = value;
@@ -269,8 +324,25 @@ namespace jp_audio_internal
 			band.peak += (peak - band.peak) * adapt;
 			band.peak = std::max(band.peak, value);
 			band.floor += (floor - band.floor) * adapt;
-			return band.norm = clampValue((value - band.floor) /
-				std::max(0.0001f, band.peak - band.floor), 0.0f, 1.0f);
+			// Hold the window open.
+			//
+			// The 10th percentile of a CONSTANT signal is that signal, so a
+			// drone or a held pad walks the floor up to meet the peak: measured
+			// on a sustained 60 Hz tone the span fell from 0.59 to 0.12 in five
+			// seconds and kept going. Once it reaches zero the band is no longer
+			// a level, it is a comparator - the faintest ripple reads as full
+			// scale, which is the "everything is pinned at 1.0" complaint.
+			//
+			// Clamping the span to a fraction of the peak and anchoring it under
+			// the peak means sustained material reads as loud and steady, which
+			// is what it is. It is a no-op whenever the window is genuinely
+			// open: with peak - floor above the fraction, floorAt IS floor and
+			// the arithmetic is unchanged.
+			const float span = std::max(band.peak - band.floor,
+				band.peak * MinNormalizeSpan);
+			const float floorAt = band.peak - span;
+			return band.norm = clampValue((value - floorAt) /
+				std::max(0.0001f, span), 0.0f, 1.0f);
 		};
 		auto lag = [&](Impl::Band &band) {
 			const float tau = band.norm > band.lagged ? AttackTau : ReleaseTau;
