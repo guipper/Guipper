@@ -140,6 +140,76 @@ namespace
 		return parameter.lastMovtype == JPParameter::OSC;
 	}
 
+	// Right click walks a cycling chip backwards. The risk is entirely in the
+	// arithmetic: C++'s % keeps the sign of the dividend, so a naive step of -1
+	// at the bottom of a ring lands on -1 instead of the last value.
+	bool cycleStepBackWorks()
+	{
+		JPParameter parameter;
+		parameter.setup(0.5f, "cycle-back-test");
+
+		// Bottom of each ring must wrap to its top, not to -1.
+		parameter.audioSource = jp_audio::SRC_LOW;
+		parameter.cycleAudioSource(-1);
+		if (parameter.audioSource != int(jp_audio::SRC_COUNT) - 1) return false;
+		parameter.audioDiv = 0;
+		parameter.cycleAudioDiv(-1);
+		if (parameter.audioDiv != int(jp_audio::DIV_COUNT) - 1) return false;
+		parameter.bpmRate = JPParameter::BPM_RATE_QUARTER;
+		parameter.cycleBpmRate(-1);
+		if (parameter.bpmRate != JPParameter::BPM_RATE_QUADRUPLE) return false;
+		parameter.setAutomationMode(JPParameter::OSC);
+		parameter.cycleAutomationPattern(-1);
+		if (parameter.movtype != JPParameter::GOIZQ) return false;
+
+		// Forward then back is the identity, from every value of every ring.
+		for (int i = 0; i < int(jp_audio::SRC_COUNT); ++i)
+		{
+			parameter.audioSource = i;
+			parameter.cycleAudioSource(1);
+			parameter.cycleAudioSource(-1);
+			if (parameter.audioSource != i) return false;
+		}
+		for (int i = 0; i < int(jp_audio::DIV_COUNT); ++i)
+		{
+			parameter.audioDiv = i;
+			parameter.cycleAudioDiv(1);
+			parameter.cycleAudioDiv(-1);
+			if (parameter.audioDiv != i) return false;
+		}
+		for (int i = JPParameter::BPM_RATE_QUARTER;
+			i <= JPParameter::BPM_RATE_QUADRUPLE; ++i)
+		{
+			parameter.bpmRate = i;
+			parameter.cycleBpmRate(1);
+			parameter.cycleBpmRate(-1);
+			if (parameter.bpmRate != i) return false;
+		}
+		const int patterns[] = {JPParameter::OSC, JPParameter::RANDOM,
+			JPParameter::GODER, JPParameter::GOIZQ};
+		for (int pattern : patterns)
+		{
+			parameter.setAutomationMode(pattern);
+			parameter.cycleAutomationPattern(1);
+			parameter.cycleAutomationPattern(-1);
+			if (parameter.movtype != pattern) return false;
+		}
+
+		// Off the pattern ring, either direction enters it at OSC - the modes
+		// with their own buttons must not be reachable by walking backwards.
+		parameter.setAutomationMode(JPParameter::STANDART);
+		parameter.cycleAutomationPattern(-1);
+		if (parameter.movtype != JPParameter::OSC) return false;
+
+		// Loop mode is the same ring shape, in another file.
+		JPMediaState media;
+		media.loopMode = JPMediaLoopMode::Once;
+		jp_media::cycleLoopMode(media, -1);
+		if ((int)media.loopMode != 2) return false;
+		jp_media::cycleLoopMode(media, 1);
+		return media.loopMode == JPMediaLoopMode::Once;
+	}
+
 	bool rangeCaptureWorks()
 	{
 		JPParameter parameter;
@@ -456,6 +526,7 @@ bool jp_persistence_test::run(ofApp &app)
 	}
 
 	const bool modeMemory = automationModeMemoryWorks();
+	const bool cycleStepBack = cycleStepBackWorks();
 	const bool rangeCapture = rangeCaptureWorks();
 	const bool lockDefault = lockAndDefaultWork();
 	bool mediaState = false, mediaAlpha = false, mediaMotionClear = false,
@@ -4831,6 +4902,7 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " shaderReload=" << shaderReload
 		<< " feedbackFrames=" << feedbackFrames
 		<< " modeMemory=" << modeMemory
+		<< " cycleStepBack=" << cycleStepBack
 		<< " rangeCapture=" << rangeCapture
 		<< " midiRange=" << midiRange
 		<< " midiAudioAmount=" << midiAudioAmount
@@ -4884,7 +4956,8 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " overlayChain=" << overlayChain
 		<< " overlayOrder=" << overlayOrder
 		<< " overlaySchedule=" << overlaySchedule;
-	return current && old && clamped && shaderReload && feedbackFrames && modeMemory &&
+	return current && old && clamped && shaderReload && feedbackFrames &&
+		modeMemory && cycleStepBack &&
 		rangeCapture && midiRange && midiAudioAmount && oscIndexed && cueState && lockDefault && mediaState &&
 		mediaBoundary && mediaAlpha && mediaMotionClear && mediaStraightMix &&
 		mediaSingleComposite && mediaPausePreserves && mediaTransforms &&

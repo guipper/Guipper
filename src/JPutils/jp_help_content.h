@@ -197,6 +197,8 @@ namespace jp_help
 			Scope::Nodes, "up down"),
 		N("Animated GIF and video inspectors provide transport, IN/OUT range, Once/Loop/Ping-pong, speed and direction. Videos start muted.",
 			"Los inspectores de GIF animado y video incluyen transporte, rango IN/OUT, Once/Loop/Ping-pong, velocidad y dirección. Los videos comienzan silenciados."),
+		E("Right click on a cycling button", "Any button that advances through a list of values on click steps BACK on right click: audio source, audio division, BPM rate, automation pattern, Once/Loop/Ping-pong, layer blend, symmetry and onion skin, and the cycling buttons in SETTINGS",
+			"Cualquier botón que avance por una lista de valores al hacer clic RETROCEDE con el clic derecho: fuente de audio, división de audio, BPM rate, patrón de automatización, Once/Loop/Ping-pong, blend de capa, simetría y papel cebolla, y los botones cíclicos de SETTINGS"),
 		GAP(),
 
 		// ------------------------------------------------------------------

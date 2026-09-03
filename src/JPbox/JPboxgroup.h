@@ -236,7 +236,7 @@ public:
 	// to the global shortcuts and delete the selected box mid-edit.
 	bool wantsKeyCapture() const;
 	bool handleInspectorRangeShortcut(int key);
-	bool handleMediaInspectorClick();
+	bool handleMediaInspectorClick(int mouseButton);
 	void commitTabRename();
 	void cancelTabRename();
 
@@ -673,7 +673,10 @@ private:
 	float layoutInspectorInputRows(JPbox *box, float startY);
 	void drawInspectorInputRows(JPbox *box);
 	bool handleInspectorInputClick(JPbox *box);
-	bool handleInspectorAutomationClick();
+	// mouseButton is threaded in because the cycling chips (BPM rate, audio
+	// source, audio division, automation pattern) step BACKWARDS on a right
+	// click. Every other control in here stays left-only.
+	bool handleInspectorAutomationClick(int mouseButton);
 	bool handleInspectorLockClick();
 	bool handleInspectorRangeClick();
 	bool moveInspectorInputUp(JPbox *box, int linkIndex);

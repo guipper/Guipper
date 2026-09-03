@@ -1735,13 +1735,17 @@ bool JPboxgroup::updateAdvancedMappingMousePressed(int mouseButton)
 			return true;
 		}
 		if (action == ADVANCED_MAPPING_FIT &&
-			mouseButton == OF_MOUSE_BUTTON_LEFT)
+			(mouseButton == OF_MOUSE_BUTTON_LEFT ||
+			 mouseButton == OF_MOUSE_BUTTON_RIGHT))
 		{
 			// Cycles stretch -> contain -> cover. Stretch stays reachable
-			// because it is what existing compositions were built on.
+			// because it is what existing compositions were built on. A right
+			// click walks the ring the other way, as everywhere else.
+			const int count = JPbox_shader::ADVANCED_MAPPING_FIT_COUNT;
+			const int step = mouseButton == OF_MOUSE_BUTTON_RIGHT ?
+				count - 1 : 1;
 			auto &layer = state->layers[state->selectedLayer];
-			layer.fitMode = (layer.fitMode + 1) %
-				JPbox_shader::ADVANCED_MAPPING_FIT_COUNT;
+			layer.fitMode = (layer.fitMode + step) % count;
 			markAdvancedMappingChanged(box, state->selectedLayer, false);
 			return true;
 		}

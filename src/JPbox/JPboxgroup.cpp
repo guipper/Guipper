@@ -2960,10 +2960,16 @@ bool JPboxgroup::handleInspectorRangeClick()
 	return false;
 }
 
-bool JPboxgroup::handleInspectorAutomationClick()
+bool JPboxgroup::handleInspectorAutomationClick(int mouseButton)
 {
 	const ofVec2f mouse(ofGetMouseX(), ofGetMouseY());
 	if (!inspectorBodyContains(mouse.x, mouse.y)) return false;
+	// Right click walks a cycling chip the other way. Anything here that is NOT
+	// a ring - the mode buttons, the shaping drags, the collapse button - stays
+	// left-only, so a right click that lands on one falls through untouched and
+	// the canvas keeps its own right-button gestures.
+	const bool leftButton = mouseButton == OF_MOUSE_BUTTON_LEFT;
+	const int step = mouseButton == OF_MOUSE_BUTTON_RIGHT ? -1 : 1;
 	auto boundsFor = [](const JPdragobject &control)
 	{
 		return ofRectangle(
@@ -2986,7 +2992,7 @@ bool JPboxgroup::handleInspectorAutomationClick()
 			slider->boton_bpm.activable2 &&
 			boundsFor(slider->bpm_rate_button).inside(mouse))
 		{
-			parameter->cycleBpmRate();
+			parameter->cycleBpmRate(step);
 			parameter->update();
 			markCueDraftDirty(cueSelectedIndex());
 			if (isCueDraftMode())
@@ -2995,7 +3001,7 @@ bool JPboxgroup::handleInspectorAutomationClick()
 			}
 			return true;
 		}
-		if (parameter->bpmEligible &&
+		if (leftButton && parameter->bpmEligible &&
 			parameter->movtype != JPParameter::STANDART &&
 			slider->boton_bpm.activable2 &&
 			boundsFor(slider->boton_bpm).inside(mouse))
@@ -3014,14 +3020,16 @@ bool JPboxgroup::handleInspectorAutomationClick()
 
 		// AUDIO mode, mirroring the BPM pair above. Handle shaping controls
 		// before the persistent source/division row and the mode button.
-		if (parameter->audioEligible && parameter->movtype == JPParameter::AUDIO &&
+		if (leftButton && parameter->audioEligible &&
+			parameter->movtype == JPParameter::AUDIO &&
 			boundsFor(slider->audio_shape_button).inside(mouse))
 		{
 			parameter->audioShapingOpen = !parameter->audioShapingOpen;
 			setControllers();
 			return true;
 		}
-		if (parameter->audioEligible && parameter->movtype == JPParameter::AUDIO &&
+		if (leftButton && parameter->audioEligible &&
+			parameter->movtype == JPParameter::AUDIO &&
 			parameter->audioShapingOpen)
 		{
 			const int shapingControl = slider->audioShapingControlAt(
@@ -3051,7 +3059,7 @@ bool JPboxgroup::handleInspectorAutomationClick()
 			jp_audio::isRhythmSource(parameter->audioSource) &&
 			boundsFor(slider->audio_div_button).inside(mouse))
 		{
-			parameter->cycleAudioDiv();
+			parameter->cycleAudioDiv(step);
 			parameter->update();
 			markCueDraftDirty(cueSelectedIndex());
 			if (isCueDraftMode())
@@ -3064,7 +3072,7 @@ bool JPboxgroup::handleInspectorAutomationClick()
 			parameter->movtype == JPParameter::AUDIO &&
 			boundsFor(slider->audio_source_button).inside(mouse))
 		{
-			parameter->cycleAudioSource();
+			parameter->cycleAudioSource(step);
 			parameter->update();
 			markCueDraftDirty(cueSelectedIndex());
 			if (isCueDraftMode())
@@ -3075,7 +3083,7 @@ bool JPboxgroup::handleInspectorAutomationClick()
 			// not move when the source changes.
 			return true;
 		}
-		if (parameter->audioEligible &&
+		if (leftButton && parameter->audioEligible &&
 			parameter->movtype != JPParameter::STANDART &&
 			boundsFor(slider->boton_audio).inside(mouse))
 		{
@@ -3098,16 +3106,18 @@ bool JPboxgroup::handleInspectorAutomationClick()
 		if (parameter->movtype != JPParameter::STANDART &&
 			boundsFor(slider->boton_idayvuelta).inside(mouse))
 		{
-			parameter->cycleAutomationPattern();
+			parameter->cycleAutomationPattern(step);
 			parameter->update();
 			slider->boton_idayvuelta.activable = false;
 			markCueDraftDirty(cueSelectedIndex());
 			if (isCueDraftMode()) updateCueDraftGraph();
 			return true;
 		}
-		if (!boundsFor(slider->boton_collapse).inside(mouse))
+		if (!leftButton || !boundsFor(slider->boton_collapse).inside(mouse))
 		{
-			if (isCueDraftMode() &&
+			// Only a left press can be the start of a drag on one of these, so
+			// only a left press should stage the row in a cue draft.
+			if (leftButton && isCueDraftMode() &&
 				parameter->movtype != JPParameter::STANDART)
 			{
 				const bool overAutomationControl =
@@ -4610,11 +4620,23 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 	}
 }
 
-bool JPboxgroup::handleMediaInspectorClick()
+bool JPboxgroup::handleMediaInspectorClick(int mouseButton)
 {
 	auto *target=dynamic_cast<JPMediaInspectable *>(getInspectorBox());
 	if(target==nullptr || !mediaInspector.card.inside(ofGetMouseX(),ofGetMouseY()))return false;
 	JPMediaState&s=target->mediaState(); const ofVec2f m(ofGetMouseX(),ofGetMouseY());
+	// A right click reaches exactly one control here - the loop chip, which is a
+	// ring and so steps back - and is declined everywhere else, so the card does
+	// not start swallowing the inspector's own right-button gestures.
+	if(mouseButton==OF_MOUSE_BUTTON_RIGHT)
+	{
+		if(!target->mediaReady() || !mediaInspector.loop.inside(m))return false;
+		jp_media::cycleLoopMode(s,-1);
+		jp_media::normalize(s);
+		markCueDraftDirty(cueSelectedIndex());
+		if(isCueDraftMode())updateCueDraftGraph();
+		return true;
+	}
 	if(!target->mediaReady() && !mediaInspector.fit.inside(m))return true;
 	// Click-away releases the IN/OUT time field. It used to persist until ESC
 	// or Enter, which was invisible while nothing routed keys to it - now that
@@ -4696,8 +4718,13 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	}
 
 	JPbox *inputInspectorBox = getInspectorBox();
-	if (mouseButton == OF_MOUSE_BUTTON_LEFT && inputInspectorBox != nullptr &&
-		handleMediaInspectorClick()) return;
+	// Left OR right: the media card's loop chip cycles, so it takes a right
+	// click to step back. handleMediaInspectorClick itself decides what a right
+	// click may touch and returns false for everything else.
+	if ((mouseButton == OF_MOUSE_BUTTON_LEFT ||
+		mouseButton == OF_MOUSE_BUTTON_RIGHT) &&
+		inputInspectorBox != nullptr &&
+		handleMediaInspectorClick(mouseButton)) return;
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT && inputInspectorBox != nullptr &&
 		handleFinalOverlayInspectorClick()) return;
 	if (mouseButton == OF_MOUSE_BUTTON_LEFT && inputInspectorBox != nullptr &&
@@ -4730,11 +4757,23 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	{
 		return;
 	}
-	if (mouseButton == OF_MOUSE_BUTTON_LEFT &&
-		inputInspectorBox != nullptr && mouseOverGui() &&
-		handleInspectorAutomationClick())
+	// Left OR right: the four cycling chips step backwards on a right click.
+	if ((mouseButton == OF_MOUSE_BUTTON_LEFT ||
+		mouseButton == OF_MOUSE_BUTTON_RIGHT) &&
+		inputInspectorBox != nullptr && mouseOverGui())
 	{
-		return;
+		// A right press never reaches the commit in update_mouseReleased - that
+		// one bails as soon as it has cleared the pan - so a backwards cycle has
+		// to open and close its own undo step right here. Otherwise the pattern
+		// and BPM-rate chips would be undoable one way round and not the other.
+		const bool ownCapture = mouseButton == OF_MOUSE_BUTTON_RIGHT;
+		if (ownCapture) beginParameterCapture();
+		if (handleInspectorAutomationClick(mouseButton))
+		{
+			if (ownCapture) commitParameterCapture();
+			return;
+		}
+		if (ownCapture) pendingParams.clear();
 	}
 
 	// In group view mode: handle click on sub-box, deselect on empty space, and handle outlet dragging

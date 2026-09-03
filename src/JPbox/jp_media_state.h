@@ -223,9 +223,12 @@ namespace jp_media
 		s.reverse = s.userReverse;
 	}
 
-	inline void cycleLoopMode(JPMediaState &s)
+	// step +1 advances, -1 steps back (right click).
+	inline void cycleLoopMode(JPMediaState &s, int step = 1)
 	{
-		setLoopMode(s, (JPMediaLoopMode)(((int)s.loopMode + 1) % 3));
+		// % keeps the sign of the dividend, so the +3 is what makes -1 wrap to
+		// the last mode instead of landing on -1.
+		setLoopMode(s, (JPMediaLoopMode)(((int)s.loopMode + step % 3 + 3) % 3));
 	}
 
 	inline bool applyBoundary(JPMediaState &s, float &position)

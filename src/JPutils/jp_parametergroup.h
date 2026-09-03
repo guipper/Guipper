@@ -44,7 +44,8 @@ public:
 	void setAutomationMode(int mode);
 	void setLastAutomationMode(int mode);
 	void toggleAutomation();
-	void cycleAutomationPattern();
+	// step +1 advances, -1 steps back (right click). See wrapStep in the .cpp.
+	void cycleAutomationPattern(int step = 1);
 	void captureRangeStart();
 	void captureRangeEnd();
 	void setRangeStart(float value);
@@ -149,9 +150,9 @@ public:
 	bool bpmEligible;
 	bool needsUpdate;
 	float getBpmMultiplier() const;
-	void cycleBpmRate();
-	void cycleAudioSource();
-	void cycleAudioDiv();
+	void cycleBpmRate(int step = 1);
+	void cycleAudioSource(int step = 1);
+	void cycleAudioDiv(int step = 1);
 	// float speed;
 private:
 	bool dir;

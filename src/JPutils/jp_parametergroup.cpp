@@ -5,6 +5,22 @@
 #include <algorithm>
 #include <cmath>
 
+namespace
+{
+	// One step around a ring of `count` values. `step` may be negative: a right
+	// click walks a cycling chip BACKWARDS, and 14 audio sources is a long way
+	// round the other way.
+	//
+	// C++'s % keeps the sign of the dividend, so a naive `(value + step) % count`
+	// yields -1 instead of count-1 at the bottom of the ring. The `+ count` after
+	// reducing `step` is what closes that hole.
+	int wrapStep(int value, int count, int step)
+	{
+		if (count <= 0) return 0;
+		return (std::clamp(value, 0, count - 1) + step % count + count) % count;
+	}
+}
+
 void JPParameter::setup(float _var, string _name)
 
 {
@@ -89,23 +105,17 @@ float JPParameter::getBpmMultiplier() const
 	default: return 1.0f;
 	}
 }
-void JPParameter::cycleBpmRate()
+void JPParameter::cycleBpmRate(int step)
 {
-	bpmRate = (std::clamp(
-		bpmRate,
-		int(BPM_RATE_QUARTER),
-		int(BPM_RATE_QUADRUPLE)) + 1) %
-		(int(BPM_RATE_QUADRUPLE) + 1);
+	bpmRate = wrapStep(bpmRate, int(BPM_RATE_QUADRUPLE) + 1, step);
 }
-void JPParameter::cycleAudioSource()
+void JPParameter::cycleAudioSource(int step)
 {
-	audioSource = (std::clamp(audioSource, 0, int(jp_audio::SRC_COUNT) - 1) + 1) %
-		int(jp_audio::SRC_COUNT);
+	audioSource = wrapStep(audioSource, int(jp_audio::SRC_COUNT), step);
 }
-void JPParameter::cycleAudioDiv()
+void JPParameter::cycleAudioDiv(int step)
 {
-	audioDiv = (std::clamp(audioDiv, 0, int(jp_audio::DIV_COUNT) - 1) + 1) %
-		int(jp_audio::DIV_COUNT);
+	audioDiv = wrapStep(audioDiv, int(jp_audio::DIV_COUNT), step);
 }
 void JPParameter::update()
 {
@@ -398,16 +408,21 @@ void JPParameter::toggleAutomation()
 	}
 }
 
-void JPParameter::cycleAutomationPattern()
+void JPParameter::cycleAutomationPattern(int step)
 {
-	switch (movtype)
+	// The ring, in the order the button walks it. BPM and AUDIO are NOT in it:
+	// they have their own buttons, and this one must not be able to leave them.
+	static const int kPatterns[] = { OSC, RANDOM, GODER, GOIZQ };
+	const int count = int(sizeof(kPatterns) / sizeof(kPatterns[0]));
+	for (int i = 0; i < count; ++i)
 	{
-	case OSC:    setAutomationMode(RANDOM); break;
-	case RANDOM: setAutomationMode(GODER); break;
-	case GODER:  setAutomationMode(GOIZQ); break;
-	case GOIZQ:  setAutomationMode(OSC); break;
-	default:     setAutomationMode(OSC); break;
+		if (kPatterns[i] != movtype) continue;
+		setAutomationMode(kPatterns[wrapStep(i, count, step)]);
+		return;
 	}
+	// Anything off the ring (STANDART, BPM, AUDIO) enters it at OSC, whichever
+	// way the click was going - same as the switch this replaced.
+	setAutomationMode(OSC);
 }
 
 void JPParameter::captureRangeStart()

@@ -2835,12 +2835,20 @@ void ofApp::drawAudioSettings(const SettingsLayout &L)
 	ofPopStyle();
 }
 
-bool ofApp::handleAudioSettingsClick(int x, int y)
+bool ofApp::handleAudioSettingsClick(int x, int y, int button)
 {
 	const SettingsLayout L = getSettingsLayout();
 	const ofVec2f m((float)x, (float)y);
+	// Right click steps the cycling buttons BACKWARDS; everything else in here
+	// is left-only. It used to take no button at all, so a right click fired
+	// every one of these rows as if it were a left click.
+	const bool leftButton = button == OF_MOUSE_BUTTON_LEFT;
+	const bool cycleButton = leftButton || button == OF_MOUSE_BUTTON_RIGHT;
+	const int step = button == OF_MOUSE_BUTTON_RIGHT ? -1 : 1;
 
-	// An open dropdown overlays the rows under it, so it is tested first.
+	// An open dropdown overlays the rows under it, so it is tested first. It
+	// swallows ANY button: a right click with the menu up has to close it, not
+	// fall through to the panel behind.
 	if (audioMenuOpen)
 	{
 		const ofRectangle menu = getAudioMenuBounds();
@@ -2863,64 +2871,68 @@ bool ofApp::handleAudioSettingsClick(int x, int y)
 		return true;   // the dismissing click is consumed, not passed through
 	}
 
-	if (L.audioEnableButton.inside(m.x, m.y))
+	if (leftButton && L.audioEnableButton.inside(m.x, m.y))
 	{
 		jp_audio::setEnabled(!jp_audio::getEnabled());
 		saveSettings();
 		return true;
 	}
-	if (L.audioDeviceField.inside(m.x, m.y))
+	if (leftButton && L.audioDeviceField.inside(m.x, m.y))
 	{
 		jp_audio::refreshDevices();
 		audioMenuOpen = true;
 		return true;
 	}
-	if (L.audioDivButton.inside(m.x, m.y))
+	if (cycleButton && L.audioDivButton.inside(m.x, m.y))
 	{
 		jp_audio::setShaderDiv(
-			(jp_audio::getShaderDiv() + 1) % jp_audio::DIV_COUNT);
+			(jp_audio::getShaderDiv() + step + jp_audio::DIV_COUNT) %
+			jp_audio::DIV_COUNT);
 		saveSettings();
 		return true;
 	}
-	if (L.audioAutoGainButton.inside(m.x, m.y))
+	if (leftButton && L.audioAutoGainButton.inside(m.x, m.y))
 	{
 		jp_audio::setAutoGain(!jp_audio::getAutoGain());
 		saveSettings();
 		return true;
 	}
-	if (L.audioChannelButton.inside(m.x, m.y))
+	if (cycleButton && L.audioChannelButton.inside(m.x, m.y))
 	{
-		jp_audio::setChannelMode((jp_audio::getChannelMode() + 1) % jp_audio::CHANNEL_COUNT);
+		jp_audio::setChannelMode(
+			(jp_audio::getChannelMode() + step + jp_audio::CHANNEL_COUNT) %
+			jp_audio::CHANNEL_COUNT);
 		saveSettings();
 		return true;
 	}
-	if (L.audioCalibrateButton.inside(m.x, m.y))
+	if (leftButton && L.audioCalibrateButton.inside(m.x, m.y))
 	{
 		jp_audio::beginCalibration();
 		return true;
 	}
-	if (L.transitionDurationSlider.inside(m.x, m.y))
+	if (leftButton && L.transitionDurationSlider.inside(m.x, m.y))
 	{
 		transitionDurationDragging = true;
 		applyTransitionDurationFromMouse(m.x, L);
 		return true;
 	}
-	if (L.transitionTypeButton.inside(m.x, m.y))
+	if (cycleButton && L.transitionTypeButton.inside(m.x, m.y))
 	{
 		// Cycles rather than opening a menu: three values, and the label on the
 		// button already says which one you are on.
 		boxes.setTransitionType(
-			(boxes.getTransitionType() + 1) % TransitionSR::TYPE_COUNT);
+			(boxes.getTransitionType() + step + TransitionSR::TYPE_COUNT) %
+			TransitionSR::TYPE_COUNT);
 		return true;
 	}
-	if (L.audioGateSlider.inside(m.x, m.y))
+	if (leftButton && L.audioGateSlider.inside(m.x, m.y))
 	{
 		audioGateDragging = true;
 		jp_audio::setNoiseGate(ofClamp((m.x - L.audioGateSlider.x) /
 			L.audioGateSlider.width, 0.0f, 1.0f) * 0.25f);
 		return true;
 	}
-	if (L.audioGainSlider.inside(m.x, m.y))
+	if (leftButton && L.audioGainSlider.inside(m.x, m.y))
 	{
 		audioGainDragging = true;
 		const float t = ofClamp(
@@ -6859,7 +6871,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 	}
 	if (pantallaActiva == OPCIONES) {
 		// Audio first: an open device dropdown overlays the rows beneath it.
-		if (handleAudioSettingsClick(x, y)) {
+		if (handleAudioSettingsClick(x, y, button)) {
 			return;
 		}
 		if (handleLiveOutputSettingsClick(x, y, button)) {

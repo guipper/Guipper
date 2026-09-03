@@ -3854,6 +3854,65 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 		return true;
 	}
 
+	// Right click steps a CYCLING control backwards - the same rule the whole
+	// app follows. Only the rings are reachable this way; everything else in the
+	// panel stays left-only, which is what the guard below still enforces.
+	if (mouseButton == OF_MOUSE_BUTTON_RIGHT)
+	{
+		JPMediaState &state = box->mediaState();
+		for (int slot = 0; slot < PAINT_TRANSPORT_COUNT; ++slot)
+		{
+			if (!getPaintTransportBounds(slot).inside(mouse)) continue;
+			if (slot == PAINT_TRANSPORT_LOOP)
+				jp_media::cycleLoopMode(state, -1);
+			else if (slot == PAINT_TRANSPORT_SYMMETRY)
+			{
+				JPPaintDocument &doc = box->document();
+				doc.symmetry = (doc.symmetry + 3) % 4;
+			}
+			else if (slot == PAINT_TRANSPORT_ONION)
+			{
+				// Same three gestures the forward direction has: plain keeps
+				// both sides in step, Shift and Alt reach one side each.
+				JPPaintDocument &doc = box->document();
+				const bool beforeOnly = ofGetKeyPressed(OF_KEY_SHIFT);
+				const bool afterOnly = !beforeOnly && ofGetKeyPressed(OF_KEY_ALT);
+				if (beforeOnly) doc.onionBefore = (doc.onionBefore + 3) % 4;
+				else if (afterOnly) doc.onionAfter = (doc.onionAfter + 3) % 4;
+				else
+				{
+					const int next =
+						(std::max(doc.onionBefore, doc.onionAfter) + 3) % 4;
+					doc.onionBefore = next;
+					doc.onionAfter = next;
+				}
+			}
+			else return true; // not a ring: the right click does nothing.
+			markPaintChanged();
+			return true;
+		}
+		const int row = paintLayerRowAtScreen(mouse);
+		const int index = row >= 0 ? paintLayerAtRow(row) : -1;
+		if (index >= 0)
+		{
+			JPPaintLayerInfo props = box->document().layers[(std::size_t)index];
+			if (getPaintLayerBlendBounds(row).inside(mouse))
+			{
+				props.blendMode = (props.blendMode + 3) % 4;
+				box->setLayerProps(index, props);
+				markPaintChanged();
+			}
+			else if (getPaintLayerLabelBounds(row).inside(mouse))
+			{
+				// The ring is -1..7, so it is nine values, not eight.
+				props.labelColor = props.labelColor <= -1 ? 7 : props.labelColor - 1;
+				box->setLayerProps(index, props);
+				markPaintChanged();
+			}
+		}
+		return true;
+	}
+
 	if (mouseButton != OF_MOUSE_BUTTON_LEFT) return true;
 
 	if (getPaintDocIconBounds().inside(mouse))

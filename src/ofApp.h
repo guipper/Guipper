@@ -588,7 +588,7 @@ public:
 	bool audioGateDragging = false;
 	ofRectangle getAudioMenuBounds() const;
 	void drawAudioSettings(const SettingsLayout &L);
-	bool handleAudioSettingsClick(int x, int y);
+	bool handleAudioSettingsClick(int x, int y, int button);
 
 
 	// HELP, same idea. One layout feeds the draw pass, the language button's
