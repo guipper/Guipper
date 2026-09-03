@@ -632,6 +632,9 @@ void ofApp::draw() {
 	if (pantallaActiva == OPCIONES) {
 		draw_opciones();
 	}
+	if (pantallaActiva == AUDIO_DEBUG) {
+		draw_audio();
+	}
 	midiKeymap.drawMappingTargets();
 	if (pantallaActiva == MIDI_KEYMAP) {
 		midiKeymap.draw();
@@ -6665,6 +6668,10 @@ void ofApp::mouseDragged(int x, int y, int button) {
 		shaderEditor.mouseDragged(x, y, button);
 	}
 
+	if (pantallaActiva == AUDIO_DEBUG && audioDragRow >= 0) {
+		applyAudioTuningFromMouse(getAudioScreenLayout(), (float)x);
+		return;
+	}
 	if (pantallaActiva == OPCIONES) {
 		if (transitionDurationDragging) {
 			applyTransitionDurationFromMouse((float)x, getSettingsLayout());
@@ -6896,6 +6903,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 			return;
 		}
 	}
+	if (pantallaActiva == AUDIO_DEBUG) {
+		if (handleAudioScreenClick(x, y, button)) return;
+	}
 	if (pantallaActiva == OPCIONES) {
 		// Audio first: an open device dropdown overlays the rows beneath it.
 		if (handleAudioSettingsClick(x, y, button)) {
@@ -7114,6 +7124,7 @@ void ofApp::windowResized(int w, int h) {
 	// El resize lo hace solo para mover la interfaz. Los tamaos de render se mantienen igual
 	boxes.update_resized(ofGetWidth(), ofGetHeight());
 	clampSettingsScroll();
+	clampAudioScreenScroll();
 	helpScrollbarDragging = false;
 	helpIndexScrollbarDragging = false;
 	helpIndexFollowPending = true;
@@ -7138,6 +7149,12 @@ void ofApp::mouseMoved(int x, int y) {
 }
 void ofApp::mouseReleased(int x, int y, int button) {
 	JPdragobject::clearPressOrigin();
+	if (audioDragRow >= 0) {
+		// Ungated on the screen on purpose: a drag that started here has to be
+		// let go even if something else switched screen mid-gesture.
+		audioDragRow = audioDragCol = -1;
+		saveSettings();
+	}
 	if (transitionDurationDragging) {
 		transitionDurationDragging = false;
 		saveSettings();
@@ -7278,6 +7295,11 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 		}
 		settingsScroll -= scrollY * 36.0f;
 		clampSettingsScroll();
+		return;
+	}
+	if (pantallaActiva == AUDIO_DEBUG) {
+		audioScreenScroll -= scrollY * 36.0f;
+		clampAudioScreenScroll();
 		return;
 	}
 	if (pantallaActiva == NODOS) {

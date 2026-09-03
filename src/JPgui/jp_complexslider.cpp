@@ -1,4 +1,5 @@
 #include "jp_complexslider.h"
+#include "jp_minislider.h"
 #include "../JPutils/jp_audio.h"
 #include "../JPutils/jp_tooltip.h"
 #include <algorithm>
@@ -182,42 +183,17 @@ void drawAudioBlockPanel(const ofRectangle &r)
 	ofPopStyle();
 }
 
+// Thin adapter over jp_minislider, kept so the six call sites below stay as
+// they were. The drawing itself moved out: the AUDIO screen draws the global
+// stage of this same operation and has to use the same cell.
 void drawAudioShapingSlider(JPdragobject &control,
 	const std::string &label, const std::string &value,
 	float normalized, bool muted)
 {
-	const bool hovered = control.mouseOver();
-	const float left = control.x - control.width / 2.0f;
-	const float top = control.y - control.height / 2.0f;
-	const float inset = 7.0f;
-	const float trackY = top + control.height - 5.0f;
-	const float trackWidth = std::max(1.0f, control.width - inset * 2.0f);
-	const float fillWidth = trackWidth * ofClamp(normalized, 0.0f, 1.0f);
-
-	ofPushStyle();
-	ofSetRectMode(OF_RECTMODE_CORNER);
-	ofSetColor(hovered ? ofColor(COL_BG_HOVER, 235) :
-		ofColor(COL_BG_INPUT, 210));
-	ofDrawRectRounded(left, top, control.width, control.height, 3.0f);
-
-	ofSetColor(muted ? COL_TEXT_MUTED : COL_TEXT_PRIMARY);
-	ofTrueTypeFont &font = jp_constants::p2_font;
-	const ofRectangle glyphBounds = font.getStringBoundingBox("Ag", 0.0f, 0.0f);
-	const float textY = top + 7.5f -
-		(glyphBounds.y + glyphBounds.height * 0.5f);
-	font.drawString(label, left + inset, textY);
-	const float valueWidth = font.stringWidth(value);
-	font.drawString(value,
-		left + control.width - inset - valueWidth, textY);
-
-	ofSetColor(ofColor(COL_BORDER_MUTED, 175));
-	ofDrawRectangle(left + inset, trackY - 1.0f, trackWidth, 2.0f);
-	const ofColor accent = muted ? COL_TEXT_MUTED : COL_ACCENT_CYAN;
-	ofSetColor(accent);
-	if (fillWidth > 0.5f)
-		ofDrawRectangle(left + inset, trackY - 1.0f, fillWidth, 2.0f);
-	ofDrawCircle(left + inset + fillWidth, trackY, hovered ? 3.0f : 2.5f);
-	ofPopStyle();
+	const ofRectangle bounds(control.x - control.width / 2.0f,
+		control.y - control.height / 2.0f, control.width, control.height);
+	jp_minislider::draw(bounds, label, value, normalized,
+		control.mouseOver(), muted);
 }
 }
 

@@ -402,6 +402,44 @@ public:
 	JPSurfaceStack surfaces;
 	void registerSurfaces();
 	// Drops focus from whichever text field currently has it.
+	// ---------------------------------------------------------------- AUDIO
+	// Layout for the audio analyser screen, computed once and read by BOTH the
+	// draw pass and the click handler - the same rule SettingsLayout carries,
+	// for the same reason: two private copies of the numbers is how a control
+	// ends up painted somewhere other than where it responds.
+	struct AudioScreenLayout
+	{
+		ofRectangle frame, leftColumn, rightColumn;
+		// Per tuned source: the name/meter line and the four value cells.
+		ofRectangle sourceName[jp_audio_internal::TunedSources];
+		ofRectangle sourceMeter[jp_audio_internal::TunedSources];
+		ofRectangle sourceCell[jp_audio_internal::TunedSources][4];
+		ofRectangle sourceReset[jp_audio_internal::TunedSources];
+		// Per onset: the flux plot and the two detector cells.
+		ofRectangle onsetName[jp_audio_internal::Onsets];
+		ofRectangle onsetPlot[jp_audio_internal::Onsets];
+		ofRectangle onsetCell[jp_audio_internal::Onsets][2];
+		ofRectangle inputMeter, spectrum, historyPlot;
+		ofRectangle resetAllButton, selfTestButton;
+		float contentHeight = 0.0f;
+	};
+	AudioScreenLayout getAudioScreenLayout() const;
+	void draw_audio();
+	bool handleAudioScreenClick(int x, int y, int button);
+	void applyAudioTuningFromMouse(const AudioScreenLayout &layout, float mouseX);
+	void clampAudioScreenScroll();
+	float audioScreenScroll = 0.0f;
+	// Which cell is being dragged: row (a tuned source, or Onsets offset by
+	// TunedSources) and column. -1 == nothing.
+	int audioDragRow = -1;
+	int audioDragCol = -1;
+	// Traces overlaid on the single history plot. One shared plot rather than a
+	// ring per row, because the question is almost always "how does this row
+	// compare with that one".
+	bool audioTrace[jp_audio_internal::TunedSources] = {true, false, false,
+		false, false, false};
+	std::string audioSelfTestReport;
+
 	// The single entry point for switching screen - see the comment on the
 	// definition. Never set pantallaActiva directly.
 	void enterScreen(int screen);
