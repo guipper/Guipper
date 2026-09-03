@@ -18,9 +18,18 @@ constexpr int PREVIEW_MAX_WIDTH = 512;
 constexpr int PREVIEW_MAX_HEIGHT = 288;
 constexpr float PREVIEW_FRAME_INTERVAL = 1.0f / 30.0f;
 
-bool shaderHasMain(const string &path)
+// `absolutePath` is already resolved: ofToDataPath costs ~50 us a call, which
+// over 392 shaders was 20 ms on its own.
+bool shaderHasMain(const string &absolutePath)
 {
-	const string source = ofBufferFromFile(path).getText();
+	// Read with a bare ifstream rather than ofBufferFromFile: that builds an
+	// ofFile (which carries a std::fstream) plus an ofBuffer, and then getText()
+	// copies the whole thing again.
+	std::ifstream stream(absolutePath, std::ios::binary);
+	if (!stream) return false;
+	std::stringstream buffer;
+	buffer << stream.rdbuf();
+	const string source = buffer.str();
 	// Shader files use the GLSL entry-point spelling directly. Avoid the
 	// regex-based filter here: it can reject valid standalone shaders when
 	// their source contains preprocessing directives before main().
@@ -5145,14 +5154,47 @@ void ofApp::autoTap() {
 		jp_constants::setBpm((float)bpmVal);
 	}
 }
+// Lists the .frag files of one directory, in the order ofDirectory used to
+// produce (SORT_NATURAL degrades to a lexicographic path compare for names that
+// are not purely numeric, which is every shader here).
+//
+// This used to be ofDirectory::listDir() + sort(). Both build an ofFile per
+// entry - and sort() builds a second one per entry - and every ofFile carries a
+// std::fstream. Across 392 shaders that cost 91 ms of the ~100 ms stall the
+// first press of 4 produced; the file reads inside it were only 17 ms of that.
+// A plain directory_iterator does the same walk in under 6 ms.
+//
+// Each entry is {path as the rest of the app stores it, resolved path to read}.
+// The stored form has to stay relative: it is what goes into the favorites file,
+// what the MIDI ADD_SHADER_BOX bindings match on, and what loads the shader.
+static vector<std::pair<string, string>> listFragFiles(const string &directory)
+{
+	vector<std::pair<string, string>> paths;
+	std::error_code error;
+	const string root = ofToDataPath(directory, true);
+	for (std::filesystem::directory_iterator it(root, error), end;
+		it != end && !error; it.increment(error))
+	{
+		if (!it->is_regular_file(error)) continue;
+		const string filename = it->path().filename().string();
+		// ofDirectory dropped hidden files; keep doing that.
+		if (filename.empty() || filename[0] == '.') continue;
+		if (ofToLower(it->path().extension().string()) != ".frag") continue;
+		paths.emplace_back(directory + "/" + filename, it->path().string());
+	}
+	std::sort(paths.begin(), paths.end());
+	return paths;
+}
+
 void ofApp::scanShaders() {
 	shaderFolders.clear();
 
 	// Only scan these specific root folders (no sub-subdirectories)
 	vector<string> targetFolders = { "blending", "contrib", "generative", "imageprocessing" };
 	int helperFragmentsSkipped = 0;
-	auto appendStandaloneShader = [&](ShaderFolder &folder, const string &path) {
-		if (!shaderHasMain(path)) {
+	auto appendStandaloneShader = [&](ShaderFolder &folder, const string &path,
+		const string &absolutePath) {
+		if (!shaderHasMain(absolutePath)) {
 			helperFragmentsSkipped++;
 			return;
 		}
@@ -5168,17 +5210,8 @@ void ofApp::scanShaders() {
 		rootFolder.name = "root";
 		rootFolder.path = "shaders";
 		rootFolder.expanded = true;
-
-		ofDirectory rootDir;
-		rootDir.listDir("shaders");
-		rootDir.sort();
-		for (size_t i = 0; i < rootDir.size(); i++) {
-			if (rootDir.getFile(i).isDirectory()) continue;
-			string path = rootDir.getPath(i);
-			string ext = ofToLower(ofFilePath::getFileExt(path));
-			if (ext == "frag") {
-				appendStandaloneShader(rootFolder, path);
-			}
+		for (const auto &entry : listFragFiles("shaders")) {
+			appendStandaloneShader(rootFolder, entry.first, entry.second);
 		}
 		if (!rootFolder.shaders.empty()) {
 			shaderFolders.push_back(rootFolder);
@@ -5193,17 +5226,8 @@ void ofApp::scanShaders() {
 		folder.name = folderName;
 		folder.path = folderPath;
 		folder.expanded = false;
-
-		ofDirectory dir;
-		dir.listDir(folderPath);
-		dir.sort();
-		for (size_t j = 0; j < dir.size(); j++) {
-			string path = dir.getPath(j);
-			if (dir.getFile(j).isDirectory()) continue;
-			string ext = ofToLower(ofFilePath::getFileExt(path));
-			if (ext == "frag") {
-				appendStandaloneShader(folder, path);
-			}
+		for (const auto &entry : listFragFiles(folderPath)) {
+			appendStandaloneShader(folder, entry.first, entry.second);
 		}
 		if (!folder.shaders.empty()) {
 			shaderFolders.push_back(folder);
