@@ -76,6 +76,27 @@ bool JPdragobject::mouseOver()
 	// can end up drawn in one place and clickable in another.
 	return hitBounds().inside(getMouseX(), getMouseY());
 }
+bool JPdragobject::pressOriginValid = false;
+ofVec2f JPdragobject::pressOrigin;
+
+void JPdragobject::notePressOrigin(float screenX, float screenY)
+{
+	pressOriginValid = true;
+	pressOrigin.set(screenX, screenY);
+}
+
+void JPdragobject::clearPressOrigin()
+{
+	pressOriginValid = false;
+}
+
+bool JPdragobject::pressStartedHere() const
+{
+	// Tested against the SAME padded rect mouseOver() uses, so a control can
+	// never be drawn in one place and armed from another.
+	return pressOriginValid && hitBounds().inside(pressOrigin);
+}
+
 bool JPdragobject::mouseGrab()
 {
 	if (mouseOver() && ofGetMousePressed())

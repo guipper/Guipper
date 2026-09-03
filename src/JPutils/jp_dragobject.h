@@ -54,8 +54,29 @@ public:
 	virtual bool mouseOver(); // Si esta encima del slider
 	virtual bool mouseGrab(); // Si esta agarrado
 							  // bool mouseClick();
+
+	// Where the press currently in progress BEGAN, recorded once from ofApp's
+	// real mouse events.
+	//
+	// The controls that actuate from inside draw() - JPToogle above all - need
+	// "did this press start on me", or holding the button anywhere (dragging a
+	// cable out of a box' OUT, moving a box, sweeping a marquee) fires whatever
+	// it passes over. That used to be a per-object latch, which cannot work
+	// here: JPboxgroup::update_mousePressed ENDS with setControllers() whenever
+	// an inspector is open, so every press destroys and rebuilds the very
+	// object holding the latch, and the rebuilt one - correctly assuming a
+	// press is already in progress - stayed disarmed forever.
+	//
+	// The origin belongs to the gesture, not to any widget, so it lives here
+	// and survives any number of rebuilds.
+	static void notePressOrigin(float screenX, float screenY);
+	static void clearPressOrigin();
+	bool pressStartedHere() const;
+
 protected:
 	float isGrabbed2;
 	static bool useMouseOverride;
 	static ofVec2f mouseOverride;
+	static bool pressOriginValid;
+	static ofVec2f pressOrigin;
 };

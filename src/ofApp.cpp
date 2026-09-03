@@ -6703,6 +6703,10 @@ void ofApp::mouseDragged(int x, int y, int button) {
 	}
 }
 void ofApp::mousePressed(int x, int y, int button) {
+	// FIRST, before any early return below: the controls that actuate from
+	// inside draw() ask where the press began, and a press swallowed by a modal
+	// or a panel still has to be recorded or the next one inherits a stale one.
+	JPdragobject::notePressOrigin((float)x, (float)y);
 
 	// Save modal button clicks — consume before anything else when modal is active
 	if (saveModalActive) {
@@ -7145,6 +7149,7 @@ void ofApp::mouseMoved(int x, int y) {
 	}
 }
 void ofApp::mouseReleased(int x, int y, int button) {
+	JPdragobject::clearPressOrigin();
 	if (transitionDurationDragging) {
 		transitionDurationDragging = false;
 		saveSettings();

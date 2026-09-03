@@ -216,11 +216,12 @@ void JPToogle::draw()
 	// rebuild creates a fresh JPToogle.
 	const bool eventDrivenPatternButton =
 		useTexture && textureindex == IDAYVUELTA;
-	// Latch where the press began, on the frame it begins.
+	// Where the press began is asked of the GESTURE, not remembered here: an
+	// inspector press rebuilds every controller (setControllers at the end of
+	// JPboxgroup::update_mousePressed), so a latch stored on this object is
+	// destroyed before it can ever fire.
 	const bool pressed = ofGetMousePressed();
-	if (pressed && !pressWasDown) pressStartedHere = mouseOver();
-	pressWasDown = pressed;
-	if (!eventDrivenPatternButton && pressed && pressStartedHere &&
+	if (!eventDrivenPatternButton && pressed && pressStartedHere() &&
 		mouseOver() && activable && activable2)
 	{
 		activeFlag = true;
@@ -231,7 +232,6 @@ void JPToogle::draw()
 	if (!pressed)
 	{
 		activable = true;
-		pressStartedHere = false;
 	}
 
 	if (activeFlag)
