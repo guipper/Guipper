@@ -44,6 +44,11 @@ namespace jp_audio_internal
 			int fluxAt = 0;
 			float last = -10.0f, sensitivity = 1.6f, refractory = 0.11f;
 			unsigned long long count = 0;
+			// Last hop's detection evidence, kept for the debug screen: without
+			// flux plotted against its own moving threshold there is no way to
+			// answer "why did my kick not trigger".
+			float lastFlux = 0.0f, lastMean = 0.0f;
+			bool lastMaterialGate = true, lastBlockedByRefractory = false;
 			std::array<float, Divisions> triggerTime{{-10,-10,-10,-10,-10}};
 			std::array<float, Divisions> express{};
 			std::array<float, Divisions> logic{};
@@ -58,6 +63,15 @@ namespace jp_audio_internal
 		Band low, mid, high, level;
 		Onset kick, snare;
 		std::array<float, SpectrumBins> spectrum{};
+		// The shaping stage's own state. This is DSP memory, NOT configuration:
+		// it belongs in Impl precisely so reset() wipes it. Leaving a smoothed
+		// value alive across a device change would keep feeding the old level to
+		// every shader while the new device delivers nothing.
+		std::array<float, TunedSources> shaped{};
+		std::array<float, TunedSources> shapedPre{};
+		std::array<std::array<float, HistoryLength>, TunedSources> history{};
+		int historyAt = 0;
+		int historyFilled = 0;
 		std::array<float, 32> kickTimes{};
 		int kickTimesCount = 0, kickTimesAt = 0;
 		float bpm = 0.0f, confidence = 0.0f, beatAnchor = 0.0f;
@@ -70,12 +84,14 @@ namespace jp_audio_internal
 
 	void AudioAnalyzer::reset(int sampleRate)
 	{
-		const bool savedAutoGain = autoGain_;
-		const float savedNoiseGate = noiseGate_;
+		// No save/restore here. `*impl_ = Impl()` assigns through the pointer and
+		// cannot touch an AudioAnalyzer member, so autoGain_, noiseGate_ and the
+		// tuning arrays survive on their own - the old savedAutoGain dance was a
+		// no-op. What DOES need doing is the other direction: applyTuning() at
+		// the end pushes the members back into the freshly built Impl, which is
+		// also why the snare's sensitivity is no longer hardcoded here.
 		*impl_ = Impl();
 		impl_->sampleRate = std::max(8000, sampleRate);
-		impl_->snare.sensitivity = 1.4f;
-		impl_->snare.refractory = 0.060f;
 		impl_->bitReverse.resize(Window);
 		int bits = 0;
 		while ((1 << bits) < Window) ++bits;
@@ -101,9 +117,60 @@ namespace jp_audio_internal
 		impl_->imag.assign(Window, 0.0f);
 		impl_->magnitude.assign(Window / 2 + 1, 0.0f);
 		impl_->previousMagnitude.assign(Window / 2 + 1, 0.0f);
-		autoGain_ = savedAutoGain;
-		noiseGate_ = savedNoiseGate;
 		snapshot_ = AnalyzerSnapshot();
+		diagnostics_ = AnalyzerDiagnostics();
+		applyTuning();
+	}
+
+	void AudioAnalyzer::applyTuning()
+	{
+		impl_->kick.sensitivity = onsetSensitivity_[ONSET_KICK];
+		impl_->kick.refractory = onsetRefractorySec_[ONSET_KICK];
+		impl_->snare.sensitivity = onsetSensitivity_[ONSET_SNARE];
+		impl_->snare.refractory = onsetRefractorySec_[ONSET_SNARE];
+	}
+
+	void AudioAnalyzer::setTuning(int index, const SourceTuning &tuning)
+	{
+		if (index < 0 || index >= TunedSources) return;
+		SourceTuning &slot = tuning_[index];
+		slot.threshold = clampValue(tuning.threshold, 0.0f, 0.95f);
+		slot.gain = clampValue(tuning.gain, 0.0f, 4.0f);
+		slot.add = clampValue(tuning.add, -1.0f, 1.0f);
+		slot.smoothMs = clampValue(tuning.smoothMs, 0.0f, 1000.0f);
+	}
+
+	const SourceTuning &AudioAnalyzer::tuning(int index) const
+	{
+		static const SourceTuning identity;
+		if (index < 0 || index >= TunedSources) return identity;
+		return tuning_[index];
+	}
+
+	void AudioAnalyzer::setOnsetSensitivity(int onset, float sensitivity)
+	{
+		if (onset < 0 || onset >= Onsets) return;
+		// Below 1.0 the detector compares flux against a fraction of its own
+		// running mean and fires on essentially everything.
+		onsetSensitivity_[onset] = clampValue(sensitivity, 1.0f, 4.0f);
+		applyTuning();
+	}
+
+	float AudioAnalyzer::onsetSensitivity(int onset) const
+	{
+		return onset >= 0 && onset < Onsets ? onsetSensitivity_[onset] : 1.6f;
+	}
+
+	void AudioAnalyzer::setOnsetRefractory(int onset, float seconds)
+	{
+		if (onset < 0 || onset >= Onsets) return;
+		onsetRefractorySec_[onset] = clampValue(seconds, 0.030f, 0.500f);
+		applyTuning();
+	}
+
+	float AudioAnalyzer::onsetRefractory(int onset) const
+	{
+		return onset >= 0 && onset < Onsets ? onsetRefractorySec_[onset] : 0.110f;
 	}
 
 	void AudioAnalyzer::setNoiseGate(float value)
@@ -217,6 +284,27 @@ namespace jp_audio_internal
 		normalize(s.level, gated ? 0.0f : clampValue((db + 60.0f) / 60.0f, 0.0f, 1.0f));
 		lag(s.low); lag(s.mid); lag(s.high); lag(s.level);
 
+		// ---- the global tuning stage, step 1 of 3 --------------------------
+		// Threshold, Gain and Add, WITHOUT the Smooth one-pole. Split out
+		// because the onset block below samples a band value into express[] and
+		// has to see the knobs applied but NOT the smoothing: express exists to
+		// capture the level AT the transient, and a long Smooth would poison
+		// exactly that.
+		auto affine = [&](int index, float value) {
+			const SourceTuning &t = tuning_[index];
+			// The divisor floor matters: threshold arrives from a hand-editable
+			// settings file, and at 1.0 this would divide by zero.
+			float v = clampValue((value - t.threshold) /
+				std::max(0.10f, 1.0f - t.threshold), 0.0f, 1.0f);
+			v = v * t.gain + t.add;
+			return clampValue(v, 0.0f, 1.0f);
+		};
+		std::array<float, TunedSources> pre{};
+		pre[TUNED_LOW] = affine(TUNED_LOW, s.low.lagged);
+		pre[TUNED_MID] = affine(TUNED_MID, s.mid.lagged);
+		pre[TUNED_HIGH] = affine(TUNED_HIGH, s.high.lagged);
+		pre[TUNED_LEVEL] = affine(TUNED_LEVEL, s.level.lagged);
+
 		auto onset = [&](Impl::Onset &onsetState, float lowHz, float highHz,
 			float envelope, bool extraGate) {
 			const int low = binForHz(lowHz), high = std::max(low + 1, binForHz(highHz));
@@ -226,8 +314,14 @@ namespace jp_audio_internal
 			float mean = 0.0f;
 			for (float value : onsetState.flux) mean += value;
 			mean /= onsetState.flux.size();
+			const bool refractoryBlocked =
+				(s.clock - onsetState.last) <= onsetState.refractory;
+			onsetState.lastFlux = flux;
+			onsetState.lastMean = mean;
+			onsetState.lastMaterialGate = extraGate;
+			onsetState.lastBlockedByRefractory = refractoryBlocked;
 			const bool fired = flux > mean * onsetState.sensitivity + 0.00001f &&
-				(s.clock - onsetState.last) > onsetState.refractory && extraGate &&
+				!refractoryBlocked && extraGate &&
 				s.level.raw >= noiseGate_;
 			if (fired)
 			{
@@ -245,8 +339,14 @@ namespace jp_audio_internal
 			onsetState.env += (0.0f - onsetState.env) * (1.0f - std::exp(-dt / ReleaseTau));
 			return fired;
 		};
-		const bool kickFired = onset(s.kick, 35.0f, 140.0f, s.low.lagged, true);
-		onset(s.snare, 1500.0f, 6000.0f, s.high.lagged,
+		// ---- step 2 of 3: onsets ------------------------------------------
+		// The `envelope` argument is the SHAPED, un-smoothed band value, so
+		// SRC_KICK_EXPRESS honours the row's Threshold/Gain/Add. Detection
+		// itself is deliberately NOT affected: the gates below read .norm and
+		// level.raw, both upstream of the tuning stage, so turning Low's gain
+		// down can never silently stop the kick from firing.
+		const bool kickFired = onset(s.kick, 35.0f, 140.0f, pre[TUNED_LOW], true);
+		onset(s.snare, 1500.0f, 6000.0f, pre[TUNED_HIGH],
 			s.high.norm > s.low.norm * 0.6f);
 
 		if (kickFired)
@@ -288,14 +388,45 @@ namespace jp_audio_internal
 			const float high = 20.0f * std::pow(900.0f, float(bin + 1) / SpectrumBins);
 			s.spectrum[bin] = clampValue(energy(low, high) * 2.0f, 0.0f, 1.0f);
 		}
+
+		// ---- step 3 of 3: the derived rows, then Smooth --------------------
+		// Low bass and High mid need kick.env / snare.env, which only exist
+		// after step 2. Each row is shaped from the UNSHAPED components, so
+		// turning Low's gain down does not move Low bass twice.
+		pre[TUNED_LOWBASS] = affine(TUNED_LOWBASS,
+			clampValue(s.low.lagged + s.kick.env, 0.0f, 1.0f));
+		pre[TUNED_HIGHMID] = affine(TUNED_HIGHMID,
+			clampValue(s.high.lagged + s.snare.env, 0.0f, 1.0f));
+		for (int i = 0; i < TunedSources; ++i)
+		{
+			s.shapedPre[i] = pre[i];
+			// Bypass explicitly rather than leaning on smoothToward's tau floor:
+			// it clamps tau to 1 ms, which at a 5.33 ms hop still leaves 0.5% of
+			// lag. With smoothMs at its default the stage has to be the exact
+			// identity, or a kick envelope stepping to 1.0 in one hop would peak
+			// at 0.995 and a shader testing step(0.999, ...) would stop firing.
+			s.shaped[i] = tuning_[i].smoothMs <= 0.0f ? pre[i] :
+				smoothToward(s.shaped[i], pre[i], tuning_[i].smoothMs, dt);
+			s.history[i][s.historyAt] = s.shaped[i];
+		}
+		// One ring for every traced source, appended once per HOP. The UI cannot
+		// do this: at 60 fps it would sample one hop in three and alias away the
+		// 8 ms attack the screen exists to show.
+		s.historyAt = (s.historyAt + 1) % HistoryLength;
+		s.historyFilled = std::min(HistoryLength, s.historyFilled + 1);
+
 		rebuildSnapshot();
+		fillDiagnostics(rms, gated);
 	}
 
 	void AudioAnalyzer::rebuildSnapshot()
 	{
 		const Impl &s = *impl_;
-		snapshot_.low = s.low.lagged; snapshot_.mid = s.mid.lagged;
-		snapshot_.high = s.high.lagged; snapshot_.level = s.level.lagged;
+		// The SHAPED values, so the shader uniforms, the parameters and the
+		// SETTINGS meter all agree with what the AUDIO screen shows.
+		snapshot_.low = s.shaped[TUNED_LOW]; snapshot_.mid = s.shaped[TUNED_MID];
+		snapshot_.high = s.shaped[TUNED_HIGH];
+		snapshot_.level = s.shaped[TUNED_LEVEL];
 		snapshot_.kick = s.kick.env; snapshot_.snare = s.snare.env;
 		snapshot_.kickTrigger = s.clock - s.kick.last < TriggerWidth ? 1.0f : 0.0f;
 		snapshot_.snareTrigger = s.clock - s.snare.last < TriggerWidth ? 1.0f : 0.0f;
@@ -314,18 +445,62 @@ namespace jp_audio_internal
 		snapshot_.spectrum = s.spectrum;
 	}
 
+	void AudioAnalyzer::fillDiagnostics(float rms, bool gated)
+	{
+		const Impl &s = *impl_;
+		const Impl::Band *bands[TunedSources] = {
+			&s.low, &s.mid, &s.high, &s.low, &s.high, &s.level };
+		for (int i = 0; i < TunedSources; ++i)
+		{
+			AnalyzerDiagnostics::BandInfo &info = diagnostics_.bands[i];
+			// Low bass and High mid are sums, not bands: they borrow their
+			// component's normaliser numbers, which is what you want to look at
+			// when one of them misbehaves.
+			info.raw = bands[i]->raw;
+			info.norm = bands[i]->norm;
+			info.lagged = bands[i]->lagged;
+			info.floorLevel = bands[i]->floor;
+			info.peakLevel = bands[i]->peak;
+			info.shaped = s.shaped[i];
+			info.preSmooth = s.shapedPre[i];
+		}
+		const Impl::Onset *onsets[Onsets] = { &s.kick, &s.snare };
+		for (int i = 0; i < Onsets; ++i)
+		{
+			AnalyzerDiagnostics::OnsetInfo &info = diagnostics_.onsets[i];
+			info.flux = onsets[i]->lastFlux;
+			info.mean = onsets[i]->lastMean;
+			info.threshold = onsets[i]->lastMean * onsets[i]->sensitivity;
+			info.secondsSinceLast = s.clock - onsets[i]->last;
+			info.refractorySec = onsets[i]->refractory;
+			info.blockedByRefractory = onsets[i]->lastBlockedByRefractory;
+			info.materialGate = onsets[i]->lastMaterialGate;
+			info.count = onsets[i]->count;
+		}
+		diagnostics_.rms = rms;
+		diagnostics_.gated = gated;
+		for (int i = 0; i < TunedSources; ++i)
+			std::copy(s.history[i].begin(), s.history[i].end(),
+				diagnostics_.history[i]);
+		diagnostics_.historyAt = s.historyAt;
+		diagnostics_.historyFilled = s.historyFilled;
+	}
+
 	float AudioAnalyzer::sourceValue(int source, int division) const
 	{
 		const Impl &s = *impl_;
 		const int div = clampValue(division, 0, Divisions - 1);
 		switch (source)
 		{
-		case 0: return s.low.lagged; case 1: return s.mid.lagged;
-		case 2: return s.high.lagged; case 3: return s.kick.env;
+		// The six continuous sources come from the tuning stage; the two onset
+		// envelopes do not - a detector is shaped by its own sensitivity and
+		// refractory knobs instead.
+		case 0: return s.shaped[TUNED_LOW]; case 1: return s.shaped[TUNED_MID];
+		case 2: return s.shaped[TUNED_HIGH]; case 3: return s.kick.env;
 		case 4: return s.snare.env;
-		case 5: return clampValue(s.low.lagged + s.kick.env, 0.0f, 1.0f);
-		case 6: return clampValue(s.high.lagged + s.snare.env, 0.0f, 1.0f);
-		case 7: return s.level.lagged;
+		case 5: return s.shaped[TUNED_LOWBASS];
+		case 6: return s.shaped[TUNED_HIGHMID];
+		case 7: return s.shaped[TUNED_LEVEL];
 		case 8: return s.clock - s.kick.triggerTime[div] < TriggerWidth ? 1.0f : 0.0f;
 		case 9: return s.kick.express[div]; case 10: return s.kick.logic[div];
 		case 11: return s.clock - s.snare.triggerTime[div] < TriggerWidth ? 1.0f : 0.0f;

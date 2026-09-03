@@ -259,9 +259,230 @@ namespace
 	}
 }
 
+	// ---------------------------------------------------------------- tuning
+	// The global per-source stage the AUDIO screen drives. Everything here is
+	// about one promise: the defaults are the IDENTITY, and each knob does
+	// exactly the one thing its label says.
+
+	using Tuning = jp_audio_internal::SourceTuning;
+
+	// A repeatable signal with content in every band, run to a steady state.
+	template <typename Setup>
+	std::array<float, 6> tunedSources(Setup setup)
+	{
+		jp_audio_internal::AudioAnalyzer analyzer;
+		analyzer.reset(SampleRate);
+		analyzer.setAutoGain(false);
+		analyzer.setNoiseGate(0.0001f);
+		setup(analyzer);
+		feed(analyzer, 2.0f, [](float t) {
+			return 0.35f * std::sin(2 * Pi * 80.0f * t) +
+				0.25f * std::sin(2 * Pi * 900.0f * t) +
+				0.20f * std::sin(2 * Pi * 5000.0f * t);
+		});
+		std::array<float, 6> out{};
+		const int order[6] = {0, 1, 2, 5, 6, 7};   // jp_audio::Source indices
+		for (int i = 0; i < 6; ++i)
+			out[std::size_t(i)] = analyzer.sourceValue(order[i], 0);
+		return out;
+	}
+
+	void testTuningDefaultsAreIdentity()
+	{
+		const auto plain = tunedSources([](jp_audio_internal::AudioAnalyzer &) {});
+		const auto explicitDefaults = tunedSources(
+			[](jp_audio_internal::AudioAnalyzer &a) {
+				for (int i = 0; i < jp_audio_internal::TunedSources; ++i)
+					a.setTuning(i, Tuning());
+			});
+		for (int i = 0; i < 6; ++i)
+			expect(plain[std::size_t(i)] == explicitDefaults[std::size_t(i)],
+				"writing the default tuning changes nothing at all");
+		// Not "close to": exactly. smoothToward floors tau at 1 ms, so a
+		// smoothMs of 0 that went through the filter would land at 99.5% and
+		// this is the assertion that catches it.
+		expect(plain[0] > 0.01f, "the fixture actually drives the low band");
+
+		// The bypass, asserted directly. smoothToward floors tau at 1 ms, so
+		// running the default through the filter leaves 0.5% of lag per hop -
+		// invisible in a converged value, fatal for anything that tests a peak
+		// of exactly 1.0. shaped and preSmooth must be the SAME float.
+		jp_audio_internal::AudioAnalyzer analyzer;
+		analyzer.reset(SampleRate);
+		analyzer.setNoiseGate(0.0001f);
+		bool everMoved = false, alwaysEqual = true;
+		std::array<float, 256> block{};
+		for (int hop = 0; hop < 400; ++hop)
+		{
+			for (std::size_t i = 0; i < block.size(); ++i)
+			{
+				const float t = float(hop * 256 + int(i)) / SampleRate;
+				block[i] = 0.7f * std::sin(2 * Pi * 80.0f * t) *
+					(std::fmod(t, 0.25f) < 0.05f ? 1.0f : 0.05f);
+			}
+			analyzer.process(block.data(), block.size());
+			const auto &band = analyzer.diagnostics().bands[0];
+			if (band.preSmooth > 0.01f) everMoved = true;
+			if (band.shaped != band.preSmooth) alwaysEqual = false;
+		}
+		expect(everMoved, "the bypass fixture actually moves the band");
+		expect(alwaysEqual, "smoothMs 0 is a true bypass, not a 1 ms filter");
+	}
+
+	void testTuningKnobsDoWhatTheySay()
+	{
+		const auto base = tunedSources([](jp_audio_internal::AudioAnalyzer &) {});
+
+		Tuning silent; silent.gain = 0.0f;
+		const auto zeroGain = tunedSources([&](jp_audio_internal::AudioAnalyzer &a) {
+			a.setTuning(jp_audio_internal::TUNED_LOW, silent); });
+		expect(zeroGain[0] == 0.0f, "gain 0 silences its own row");
+		expect(zeroGain[1] == base[1], "gain 0 on low leaves mid untouched");
+
+		Tuning gated; gated.threshold = 0.95f;
+		const auto highGate = tunedSources([&](jp_audio_internal::AudioAnalyzer &a) {
+			a.setTuning(jp_audio_internal::TUNED_MID, gated); });
+		expect(highGate[1] <= base[1] || base[1] > 0.95f,
+			"a high threshold can only gate, never invent signal");
+
+		Tuning lifted; lifted.add = 1.0f;
+		const auto pinned = tunedSources([&](jp_audio_internal::AudioAnalyzer &a) {
+			a.setTuning(jp_audio_internal::TUNED_HIGH, lifted); });
+		expect(pinned[2] == 1.0f, "add +1 pins the row at full scale");
+
+		Tuning dropped; dropped.add = -1.0f;
+		const auto floored = tunedSources([&](jp_audio_internal::AudioAnalyzer &a) {
+			a.setTuning(jp_audio_internal::TUNED_HIGH, dropped); });
+		expect(floored[2] == 0.0f, "add -1 removes the whole row - a floor killer");
+
+		// Order matters: gain multiplies BEFORE add offsets. With gain 0 and
+		// add 0.5 the row must rest at exactly 0.5; if the two were swapped it
+		// would be 0.
+		Tuning ordered; ordered.gain = 0.0f; ordered.add = 0.5f;
+		const auto affine = tunedSources([&](jp_audio_internal::AudioAnalyzer &a) {
+			a.setTuning(jp_audio_internal::TUNED_LEVEL, ordered); });
+		expect(std::fabs(affine[5] - 0.5f) < 0.0001f,
+			"gain applies before add");
+	}
+
+	void testTuningSettersClamp()
+	{
+		jp_audio_internal::AudioAnalyzer analyzer;
+		analyzer.reset(SampleRate);
+		Tuning wild;
+		wild.threshold = 9.0f; wild.gain = -5.0f;
+		wild.add = 7.0f; wild.smoothMs = 90000.0f;
+		analyzer.setTuning(jp_audio_internal::TUNED_LOW, wild);
+		const Tuning &held = analyzer.tuning(jp_audio_internal::TUNED_LOW);
+		expect(held.threshold == 0.95f, "threshold clamps below the 1.0 divisor");
+		expect(held.gain == 0.0f && held.add == 1.0f, "gain and add clamp");
+		expect(held.smoothMs == 1000.0f, "smooth clamps");
+		analyzer.setOnsetSensitivity(jp_audio_internal::ONSET_KICK, 0.1f);
+		expect(analyzer.onsetSensitivity(jp_audio_internal::ONSET_KICK) == 1.0f,
+			"sensitivity below 1 would fire on its own mean");
+		analyzer.setOnsetRefractory(jp_audio_internal::ONSET_SNARE, 10.0f);
+		expect(analyzer.onsetRefractory(jp_audio_internal::ONSET_SNARE) == 0.5f,
+			"refractory clamps");
+		// Out of range indices are ignored rather than corrupting memory.
+		analyzer.setTuning(-1, wild);
+		analyzer.setTuning(99, wild);
+		analyzer.setOnsetSensitivity(7, 2.0f);
+	}
+
+	void testTuningSurvivesResetButFilterStateDoesNot()
+	{
+		jp_audio_internal::AudioAnalyzer analyzer;
+		analyzer.reset(SampleRate);
+		Tuning slow; slow.smoothMs = 900.0f; slow.add = 0.25f;
+		analyzer.setTuning(jp_audio_internal::TUNED_LOW, slow);
+		analyzer.setOnsetSensitivity(jp_audio_internal::ONSET_KICK, 3.2f);
+		analyzer.setOnsetRefractory(jp_audio_internal::ONSET_KICK, 0.25f);
+		analyzer.setNoiseGate(0.0001f);
+		feed(analyzer, 1.0f, [](float t) { return 0.6f * std::sin(2 * Pi * 80.0f * t); });
+		expect(analyzer.sourceValue(0, 0) > 0.0f, "the low row is carrying a value");
+
+		// A device change. Configuration must survive; DSP memory must not, or a
+		// dead input would keep replaying the old level forever.
+		analyzer.reset(SampleRate);
+		expect(analyzer.tuning(jp_audio_internal::TUNED_LOW).smoothMs == 900.0f,
+			"tuning survives reset");
+		expect(analyzer.onsetSensitivity(jp_audio_internal::ONSET_KICK) == 3.2f,
+			"onset sensitivity survives reset - applyTuning pushes it back in");
+		expect(analyzer.onsetRefractory(jp_audio_internal::ONSET_KICK) == 0.25f,
+			"onset refractory survives reset");
+		expect(analyzer.sourceValue(0, 0) == 0.0f,
+			"the smoothing filter's memory is wiped by reset");
+		// The snare defaults must come from the members now, not from the two
+		// hardcoded lines reset() used to carry.
+		expect(analyzer.onsetSensitivity(jp_audio_internal::ONSET_SNARE) == 1.4f,
+			"snare keeps its own factory sensitivity through reset");
+	}
+
+	// Reading the member back only proves the member survived - which it does
+	// for free, since *impl_ = Impl() cannot reach it. What has to be proven is
+	// that reset() PUSHED it back into the fresh Impl, and the only way to see
+	// that is through the DSP.
+	//
+	// Refractory is the probe, not sensitivity: a synthetic kick's flux sits far
+	// above 4x its own running mean, so every sensitivity in range detects the
+	// same beats. Refractory gates the count directly - on a 0.15 s pattern,
+	// 30 ms lets every hit through and 500 ms cannot.
+	unsigned long long onsetsAfterResetWith(float refractorySec)
+	{
+		jp_audio_internal::AudioAnalyzer analyzer;
+		analyzer.reset(SampleRate);
+		analyzer.setOnsetRefractory(jp_audio_internal::ONSET_KICK, refractorySec);
+		analyzer.reset(SampleRate);          // the device change
+		analyzer.setNoiseGate(0.0001f);
+		feed(analyzer, 3.0f, [](float t) {
+			const float beat = std::fmod(t, 0.15f);
+			return 0.9f * std::exp(-beat * 26.0f) * std::sin(2 * Pi * 60.0f * t);
+		});
+		return analyzer.diagnostics().onsets[jp_audio_internal::ONSET_KICK].count;
+	}
+
+	void testApplyTuningReachesTheDetector()
+	{
+		const unsigned long long open = onsetsAfterResetWith(0.030f);
+		const unsigned long long held = onsetsAfterResetWith(0.500f);
+		expect(open > 10, "a fast kick pattern fires repeatedly");
+		expect(held * 3 < open,
+			"refractory set before a reset still reaches the detector after it");
+	}
+
+	void testDiagnosticsExplainTheDetectors()
+	{
+		jp_audio_internal::AudioAnalyzer analyzer;
+		analyzer.reset(SampleRate);
+		analyzer.setNoiseGate(0.0001f);
+		feed(analyzer, 2.0f, [](float t) {
+			const float beat = std::fmod(t, 0.5f);
+			const float env = std::exp(-beat * 30.0f);
+			return 0.9f * env * std::sin(2 * Pi * 60.0f * t);
+		});
+		const auto &d = analyzer.diagnostics();
+		expect(d.onsets[jp_audio_internal::ONSET_KICK].count > 0,
+			"the kick detector fired on a kick pattern");
+		expect(d.onsets[jp_audio_internal::ONSET_KICK].threshold ==
+			d.onsets[jp_audio_internal::ONSET_KICK].mean *
+			analyzer.onsetSensitivity(jp_audio_internal::ONSET_KICK),
+			"the reported threshold is mean * sensitivity, the real test");
+		expect(d.rms > 0.0f, "the input RMS is reported");
+		expect(d.bands[0].peakLevel >= d.bands[0].floorLevel,
+			"the normaliser's floor and peak are exposed and ordered");
+		expect(d.historyFilled > 100,
+			"history is appended per hop, not per frame");
+	}
+
 int main()
 {
 	testSilenceAndBounds();
+	testTuningDefaultsAreIdentity();
+	testTuningKnobsDoWhatTheySay();
+	testTuningSettersClamp();
+	testTuningSurvivesResetButFilterStateDoesNot();
+	testApplyTuningReachesTheDetector();
+	testDiagnosticsExplainTheDetectors();
 	testBandSeparationAndSweep();
 	testNoiseCalibrationAndClippingSignal();
 	testPinkNoiseAndLoudnessAdaptation();
