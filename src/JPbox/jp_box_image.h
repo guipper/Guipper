@@ -45,6 +45,8 @@ public:
 	void setup(string _dir, string _nombre);
 	void update();
 	void updateFBO();
+	void startImageLoad();
+	void updateImage();
 	void draw();
 	void clear();
 	void setPos(float _x, float _y)
@@ -64,6 +66,13 @@ public:
 private:
 	std::shared_ptr<const JPQuickGifData> gif;
 	std::shared_future<std::shared_ptr<const JPQuickGifData>> gifFuture;
+	// Still images decode on a worker and are adopted here on the frame they
+	// become ready - see startImageLoad / updateImage.
+	std::shared_future<std::shared_ptr<const ofPixels>> imageFuture;
+	// A file that will not decode used to be retried every 2 seconds forever,
+	// which turned one broken drop into a permanent stutter. Give up after a
+	// few tries; reload() (R) is still there to ask again on purpose.
+	int imageLoadAttempts = 0;
 	ofTexture gifTexture;
 	int gifFrame = -1;
 	double gifLastUpdate = 0.0;

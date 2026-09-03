@@ -107,6 +107,51 @@ namespace
 			}
 	}
 
+	// Image decoding moved to a worker thread, so a box is NOT ready on the
+	// frame it is created. Anything that reads its pixels has to pump update()
+	// until the decode lands, exactly as the app does - otherwise the assertion
+	// runs against an empty FBO and passes for the wrong reason.
+	bool waitForMedia(JPMediaInspectable *media, JPbox *box)
+	{
+		if (media == nullptr || box == nullptr) return false;
+		const uint64_t deadline = ofGetElapsedTimeMillis() + 5000;
+		while (!media->mediaReady())
+		{
+			if (ofGetElapsedTimeMillis() > deadline) return false;
+			box->update();
+		}
+		box->update();
+		return true;
+	}
+
+	// The worker-thread decode has to land on exactly the same pixels the
+	// blocking ofImage::loadImage produced, and the box has to end up allocated
+	// at the file's real size - not at whatever an empty ofImage reports.
+	bool asyncImageLoadMatches(const std::string &path)
+	{
+		ofPixels reference;
+		if (!ofLoadImage(reference, path)) return false;
+
+		auto future = jp_quick_image::requestImage(path);
+		if (future.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
+			return false;
+		std::shared_ptr<const ofPixels> decoded = future.get();
+		if (!decoded || !decoded->isAllocated()) return false;
+		if (decoded->getWidth() != reference.getWidth() ||
+			decoded->getHeight() != reference.getHeight()) return false;
+		for (size_t y = 0; y < reference.getHeight(); ++y)
+			for (size_t x = 0; x < reference.getWidth(); ++x)
+				if (decoded->getColor(x, y) != reference.getColor(x, y))
+					return false;
+
+		// A path that cannot be decoded must report failure, not hang: the box
+		// counts attempts on that answer and would otherwise retry forever.
+		auto missing = jp_quick_image::requestImage(path + ".not-an-image");
+		if (missing.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
+			return false;
+		return missing.get() == nullptr;
+	}
+
 	bool automationModeMemoryWorks()
 	{
 		JPParameter parameter;
@@ -534,6 +579,7 @@ bool jp_persistence_test::run(ofApp &app)
 		mediaPausePreserves = false,
 		mediaBoundary = false, mediaTransforms = false;
 	bool quickImages = false;
+	bool imageAsyncLoad = false;
 	bool mediaFitReload = true;
 	{
 		JPQuickImageStackState source;
@@ -598,15 +644,18 @@ bool jp_persistence_test::run(ofApp &app)
 		ofPixels px;px.allocate(2,2,OF_PIXELS_RGBA);
 		for(int y=0;y<2;++y)for(int x=0;x<2;++x)px.setColor(x,y,ofColor(255,0,0,255));
 		px.setColor(0,0,ofColor(0,0,0,0)); const string alphaPath=directory+"alpha.png";
-		ofSaveImage(px,alphaPath); app.boxes.clear();app.boxes.addBox(alphaPath,120,180);
+		ofSaveImage(px,alphaPath);
+		imageAsyncLoad=asyncImageLoadMatches(alphaPath);
+		app.boxes.clear();app.boxes.addBox(alphaPath,120,180);
 		auto *image=app.boxes.boxes.empty()?nullptr:dynamic_cast<JPbox_image*>(app.boxes.boxes.front());
 		if(image)
 		{
 			image->setonoff(true); image->media=state; image->media.fitMode=JPMediaFitMode::Stretch;
 			image->parameters.setFloatValue(1.75f, 5);
 			image->parameters.setFloatLerpValue(1.75f, 5);
-			image->update(); ofPixels out; image->fbo.readToPixels(out);
-			mediaAlpha=out.isAllocated()&&out.getColor(0,0).a<8;
+			const bool alphaReady=waitForMedia(image,image);
+			ofPixels out; image->fbo.readToPixels(out);
+			mediaAlpha=alphaReady&&out.isAllocated()&&out.getColor(0,0).a<8;
 			const string mediaPath=directory+"media.xml"; app.boxes.save(mediaPath);
 			app.boxes.clear();app.boxes.load(mediaPath);
 			auto *restored=app.boxes.boxes.empty()?nullptr:dynamic_cast<JPbox_image*>(app.boxes.boxes.front());
@@ -637,6 +686,11 @@ bool jp_persistence_test::run(ofApp &app)
 					dynamic_cast<JPbox_image *>(app.boxes.boxes.front());
 				if (fitBox == nullptr) { mediaFitReload = false; break; }
 				fitBox->setonoff(true);
+				if (!waitForMedia(fitBox, fitBox))
+				{
+					mediaFitReload = false;
+					break;
+				}
 				fitBox->media.fitMode = mode;
 				// A frame BEFORE saving, because that is the state a real
 				// composition is saved from: the box has been on screen, so
@@ -4953,6 +5007,7 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " mediaSmoke=" << mediaSmoke
 		<< " quickImages=" << quickImages
 		<< " mediaFitReload=" << mediaFitReload
+		<< " imageAsyncLoad=" << imageAsyncLoad
 		<< " overlayChain=" << overlayChain
 		<< " overlayOrder=" << overlayOrder
 		<< " overlaySchedule=" << overlaySchedule;
@@ -4967,7 +5022,7 @@ bool jp_persistence_test::run(ofApp &app)
 		transitionShaders && camDepthBox && camDepthParallax && camDepthRamp && selfLink &&
 		renderSchedule && scheduleObeyed && tooltipLayout &&
 		tooltipTransform &&
-		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke && quickImages && mediaFitReload &&
+		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke && quickImages && mediaFitReload && imageAsyncLoad &&
 		overlayChain && overlayOrder && overlaySchedule &&
 		graphUndo && transitionRectMode && exposeParams && midiUndo && groupNesting;
 }

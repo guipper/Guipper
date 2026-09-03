@@ -59,6 +59,18 @@ namespace jp_quick_image
 {
 	std::shared_future<std::shared_ptr<const JPQuickGifData>>
 		requestGif(const std::string &path);
+	// Still images, off the main thread, for the same reason GIFs are: a 5 MB
+	// PNG is a FreeImage decode of tens of megabytes of pixels, and doing it
+	// inline meant one dropped frame per image - several in a row when a
+	// session loads, or when more than one file is dropped at once.
+	//
+	// Only the DECODE moves. The texture upload stays on the main thread, where
+	// GL requires it; that is the small half.
+	//
+	// Returns null pixels when the file cannot be read, which the caller has to
+	// treat as "failed", not as "still loading".
+	std::shared_future<std::shared_ptr<const ofPixels>>
+		requestImage(const std::string &path);
 	// A layer fed by a graph box rather than a file. Full frame, because that
 	// is what the box already renders; the user scales it down from there.
 	JPQuickImageLayerState makeBoxLayer(JPQuickImageStackState &stack,

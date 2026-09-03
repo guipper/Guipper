@@ -23,6 +23,21 @@ namespace
 		}
 	}
 
+	// FreeImage's one-time initialisation is not itself thread-safe, and both
+	// decoders below run on workers. Both call this FIRST, from the main thread,
+	// so the init has already happened by the time any worker touches FreeImage.
+	// An empty path is enough: ofInitFreeImage() is the first line of OF's
+	// loader, well before it cares that there is no file.
+	void warmFreeImageOnMainThread()
+	{
+		static std::once_flag once;
+		std::call_once(once, []()
+		{
+			ofPixels ignored;
+			ofLoadImage(ignored, std::string());
+		});
+	}
+
 	std::string canonicalKey(const std::string &input)
 	{
 		std::string path = ofToDataPath(input, true);
@@ -88,6 +103,7 @@ std::shared_future<std::shared_ptr<const JPQuickGifData>>
 jp_quick_image::requestGif(const std::string &input)
 {
 	using Result = std::shared_ptr<const JPQuickGifData>;
+	warmFreeImageOnMainThread();
 	static std::mutex mutex;
 	static std::unordered_map<std::string, std::shared_future<Result>> cache;
 	const std::string key = canonicalKey(input);
@@ -153,6 +169,26 @@ jp_quick_image::requestGif(const std::string &input)
 	}).share();
 	cache[key] = future;
 	return future;
+}
+
+std::shared_future<std::shared_ptr<const ofPixels>>
+jp_quick_image::requestImage(const std::string &input)
+{
+	using Result = std::shared_ptr<const ofPixels>;
+	warmFreeImageOnMainThread();
+	// Deliberately NOT cached, unlike requestGif. The caller copies the pixels
+	// into its own ofImage and drops the future, so a cache would be the only
+	// thing still holding them - and for a 6000x4000 PNG that is ~96 MB kept
+	// alive for the rest of the session to save a decode that happens once.
+	const std::string path = ofToDataPath(input, true);
+	return std::async(std::launch::async, [path]() -> Result
+	{
+		auto pixels = std::make_shared<ofPixels>();
+		// ofLoadImage into ofPixels is pure FreeImage: no GL, so it is safe
+		// here. The ofImage overload is NOT - it uploads a texture.
+		if (!ofLoadImage(*pixels, path)) return {};
+		return pixels;
+	}).share();
 }
 
 JPQuickImageLayerState jp_quick_image::makeBoxLayer(

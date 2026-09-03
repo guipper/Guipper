@@ -7,8 +7,9 @@ JPbox_image::~JPbox_image() {}
 void JPbox_image::reload()
 {
 	isGifSource = jp_media::isGif(dir);
+	imageLoadAttempts = 0;
 	if (isGifSource) startGifLoad();
-	else img.loadImage(dir);
+	else startImageLoad();
 	// New pixels, and possibly new dimensions.
 	invalidateRender();
 }
@@ -25,7 +26,7 @@ void JPbox_image::setup(string _dir, string _nombre)
 	img.clear();
 	isGifSource = jp_media::isGif(_dir);
 	if (isGifSource) startGifLoad();
-	else img.loadImage(_dir);
+	else startImageLoad();
 
 	parameters.addFloatValue(0.5, "scalex");
 	parameters.addFloatValue(0.5, "scaley");
@@ -43,12 +44,6 @@ void JPbox_image::setup(string _dir, string _nombre)
 
 	tipo = IMAGEBOX;
 
-	if (img.isAllocated() || jp_media::isGif(_dir)){
-		cout << "CARGO BIEN LA IMAGEN" << endl;
-	}
-	else{
-		cout << "CARGO COMO EL ORTO LA IMAGEN" << endl;
-	}
 	lasttime_autoreload = ofGetElapsedTimeMillis();
 	duration_autoreload = 2000;
 
@@ -70,13 +65,7 @@ void JPbox_image::update()
 		if (onoff.boolValue) updateGif();
 		else gifLastUpdate = ofGetElapsedTimef();
 	}
-	else if (!img.isAllocated() && ofGetElapsedTimeMillis() - lasttime_autoreload > duration_autoreload)
-	{
-		img.loadImage(dir);
-		lasttime_autoreload = ofGetElapsedTimeMillis();
-		if (img.isAllocated()) invalidateRender();
-		cout << "RECARGA LA IMAGEN YA QUE LA CARGO COMO EL ORTO" << endl;
-	}
+	else updateImage();
 
 	updateFBO();
 }
@@ -162,6 +151,45 @@ void JPbox_image::updateFBO()
 	}
 }
 
+void JPbox_image::startImageLoad()
+{
+	img.clear();
+	loadStatus = "Loading image";
+	imageLoadAttempts++;
+	lasttime_autoreload = ofGetElapsedTimeMillis();
+	imageFuture = jp_quick_image::requestImage(dir);
+}
+
+// Adopts the decoded pixels on the frame the worker finishes, and nothing else.
+// The upload (setFromPixels) is the only part that has to be here: it is GL.
+void JPbox_image::updateImage()
+{
+	if (imageFuture.valid() &&
+		imageFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+	{
+		std::shared_ptr<const ofPixels> pixels = imageFuture.get();
+		imageFuture = {};
+		if (pixels && pixels->isAllocated())
+		{
+			img.setFromPixels(*pixels);
+			loadStatus = "Ready";
+			invalidateRender();
+		}
+		else
+		{
+			loadStatus = "Image decode failed";
+		}
+		lasttime_autoreload = ofGetElapsedTimeMillis();
+		return;
+	}
+	if (imageFuture.valid() || img.isAllocated()) return;
+	// Not loaded and nothing in flight: the file may still be being copied in.
+	// Retry a few times, then stop - this used to hammer the disk forever.
+	if (imageLoadAttempts >= 4) return;
+	if (ofGetElapsedTimeMillis() - lasttime_autoreload <= duration_autoreload) return;
+	startImageLoad();
+}
+
 void JPbox_image::startGifLoad()
 {
 	gif.reset(); gifTexture.clear(); gifFrame = -1; loadStatus = "Loading GIF";
@@ -230,6 +258,7 @@ void JPbox_image::clear()
 {
 	JPbox::clear();
 	img.clear();
+	imageFuture = {};
 	gif.reset();
 	gifFuture = {};
 	gifTexture.clear();
