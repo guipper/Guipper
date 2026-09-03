@@ -71,6 +71,11 @@ namespace jp_quick_image
 	// treat as "failed", not as "still loading".
 	std::shared_future<std::shared_ptr<const ofPixels>>
 		requestImage(const std::string &path);
+	// Demotes every finished GIF decode from the cache's strong slot to its weak
+	// one, and drops keys nobody holds any more. Call it after adopting a decode:
+	// until it runs, the cache is still the owner and deleting the box frees
+	// nothing. Cheap - one entry per distinct GIF path.
+	void compactGifCache();
 	// A layer fed by a graph box rather than a file. Full frame, because that
 	// is what the box already renders; the user scales it down from there.
 	JPQuickImageLayerState makeBoxLayer(JPQuickImageStackState &stack,

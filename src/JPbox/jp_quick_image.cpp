@@ -38,6 +38,31 @@ namespace
 		});
 	}
 
+	// The GIF cache holds a WEAK reference to a finished decode, and a strong
+	// one only while the decode is in flight.
+	//
+	// It used to hold the shared_future itself, forever. Every frame of a GIF is
+	// kept expanded to RGBA, so one 800x600 GIF of 150 frames is ~288 MB that
+	// never came back - not when the box was deleted, not when the composition
+	// was replaced. A real composition here decoded 2.3 GB in one file. Two or
+	// three of those and the machine starts swapping, which reads as a global
+	// framerate collapse with no obvious cause.
+	struct GifCacheEntry
+	{
+		std::shared_future<std::shared_ptr<const JPQuickGifData>> pending;
+		std::weak_ptr<const JPQuickGifData> decoded;
+	};
+	std::mutex &gifCacheMutex()
+	{
+		static std::mutex instance;
+		return instance;
+	}
+	std::unordered_map<std::string, GifCacheEntry> &gifCache()
+	{
+		static std::unordered_map<std::string, GifCacheEntry> instance;
+		return instance;
+	}
+
 	std::string canonicalKey(const std::string &input)
 	{
 		std::string path = ofToDataPath(input, true);
@@ -104,12 +129,32 @@ jp_quick_image::requestGif(const std::string &input)
 {
 	using Result = std::shared_ptr<const JPQuickGifData>;
 	warmFreeImageOnMainThread();
-	static std::mutex mutex;
-	static std::unordered_map<std::string, std::shared_future<Result>> cache;
+	auto readyFuture = [](Result value)
+	{
+		std::promise<Result> promise;
+		promise.set_value(std::move(value));
+		return promise.get_future().share();
+	};
 	const std::string key = canonicalKey(input);
-	std::lock_guard<std::mutex> lock(mutex);
-	auto found = cache.find(key);
-	if (found != cache.end()) return found->second;
+	std::lock_guard<std::mutex> lock(gifCacheMutex());
+	GifCacheEntry &entry = gifCache()[key];
+	if (Result alive = entry.decoded.lock()) return readyFuture(std::move(alive));
+	if (entry.pending.valid())
+	{
+		if (entry.pending.wait_for(std::chrono::seconds(0)) !=
+			std::future_status::ready)
+		{
+			return entry.pending;  // still decoding: everyone waits on the one job
+		}
+		Result done = entry.pending.get();
+		entry.pending = {};
+		if (done)
+		{
+			entry.decoded = done;
+			return readyFuture(std::move(done));
+		}
+		// A failed decode is not remembered, so R retries it.
+	}
 	const std::string path = ofToDataPath(input, true);
 	auto future = std::async(std::launch::async, [path]() -> Result
 	{
@@ -167,8 +212,36 @@ jp_quick_image::requestGif(const std::string &input)
 		FreeImage_CloseMultiBitmap(multi, 0);
 		return result->frames.empty() ? Result{} : result;
 	}).share();
-	cache[key] = future;
+	entry.pending = future;
 	return future;
+}
+
+void jp_quick_image::compactGifCache()
+{
+	std::lock_guard<std::mutex> lock(gifCacheMutex());
+	for (auto it = gifCache().begin(); it != gifCache().end(); )
+	{
+		GifCacheEntry &entry = it->second;
+		// A finished decode still sitting in `pending` is a STRONG reference:
+		// the cache would pin every frame for the life of the process even
+		// after the box that asked for it is long gone. Demote it to the weak
+		// slot the moment it is done.
+		if (entry.pending.valid() &&
+			entry.pending.wait_for(std::chrono::seconds(0)) ==
+				std::future_status::ready)
+		{
+			std::shared_ptr<const JPQuickGifData> done = entry.pending.get();
+			entry.pending = {};
+			entry.decoded = done;
+		}
+		// Nothing in flight and nothing alive: the key is dead weight.
+		if (!entry.pending.valid() && entry.decoded.expired())
+		{
+			it = gifCache().erase(it);
+			continue;
+		}
+		++it;
+	}
 }
 
 std::shared_future<std::shared_ptr<const ofPixels>>

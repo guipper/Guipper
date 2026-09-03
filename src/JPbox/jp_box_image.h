@@ -74,7 +74,10 @@ private:
 	// few tries; reload() (R) is still there to ask again on purpose.
 	int imageLoadAttempts = 0;
 	ofTexture gifTexture;
+	// gifFrame is what the TEXTURE holds; gifPendingFrame is what the clock says
+	// it should hold. They differ while the box is skipping renders.
 	int gifFrame = -1;
+	int gifPendingFrame = -1;
 	double gifLastUpdate = 0.0;
 	std::string loadStatus;
 	bool lastLegacyStretch = true;

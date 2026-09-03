@@ -89,6 +89,22 @@ void JPbox_image::updateFBO()
 		lastLegacyStretch=parameters.getBoolValue(4);
 		const float scaleRatio = parameters.getFloatValue(5);
 
+		// The GIF's pixels reach the GPU HERE, on a frame we are actually going
+		// to composite - not in updateGif, which runs even while the render is
+		// skipped so the clock keeps advancing. The transfer is the whole frame
+		// at full resolution (16 MB a frame for the larger GIFs in a real
+		// composition), and paying it for a box the scheduler has throttled to
+		// one frame in four, or that is off screen entirely, buys nothing.
+		//
+		// Catching up uploads ONE frame, the current one, never the backlog.
+		if (isGifSource && shouldRenderThisFrame() && gif &&
+			gifPendingFrame >= 0 && gifPendingFrame != gifFrame &&
+			gifPendingFrame < (int)gif->frames.size())
+		{
+			gifTexture.loadData(gif->frames[gifPendingFrame]);
+			gifFrame = gifPendingFrame;
+		}
+
 		const float sourceW = gifTexture.isAllocated() ? gifTexture.getWidth() :
 			(img.isAllocated() ? img.getWidth() : 0.0f);
 		const float sourceH = gifTexture.isAllocated() ? gifTexture.getHeight() :
@@ -192,7 +208,8 @@ void JPbox_image::updateImage()
 
 void JPbox_image::startGifLoad()
 {
-	gif.reset(); gifTexture.clear(); gifFrame = -1; loadStatus = "Loading GIF";
+	gif.reset(); gifTexture.clear(); gifFrame = -1; gifPendingFrame = -1;
+	loadStatus = "Loading GIF";
 	gifFuture = jp_quick_image::requestGif(dir);
 }
 
@@ -201,6 +218,13 @@ void JPbox_image::updateGif()
 	if (!gif && gifFuture.valid() && gifFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
 	{
 		gif = gifFuture.get(); loadStatus = gif ? "Ready" : "GIF decode failed";
+		// Release the future: it holds a second strong reference to the frames,
+		// and the cache is now weak, so leaving it here would pin ~hundreds of
+		// MB for the life of the box even after it is deleted.
+		gifFuture = {};
+		// Hand ownership over to this box: until the cache demotes its own copy
+		// to a weak reference, deleting the box would free nothing.
+		jp_quick_image::compactGifCache();
 		gifLastUpdate = ofGetElapsedTimef();
 	}
 	if (!gif || gif->frames.empty()) return;
@@ -215,9 +239,10 @@ void JPbox_image::updateGif()
 	const double t=media.position*gif->duration;
 	int frame=(int)(std::upper_bound(gif->ends.begin(),gif->ends.end(),t)-gif->ends.begin());
 	frame=ofClamp(frame,0,(int)gif->frames.size()-1);
-	// New texture contents: the signature has to move or the render would be
-	// skipped and the GIF would sit on one frame.
-	if(frame!=gifFrame){gifTexture.loadData(gif->frames[frame]);gifFrame=frame;invalidateRender();}
+	// Only NOTE the frame; updateFBO uploads it if and when it renders. The
+	// signature still has to move or the render would be skipped and the GIF
+	// would sit on one frame.
+	if(frame!=gifPendingFrame){gifPendingFrame=frame;invalidateRender();}
 }
 
 bool JPbox_image::mediaPlayable() const { return gif && gif->frames.size()>1; }
@@ -235,7 +260,7 @@ float JPbox_image::mediaSteppedPosition(float normalized, int frames) const
 	const double start=target==0?0.0:gif->ends[target-1];
 	return ofClamp((float)(start/gif->duration),0.0f,1.0f);
 }
-void JPbox_image::mediaSeek(float n){media.position=ofClamp(n,0,1);gifFrame=-1;invalidateRender();}
+void JPbox_image::mediaSeek(float n){media.position=ofClamp(n,0,1);gifFrame=-1;gifPendingFrame=-1;invalidateRender();}
 void JPbox_image::mediaStep(int frames){media.playing=false;mediaSeek(ofClamp(mediaSteppedPosition(media.position,frames),media.rangeIn,media.rangeOut));}
 void JPbox_image::mediaRestart(){mediaSeek(media.reverse?media.rangeOut:media.rangeIn);}
 void JPbox_image::saveCustomState(ofXml &boxNode) const { jp_media::save(boxNode,media); }
@@ -263,6 +288,7 @@ void JPbox_image::clear()
 	gifFuture = {};
 	gifTexture.clear();
 	gifFrame = -1;
+	gifPendingFrame = -1;
 	cout << "CORRE CLEAR SHADERBOX " << endl;
 	fbo.clear();
 	fbo.destroy();
