@@ -516,7 +516,8 @@ void ofApp::update() {
 
 	// Keep animated previews responsive without competing with the live graph
 	// for a full-resolution render on every application frame.
-	if (previewShaderLoaded && pantallaActiva == SHADER_INDEX) {
+	if (previewShaderLoaded && selectedShaderIndex >= 0 &&
+		pantallaActiva == SHADER_INDEX) {
 		const float now = ofGetElapsedTimef();
 		if (lastPreviewRenderTime < 0.0f ||
 			now - lastPreviewRenderTime >= PREVIEW_FRAME_INTERVAL) {
@@ -5348,6 +5349,16 @@ void ofApp::rebuildFavoritesFolder() {
 				}
 			}
 		}
+	}
+	// The selection can genuinely be lost here - the path may no longer be in
+	// any folder. Drop the preview with it: the panel already draws "select a
+	// shader to preview" in that state, while update() kept rendering the old
+	// shader at 30 Hz forever because its only gate was previewShaderLoaded.
+	if (selectedShaderIndex < 0) {
+		previewShaderLoaded = false;
+		previewShaderPath.clear();
+		previewShader.unload();
+		lastPreviewRenderTime = -1.0f;
 	}
 	rebuildShaderFolderOrder();
 }
