@@ -29,7 +29,25 @@ namespace
 	constexpr float kRowHeight = 46.0f;
 	constexpr float kCellHeight = 20.0f;
 	constexpr float kCellGap = 5.0f;
-	constexpr float kNameWidth = 74.0f;
+	constexpr float kNameWidth = 92.0f;
+	constexpr float kSwatchWidth = 9.0f;
+
+	// One colour per traced source, used by BOTH the swatch beside the name and
+	// the line on the history plot - a legend that can disagree with its own
+	// chart is worse than no legend.
+	//
+	// Not the semantic COL_ACCENT_* set: this panel already spends red on
+	// "collapsed" and on the detector thresholds, so a red trace would read as
+	// an alarm. These six are picked to stay apart from each other on the dark
+	// ground instead of to mean anything.
+	const ofColor kTraceColors[jp_audio_internal::TunedSources] = {
+		ofColor(0, 190, 205),      // Low        cyan
+		ofColor(70, 200, 130),     // Mid        green
+		ofColor(226, 174, 64),     // High       gold
+		ofColor(158, 130, 240),    // Low bass   violet
+		ofColor(240, 138, 100),    // High mid   coral
+		ofColor(175, 185, 195)     // Level      grey
+	};
 	constexpr float kResetWidth = 20.0f;
 	constexpr float kGroupGap = 12.0f;
 
@@ -89,22 +107,36 @@ namespace
 	// A horizontal bar with a ghost behind it. The ghost is the value BEFORE
 	// smoothing, so the Smooth knob's effect is visible on its own rather than
 	// having to be inferred from a number that moves slower.
-	void drawMeter(const ofRectangle &r, float value, float ghost)
+	void drawMeter(const ofRectangle &r, float value, float ghost,
+		const ofColor &accent)
 	{
-		ofSetColor(ofColor(COL_BG_DARK, 220));
+		// COL_BG_INPUT, not COL_BG_DARK: the panel itself is COL_BG_DARK, so a
+		// well painted in it is invisible and the bar floats in nothing.
+		ofSetColor(COL_BG_INPUT);
 		ofDrawRectRounded(r, 3.0f);
 		const float ghostW = r.width * ofClamp(ghost, 0.0f, 1.0f);
 		if (ghostW > 0.5f)
 		{
-			ofSetColor(ofColor(COL_ACCENT_CYAN, 70));
+			ofSetColor(ofColor(accent, 80));
 			ofDrawRectangle(r.x, r.y, ghostW, r.height);
 		}
 		const float width = r.width * ofClamp(value, 0.0f, 1.0f);
 		if (width > 0.5f)
 		{
-			ofSetColor(ofColor(COL_ACCENT_CYAN, 220));
+			ofSetColor(ofColor(accent, 235));
 			ofDrawRectangle(r.x, r.y, width, r.height);
 		}
+	}
+
+	// A recessed area for a plot, so it reads as a container.
+	void drawWell(const ofRectangle &r)
+	{
+		ofSetColor(COL_BG_INPUT);
+		ofDrawRectRounded(r, 3.0f);
+		ofNoFill();
+		ofSetColor(ofColor(COL_BORDER_MUTED, 120));
+		ofDrawRectRounded(r, 3.0f);
+		ofFill();
 	}
 }
 
@@ -119,7 +151,7 @@ void ofApp::drawAudioInput(const AudioScreenLayout &L)
 	ofTrueTypeFont &small = jp_constants::p2_font;
 	auto caption = [&](const ofRectangle &r, const std::string &text) {
 		ofSetColor(COL_TEXT_MUTED);
-		small.drawString(text, r.x, r.y - 5.0f);
+		small.drawString(text, r.x, r.y - 6.0f);
 	};
 
 	const bool live = jp_audio::isRunning();
@@ -347,7 +379,7 @@ ofApp::AudioScreenLayout ofApp::getAudioScreenLayout() const
 	{
 		l.onsetName[i].set(l.leftColumn.x, y, kNameWidth, kCellHeight);
 		l.onsetPlot[i].set(l.leftColumn.x + kNameWidth + kCellGap, y,
-			l.leftColumn.width - kNameWidth - kCellGap, kCellHeight + 8.0f);
+			120.0f, kCellHeight + 8.0f);
 		const float cellY = y + kCellHeight + 11.0f;
 		for (int c = 0; c < 2; c++)
 		{
@@ -422,13 +454,23 @@ void ofApp::draw_audio()
 		const jp_audio_internal::SourceTuning tuning = jp_audio::getTuning(i);
 		const jp_audio_internal::AnalyzerDiagnostics::BandInfo &band = d.bands[i];
 
-		// Clicking the name toggles this source's trace on the history plot.
+		// Clicking the name toggles this source's trace on the history plot, so
+		// the name carries the trace's own colour and a swatch of it. The
+		// swatch stays visible when the trace is off - dimmed - so the legend
+		// still tells you which colour this row WOULD be.
 		const bool traced = audioTrace[i];
-		ofSetColor(traced ? COL_ACCENT_CYAN : COL_TEXT_SECONDARY);
+		ofSetColor(traced ? kTraceColors[i] : ofColor(kTraceColors[i], 70));
+		ofDrawRectRounded(L.sourceName[i].x, L.sourceName[i].y + 5.0f,
+			kSwatchWidth, kSwatchWidth, 2.0f);
+		ofSetColor(traced ? kTraceColors[i] : ofColor(COL_TEXT_SECONDARY, 190));
 		font.drawString(jp_audio::tunedSourceLabel(i),
-			L.sourceName[i].x, L.sourceName[i].y + 14.0f);
+			L.sourceName[i].x + kSwatchWidth + 5.0f,
+			L.sourceName[i].y + 14.0f);
 
-		drawMeter(L.sourceMeter[i], band.shaped, band.preSmooth);
+		// The meter takes the same colour, so a glance ties the bar, the swatch
+		// and the line on the plot together.
+		drawMeter(L.sourceMeter[i], band.shaped, band.preSmooth,
+			kTraceColors[i]);
 
 		// The normaliser's working range, as a hairline under the bar.
 		//
@@ -458,16 +500,16 @@ void ofApp::draw_audio()
 			L.sourceReset[i].x - 6.0f - small.stringWidth(valueText),
 			L.sourceName[i].y + 14.0f);
 
-		if (!isIdentity(tuning))
-		{
-			// A row that is not at its factory value has to say so: a forgotten
-			// knob is otherwise indistinguishable from a broken analyser.
-			ofSetColor(COL_ACCENT_GOLD);
-			small.drawString("*", L.sourceReset[i].x - 8.0f,
-				L.sourceName[i].y + 14.0f);
-		}
-		jp_button::draw(L.sourceReset[i], "o", false, !isIdentity(tuning));
-		jp_tooltip::draw("Reset this source to the identity", L.sourceReset[i]);
+		// A row that is not at its factory value has to say so - a forgotten
+		// knob is otherwise indistinguishable from a broken analyser - and its
+		// reset button is the thing that undoes it, so that is what lights up.
+		// (This was a separate asterisk, which landed on top of the value.)
+		const bool modified = !isIdentity(tuning);
+		jp_button::draw(L.sourceReset[i], "o", modified, true,
+			COL_ACCENT_GOLD);
+		jp_tooltip::draw(modified ?
+			"This source is not at its factory value - click to reset it" :
+			"Already at the factory value", L.sourceReset[i]);
 
 		for (int c = 0; c < 4; c++)
 		{
@@ -490,27 +532,32 @@ void ofApp::draw_audio()
 		// "why is my kick not triggering": if the bar never reaches the line,
 		// lower Sens; if it does and nothing fires, the refractory or the
 		// material gate is holding it.
-		ofSetColor(ofColor(COL_BG_DARK, 220));
-		ofDrawRectRounded(L.onsetPlot[i], 3.0f);
+		drawWell(L.onsetPlot[i]);
 		const float scale = std::max(0.00002f, onset.threshold * 1.6f);
 		const float fluxH = L.onsetPlot[i].height *
 			ofClamp(onset.flux / scale, 0.0f, 1.0f);
 		ofSetColor(onset.flux > onset.threshold ?
 			ofColor(COL_ACCENT_GREEN, 220) : ofColor(COL_ACCENT_CYAN, 170));
-		ofDrawRectangle(L.onsetPlot[i].x + 4.0f,
-			L.onsetPlot[i].getMaxY() - fluxH, 26.0f, fluxH);
+		ofDrawRectangle(L.onsetPlot[i].x + 3.0f,
+			L.onsetPlot[i].getMaxY() - fluxH,
+			L.onsetPlot[i].width - 6.0f, fluxH);
 		const float threshY = L.onsetPlot[i].getMaxY() -
 			L.onsetPlot[i].height * ofClamp(onset.threshold / scale, 0.0f, 1.0f);
+		// The line the flux has to cross. Everything about "why did this not
+		// fire" is the relationship between these two.
 		ofSetColor(COL_ACCENT_RED);
-		ofDrawRectangle(L.onsetPlot[i].x + 2.0f, threshY, 34.0f, 1.0f);
+		ofDrawRectangle(L.onsetPlot[i].x + 1.0f, threshY,
+			L.onsetPlot[i].width - 2.0f, 1.0f);
 
+		// Status beside the well, not inside it.
+		const float textX = L.onsetPlot[i].getMaxX() + 10.0f;
 		ofSetColor(onset.blockedByRefractory ? COL_ACCENT_GOLD : COL_TEXT_MUTED);
 		small.drawString(onset.blockedByRefractory ? "holding" :
 			(onset.materialGate ? "listening" : "gated by material"),
-			L.onsetPlot[i].x + 44.0f, L.onsetPlot[i].y + 12.0f);
+			textX, L.onsetPlot[i].y + 12.0f);
 		ofSetColor(COL_TEXT_MUTED);
 		small.drawString(ofToString((long long)onset.count) + " hits",
-			L.onsetPlot[i].x + 44.0f, L.onsetPlot[i].y + 24.0f);
+			textX, L.onsetPlot[i].y + 24.0f);
 
 		const float sens = jp_audio::getOnsetSensitivity(i);
 		const float hold = jp_audio::getOnsetRefractory(i);
@@ -528,9 +575,8 @@ void ofApp::draw_audio()
 	// app showed the input level before, so "is anything even arriving" was not
 	// a question the UI could answer.
 	ofSetColor(COL_TEXT_SECONDARY);
-	small.drawString("INPUT", L.inputMeter.x, L.inputMeter.y - 4.0f);
-	ofSetColor(ofColor(COL_BG_DARK, 220));
-	ofDrawRectRounded(L.inputMeter, 3.0f);
+	small.drawString("INPUT", L.inputMeter.x, L.inputMeter.y - 7.0f);
+	drawWell(L.inputMeter);
 	const float rmsW = L.inputMeter.width * ofClamp(d.rms * 4.0f, 0.0f, 1.0f);
 	ofSetColor(d.gated ? ofColor(COL_TEXT_MUTED, 200) :
 		ofColor(COL_ACCENT_GREEN, 220));
@@ -546,9 +592,8 @@ void ofApp::draw_audio()
 		L.inputMeter.getMaxX() - 42.0f, L.inputMeter.y - 4.0f);
 
 	ofSetColor(COL_TEXT_SECONDARY);
-	small.drawString("SPECTRUM (unshaped)", L.spectrum.x, L.spectrum.y - 4.0f);
-	ofSetColor(ofColor(COL_BG_DARK, 220));
-	ofDrawRectRounded(L.spectrum, 3.0f);
+	small.drawString("SPECTRUM (unshaped)", L.spectrum.x, L.spectrum.y - 7.0f);
+	drawWell(L.spectrum);
 	{
 		const int bins = jp_audio::SPECTRUM_BINS;
 		const float bw = L.spectrum.width / (float)bins;
@@ -568,19 +613,15 @@ void ofApp::draw_audio()
 	// which is nearly always the actual question.
 	ofSetColor(COL_TEXT_SECONDARY);
 	small.drawString("HISTORY (click a source name to trace it)",
-		L.historyPlot.x, L.historyPlot.y - 4.0f);
-	ofSetColor(ofColor(COL_BG_DARK, 220));
-	ofDrawRectRounded(L.historyPlot, 3.0f);
+		L.historyPlot.x, L.historyPlot.y - 7.0f);
+	drawWell(L.historyPlot);
 	{
-		static const ofColor traceColors[jp_audio_internal::TunedSources] = {
-			COL_ACCENT_CYAN, COL_ACCENT_GREEN, COL_ACCENT_GOLD,
-			COL_ACCENT_RED, COL_ACCENT_CYAN_DIM, COL_TEXT_SECONDARY};
 		const int shown = std::min(d.historyFilled,
 			jp_audio_internal::HistoryLength);
 		for (int src = 0; src < jp_audio_internal::TunedSources; src++)
 		{
 			if (!audioTrace[src] || shown < 2) continue;
-			ofSetColor(traceColors[src]);
+			ofSetColor(kTraceColors[src]);
 			ofSetLineWidth(1.4f);
 			ofNoFill();
 			ofBeginShape();
@@ -592,8 +633,10 @@ void ofApp::draw_audio()
 					jp_audio_internal::HistoryLength;
 				const float px = L.historyPlot.x +
 					L.historyPlot.width * (float(i) / float(shown - 1));
-				const float py = L.historyPlot.getMaxY() - 2.0f -
-					(L.historyPlot.height - 4.0f) *
+				// Inset top and bottom so a trace pinned at 1.0 stays inside
+				// its well instead of riding the caption above it.
+				const float py = L.historyPlot.getMaxY() - 5.0f -
+					(L.historyPlot.height - 10.0f) *
 					ofClamp(d.history[src][at], 0.0f, 1.0f);
 				ofVertex(px, py);
 			}
