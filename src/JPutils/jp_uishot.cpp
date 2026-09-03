@@ -557,11 +557,8 @@ namespace
 				settings.fields[0], settings.fields[1], settings.fields[2],
 				settings.fields[3], settings.fields[4], settings.fields[5],
 				settings.fields[6], settings.autoTapButton, settings.browseButton,
-				settings.saveButton, settings.audioEnableButton,
-				settings.audioDeviceField, settings.audioGainSlider,
-				settings.audioDivButton, settings.audioAutoGainButton,
-				settings.audioChannelButton, settings.audioCalibrateButton,
-				settings.audioGateSlider, settings.audioMeter
+				settings.saveButton, settings.transitionDurationSlider,
+				settings.transitionTypeButton
 			};
 			bool controlsContained = true;
 			for (const ofRectangle &control : settingsControls)

@@ -410,6 +410,12 @@ public:
 	struct AudioScreenLayout
 	{
 		ofRectangle frame, leftColumn, rightColumn;
+		// The input chain, moved here from the SETTINGS screen: device, level
+		// and gating belong next to the analysis they feed, not three screens
+		// away from it.
+		ofRectangle audioEnable, audioDevice, audioCalibrate;
+		ofRectangle audioAutoGain, audioChannel, audioDiv;
+		ofRectangle audioGain, audioGate;
 		// Per tuned source: the name/meter line and the four value cells.
 		ofRectangle sourceName[jp_audio_internal::TunedSources];
 		ofRectangle sourceMeter[jp_audio_internal::TunedSources];
@@ -589,15 +595,6 @@ public:
 		// FIELD_* enum avoids touching labels[], fieldTooltips[], the
 		// initOptionsFields/applyOptionsField switch and the numeric-field
 		// hit-test loop, all of which key off FIELD_OSC_IP_OUT as a count.
-		ofRectangle audioEnableButton;
-		ofRectangle audioDeviceField;
-		ofRectangle audioGainSlider;
-		ofRectangle audioDivButton;
-		ofRectangle audioAutoGainButton;
-		ofRectangle audioChannelButton;
-		ofRectangle audioCalibrateButton;
-		ofRectangle audioGateSlider;
-		ofRectangle audioMeter;
 		// MAIN crossfade controls. Global, so they live with the other
 		// app-wide settings rather than per box.
 		ofRectangle transitionDurationSlider;
@@ -630,8 +627,13 @@ public:
 	bool audioGainDragging = false;
 	bool audioGateDragging = false;
 	ofRectangle getAudioMenuBounds() const;
-	void drawAudioSettings(const SettingsLayout &L);
-	bool handleAudioSettingsClick(int x, int y, int button);
+	// The transition rows are all that is left of the old audio block on the
+	// SETTINGS screen; the input chain lives on the AUDIO screen now.
+	void drawTransitionSettings(const SettingsLayout &L);
+	bool handleTransitionSettingsClick(int x, int y, int button);
+	void drawAudioInput(const AudioScreenLayout &L);
+	bool handleAudioInputClick(const AudioScreenLayout &L, const ofVec2f &m,
+		int button);
 
 
 	// HELP, same idea. One layout feeds the draw pass, the language button's

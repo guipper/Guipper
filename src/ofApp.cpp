@@ -2358,10 +2358,11 @@ float ofApp::getSettingsPanelWidth() const
 float ofApp::getSettingsPanelHeight() const
 {
 	const float rowSpacing = 40.0f;
-	// +16, not +13: the AUDIO IN block is followed by a blank separator and the
-	// two transition rows. This count is the ONLY thing that sizes the panel,
-	// so a control added without touching it simply hangs off the bottom.
-	const int totalRows = FIELD_OSC_IP_OUT + 16;
+	// +9: the session rows, a blank separator and the two transition rows. It
+	// was +16 while the AUDIO IN block lived here. This count is the ONLY thing
+	// that sizes the panel, so a control added without touching it simply hangs
+	// off the bottom.
+	const int totalRows = FIELD_OSC_IP_OUT + 9;
 	return jp_screen::kHeaderH + totalRows * rowSpacing + 25.0f;
 }
 
@@ -2424,23 +2425,8 @@ ofApp::SettingsLayout ofApp::getSettingsLayout() const
 	l.saveButton.set(fieldX, row(r), fieldW, l.rowH);
 	r++;
 
-	// AUDIO IN
-	r++;   // blank row as a separator
-	l.audioEnableButton.set(fieldX, row(r), actionBtnW, l.rowH);
-	r++;
-	l.audioDeviceField.set(fieldX, row(r), fieldW + actionBtnW + 10.0f, l.rowH);
-	r++;
-	l.audioGainSlider.set(fieldX, row(r), fieldW, l.rowH);
-	l.audioDivButton.set(fieldX + fieldW + 10.0f, row(r), actionBtnW, l.rowH);
-	r++;
-	l.audioAutoGainButton.set(fieldX, row(r), 94.0f, l.rowH);
-	l.audioChannelButton.set(fieldX + 100.0f, row(r), 94.0f, l.rowH);
-	l.audioCalibrateButton.set(fieldX + 200.0f, row(r), 110.0f, l.rowH);
-	r++;
-	l.audioGateSlider.set(fieldX, row(r), fieldW + actionBtnW + 10.0f, l.rowH);
-	r++;
-	l.audioMeter.set(fieldX, row(r), fieldW + actionBtnW + 10.0f, l.rowH);
-	r++;
+	// The AUDIO IN block used to sit here, between the session rows and the
+	// transition ones. It moved to the AUDIO screen, whole.
 	r++;   // blank row as a separator
 	l.transitionDurationSlider.set(fieldX, row(r), fieldW, l.rowH);
 	r++;
@@ -2681,7 +2667,7 @@ void ofApp::draw_opciones() {
 		}
 	}
 
-	drawAudioSettings(L);
+	drawTransitionSettings(L);
 
 	// Hint text when focused
 	if (focusedOptionsField >= 0) {
@@ -2694,113 +2680,23 @@ void ofApp::draw_opciones() {
 ofRectangle ofApp::getAudioMenuBounds() const
 {
 	if (!audioMenuOpen) return ofRectangle();
-	const SettingsLayout L = getSettingsLayout();
+	// The device picker moved to the AUDIO screen with the rest of the input
+	// chain, so its bounds come from that layout now.
+	const AudioScreenLayout L = getAudioScreenLayout();
 	const int rows = std::max(1, (int)jp_audio::getInputDeviceNames().size() + 1);
-	return ofRectangle(L.audioDeviceField.x,
-		L.audioDeviceField.getMaxY() + 2.0f,
-		L.audioDeviceField.width,
+	return ofRectangle(L.audioDevice.x, L.audioDevice.getMaxY() + 2.0f,
+		L.audioDevice.width,
 		std::min(240.0f, (float)rows * 24.0f + 4.0f));
 }
 
-void ofApp::drawAudioSettings(const SettingsLayout &L)
+void ofApp::drawTransitionSettings(const SettingsLayout &L)
 {
+	// All that is left of what used to be the AUDIO IN block on this screen.
+	// The input chain moved to the AUDIO screen, where the gate is drawn on the
+	// same scale as the meter it gates and the device is the one whose spectrum
+	// is on screen.
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
-
-	// Section heading, matching the other SETTINGS groups.
-	ofSetColor(COL_ACCENT_CYAN);
-	font_p.drawString("AUDIO IN", L.labelX, L.audioEnableButton.y + 19.0f);
-
-	const bool live = jp_audio::isRunning();
-	jp_button::draw(L.audioEnableButton,
-		jp_audio::getEnabled() ? "ON" : "OFF",
-		jp_audio::getEnabled(), true,
-		live ? COL_ACCENT_GREEN : COL_ACCENT_CYAN);
-	jp_tooltip::draw("Turn the audio input on or off",
-		L.audioEnableButton.x, L.audioEnableButton.y,
-		L.audioEnableButton.width, L.audioEnableButton.height);
-
-	// Device
-	ofSetColor(COL_TEXT_SECONDARY);
-	font_p.drawString("Device", L.labelX, L.audioDeviceField.y + 19.0f);
-	{
-		const std::vector<std::string> &names = jp_audio::getInputDeviceNames();
-		std::string label = jp_audio::getDeviceName();
-		if (label.empty()) label = names.empty() ? "no input device" : "(default)";
-		if (font_p.stringWidth(label) > L.audioDeviceField.width - 30.0f)
-		{
-			while (label.size() > 4 &&
-				font_p.stringWidth(label + "...") > L.audioDeviceField.width - 30.0f)
-				label = label.substr(0, label.size() - 1);
-			label += "...";
-		}
-		ofSetColor(ofColor(COL_BG_PANEL, 240));
-		ofDrawRectRounded(L.audioDeviceField, 4.0f);
-		ofNoFill();
-		ofSetColor(audioMenuOpen ? COL_ACCENT_CYAN : ofColor(COL_TEXT_MUTED, 180));
-		ofDrawRectRounded(L.audioDeviceField, 4.0f);
-		ofFill();
-		ofSetColor(COL_TEXT_PRIMARY);
-		font_p.drawString(label, L.audioDeviceField.x + 8.0f,
-			L.audioDeviceField.getMaxY() - 8.0f);
-		ofSetColor(COL_ACCENT_CYAN);
-		font_p.drawString(audioMenuOpen ? "^" : "v",
-			L.audioDeviceField.getMaxX() - 18.0f,
-			L.audioDeviceField.getMaxY() - 8.0f);
-	}
-
-	// Gain: a drag slider, not a text field.
-	ofSetColor(COL_TEXT_SECONDARY);
-	font_p.drawString("Gain", L.labelX, L.audioGainSlider.y + 19.0f);
-	{
-		const float g = jp_audio::getGain();
-		const float t = ofClamp((g - 0.05f) / (8.0f - 0.05f), 0.0f, 1.0f);
-		ofSetColor(ofColor(COL_BG_INPUT, 220));
-		ofDrawRectRounded(L.audioGainSlider, 4.0f);
-		ofSetColor(ofColor(COL_ACCENT_CYAN, 170));
-		ofDrawRectRounded(L.audioGainSlider.x, L.audioGainSlider.y,
-			std::max(6.0f, L.audioGainSlider.width * t),
-			L.audioGainSlider.height, 4.0f);
-		ofSetColor(COL_TEXT_PRIMARY);
-		font_p.drawString("x" + ofToString(g, 2),
-			L.audioGainSlider.x + 8.0f, L.audioGainSlider.getMaxY() - 8.0f);
-		jp_tooltip::draw("Drag to set input gain",
-			L.audioGainSlider.x, L.audioGainSlider.y,
-			L.audioGainSlider.width, L.audioGainSlider.height);
-	}
-	jp_button::draw(L.audioDivButton,
-		string("beat /") + jp_audio::divLabel(jp_audio::getShaderDiv()),
-		false, true, COL_ACCENT_CYAN);
-	jp_tooltip::draw(
-		"Beat division for the audio_trigger/express/logic shader uniforms",
-		L.audioDivButton.x, L.audioDivButton.y,
-		L.audioDivButton.width, L.audioDivButton.height);
-
-	jp_button::draw(L.audioAutoGainButton,
-		jp_audio::getAutoGain() ? "AUTO GAIN" : "MANUAL",
-		jp_audio::getAutoGain(), true, COL_ACCENT_CYAN);
-	jp_button::draw(L.audioChannelButton,
-		jp_audio::channelModeLabel(jp_audio::getChannelMode()),
-		false, true, COL_ACCENT_CYAN);
-	const jp_audio::AudioSnapshot snapshot = jp_audio::getSnapshot();
-	jp_button::draw(L.audioCalibrateButton,
-		snapshot.calibrating ?
-			("LEARN " + ofToString((int)(snapshot.calibrationProgress * 100.0f)) + "%") :
-			"CALIBRATE",
-		snapshot.calibrating, true, COL_ACCENT_GREEN);
-
-	ofSetColor(COL_TEXT_SECONDARY);
-	font_p.drawString("Noise gate", L.labelX, L.audioGateSlider.y + 19.0f);
-	const float gateT = ofClamp(jp_audio::getNoiseGate() / 0.25f, 0.0f, 1.0f);
-	ofSetColor(ofColor(COL_BG_INPUT, 220));
-	ofDrawRectRounded(L.audioGateSlider, 4.0f);
-	ofSetColor(ofColor(COL_ACCENT_CYAN, 170));
-	ofDrawRectRounded(L.audioGateSlider.x, L.audioGateSlider.y,
-		std::max(4.0f, L.audioGateSlider.width * gateT), L.audioGateSlider.height, 4.0f);
-	ofSetColor(COL_TEXT_PRIMARY);
-	font_p.drawString(ofToString(jp_audio::getNoiseGate(), 3),
-		L.audioGateSlider.x + 8.0f, L.audioGateSlider.getMaxY() - 8.0f);
-
 	// MAIN crossfade: how long a switch between active renders takes, and
 	// which shader blends the two frames.
 	ofSetColor(COL_TEXT_SECONDARY);
@@ -2827,147 +2723,17 @@ void ofApp::drawAudioSettings(const SettingsLayout &L)
 	jp_button::draw(L.transitionTypeButton,
 		TransitionSR::typeLabel(boxes.getTransitionType()), false);
 
-	// Meter: spectrum, kick/snare flashes and the status line. This is the
-	// surface that tells you whether anything is actually being heard.
-	{
-		const ofRectangle m = L.audioMeter;
-		ofSetColor(ofColor(COL_BG_INPUT, 220));
-		ofDrawRectRounded(m, 4.0f);
-		const int bins = 24;
-		float spec[24];
-		jp_audio::getSpectrum(spec, bins);
-		const float bw = m.width / (float)bins;
-		for (int i = 0; i < bins; i++)
-		{
-			const float h = ofClamp(spec[i], 0.0f, 1.0f) * (m.height - 6.0f);
-			ofSetColor(ofColor(COL_ACCENT_CYAN, 200));
-			ofDrawRectangle(m.x + i * bw + 1.0f, m.getMaxY() - 3.0f - h,
-				std::max(1.0f, bw - 2.0f), h);
-		}
-		// Onset flashes
-		const float kAge = jp_audio::secondsSinceKick();
-		const float sAge = jp_audio::secondsSinceSnare();
-		ofSetColor(COL_ACCENT_GOLD, kAge < 0.12f ? 255 : 40);
-		ofDrawCircle(m.getMaxX() - 24.0f, m.getCenter().y, 5.0f);
-		ofSetColor(COL_ACCENT_GREEN, sAge < 0.12f ? 255 : 40);
-		ofDrawCircle(m.getMaxX() - 10.0f, m.getCenter().y, 5.0f);
-
-		ofSetColor(snapshot.clipping ? COL_ERROR_TEXT :
-			(live ? COL_TEXT_MUTED : COL_ERROR_TEXT));
-		string diagnostic = jp_audio::getStatus();
-		if (snapshot.tempoConfidence > 0.0f)
-			diagnostic += "  " + ofToString(snapshot.detectedBpm, 1) + " BPM " +
-				ofToString((int)(snapshot.tempoConfidence * 100.0f)) + "%";
-		if (snapshot.clipping) diagnostic += "  CLIP";
-		font_p.drawString(diagnostic, L.labelX, m.getMaxY() + 16.0f);
-	}
-
-	// The dropdown paints last so it covers the rows beneath it.
-	if (audioMenuOpen)
-	{
-		const ofRectangle menu = getAudioMenuBounds();
-		ofSetColor(ofColor(COL_BG_PANEL, 245));
-		ofDrawRectRounded(menu, 4.0f);
-		ofNoFill();
-		ofSetColor(ofColor(COL_ACCENT_CYAN, 200));
-		ofDrawRectRounded(menu, 4.0f);
-		ofFill();
-		const std::vector<std::string> &names = jp_audio::getInputDeviceNames();
-		for (int i = 0; i <= (int)names.size(); i++)
-		{
-			const float ry = menu.y + 2.0f + i * 24.0f;
-			if (ry + 24.0f > menu.getMaxY()) break;
-			const bool over = ofRectangle(menu.x, ry, menu.width, 24.0f)
-				.inside((float)ofGetMouseX(), (float)ofGetMouseY());
-			const string name = i == 0 ? "(system default)" : names[i - 1];
-			if (over)
-			{
-				ofSetColor(ofColor(COL_BG_HOVER, 230));
-				ofDrawRectRounded(menu.x + 2.0f, ry, menu.width - 4.0f, 24.0f, 3.0f);
-			}
-			ofSetColor(name == jp_audio::getDeviceName() ?
-				COL_ACCENT_CYAN : COL_TEXT_PRIMARY);
-			font_p.drawString(name, menu.x + 8.0f, ry + 17.0f);
-		}
-	}
 	ofPopStyle();
 }
 
-bool ofApp::handleAudioSettingsClick(int x, int y, int button)
+bool ofApp::handleTransitionSettingsClick(int x, int y, int button)
 {
 	const SettingsLayout L = getSettingsLayout();
 	const ofVec2f m((float)x, (float)y);
-	// Right click steps the cycling buttons BACKWARDS; everything else in here
-	// is left-only. It used to take no button at all, so a right click fired
-	// every one of these rows as if it were a left click.
 	const bool leftButton = button == OF_MOUSE_BUTTON_LEFT;
 	const bool cycleButton = leftButton || button == OF_MOUSE_BUTTON_RIGHT;
 	const int step = button == OF_MOUSE_BUTTON_RIGHT ? -1 : 1;
 
-	// An open dropdown overlays the rows under it, so it is tested first. It
-	// swallows ANY button: a right click with the menu up has to close it, not
-	// fall through to the panel behind.
-	if (audioMenuOpen)
-	{
-		const ofRectangle menu = getAudioMenuBounds();
-		if (menu.inside(m.x, m.y))
-		{
-			const std::vector<std::string> &names = jp_audio::getInputDeviceNames();
-			for (int i = 0; i <= (int)names.size(); i++)
-			{
-				const float ry = menu.y + 2.0f + i * 24.0f;
-				if (ry + 24.0f > menu.getMaxY()) break;
-				if (!ofRectangle(menu.x, ry, menu.width, 24.0f).inside(m.x, m.y))
-					continue;
-				jp_audio::setDevice(i == 0 ? "" : names[i - 1]);
-				audioMenuOpen = false;
-				saveSettings();
-				return true;
-			}
-		}
-		audioMenuOpen = false;
-		return true;   // the dismissing click is consumed, not passed through
-	}
-
-	if (leftButton && L.audioEnableButton.inside(m.x, m.y))
-	{
-		jp_audio::setEnabled(!jp_audio::getEnabled());
-		saveSettings();
-		return true;
-	}
-	if (leftButton && L.audioDeviceField.inside(m.x, m.y))
-	{
-		jp_audio::refreshDevices();
-		audioMenuOpen = true;
-		return true;
-	}
-	if (cycleButton && L.audioDivButton.inside(m.x, m.y))
-	{
-		jp_audio::setShaderDiv(
-			(jp_audio::getShaderDiv() + step + jp_audio::DIV_COUNT) %
-			jp_audio::DIV_COUNT);
-		saveSettings();
-		return true;
-	}
-	if (leftButton && L.audioAutoGainButton.inside(m.x, m.y))
-	{
-		jp_audio::setAutoGain(!jp_audio::getAutoGain());
-		saveSettings();
-		return true;
-	}
-	if (cycleButton && L.audioChannelButton.inside(m.x, m.y))
-	{
-		jp_audio::setChannelMode(
-			(jp_audio::getChannelMode() + step + jp_audio::CHANNEL_COUNT) %
-			jp_audio::CHANNEL_COUNT);
-		saveSettings();
-		return true;
-	}
-	if (leftButton && L.audioCalibrateButton.inside(m.x, m.y))
-	{
-		jp_audio::beginCalibration();
-		return true;
-	}
 	if (leftButton && L.transitionDurationSlider.inside(m.x, m.y))
 	{
 		transitionDurationDragging = true;
@@ -2981,21 +2747,6 @@ bool ofApp::handleAudioSettingsClick(int x, int y, int button)
 		boxes.setTransitionType(
 			(boxes.getTransitionType() + step + TransitionSR::TYPE_COUNT) %
 			TransitionSR::TYPE_COUNT);
-		return true;
-	}
-	if (leftButton && L.audioGateSlider.inside(m.x, m.y))
-	{
-		audioGateDragging = true;
-		jp_audio::setNoiseGate(ofClamp((m.x - L.audioGateSlider.x) /
-			L.audioGateSlider.width, 0.0f, 1.0f) * 0.25f);
-		return true;
-	}
-	if (leftButton && L.audioGainSlider.inside(m.x, m.y))
-	{
-		audioGainDragging = true;
-		const float t = ofClamp(
-			(m.x - L.audioGainSlider.x) / L.audioGainSlider.width, 0.0f, 1.0f);
-		jp_audio::setGain(ofLerp(0.05f, 8.0f, t));
 		return true;
 	}
 	return false;
@@ -6668,28 +6419,28 @@ void ofApp::mouseDragged(int x, int y, int button) {
 		shaderEditor.mouseDragged(x, y, button);
 	}
 
-	if (pantallaActiva == AUDIO_DEBUG && audioDragRow >= 0) {
-		applyAudioTuningFromMouse(getAudioScreenLayout(), (float)x);
-		return;
+	if (pantallaActiva == AUDIO_DEBUG) {
+		if (audioDragRow >= 0) {
+			applyAudioTuningFromMouse(getAudioScreenLayout(), (float)x);
+			return;
+		}
+		if (audioGateDragging || audioGainDragging) {
+			const AudioScreenLayout L = getAudioScreenLayout();
+			if (audioGateDragging) {
+				jp_audio::setNoiseGate(ofClamp(
+					((float)x - L.audioGate.x) / L.audioGate.width,
+					0.0f, 1.0f) * 0.25f);
+			} else {
+				jp_audio::setGain(ofLerp(0.05f, 8.0f, ofClamp(
+					((float)x - L.audioGain.x) / L.audioGain.width,
+					0.0f, 1.0f)));
+			}
+			return;
+		}
 	}
 	if (pantallaActiva == OPCIONES) {
 		if (transitionDurationDragging) {
 			applyTransitionDurationFromMouse((float)x, getSettingsLayout());
-			return;
-		}
-		if (audioGateDragging) {
-			const SettingsLayout L = getSettingsLayout();
-			const float t = ofClamp(((float)x - L.audioGateSlider.x) /
-				L.audioGateSlider.width, 0.0f, 1.0f);
-			jp_audio::setNoiseGate(t * 0.25f);
-			return;
-		}
-		if (audioGainDragging) {
-			const SettingsLayout L = getSettingsLayout();
-			const float t = ofClamp(
-				((float)x - L.audioGainSlider.x) / L.audioGainSlider.width,
-				0.0f, 1.0f);
-			jp_audio::setGain(ofLerp(0.05f, 8.0f, t));
 			return;
 		}
 		if (handleLiveOutputSettingsDrag(x, y, button)) {
@@ -6907,8 +6658,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 		if (handleAudioScreenClick(x, y, button)) return;
 	}
 	if (pantallaActiva == OPCIONES) {
-		// Audio first: an open device dropdown overlays the rows beneath it.
-		if (handleAudioSettingsClick(x, y, button)) {
+		if (handleTransitionSettingsClick(x, y, button)) {
 			return;
 		}
 		if (handleLiveOutputSettingsClick(x, y, button)) {

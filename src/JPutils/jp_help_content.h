@@ -606,12 +606,12 @@ namespace jp_help
 
 		// ------------------------------------------------------------------
 		H("AUDIO", "AUDIO"),
-		N("In SETTINGS, enable AUDIO IN, select a device and adjust Gain. The meter shows spectrum, kick/snare detection, estimated BPM, confidence and clipping.",
-			"En SETTINGS, activa AUDIO IN, elige un dispositivo y ajusta Gain. El medidor muestra el espectro, detecciones de bombo y redoblante, BPM estimado, confianza y clipping.", Scope::Settings),
-		N("MIX combines stereo channels; LEFT and RIGHT listen to one channel. AUTO GAIN adapts analysis to the incoming level. CALIBRATE listens for three seconds and sets the noise threshold.",
-			"MIX combina los canales estéreo; LEFT y RIGHT escuchan uno solo. AUTO GAIN adapta el análisis al nivel recibido. CALIBRATE escucha durante tres segundos y ajusta el umbral al ruido ambiente.", Scope::Settings),
-		N("Press 7 for the AUDIO screen: the analyser's own tuning and the readouts that explain what it is doing. Threshold, Gain, Add and Smooth per source apply GLOBALLY, before every parameter, shader uniform and meter.",
-			"Pulsa 7 para la pantalla AUDIO: el ajuste del analizador y los indicadores que explican qué está haciendo. Threshold, Gain, Add y Smooth por fuente se aplican de forma GLOBAL, antes de cada parámetro, uniform de shader y medidor.", Scope::Settings),
+		N("Press 7 for the AUDIO screen. The strip along the top is the input chain: turn INPUT on, pick a DEVICE, set GAIN, and use CALIBRATE to listen for three seconds and set the noise gate to the room.",
+			"Pulsa 7 para la pantalla AUDIO. La franja de arriba es la cadena de entrada: activa INPUT, elige un DEVICE, ajusta GAIN, y usa CALIBRATE para escuchar tres segundos y fijar la compuerta de ruido a la sala.", Scope::Settings),
+		N("CHANNEL picks MIX, LEFT or RIGHT. NORMALISE adapts each band to the incoming level; turn it to MANUAL when its range keeps collapsing. SHADER / is the beat division the shader uniforms use.",
+			"CHANNEL elige MIX, LEFT o RIGHT. NORMALISE adapta cada banda al nivel recibido; ponlo en MANUAL si su rango se sigue colapsando. SHADER / es la división de tiempo que usan los uniforms de shader.", Scope::Settings),
+		N("Below the strip, Threshold, Gain, Add and Smooth per source apply GLOBALLY, before every parameter, shader uniform and meter.",
+			"Debajo de la franja, Threshold, Gain, Add y Smooth por fuente se aplican de forma GLOBAL, antes de cada parámetro, uniform de shader y medidor.", Scope::Settings),
 		N("Their defaults are the identity, so nothing changes until you move one. A source that is no longer at its factory value is marked with an asterisk, and each row has its own reset.",
 			"Sus valores por defecto son la identidad, así que nada cambia hasta que mueves uno. Una fuente que ya no está en su valor de fábrica queda marcada con un asterisco, y cada fila tiene su propio reset.", Scope::Settings),
 		N("Kick and Snare get Sens and Hold instead: Sens is how far the flux must rise above its own moving average, Hold is the minimum time between two detections. The plot shows the flux against that threshold, which is how you see WHY a hit did not register.",
