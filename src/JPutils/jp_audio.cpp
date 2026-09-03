@@ -348,6 +348,64 @@ void jp_audio::getSpectrum(float *out, int bins)
 		out[i] = gRunning ? gSnapshot.spectrum[source] : 0.0f;
 	}
 }
+void jp_audio::setTuning(int tunedIndex,
+	const jp_audio_internal::SourceTuning &tuning)
+{
+	gAnalyzer.setTuning(tunedIndex, tuning);
+}
+jp_audio_internal::SourceTuning jp_audio::getTuning(int tunedIndex)
+{
+	return gAnalyzer.tuning(tunedIndex);
+}
+void jp_audio::setOnsetSensitivity(int onset, float sensitivity)
+{
+	gAnalyzer.setOnsetSensitivity(onset, sensitivity);
+}
+float jp_audio::getOnsetSensitivity(int onset)
+{
+	return gAnalyzer.onsetSensitivity(onset);
+}
+void jp_audio::setOnsetRefractory(int onset, float seconds)
+{
+	gAnalyzer.setOnsetRefractory(onset, seconds);
+}
+float jp_audio::getOnsetRefractory(int onset)
+{
+	return gAnalyzer.onsetRefractory(onset);
+}
+int jp_audio::tuningIndexForSource(int source)
+{
+	// The one place the two orderings meet. Everything else asks here rather
+	// than inlining a switch that would drift the moment a source is appended.
+	switch (source)
+	{
+	case SRC_LOW: return jp_audio_internal::TUNED_LOW;
+	case SRC_MID: return jp_audio_internal::TUNED_MID;
+	case SRC_HIGH: return jp_audio_internal::TUNED_HIGH;
+	case SRC_LOWBASS: return jp_audio_internal::TUNED_LOWBASS;
+	case SRC_HIGHMID: return jp_audio_internal::TUNED_HIGHMID;
+	case SRC_LEVEL: return jp_audio_internal::TUNED_LEVEL;
+	default: return -1;
+	}
+}
+const char *jp_audio::tunedSourceLabel(int tunedIndex)
+{
+	switch (tunedIndex)
+	{
+	case jp_audio_internal::TUNED_LOW: return sourceLabel(SRC_LOW);
+	case jp_audio_internal::TUNED_MID: return sourceLabel(SRC_MID);
+	case jp_audio_internal::TUNED_HIGH: return sourceLabel(SRC_HIGH);
+	case jp_audio_internal::TUNED_LOWBASS: return sourceLabel(SRC_LOWBASS);
+	case jp_audio_internal::TUNED_HIGHMID: return sourceLabel(SRC_HIGHMID);
+	case jp_audio_internal::TUNED_LEVEL: return sourceLabel(SRC_LEVEL);
+	default: return "Unknown";
+	}
+}
+jp_audio_internal::AnalyzerDiagnostics jp_audio::getDiagnostics()
+{
+	return gRunning ? gAnalyzer.diagnostics() :
+		jp_audio_internal::AnalyzerDiagnostics();
+}
 const char *jp_audio::sourceLabel(int source)
 {
 	static const char *labels[SRC_COUNT] = {"Low", "Mid", "High", "Kick", "Snare",

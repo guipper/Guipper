@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ofMain.h"
+#include "jp_audio_analyzer.h"
 #include <atomic>
 #include <string>
 #include <vector>
@@ -104,6 +105,27 @@ public:
 	static void beginCalibration();
 	static void setShaderDiv(int div);
 	static int getShaderDiv();
+
+	// --- per-source tuning (the AUDIO screen) ------------------------------
+	// The global Threshold/Gain/Add/Smooth stage. Applied inside the analyzer,
+	// so parameters, shader uniforms and the SETTINGS meter all see the same
+	// shaped value. Indices are jp_audio_internal::TunedSource, NOT Source -
+	// use tuningIndexForSource() to cross over.
+	static void setTuning(int tunedIndex,
+		const jp_audio_internal::SourceTuning &tuning);
+	static jp_audio_internal::SourceTuning getTuning(int tunedIndex);
+	static void setOnsetSensitivity(int onset, float sensitivity);
+	static float getOnsetSensitivity(int onset);
+	static void setOnsetRefractory(int onset, float seconds);
+	static float getOnsetRefractory(int onset);
+	// -1 when this Source has no tuning row of its own (the onsets and the
+	// trigger/express/logic variants, which inherit from their detector).
+	static int tuningIndexForSource(int source);
+	static const char *tunedSourceLabel(int tunedIndex);
+	// Everything the debug screen draws. Zeroed when the stream is not running,
+	// so the panel can never show live numbers while the rest of the app sees
+	// silence.
+	static jp_audio_internal::AnalyzerDiagnostics getDiagnostics();
 
 	// --- values (main thread, always safe, 0 when not running) --------------
 	// The single entry point. `div` is ignored by the continuous sources, so

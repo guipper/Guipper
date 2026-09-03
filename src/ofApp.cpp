@@ -369,6 +369,51 @@ void ofApp::registerSurfaces()
 		return surfaces.blockedAt(x, y, order);
 	});
 }
+// One way in to every screen.
+//
+// There used to be six copies of this, one per number key, plus a seventh in
+// the tab-click chain that had already drifted from them. The line that matters
+// most is hiding the shader editor: JPShaderEditor::wantsKeyCapture() is not
+// gated on the screen and keyPressed returns unconditionally when it is true,
+// so a screen switch that forgets it leaves the editor invisible but still
+// swallowing every key - including the ones that would switch back - with no
+// way out but the mouse, since its ESC surface requires pantallaActiva ==
+// EDITOR and is therefore closed as far as the surface stack is concerned.
+void ofApp::enterScreen(int screen)
+{
+	const bool changed = pantallaActiva != screen;
+	pantallaActiva = screen;
+	focusedOptionsField = -1;
+	clearLiveOutputInteractionState();
+	if (screen != EDITOR && shaderEditor.isVisible())
+	{
+		shaderEditor.setVisible(false);
+	}
+	switch (screen)
+	{
+	case OPCIONES:
+		// Only on a real change: re-entering must not throw away text the user
+		// has typed but not committed.
+		if (changed)
+		{
+			initOptionsFields();
+			optionsFieldsInitialized = true;
+		}
+		break;
+	case SHADER_INDEX:
+		shaderSearchFocused = true;
+		shaderSearchCursor = ofClamp(shaderSearchCursor, 0,
+			(int)shaderSearchText.size());
+		if (shaderFolders.empty()) scanShaders();
+		break;
+	case EDITOR:
+		shaderEditor.setVisible(true);
+		break;
+	default:
+		break;
+	}
+}
+
 void ofApp::update() {
 
 	const auto updateStart = ProfileClock::now();
@@ -4253,6 +4298,11 @@ void ofApp::clearLiveOutputInteractionState()
 	lastLiveOutputInputClickMs = 0;
 	liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
 	liveOutputMenuScroll = 0;
+	// The audio device dropdown is the third one on this screen and was the only
+	// one left open by a screen switch: SURFACE_DROPDOWN's bounds come straight
+	// from getAudioMenuBounds(), so it stayed registered as an open, invisible
+	// surface swallowing clicks in that rect until something else closed it.
+	audioMenuOpen = false;
 	wallDragMode = WALL_DRAG_NONE;
 	wallDragOutput = -1;
 	wallDragCorner = -1;
@@ -6224,58 +6274,13 @@ void ofApp::keyPressed(int key) {
 		}
 	}
 
-	if (key == '6') {
-		pantallaActiva = MIDI_KEYMAP;
-		focusedOptionsField = -1;
-		clearLiveOutputInteractionState();
-		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
-	}
-
-	if (key == '1') {
-		pantallaActiva = NODOS;
-		focusedOptionsField = -1;
-		clearLiveOutputInteractionState();
-		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
-	}
-
-	if (key == '2') {
-		if (pantallaActiva != OPCIONES) {
-			pantallaActiva = OPCIONES;
-			initOptionsFields();
-			optionsFieldsInitialized = true;
-		} else {
-			// Already on options tab, just refocus without resetting field values
-			// (keep existing text as-is)
-		}
-		focusedOptionsField = -1;
-		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
-	}
-
-	if (key == '3') {
-		pantallaActiva = TUTORIAL;
-		focusedOptionsField = -1;
-		clearLiveOutputInteractionState();
-		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
-	}
-
-	if (key == '4') {
-		pantallaActiva = SHADER_INDEX;
-		focusedOptionsField = -1;
-		clearLiveOutputInteractionState();
-		shaderSearchFocused = true;
-		shaderSearchCursor = ofClamp(shaderSearchCursor, 0, (int)shaderSearchText.size());
-		if (shaderEditor.isVisible()) shaderEditor.setVisible(false);
-		if (shaderFolders.empty()) {
-			scanShaders();
-		}
-	}
-
-	if (key == '5') {
-		pantallaActiva = EDITOR;
-		focusedOptionsField = -1;
-		clearLiveOutputInteractionState();
-		shaderEditor.setVisible(true);
-	}
+	if (key == '1') enterScreen(NODOS);
+	if (key == '2') enterScreen(OPCIONES);
+	if (key == '3') enterScreen(TUTORIAL);
+	if (key == '4') enterScreen(SHADER_INDEX);
+	if (key == '5') enterScreen(EDITOR);
+	if (key == '6') enterScreen(MIDI_KEYMAP);
+	if (key == '7') enterScreen(AUDIO_DEBUG);
 
 	// H toggles hit-box visualization in shader index
 	if (key == 'h' && pantallaActiva == SHADER_INDEX) {
@@ -6775,47 +6780,30 @@ void ofApp::mousePressed(int x, int y, int button) {
 
 	// Screen tab click handling
 	{
-		int tabScreen = getScreenTabAtPos(x, y);
-			if (tabScreen == kCuePanelBarItem) {
-				if (boxes.getCuePreviewBox() != nullptr) {
-					boxes.setCueBoxByIndex(-1);
-				} else {
-					boxes.setCueBoxByIndex(
-						boxes.getCueEntryIndexForCurrentView());
-				}
-				return;
+		const int tabScreen = getScreenTabAtPos(x, y);
+		if (tabScreen == kCuePanelBarItem) {
+			if (boxes.getCuePreviewBox() != nullptr) {
+				boxes.setCueBoxByIndex(-1);
+			} else {
+				boxes.setCueBoxByIndex(
+					boxes.getCueEntryIndexForCurrentView());
 			}
-			if (tabScreen == kMappingPanelBarItem) {
-				boxes.toggleMappingEdit();
-				return;
-			}
-			if (tabScreen == kFinalStackBarItem) {
-				pantallaActiva = NODOS;
-				boxes.toggleQuickImageEditor();
-				return;
-			}
-			if (tabScreen >= 0) {
-				if (pantallaActiva != tabScreen) {
-					pantallaActiva = tabScreen;
-					focusedOptionsField = -1;
-					clearLiveOutputInteractionState();
-
-				// Hide editor when leaving EDITOR screen
-				if (pantallaActiva != EDITOR) shaderEditor.setVisible(false);
-
-				if (tabScreen == OPCIONES) {
-					initOptionsFields();
-					optionsFieldsInitialized = true;
-				} else if (tabScreen == SHADER_INDEX) {
-					if (shaderFolders.empty()) {
-						scanShaders();
-					}
-					shaderSearchFocused = true;
-					shaderSearchCursor = ofClamp(shaderSearchCursor, 0, (int)shaderSearchText.size());
-				} else if (tabScreen == EDITOR) {
-					shaderEditor.setVisible(true);
-				}
-			}
+			return;
+		}
+		if (tabScreen == kMappingPanelBarItem) {
+			boxes.toggleMappingEdit();
+			return;
+		}
+		if (tabScreen == kFinalStackBarItem) {
+			enterScreen(NODOS);
+			boxes.toggleQuickImageEditor();
+			return;
+		}
+		if (tabScreen >= 0) {
+			// Same entry point the number keys use. This used to be a seventh
+			// copy of the switch-screen boilerplate and had already drifted
+			// from them.
+			enterScreen(tabScreen);
 			return;
 		}
 	}
@@ -7891,6 +7879,42 @@ void ofApp::loadSettings() {
 	jp_audio::setChannelMode(intValue(settings, "audio_channel_mode", jp_audio::CHANNEL_MIX));
 	jp_audio::setNoiseGate(floatValue(settings, "audio_noise_gate", 0.015f));
 	jp_audio::setShaderDiv(intValue(settings, "audio_shader_div", 0));
+	// Per-source tuning. Nested and keyed by NAME, like live_outputs, so a row
+	// reordered or appended in the enum cannot silently take another row's
+	// numbers - and so `audio_low_gain` never sits one line from `audio_gain`,
+	// which is the INPUT gain and a different thing entirely.
+	//
+	// Absent node, unknown name or missing field all fall back to the identity,
+	// i.e. exactly today's behaviour on an older settings file.
+	if (auto tuningNode = settings.getChild("audio_tuning"))
+	{
+		for (auto sourceNode : tuningNode.getChildren("source"))
+		{
+			const string name = stringValue(sourceNode, "name", "");
+			for (int i = 0; i < jp_audio_internal::TunedSources; ++i)
+			{
+				if (name != jp_audio::tunedSourceLabel(i)) continue;
+				jp_audio_internal::SourceTuning tuning;
+				tuning.threshold = floatValue(sourceNode, "threshold", 0.0f);
+				tuning.gain = floatValue(sourceNode, "gain", 1.0f);
+				tuning.add = floatValue(sourceNode, "add", 0.0f);
+				tuning.smoothMs = floatValue(sourceNode, "smooth_ms", 0.0f);
+				jp_audio::setTuning(i, tuning);
+				break;
+			}
+		}
+		for (auto onsetNode : tuningNode.getChildren("onset"))
+		{
+			const string name = stringValue(onsetNode, "name", "");
+			const int index = name == "kick" ? jp_audio_internal::ONSET_KICK :
+				(name == "snare" ? jp_audio_internal::ONSET_SNARE : -1);
+			if (index < 0) continue;
+			jp_audio::setOnsetSensitivity(index, floatValue(onsetNode,
+				"sensitivity", jp_audio::getOnsetSensitivity(index)));
+			jp_audio::setOnsetRefractory(index, floatValue(onsetNode,
+				"refractory_sec", jp_audio::getOnsetRefractory(index)));
+		}
+	}
 
 	auto bpmaux = settings.getChild("bpm");
 		if (bpmaux) jp_constants::setBpm((float)bpmaux.getIntValue());
@@ -8105,6 +8129,29 @@ void ofApp::saveSettings() {
 	settings.appendChild("audio_channel_mode").set(jp_audio::getChannelMode());
 	settings.appendChild("audio_noise_gate").set(jp_audio::getNoiseGate());
 	settings.appendChild("audio_shader_div").set(jp_audio::getShaderDiv());
+	{
+		auto tuningNode = settings.appendChild("audio_tuning");
+		for (int i = 0; i < jp_audio_internal::TunedSources; ++i)
+		{
+			const jp_audio_internal::SourceTuning tuning = jp_audio::getTuning(i);
+			auto sourceNode = tuningNode.appendChild("source");
+			sourceNode.appendChild("name").set(jp_audio::tunedSourceLabel(i));
+			sourceNode.appendChild("threshold").set(tuning.threshold);
+			sourceNode.appendChild("gain").set(tuning.gain);
+			sourceNode.appendChild("add").set(tuning.add);
+			sourceNode.appendChild("smooth_ms").set(tuning.smoothMs);
+		}
+		static const char *onsetNames[jp_audio_internal::Onsets] = {"kick", "snare"};
+		for (int i = 0; i < jp_audio_internal::Onsets; ++i)
+		{
+			auto onsetNode = tuningNode.appendChild("onset");
+			onsetNode.appendChild("name").set(onsetNames[i]);
+			onsetNode.appendChild("sensitivity").set(
+				jp_audio::getOnsetSensitivity(i));
+			onsetNode.appendChild("refractory_sec").set(
+				jp_audio::getOnsetRefractory(i));
+		}
+	}
 	settings.appendChild("favorites_display_mode").set((int)favoritesDisplayMode);
 
 	settings.appendChild("wall_mode").set(
@@ -8642,6 +8689,7 @@ vector<ofApp::ScreenBarItem> ofApp::buildScreenBar() const {
 		{"IMPORT", SHADER_INDEX, "Browse and preview shader boxes"},
 		{"EDITOR", EDITOR, "Edit the selected shader source"},
 		{"MIDI", MIDI_KEYMAP, "Bind MIDI controls to boxes and parameters"},
+		{"AUDIO", AUDIO_DEBUG, "Tune and diagnose the audio analyser"},
 		{"CUE", kCuePanelBarItem, "Cue preview panel"},
 		{"MAP", kMappingPanelBarItem, "Projection mapping editor (needs a mapping shader selected)"},
 		{"FINAL", kFinalStackBarItem, "Layers composited on top of the final output"}

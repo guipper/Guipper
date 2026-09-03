@@ -360,9 +360,11 @@ public:
 		TUTORIAL,    // HELP
 		SHADER_INDEX,// IMPORT
 		EDITOR,      // SHADER EDITOR
-		MIDI_KEYMAP  // MIDI keymap. Appended: the ordinals are not persisted,
+		MIDI_KEYMAP, // MIDI keymap. Appended: the ordinals are not persisted,
 		             // but keeping them stable keeps '1'-'5' meaning what they
 		             // always meant.
+		AUDIO_DEBUG  // Audio analyzer tuning and meters. Appended for the same
+		             // reason.
 	};
 	int pantallaActiva;
 	// HELP document and section index scroll independently. Their content/view
@@ -400,6 +402,9 @@ public:
 	JPSurfaceStack surfaces;
 	void registerSurfaces();
 	// Drops focus from whichever text field currently has it.
+	// The single entry point for switching screen - see the comment on the
+	// definition. Never set pantallaActiva directly.
+	void enterScreen(int screen);
 	void clearFieldFocus();
 	bool anyFieldFocused() const;
 
