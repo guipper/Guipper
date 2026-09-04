@@ -100,6 +100,20 @@ void JPboxgroup::pushFinalQuickImageHistory(
 	}
 }
 
+void JPboxgroup::forgetFinalStackHistory()
+{
+	// The panel's ring holds whole-stack snapshots, and a snapshot names its
+	// boxes by uid. Once a box leaves the graph, replaying any snapshot taken
+	// while it was still there puts back a row that can never draw - the exact
+	// ghost that deleting is supposed to remove. Undoing a delete is the
+	// GRAPH's Ctrl+Z, which brings the box and its layer back together.
+	finalQuickImageHistory.clear();
+	finalQuickImageHistoryCursor = 0;
+	if (finalLayerById(quickImageSelectedId) == nullptr)
+		quickImageSelectedId = finalQuickImages.layers.empty() ? 0 :
+			finalQuickImages.layers.back().id;
+}
+
 bool JPboxgroup::quickImageUndoShortcut(bool redo)
 {
 	if (!quickImagePanelOpen) return false;

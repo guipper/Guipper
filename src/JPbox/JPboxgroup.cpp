@@ -6345,6 +6345,12 @@ void JPboxgroup::load(string _dirinput)
 		ofLogNotice("finaloverlay") << "migrated " << legacyOverlays.size()
 			<< " box overlay(s) into the FINAL stack";
 	}
+
+	// LAST, once the graph is populated: loadStack() runs before a single box
+	// exists and cannot resolve anything. A composition saved before deleting
+	// took its layers with it can carry rows whose source no longer exists, and
+	// those rows draw nothing while looking exactly like a healthy one.
+	pruneOrphanFinalLayers();
 }
 vector<JPParameter *> JPboxgroup::getInspectorActionParameters() const
 {
@@ -9281,6 +9287,7 @@ bool JPboxgroup::revertCueDraftBox(int index)
 				}
 			}
 		}
+		dropFinalLayersForDestroyedBox(tboxes[index]);
 		tboxes[index]->clear();
 		delete tboxes[index];
 		tboxes[index] = nullptr;
@@ -9394,6 +9401,7 @@ void JPboxgroup::removeCueAddedBoxesFromRealGraph()
 				}
 			}
 		}
+		dropFinalLayersForDestroyedBox(tboxes[index]);
 		tboxes[index]->clear();
 		delete tboxes[index];
 		tboxes[index] = nullptr;
@@ -9469,6 +9477,7 @@ void JPboxgroup::removeCueAddedGroupBoxes()
 				}
 			}
 		}
+		dropFinalLayersForDestroyedBox(box);
 		box->clear();
 		delete box;
 		preset->boxes.erase(preset->boxes.begin() + idx);

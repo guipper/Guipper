@@ -314,6 +314,20 @@ public:
 	JPQuickImageLayerState *finalLayerForBox(const JPbox *box);
 	JPQuickImageLayerState *finalLayerById(uint64_t id);
 	size_t finalStackSize() const { return finalQuickImages.layers.size(); }
+	// A box leaving the graph takes its FINAL layers with it, and undo brings
+	// them back - the same contract as the severed inlets. Recursive into a
+	// group: a layer naming a box INSIDE a deleted group is just as orphaned as
+	// one naming the group itself.
+	void captureFinalLayersForBox(const JPbox *box,
+		vector<JPGraphDetachedFinalLayer> &out);
+	void restoreFinalLayers(const vector<JPGraphDetachedFinalLayer> &saved);
+	// For the deletes that destroy a box outright, with no history record to
+	// hand the layers back from.
+	void dropFinalLayersForDestroyedBox(const JPbox *box);
+	// Drops every layer whose source box cannot be resolved. Only for the end of
+	// load(): loadStack() runs before a single box exists, so a composition
+	// saved with a stale row would otherwise reload it forever.
+	void pruneOrphanFinalLayers();
 	// Marks every box that is on screen this frame without being the active
 	// render, so the scheduler keeps it at full rate: overlay chains, and the
 	// boxes feeding quick-image layers.
@@ -1125,6 +1139,10 @@ private:
 	const JPQuickImageStackState *quickImageStack() const;
 	ofRectangle quickImagePreviewRect() const;
 	void pushFinalQuickImageHistory(const JPQuickImageStackState &before);
+	// Throws away the panel's own undo ring. Its entries are whole-stack
+	// snapshots naming boxes by uid, so once the graph loses a box any snapshot
+	// still holding its layer would replay a row that can never draw.
+	void forgetFinalStackHistory();
 	void clearQuickImageEditor();
 
 	// ------------------------------------------------------------ paint editor

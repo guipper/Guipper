@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../JPbox/jp_media_state.h"
 #include <cstddef>
 #include <string>
 #include <utility>
@@ -42,6 +43,33 @@ struct JPGraphParamState
 	bool defaultBool = false;
 };
 
+// One FINAL-stack layer that left the stack with its box.
+//
+// Flattened rather than holding a JPQuickImageLayerState, because that struct
+// carries ofVec2f and would drag ofMain.h into this header - which exists to be
+// compilable on its own, and has a test binary that proves it still is.
+// jp_media_state.h is engine-free for the same reason, so the transport state
+// travels whole rather than being flattened too.
+struct JPGraphDetachedFinalLayer
+{
+	// Where it sat in the stack. The stack IS the draw order, so putting the
+	// layer back at the end on undo would silently move it to the top.
+	int index = 0;
+	unsigned long long id = 0;
+	std::string sourceUid;
+	std::string path;
+	std::string name;
+	bool visible = true;
+	bool followChain = true;
+	float opacity = 1.0f;
+	float centerX = 0.5f;
+	float centerY = 0.5f;
+	float sizeX = 1.0f;
+	float sizeY = 1.0f;
+	float rotationDegrees = 0.0f;
+	JPMediaState media;
+};
+
 // One box that has been taken out of a graph but NOT destroyed.
 //
 // Not destroying is the whole point: a destroyed shader box costs a recompile to
@@ -72,6 +100,13 @@ struct JPGraphDetachedBox
 		std::string targetSamplerName;
 	};
 	std::vector<ExposedInput> exposedInputs;
+	// FINAL-stack layers this box (or, for a group, any box inside it) was
+	// feeding. They leave with it and come back with it, exactly like the
+	// severed inlets above: a layer whose source no longer exists draws nothing
+	// and is unremovable from the panel except by hand.
+	//
+	// Held in ASCENDING index order, so restoring walks it forwards.
+	std::vector<JPGraphDetachedFinalLayer> finalLayers;
 };
 
 struct JPGraphEdit
@@ -175,6 +210,10 @@ struct JPGraphEdit
 		// Each child's uid and the index it held in the parent view outside the
 		// group, so the move can be replayed in either direction.
 		std::vector<JPGraphDetachedBox> members;
+		// The group box' OWN FINAL layers. Dissolving takes the group box out
+		// of the graph while its children stay, so only the group's uid dies -
+		// and a layer naming it would be left pointing at nothing.
+		std::vector<JPGraphDetachedFinalLayer> finalLayers;
 	};
 	// Held in DESCENDING groupIndex order, which is the order they must be
 	// dissolved in - taking one out shifts everything after it. Forming them

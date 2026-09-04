@@ -728,6 +728,12 @@ JPGraphDetachedBox JPboxgroup::detachBoxFromView(vector<JPbox *> &list,
 		}
 	}
 
+	// The FINAL stack names boxes by uid, so a layer left behind stops drawing
+	// and cannot be told apart from a healthy one in the panel. Cutting it here
+	// rather than in each caller is the same reasoning as the severed inlets
+	// above: this is the one door every removal goes through.
+	captureFinalLayersForBox(box, detached.finalLayers);
+
 	list.erase(list.begin() + index);
 
 	// The exposed-parameter arrays run parallel to the box list, so they have to
@@ -811,6 +817,8 @@ void JPboxgroup::reattachBoxToView(vector<JPbox *> &list,
 			owner->syncExposedTextureInputs();
 		}
 	}
+
+	restoreFinalLayers(detached.finalLayers);
 
 	// Restore the cables that were cut when it left. The box never moved in
 	// memory, so this is the same pointer they held before.
@@ -941,6 +949,8 @@ bool JPboxgroup::applyGroupPayload(vector<JPbox *> &list,
 		}
 	}
 	group->syncExposedTextureInputs();
+	restoreFinalLayers(payload.finalLayers);
+	payload.finalLayers.clear();
 	return true;
 }
 
@@ -969,6 +979,9 @@ bool JPboxgroup::revertGroupPayload(vector<JPbox *> &list,
 	}
 
 	group->boxes.clear();
+	// After the clear, so the children - which go straight back into the parent
+	// list and keep their uids - are not swept up with the group.
+	captureFinalLayersForBox(group, payload.finalLayers);
 	list.erase(list.begin() + groupIndex);
 	eraseParentSlots(owner, groupIndex);
 
@@ -1191,6 +1204,7 @@ bool JPboxgroup::applyGraphEdit(JPGraphEdit &edit)
 			JPGraphDetachedBox fresh = detachBoxFromView(*list, index, owner);
 			entry.box = fresh.box;
 			entry.severedInlets = fresh.severedInlets;
+			entry.finalLayers = fresh.finalLayers;
 		}
 		break;
 

@@ -49,6 +49,17 @@ namespace
 				visitBoxTree(group->boxes, visit);
 		}
 	}
+
+	// A group takes its children out of the graph with it, so "which boxes stop
+	// existing when this one is deleted" is the whole subtree, not one uid.
+	void collectSubtreeUids(const JPbox *box, vector<string> &out)
+	{
+		if (box == nullptr) return;
+		if (!box->uid.empty()) out.push_back(box->uid);
+		if (const JPbox_preset *group = dynamic_cast<const JPbox_preset *>(box))
+			for (const JPbox *child : group->boxes)
+				collectSubtreeUids(child, out);
+	}
 }
 
 const vector<JPbox *> *JPboxgroup::owningList(const JPbox *box) const
@@ -321,6 +332,114 @@ void JPboxgroup::removeFinalLayersForBox(const JPbox *box)
 	if (finalLayerById(quickImageSelectedId) == nullptr)
 		quickImageSelectedId = layers.empty() ? 0 : layers.back().id;
 	pushFinalQuickImageHistory(before);
+}
+
+// ------------------------------------------ layers leaving with their box
+
+void JPboxgroup::captureFinalLayersForBox(const JPbox *box,
+	vector<JPGraphDetachedFinalLayer> &out)
+{
+	if (box == nullptr || finalQuickImages.layers.empty()) return;
+	vector<string> uids;
+	collectSubtreeUids(box, uids);
+	if (uids.empty()) return;
+
+	auto &layers = finalQuickImages.layers;
+	const size_t before = out.size();
+	// Forward pass records the ORIGINAL index of each layer, so restoring can
+	// insert them back in ascending order and land where they were. Erasing
+	// happens afterwards, in one pass, for the same reason.
+	for (size_t i = 0; i < layers.size(); ++i)
+	{
+		const JPQuickImageLayerState &layer = layers[i];
+		if (layer.sourceUid.empty()) continue;
+		if (std::find(uids.begin(), uids.end(), layer.sourceUid) == uids.end())
+			continue;
+		// The documented exception, kept: a layer that has a file of its own
+		// degrades to that still image rather than leaving with the box.
+		if (!layer.path.empty()) continue;
+		JPGraphDetachedFinalLayer saved;
+		saved.index = (int)i;
+		saved.id = layer.id;
+		saved.sourceUid = layer.sourceUid;
+		saved.path = layer.path;
+		saved.name = layer.name;
+		saved.visible = layer.visible;
+		saved.followChain = layer.followChain;
+		saved.opacity = layer.opacity;
+		saved.centerX = layer.center.x;
+		saved.centerY = layer.center.y;
+		saved.sizeX = layer.size.x;
+		saved.sizeY = layer.size.y;
+		saved.rotationDegrees = layer.rotationDegrees;
+		saved.media = layer.media;
+		out.push_back(saved);
+	}
+	if (out.size() == before) return;
+
+	layers.erase(std::remove_if(layers.begin(), layers.end(),
+		[&](const JPQuickImageLayerState &layer)
+		{
+			return !layer.sourceUid.empty() && layer.path.empty() &&
+				std::find(uids.begin(), uids.end(), layer.sourceUid) !=
+					uids.end();
+		}), layers.end());
+	forgetFinalStackHistory();
+}
+
+void JPboxgroup::restoreFinalLayers(
+	const vector<JPGraphDetachedFinalLayer> &saved)
+{
+	if (saved.empty()) return;
+	auto &layers = finalQuickImages.layers;
+	for (const JPGraphDetachedFinalLayer &s : saved)
+	{
+		JPQuickImageLayerState layer;
+		layer.id = s.id;
+		layer.sourceUid = s.sourceUid;
+		layer.path = s.path;
+		layer.name = s.name;
+		layer.visible = s.visible;
+		layer.followChain = s.followChain;
+		layer.opacity = s.opacity;
+		layer.center.set(s.centerX, s.centerY);
+		layer.size.set(s.sizeX, s.sizeY);
+		layer.rotationDegrees = s.rotationDegrees;
+		layer.media = s.media;
+		const int index = (int)ofClamp((float)s.index, 0.0f,
+			(float)layers.size());
+		layers.insert(layers.begin() + index, layer);
+		// The id was minted before the delete, so nextId is normally already
+		// past it - unless a load() reset the counter in between.
+		if (finalQuickImages.nextId <= s.id)
+			finalQuickImages.nextId = s.id + 1;
+	}
+	forgetFinalStackHistory();
+}
+
+void JPboxgroup::dropFinalLayersForDestroyedBox(const JPbox *box)
+{
+	// For the paths that delete a box outright with no history entry to hold
+	// its layers - the cue destroying what a cancelled cue had added. Same
+	// removal, into a record nobody keeps.
+	vector<JPGraphDetachedFinalLayer> discarded;
+	captureFinalLayersForBox(box, discarded);
+}
+
+void JPboxgroup::pruneOrphanFinalLayers()
+{
+	auto &layers = finalQuickImages.layers;
+	const size_t before = layers.size();
+	layers.erase(std::remove_if(layers.begin(), layers.end(),
+		[this](const JPQuickImageLayerState &layer)
+		{
+			if (layer.sourceUid.empty()) return false; // pure file layer
+			if (!layer.path.empty()) return false;     // degrades to its image
+			return findBoxByUid(layer.sourceUid) == nullptr;
+		}), layers.end());
+	if (layers.size() == before) return;
+	if (finalLayerById(quickImageSelectedId) == nullptr)
+		quickImageSelectedId = layers.empty() ? 0 : layers.back().id;
 }
 
 JPQuickImageLayerState *JPboxgroup::finalLayerById(uint64_t id)
