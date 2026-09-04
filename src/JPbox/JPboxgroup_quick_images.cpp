@@ -174,9 +174,19 @@ void JPboxgroup::renderFinalComposite()
 		transition.draw(0, 0, width, height);
 	else boxes[*activerender]->fbo.draw(0, 0, width, height);
 	ofEnableAlphaBlending();
+	// SEPARATE blend, because openFrameworks' OF_BLENDMODE_ALPHA is not: it
+	// scales the source's ALPHA by src.a too, so an overlapped pixel ends up
+	// with src.a*src.a + dst.a*(1-src.a) instead of src.a + dst.a*(1-src.a).
+	// Invisible on screen - the colour is right either way - but this FBO is
+	// what getActiverender() hands to Spout and NDI, so a receiver that honours
+	// alpha would see holes wherever two layers overlap.
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+		GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	// In list order, so the last layer of the stack is drawn last and lands on
 	// top - which is why the panel shows the list upside down, newest first.
 	finalQuickImageRenderer.draw(finalQuickImages, width, height, 0);
+	// Back to the shared mode, or every later draw in the frame inherits this.
+	ofEnableAlphaBlending();
 	ofPopStyle();
 	finalQuickImageFbo.end();
 	finalCompositeActive = true;
