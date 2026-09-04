@@ -224,6 +224,10 @@ void JPbox_preset::setup(string _directory, string _name)
 				loadAudioFloat("audioamount", &JPParameterGroup::setAudioAmount);
 				auto audioInvert = param.getChild("audioinvert");
 				if (audioInvert) bx->parameters.setAudioInvert(audioInvert.getBoolValue(), destinationIndex);
+				auto audioDrivesSpeed = param.getChild("audiodrivesspeed");
+				if (audioDrivesSpeed) bx->parameters.setAudioDrivesSpeed(audioDrivesSpeed.getBoolValue(), destinationIndex);
+				auto audioSpeedDir = param.getChild("audiospeeddirection");
+				if (audioSpeedDir) bx->parameters.setAudioSpeedDirection(audioSpeedDir.getIntValue(), destinationIndex);
 				loadAudioFloat("audiothreshold", &JPParameterGroup::setAudioThreshold);
 				loadAudioFloat("audiocurve", &JPParameterGroup::setAudioCurve);
 				loadAudioFloat("audioattackms", &JPParameterGroup::setAudioAttackMs);
@@ -1008,6 +1012,8 @@ void JPbox_preset::save()
 					param.appendChild("audiobase").set(boxes[i]->parameters.getAudioBase(k));
 					param.appendChild("audioamount").set(boxes[i]->parameters.getAudioAmount(k));
 					param.appendChild("audioinvert").set(boxes[i]->parameters.getAudioInvert(k));
+					param.appendChild("audiodrivesspeed").set(boxes[i]->parameters.getAudioDrivesSpeed(k));
+					param.appendChild("audiospeeddirection").set(boxes[i]->parameters.getAudioSpeedDirection(k));
 					param.appendChild("audiothreshold").set(boxes[i]->parameters.getAudioThreshold(k));
 					param.appendChild("audiocurve").set(boxes[i]->parameters.getAudioCurve(k));
 					param.appendChild("audioattackms").set(boxes[i]->parameters.getAudioAttackMs(k));

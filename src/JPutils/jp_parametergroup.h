@@ -126,6 +126,38 @@ public:
 	float audioAttackMs;
 	float audioReleaseMs;
 	bool audioShapingOpen;
+	// Audio drives the PATTERN SPEED instead of the value.
+	//
+	// movtype is exclusive - a parameter either runs a pattern or follows audio
+	// - which left the whole shaping chain idle in pattern modes. With this set
+	// the chain is evaluated anyway and its 0..1 result scales the speed: the
+	// knob becomes the ceiling, silence stops the pattern, a hit runs it at the
+	// knob's rate.
+	//
+	// Only meaningful for OSC/RANDOM/GODER/GOIZQ. BPM's `speed` is a decay
+	// exponent, not a rate, and AUDIO does not read speed at all.
+	bool audioDrivesSpeed;
+	// Which way the modulator moves the speed away from the knob.
+	// Index-stable: written to save files as <audiospeeddirection>.
+	// Index-stable, so SPEED_DOWN keeps ordinal 0 even though CENTRE is the
+	// default: the ordinals are written to save files.
+	enum SpeedDirection
+	{
+		SPEED_DOWN = 0,   // knob is the ceiling: silence slows it
+		SPEED_UP,         // knob is the floor: audio pushes it faster
+		SPEED_CENTRE      // knob is the middle: audio moves it both ways
+	};
+	int audioSpeedDirection;
+	// The direction maths, pure and static so it can be tested without an
+	// audio device. `shaped` and `amount` are both 0..1, and so is the result:
+	// the speed knob's own domain.
+	static float applySpeedDirection(int direction, float knob,
+		float shaped, float amount);
+	// The speed actually used on the last update, after the audio modulator.
+	// Transient - never saved, never copied - and read only by the inspector,
+	// which draws it as a ghost on the speed knob so the knob's own number can
+	// stay the reference it was.
+	float effectiveSpeed;
 
 	// Transition morph. While the MAIN crossfade runs, a parameter emits a
 	// blend of its own animated value and its counterpart in the other box, so
@@ -154,10 +186,31 @@ public:
 	void cycleAudioSource(int step = 1);
 	void cycleAudioDiv(int step = 1);
 	// float speed;
+	// True when this parameter is running one of the four patterns.
+	bool isPatternMode() const;
+	// Whether the shaping grid belongs on screen. Wider than usesAudioChain():
+	// BPM shapes its own beat envelope with the same Threshold/Curve/Invert,
+	// even though it has no audio source to pick.
+	bool usesShaping() const;
+	// Whether the audio chips (source, division, shaping) belong on screen:
+	// either the parameter follows audio, or audio is driving its speed.
+	bool usesAudioChain() const;
+
 private:
 	bool dir;
 	float seed;
 	float audioSmoothed;
+	// Integrated noise phase for RANDOM - see the comment at its use.
+	float noisePhase;
+	// The shared 0..1 shaping chain. One implementation, used both by the AUDIO
+	// value path and by the speed modulator, so they cannot drift.
+	float shapedAudio(float deltaSeconds);
+	// Threshold gate and rescale, then curve, then invert. The stage every
+	// shaped signal in this class shares, whatever produced it.
+	// Threshold gate and rescale (optional), then curve, then invert.
+	// BPM passes useThreshold=false: it has no Threshold cell, and a value left
+	// behind by a stint in AUDIO mode must not shape the beat invisibly.
+	float shapeCurve(float raw, bool useThreshold) const;
 };
 
 class JPParameterGroup
@@ -211,6 +264,8 @@ public:
 	float getAudioBase(int _index);
 	float getAudioAmount(int _index);
 	bool getAudioInvert(int _index);
+	bool getAudioDrivesSpeed(int _index);
+	int getAudioSpeedDirection(int _index);
 	float getAudioThreshold(int _index);
 	float getAudioCurve(int _index);
 	float getAudioAttackMs(int _index);
@@ -236,6 +291,8 @@ public:
 	void setAudioBase(float value, int index);
 	void setAudioAmount(float value, int index);
 	void setAudioInvert(bool value, int index);
+	void setAudioDrivesSpeed(bool value, int index);
+	void setAudioSpeedDirection(int value, int index);
 	void setAudioThreshold(float value, int index);
 	void setAudioCurve(float value, int index);
 	void setAudioAttackMs(float value, int index);

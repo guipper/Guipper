@@ -3018,18 +3018,24 @@ bool JPboxgroup::handleInspectorAutomationClick(int mouseButton)
 			return true;
 		}
 
-		// AUDIO mode, mirroring the BPM pair above. Handle shaping controls
-		// before the persistent source/division row and the mode button.
-		if (leftButton && parameter->audioEligible &&
-			parameter->movtype == JPParameter::AUDIO &&
+		// The audio chips: source, division and the shaping disclosure. Gated on
+		// usesAudioChain(), NOT on movtype == AUDIO, because a pattern whose
+		// SPEED follows audio shows the very same row. Drawing already uses that
+		// predicate; testing a different one here is precisely how a control
+		// ends up painted where it cannot be clicked.
+		//
+		// Handle shaping controls before the persistent source/division row.
+		// usesShaping(), so BPM reaches the same disclosure. No audioEligible
+		// check: a BPM parameter shapes its own beat envelope and needs no
+		// audio device at all.
+		if (leftButton && parameter->usesShaping() &&
 			boundsFor(slider->audio_shape_button).inside(mouse))
 		{
 			parameter->audioShapingOpen = !parameter->audioShapingOpen;
 			setControllers();
 			return true;
 		}
-		if (leftButton && parameter->audioEligible &&
-			parameter->movtype == JPParameter::AUDIO &&
+		if (leftButton && parameter->usesShaping() &&
 			parameter->audioShapingOpen)
 		{
 			const int shapingControl = slider->audioShapingControlAt(
@@ -3055,7 +3061,7 @@ bool JPboxgroup::handleInspectorAutomationClick(int mouseButton)
 			}
 		}
 		if (parameter->audioEligible &&
-			parameter->movtype == JPParameter::AUDIO &&
+			parameter->usesAudioChain() &&
 			jp_audio::isRhythmSource(parameter->audioSource) &&
 			boundsFor(slider->audio_div_button).inside(mouse))
 		{
@@ -3068,8 +3074,21 @@ bool JPboxgroup::handleInspectorAutomationClick(int mouseButton)
 			}
 			return true;
 		}
+		// A cycling chip like the others on this row, so it honours the
+		// right-click-steps-backwards convention.
+		if (parameter->audioEligible && parameter->audioDrivesSpeed &&
+			parameter->isPatternMode() &&
+			boundsFor(slider->audio_speeddir_button).inside(mouse))
+		{
+			parameter->audioSpeedDirection =
+				(parameter->audioSpeedDirection + step + 3) % 3;
+			parameter->update();
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode()) updateCueDraftGraph();
+			return true;
+		}
 		if (parameter->audioEligible &&
-			parameter->movtype == JPParameter::AUDIO &&
+			parameter->usesAudioChain() &&
 			boundsFor(slider->audio_source_button).inside(mouse))
 		{
 			parameter->cycleAudioSource(step);
@@ -3098,6 +3117,22 @@ bool JPboxgroup::handleInspectorAutomationClick(int mouseButton)
 			{
 				updateCueDraftGraph();
 			}
+			setControllers();
+			return true;
+		}
+
+		// Audio drives the automation SPEED. Only offered on the four patterns:
+		// BPM's speed is a decay exponent and AUDIO does not read speed.
+		if (leftButton && parameter->audioEligible &&
+			parameter->isPatternMode() &&
+			boundsFor(slider->boton_speed_audio).inside(mouse))
+		{
+			parameter->audioDrivesSpeed = !parameter->audioDrivesSpeed;
+			parameter->update();
+			markCueDraftDirty(cueSelectedIndex());
+			if (isCueDraftMode()) updateCueDraftGraph();
+			// The row grows a second line for the source chips, so the panel
+			// has to be rebuilt or they are drawn where nothing is clickable.
 			setControllers();
 			return true;
 		}
@@ -3218,8 +3253,12 @@ void JPboxgroup::rebuildControllersIfLayoutStale()
 		JPComplexSlider *slider = dynamic_cast<JPComplexSlider *>(controller);
 		if (slider == nullptr || slider->parameters == nullptr) continue;
 		const bool sourceChanged =
-			slider->parameters->movtype == JPParameter::AUDIO &&
+			slider->parameters->usesAudioChain() &&
 			slider->builtForAudioSource != slider->parameters->audioSource;
+		// Turning the speed modulator on or off adds or removes the whole
+		// second row, so it is a layout change like a mode switch.
+		const bool speedAudioChanged =
+			slider->builtForSpeedAudio != slider->parameters->audioDrivesSpeed;
 		auto isBasicPattern = [](int mode)
 		{
 			return mode == JPParameter::OSC || mode == JPParameter::RANDOM ||
@@ -3229,8 +3268,7 @@ void JPboxgroup::rebuildControllersIfLayoutStale()
 			slider->builtForMovtype != slider->parameters->movtype &&
 			!(isBasicPattern(slider->builtForMovtype) &&
 				isBasicPattern(slider->parameters->movtype));
-		if (layoutChanged ||
-			sourceChanged)
+		if (layoutChanged || sourceChanged || speedAudioChanged)
 		{
 			setControllers();
 			return;
@@ -5876,6 +5914,8 @@ void JPboxgroup::save(string outputPath)
 					param.appendChild("audiobase").set(boxes[i]->parameters.getAudioBase(k));
 					param.appendChild("audioamount").set(boxes[i]->parameters.getAudioAmount(k));
 					param.appendChild("audioinvert").set(boxes[i]->parameters.getAudioInvert(k));
+					param.appendChild("audiodrivesspeed").set(boxes[i]->parameters.getAudioDrivesSpeed(k));
+					param.appendChild("audiospeeddirection").set(boxes[i]->parameters.getAudioSpeedDirection(k));
 					param.appendChild("audiothreshold").set(boxes[i]->parameters.getAudioThreshold(k));
 					param.appendChild("audiocurve").set(boxes[i]->parameters.getAudioCurve(k));
 					param.appendChild("audioattackms").set(boxes[i]->parameters.getAudioAttackMs(k));
@@ -6151,6 +6191,10 @@ void JPboxgroup::load(string _dirinput)
 				loadAudioFloat("audioamount", &JPParameterGroup::setAudioAmount);
 				auto audioInvert = param.getChild("audioinvert");
 				if (audioInvert) bx->parameters.setAudioInvert(audioInvert.getBoolValue(), destinationIndex);
+				auto audioDrivesSpeed = param.getChild("audiodrivesspeed");
+				if (audioDrivesSpeed) bx->parameters.setAudioDrivesSpeed(audioDrivesSpeed.getBoolValue(), destinationIndex);
+				auto audioSpeedDir = param.getChild("audiospeeddirection");
+				if (audioSpeedDir) bx->parameters.setAudioSpeedDirection(audioSpeedDir.getIntValue(), destinationIndex);
 				loadAudioFloat("audiothreshold", &JPParameterGroup::setAudioThreshold);
 				loadAudioFloat("audiocurve", &JPParameterGroup::setAudioCurve);
 				loadAudioFloat("audioattackms", &JPParameterGroup::setAudioAttackMs);
@@ -9747,6 +9791,8 @@ void JPboxgroup::copyParametersByNameOrIndex(JPParameterGroup &destination, JPPa
 			destination.setAudioBase(source.getAudioBase(srcIndex), dstIndex);
 			destination.setAudioAmount(source.getAudioAmount(srcIndex), dstIndex);
 			destination.setAudioInvert(source.getAudioInvert(srcIndex), dstIndex);
+		destination.setAudioDrivesSpeed(source.getAudioDrivesSpeed(srcIndex), dstIndex);
+		destination.setAudioSpeedDirection(source.getAudioSpeedDirection(srcIndex), dstIndex);
 			destination.setAudioThreshold(source.getAudioThreshold(srcIndex), dstIndex);
 			destination.setAudioCurve(source.getAudioCurve(srcIndex), dstIndex);
 			destination.setAudioAttackMs(source.getAudioAttackMs(srcIndex), dstIndex);
@@ -11326,6 +11372,8 @@ void JPboxgroup::copySelectedBoxes()
 					param.appendChild("audiobase").set(box->parameters.getAudioBase(k));
 					param.appendChild("audioamount").set(box->parameters.getAudioAmount(k));
 					param.appendChild("audioinvert").set(box->parameters.getAudioInvert(k));
+					param.appendChild("audiodrivesspeed").set(box->parameters.getAudioDrivesSpeed(k));
+					param.appendChild("audiospeeddirection").set(box->parameters.getAudioSpeedDirection(k));
 					param.appendChild("audiothreshold").set(box->parameters.getAudioThreshold(k));
 					param.appendChild("audiocurve").set(box->parameters.getAudioCurve(k));
 					param.appendChild("audioattackms").set(box->parameters.getAudioAttackMs(k));
@@ -11498,6 +11546,10 @@ void JPboxgroup::pasteBoxes()
 						loadAudioFloat("audioamount", &JPParameterGroup::setAudioAmount);
 						auto audioInvert = param.getChild("audioinvert");
 						if (audioInvert) bx->parameters.setAudioInvert(audioInvert.getBoolValue(), paramIndex);
+						auto audioDrivesSpeed = param.getChild("audiodrivesspeed");
+						if (audioDrivesSpeed) bx->parameters.setAudioDrivesSpeed(audioDrivesSpeed.getBoolValue(), paramIndex);
+						auto audioSpeedDir = param.getChild("audiospeeddirection");
+						if (audioSpeedDir) bx->parameters.setAudioSpeedDirection(audioSpeedDir.getIntValue(), paramIndex);
 						loadAudioFloat("audiothreshold", &JPParameterGroup::setAudioThreshold);
 						loadAudioFloat("audiocurve", &JPParameterGroup::setAudioCurve);
 						loadAudioFloat("audioattackms", &JPParameterGroup::setAudioAttackMs);

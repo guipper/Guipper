@@ -129,6 +129,17 @@ void drawModifierRowIcon(float x, float y, bool audio)
 	ofPopStyle();
 }
 
+// Which way the audio pushes the speed, relative to the knob.
+const char *speedDirectionLabel(int direction)
+{
+	switch (direction)
+	{
+	case JPParameter::SPEED_UP: return "Up";
+	case JPParameter::SPEED_CENTRE: return "Centre";
+	default: return "Down";
+	}
+}
+
 void drawLabelChip(JPdragobject &control, const std::string &label,
 	bool muted = false, bool compact = false)
 {
@@ -246,10 +257,17 @@ float JPComplexSlider::requiredHeight(const JPParameter *parameter,
 	if (parameter == nullptr || parameter->movtype == JPParameter::STANDART)
 		return standardHeight;
 	const LayoutMetrics &metrics = layoutMetrics();
-	if (parameter->movtype == JPParameter::AUDIO && parameter->audioShapingOpen)
-		return metrics.expandedAudioHeight;
-	if (parameter->movtype == JPParameter::BPM ||
-		parameter->movtype == JPParameter::AUDIO)
+	if (parameter->usesShaping() && parameter->audioShapingOpen)
+	{
+		// BPM has no Attack/Release cell - its envelope is already a smooth
+		// decay - so its grid is two rows where audio's is three.
+		const int rows = parameter->movtype == JPParameter::BPM ? 2 : 3;
+		return metrics.expandedAudioHeight -
+			float(3 - rows) * metrics.shapingRowStep;
+	}
+	// A pattern whose speed follows audio needs the same second row: without
+	// the source chip there is no way to say WHICH signal drives it.
+	if (parameter->movtype == JPParameter::BPM || parameter->usesAudioChain())
 		return metrics.modifierHeight;
 	return metrics.automatedHeight;
 }
@@ -463,11 +481,11 @@ void JPComplexSlider::draw()
 	ofSetRectMode(OF_RECTMODE_CENTER);
 	const float panelInsetX = 1.0f;
 	const float panelInsetY = 1.5f;
-	if (parameters->movtype == JPParameter::AUDIO)
+	if (parameters->usesShaping())
 	{
-		// Audio is one coherent card. The old full-row texture plus a second
-		// nested panel created the oversized grey shell visible around the
-		// source and shaping controls.
+		// Audio and BPM are one coherent card. The old full-row texture plus a
+		// second nested panel created the oversized grey shell that was still
+		// visible around the BPM controls.
 		drawAudioBlockPanel(ofRectangle(
 			x - width * 0.5f + panelInsetX,
 			y - height * 0.5f + panelInsetY,
@@ -537,8 +555,45 @@ void JPComplexSlider::draw()
 
 		ofSetRectMode(OF_RECTMODE_CORNER);
 		// slider_value.value = value;
+		// The live, audio-modulated speed as a ghost arc; the knob keeps showing
+		// its own value as the reference.
+		slider_speed.ghostValue =
+			(parameters->audioDrivesSpeed && parameters->isPatternMode()) ?
+				parameters->effectiveSpeed : -1.0f;
 		slider_speed.draw();
 		speed = slider_speed.value;
+		if (parameters->audioEligible && parameters->isPatternMode())
+		{
+			// Three bars, the same glyph the audio mode button uses, so it
+			// reads as "audio" straight away. Lit when it is driving the speed.
+			const bool on = parameters->audioDrivesSpeed;
+			const bool live = jp_audio::isRunning();
+			const float bx = boton_speed_audio.x;
+			const float by = boton_speed_audio.y;
+			// CORNER, explicitly: slider_speed is a JPKnob and leaves the rect
+			// mode on CENTER, which would centre this square on its own
+			// top-left corner and slide it back over the knob.
+			ofSetRectMode(OF_RECTMODE_CORNER);
+			ofSetColor(on ? ofColor(COL_ACCENT_CYAN_DARK, 230) :
+				ofColor(COL_BG_INPUT, 210));
+			ofDrawRectRounded(bx - boton_speed_audio.width / 2.0f,
+				by - boton_speed_audio.width / 2.0f,
+				boton_speed_audio.width, boton_speed_audio.width, 3.0f);
+			ofNoFill();
+			ofSetColor(on ? ofColor(COL_ACCENT_CYAN, 220) :
+				ofColor(COL_BORDER_MUTED, 155));
+			ofDrawRectRounded(bx - boton_speed_audio.width / 2.0f,
+				by - boton_speed_audio.width / 2.0f,
+				boton_speed_audio.width, boton_speed_audio.width, 3.0f);
+			ofFill();
+			ofSetColor(on ? (live ? COL_ACCENT_CYAN : COL_ACCENT_GOLD) :
+				COL_TEXT_SECONDARY);
+			ofSetLineWidth(1.7f);
+			ofDrawLine(bx - 5.0f, by + 4.0f, bx - 5.0f, by - 1.0f);
+			ofDrawLine(bx, by + 4.0f, bx, by - 5.0f);
+			ofDrawLine(bx + 5.0f, by + 4.0f, bx + 5.0f, by + 1.0f);
+			ofSetLineWidth(1.0f);
+		}
 		boton_idayvuelta.draw();
 		if (parameters->bpmEligible)
 		{
@@ -555,8 +610,10 @@ void JPComplexSlider::draw()
 			drawModifierRowIcon(bpm_rate_button.x - 32.0f / 2.0f - 12.0f,
 				bpm_rate_button.y, false);
 			drawLabelChip(bpm_rate_button, bpmRateLabel(parameters->bpmRate));
+			drawLabelChip(audio_shape_button,
+				parameters->audioShapingOpen ? "Close" : "Shaping", false);
 		}
-		else if (parameters->movtype == JPParameter::AUDIO)
+		else if (parameters->usesAudioChain())
 		{
 			// Muted when nothing is listening, so a dead input shows on the
 			// slider itself and not only in SETTINGS.
@@ -572,35 +629,67 @@ void JPComplexSlider::draw()
 					jp_audio::divLabel(parameters->audioDiv), muted);
 			drawLabelChip(audio_shape_button,
 				parameters->audioShapingOpen ? "Close" : "Shaping", muted);
-			if (parameters->audioShapingOpen)
+			if (parameters->audioDrivesSpeed && parameters->isPatternMode())
 			{
-				drawAudioShapingSlider(audio_amount_button, "Amount",
-					ofToString(parameters->audioAmount, 2),
-					audioShapingControlNormalized(AUDIO_SHAPING_AMOUNT), muted);
-				drawAudioShapingSlider(audio_threshold_button, "Threshold",
-					ofToString(parameters->audioThreshold, 2),
-					audioShapingControlNormalized(AUDIO_SHAPING_THRESHOLD), muted);
-				drawAudioShapingSlider(audio_curve_button, "Curve",
-					ofToString(parameters->audioCurve, 2),
-					audioShapingControlNormalized(AUDIO_SHAPING_CURVE), muted);
-				// Same cell shape as the five sliders around it: label left,
-				// value right, bar underneath. It was a centred chip, which
-				// read as a different KIND of control and broke the grid.
-				drawAudioShapingSlider(audio_invert_button, "Invert",
-					parameters->audioInvert ? "Inverted" : "Normal",
-					parameters->audioInvert ? 1.0f : 0.0f, muted);
-				drawAudioShapingSlider(audio_attack_button, "Attack",
-					ofToString((int)parameters->audioAttackMs) + " ms",
-					audioShapingControlNormalized(AUDIO_SHAPING_ATTACK), muted);
-				drawAudioShapingSlider(audio_release_button, "Release",
-					ofToString((int)parameters->audioReleaseMs) + " ms",
-					audioShapingControlNormalized(AUDIO_SHAPING_RELEASE), muted);
+				drawLabelChip(audio_speeddir_button,
+					speedDirectionLabel(parameters->audioSpeedDirection),
+					muted);
 			}
 		}
 
+		// The shaping grid, shared by AUDIO and BPM. BPM stops after Invert:
+		// its envelope is already a smooth decay whose length the speed knob
+		// sets, so Attack and Release would only blur it.
+		if (parameters->usesShaping() && parameters->audioShapingOpen)
+		{
+			const bool muted = parameters->movtype != JPParameter::BPM &&
+				!jp_audio::isRunning();
+			const bool isBpm = parameters->movtype == JPParameter::BPM;
+			drawAudioShapingSlider(audio_amount_button, "Amount",
+				ofToString(parameters->audioAmount, 2),
+				audioShapingControlNormalized(AUDIO_SHAPING_AMOUNT), muted);
+			if (!isBpm)
+			{
+				drawAudioShapingSlider(audio_threshold_button, "Threshold",
+					ofToString(parameters->audioThreshold, 2),
+					audioShapingControlNormalized(AUDIO_SHAPING_THRESHOLD),
+					muted);
+			}
+			drawAudioShapingSlider(audio_curve_button, "Curve",
+				ofToString(parameters->audioCurve, 2),
+				audioShapingControlNormalized(AUDIO_SHAPING_CURVE), muted);
+			// Same cell shape as the sliders around it: label left, value
+			// right, bar underneath. It was a centred chip, which read as a
+			// different KIND of control and broke the grid.
+			drawAudioShapingSlider(audio_invert_button, "Invert",
+				parameters->audioInvert ? "Inverted" : "Normal",
+				parameters->audioInvert ? 1.0f : 0.0f, muted);
+			if (!isBpm)
+			{
+				drawAudioShapingSlider(audio_attack_button, "Attack",
+					ofToString((int)parameters->audioAttackMs) + " ms",
+					audioShapingControlNormalized(AUDIO_SHAPING_ATTACK), muted);
+			}
+			drawAudioShapingSlider(audio_release_button, "Release",
+				ofToString((int)parameters->audioReleaseMs) + " ms",
+				audioShapingControlNormalized(AUDIO_SHAPING_RELEASE), muted);
+		}
+
+		if (parameters->audioEligible && parameters->isPatternMode())
+		{
+			jp_tooltip::draw(parameters->audioDrivesSpeed ?
+					"Audio drives the speed: the knob is the ceiling, silence "
+					"stops the pattern. Click to turn off." :
+					"Let audio drive the automation speed",
+				boton_speed_audio.x - boton_speed_audio.width / 2.0f,
+				boton_speed_audio.y - boton_speed_audio.height / 2.0f,
+				boton_speed_audio.width, boton_speed_audio.height);
+		}
 		jp_tooltip::draw(
-			parameters->movtype == JPParameter::BPM ?
-				"BPM pulse decay" : "Automation speed",
+			parameters->movtype == JPParameter::BPM ? "BPM pulse decay" :
+			(parameters->audioDrivesSpeed ?
+				"Automation speed (ceiling; audio scales it)" :
+				"Automation speed"),
 			slider_speed.x - slider_speed.width / 2.0f,
 			slider_speed.y - slider_speed.height / 2.0f,
 			slider_speed.width, slider_speed.height);
@@ -624,6 +713,12 @@ void JPComplexSlider::draw()
 				boton_bpm.width, boton_bpm.height);
 			if (parameters->movtype == JPParameter::BPM)
 			{
+				jp_tooltip::draw(parameters->audioShapingOpen ?
+						"Close the beat envelope's shaping" :
+						"Shape the beat envelope: Curve, Invert, Threshold",
+					audio_shape_button.x - audio_shape_button.width / 2.0f,
+					audio_shape_button.y - audio_shape_button.height / 2.0f,
+					audio_shape_button.width, audio_shape_button.height);
 				jp_tooltip::draw(
 					"BPM pulse rate: " + bpmRateLabel(parameters->bpmRate),
 					bpm_rate_button.x - bpm_rate_button.width / 2.0f,
@@ -639,8 +734,25 @@ void JPComplexSlider::draw()
 				boton_audio.x - boton_audio.width / 2.0f,
 				boton_audio.y - boton_audio.height / 2.0f,
 				boton_audio.width, boton_audio.height);
-			if (parameters->movtype == JPParameter::AUDIO)
+			if (parameters->usesAudioChain())
 			{
+				if (parameters->audioDrivesSpeed && parameters->isPatternMode())
+				{
+					jp_tooltip::draw(
+						parameters->audioSpeedDirection ==
+							JPParameter::SPEED_UP ?
+						"Up: the knob is the floor, audio pushes faster" :
+						(parameters->audioSpeedDirection ==
+							JPParameter::SPEED_CENTRE ?
+						"Centre: the knob is the middle, audio moves both ways" :
+						"Down: the knob is the ceiling, silence slows it"),
+						audio_speeddir_button.x -
+							audio_speeddir_button.width / 2.0f,
+						audio_speeddir_button.y -
+							audio_speeddir_button.height / 2.0f,
+						audio_speeddir_button.width,
+						audio_speeddir_button.height);
+				}
 				auto drawAudioTooltip = [](const JPdragobject &button,
 					const string &message)
 				{
@@ -662,7 +774,12 @@ void JPComplexSlider::draw()
 								" beats");
 					}
 					drawAudioTooltip(audio_amount_button,
-						"Amount: drag to set modulation depth (0 to 1)");
+						parameters->audioDrivesSpeed &&
+							parameters->isPatternMode() ?
+							"Amount: how deep the audio digs into the speed. "
+							"1 stops the pattern in silence, 0 bypasses the "
+							"modulator and the knob rules." :
+							"Amount: drag to set modulation depth (0 to 1)");
 					drawAudioTooltip(audio_invert_button,
 						"Toggle audio response polarity");
 					drawAudioTooltip(audio_threshold_button,
@@ -711,7 +828,7 @@ void JPComplexSlider::draw()
 				drawClickBounds(bpm_rate_button, boton_bpm.activable2);
 			}
 		}
-		if (parameters->movtype == JPParameter::AUDIO)
+		if (parameters->usesAudioChain())
 		{
 			drawClickBounds(audio_shape_button);
 			drawClickBounds(audio_source_button);
@@ -765,6 +882,7 @@ void JPComplexSlider::setPosAndSize()
 	const LayoutMetrics &layout = layoutMetrics();
 	builtForMovtype = parameters != nullptr ? parameters->movtype : -1;
 	builtForAudioSource = parameters != nullptr ? parameters->audioSource : -1;
+	builtForSpeedAudio = parameters != nullptr && parameters->audioDrivesSpeed;
 	// Automated controllers are top-aligned vertical bands. Their primary line
 	// always occupies the same first 50 px, while source and shaping bands grow
 	// downward. This keeps expansion from moving the parameter users clicked.
@@ -816,7 +934,7 @@ void JPComplexSlider::setPosAndSize()
 		// changes - including from the buttons that change it inside draw().
 		const bool secondRow =
 			parameters->movtype == JPParameter::BPM ||
-			parameters->movtype == JPParameter::AUDIO;
+			parameters->usesAudioChain();
 		const float rightPad = automatedInlinePadding;
 
 		// The value slider takes whatever is LEFT OVER, instead of a hardcoded
@@ -824,8 +942,13 @@ void JPComplexSlider::setPosAndSize()
 		// the audio button pushed the BPM rate chip 28px past the panel edge,
 		// and the rhythm division chip fell off entirely. Sizing by subtraction
 		// means every combination of buttons fits by construction.
+		// The speed-modulation chip only exists for the four patterns: BPM's
+		// `speed` is a decay exponent, and AUDIO does not read speed at all.
+		const bool hasSpeedAudioButton =
+			hasAudioMode && parameters->isPatternMode();
 		const int modeButtons =
-			1 + (hasBpmMode ? 1 : 0) + (hasAudioMode ? 1 : 0);
+			1 + (hasBpmMode ? 1 : 0) + (hasAudioMode ? 1 : 0) +
+			(hasSpeedAudioButton ? 1 : 0);
 		const float sliderLeft = boton_collapse.x +
 			boton_collapse.width * 0.5f + 4.0f;
 		const float tail =
@@ -867,6 +990,19 @@ void JPComplexSlider::setPosAndSize()
 
 		pos += sliderspeedw / 2.0f + modeButtonGap +
 			modeButtonSize / 2.0f;
+		if (hasSpeedAudioButton)
+		{
+			// Next to the knob it modifies, before the pattern button.
+			boton_speed_audio.setup(
+				pos, primaryRowY, modeButtonSize, modeButtonSize);
+			pos += modeButtonSize + modeButtonGap;
+		}
+		else
+		{
+			// Parked off the right edge so a stale rect cannot be clicked.
+			boton_speed_audio.setup(x + width, primaryRowY,
+				modeButtonSize, modeButtonSize);
+		}
 		boton_idayvuelta.setup(
 			pos, primaryRowY, modeButtonSize, modeButtonSize);
 
@@ -900,19 +1036,20 @@ void JPComplexSlider::setPosAndSize()
 					jp_audio::sourceLabel(parameters->audioSource)) + 18.0f,
 				56.0f, 112.0f);
 			const float divW = 60.0f, shapeW = 60.0f;
-			const bool divVisible =
-				parameters->movtype == JPParameter::AUDIO &&
+			const bool divVisible = parameters->usesAudioChain() &&
 				jp_audio::isRhythmSource(parameters->audioSource);
 
-			bpm_rate_button.setup(rightEdge - 32.0f / 2.0f, rowY,
-				32.0f, modeButtonSize);
-
-			// One left margin for the whole audio block. The chip row used to
+			// One left margin for the whole modifier block. The chip row used to
 			// start 8px inside the shaping grid below it, so the icon and the
 			// "Amount" cell did not share an edge.
 			const float audioBlockLeft = x - width / 2.0f + 14.0f;
 			const float iconLead = 18.0f;   // icon half-width plus its gap
 			const float audioLeft = audioBlockLeft + iconLead;
+
+			// Left-aligned, on the same margin the audio chips use, so the two
+			// modes' second rows read as the same row.
+			bpm_rate_button.setup(audioLeft + 32.0f / 2.0f, rowY,
+				32.0f, modeButtonSize);
 			float cursor = audioLeft;
 			audio_source_button.setup(cursor + srcW / 2.0f, rowY,
 				srcW, modeButtonSize);
@@ -928,8 +1065,28 @@ void JPComplexSlider::setPosAndSize()
 					divW, modeButtonSize);
 			audio_shape_button.setup(cursor + shapeW / 2.0f, rowY,
 				shapeW, modeButtonSize);
+			cursor += shapeW + chipGap;
+			if (parameters->movtype == JPParameter::BPM)
+			{
+				// After the rate chip. AFTER the generic setup above, which
+				// would otherwise overwrite this.
+				audio_shape_button.setup(
+					audioLeft + 32.0f + chipGap + shapeW / 2.0f, rowY,
+					shapeW, modeButtonSize);
+			}
+			if (parameters->audioDrivesSpeed && parameters->isPatternMode())
+			{
+				audio_speeddir_button.setup(cursor + 66.0f / 2.0f, rowY,
+					66.0f, modeButtonSize);
+			}
+			else
+			{
+				// Parked off the edge so a stale rect cannot be clicked.
+				audio_speeddir_button.setup(rightEdge + 100.0f, rowY,
+					66.0f, modeButtonSize);
+			}
 
-			if (parameters->movtype == JPParameter::AUDIO && parameters->audioShapingOpen)
+			if (parameters->usesShaping() && parameters->audioShapingOpen)
 			{
 				// Keep source/division on their normal row, then use two
 				// left-aligned shaping rows. This stays readable at minimum width.
@@ -942,21 +1099,45 @@ void JPComplexSlider::setPosAndSize()
 				const float advancedGap = layout.shapingColumnGap;
 				const float columnWidth =
 					(availableWidth - advancedGap) / 2.0f;
-				audio_amount_button.setup(leftEdge + columnWidth / 2.0f,
-					firstY, columnWidth, advancedH);
-				audio_threshold_button.setup(
-					leftEdge + columnWidth + advancedGap + columnWidth / 2.0f,
-					firstY, columnWidth, advancedH);
-				audio_curve_button.setup(leftEdge + columnWidth / 2.0f,
-					secondY, columnWidth, advancedH);
-				audio_invert_button.setup(
-					leftEdge + columnWidth + advancedGap + columnWidth / 2.0f,
-					secondY, columnWidth, advancedH);
-				audio_attack_button.setup(leftEdge + columnWidth / 2.0f,
-					thirdY, columnWidth, advancedH);
-				audio_release_button.setup(
-					leftEdge + columnWidth + advancedGap + columnWidth / 2.0f,
-					thirdY, columnWidth, advancedH);
+				const float rightColumnX =
+					leftEdge + columnWidth + advancedGap + columnWidth / 2.0f;
+				const float leftColumnX = leftEdge + columnWidth / 2.0f;
+				const float parked = rightEdge + 400.0f;
+				if (parameters->movtype == JPParameter::BPM)
+				{
+					// Two rows: Amount | Curve, then Release | Invert. No
+					// Threshold and no Attack - a beat envelope starts at full
+					// and its rise is instant by design. Parked, not just
+					// undrawn: a rect left where it was would still be
+					// clickable.
+					audio_amount_button.setup(leftColumnX, firstY,
+						columnWidth, advancedH);
+					audio_invert_button.setup(rightColumnX, firstY,
+						columnWidth, advancedH);
+					audio_curve_button.setup(leftColumnX, secondY,
+						columnWidth, advancedH);
+					audio_release_button.setup(rightColumnX, secondY,
+						columnWidth, advancedH);
+					audio_threshold_button.setup(parked, thirdY,
+						columnWidth, advancedH);
+					audio_attack_button.setup(parked, thirdY,
+						columnWidth, advancedH);
+				}
+				else
+				{
+					audio_amount_button.setup(leftColumnX, firstY,
+						columnWidth, advancedH);
+					audio_threshold_button.setup(rightColumnX, firstY,
+						columnWidth, advancedH);
+					audio_curve_button.setup(leftColumnX, secondY,
+						columnWidth, advancedH);
+					audio_invert_button.setup(rightColumnX, secondY,
+						columnWidth, advancedH);
+					audio_attack_button.setup(leftColumnX, thirdY,
+						columnWidth, advancedH);
+					audio_release_button.setup(rightColumnX, thirdY,
+						columnWidth, advancedH);
+				}
 			}
 		}
 

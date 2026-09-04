@@ -54,7 +54,11 @@ void JPParameter::setup(float _var, string _name)
 	audioAttackMs = 8.0f;
 	audioReleaseMs = 250.0f;
 	audioShapingOpen = false;
+	audioDrivesSpeed = false;
+	audioSpeedDirection = SPEED_CENTRE;
+	effectiveSpeed = speed;
 	audioSmoothed = 0.0f;
+	noisePhase = 0.0f;
 	needsUpdate = false;
 	randomLocked = false;
 	defaultFloatValue = _var;
@@ -88,7 +92,11 @@ void JPParameter::setup(bool _var, string _name)
 	audioAttackMs = 8.0f;
 	audioReleaseMs = 250.0f;
 	audioShapingOpen = false;
+	audioDrivesSpeed = false;
+	audioSpeedDirection = SPEED_CENTRE;
+	effectiveSpeed = speed;
 	audioSmoothed = 0.0f;
+	noisePhase = 0.0f;
 	needsUpdate = false;
 	randomLocked = false;
 	defaultFloatValue = _var ? 1.0f : 0.0f;
@@ -117,6 +125,100 @@ void JPParameter::cycleAudioDiv(int step)
 {
 	audioDiv = wrapStep(audioDiv, int(jp_audio::DIV_COUNT), step);
 }
+float JPParameter::applySpeedDirection(int direction, float knob,
+	float shaped, float amount)
+{
+	knob = ofClamp(knob, 0.0f, 1.0f);
+	shaped = ofClamp(shaped, 0.0f, 1.0f);
+	amount = ofClamp(amount, 0.0f, 1.0f);
+	float result = knob;
+	switch (direction)
+	{
+	case SPEED_UP:
+		// The knob is the FLOOR. Silence runs at the knob; a hit pushes toward
+		// full speed. The ceiling is 1.0 because that is the knob's own top.
+		result = ofLerp(knob, 1.0f, shaped * amount);
+		break;
+	case SPEED_CENTRE:
+	{
+		// The knob is the MIDDLE and the audio swings both ways. The half-range
+		// is whichever side has less room, so the swing stays symmetric instead
+		// of clipping on one end: at a knob of 0.1 it moves 0..0.2, not 0..1.
+		const float half = std::min(knob, 1.0f - knob) * amount;
+		result = knob + (shaped * 2.0f - 1.0f) * half;
+		break;
+	}
+	case SPEED_DOWN:
+	default:
+		// The knob is the CEILING. Silence slows the pattern, a hit runs it at
+		// the knob's rate. Amount 1 stops it dead in silence.
+		result = knob * ofLerp(1.0f, shaped, amount);
+		break;
+	}
+	return ofClamp(result, 0.0f, 1.0f);
+}
+
+bool JPParameter::isPatternMode() const
+{
+	return movtype == OSC || movtype == RANDOM ||
+		movtype == GODER || movtype == GOIZQ;
+}
+
+bool JPParameter::usesAudioChain() const
+{
+	return movtype == AUDIO || (isPatternMode() && audioDrivesSpeed);
+}
+
+// The 0..1 shaping chain: source -> threshold gate and rescale -> curve ->
+// invert -> attack/release envelope.
+//
+// One implementation, called both by the AUDIO value path and by the pattern
+// speed modulator. They are mutually exclusive - movtype cannot be AUDIO and a
+// pattern at once - so the single `audioSmoothed` accumulator is safe, and
+// sharing it is what keeps the two from drifting apart.
+bool JPParameter::usesShaping() const
+{
+	return usesAudioChain() || movtype == BPM;
+}
+
+// Threshold gate and rescale, then curve, then invert. Shared by the audio
+// chain and by the BPM beat envelope: both are 0..1 signals and both want the
+// same three controls, so there is one implementation of what they mean.
+float JPParameter::shapeCurve(float raw, bool useThreshold) const
+{
+	float shaped = ofClamp(raw, 0.0f, 1.0f);
+	if (useThreshold)
+	{
+		const float threshold = ofClamp(audioThreshold, 0.0f, 0.99f);
+		shaped = ofClamp((shaped - threshold) / (1.0f - threshold), 0.0f, 1.0f);
+	}
+	shaped = std::pow(shaped, ofClamp(audioCurve, 0.20f, 5.0f));
+	if (audioInvert) shaped = 1.0f - shaped;
+	return shaped;
+}
+
+float JPParameter::shapedAudio(float deltaSeconds)
+{
+	float shaped = shapeCurve(jp_audio::getValue(audioSource, audioDiv), true);
+
+	// A logic source is already a square wave; smoothing it would round off the
+	// only thing it carries.
+	const bool logic = audioSource == jp_audio::SRC_KICK_LOGIC ||
+		audioSource == jp_audio::SRC_SNARE_LOGIC;
+	if (logic)
+	{
+		audioSmoothed = shaped;
+	}
+	else
+	{
+		const float milliseconds = shaped > audioSmoothed ?
+			audioAttackMs : audioReleaseMs;
+		audioSmoothed = jp_audio_internal::smoothToward(
+			audioSmoothed, shaped, milliseconds, deltaSeconds);
+	}
+	return ofClamp(audioSmoothed, 0.0f, 1.0f);
+}
+
 void JPParameter::update()
 {
 	// ACA DEBERIA ACTUALIARSE SI ES TIPO UN FLOAT :
@@ -125,10 +227,33 @@ void JPParameter::update()
 		const float low = effectiveMin();
 		const float high = effectiveMax();
 		float absolutespeed = .015;
+		const float dt = ofClamp((float)ofGetLastFrameTime(),
+			1.0f / 1000.0f, 0.1f);
+
+		// The knob is the CEILING and the audio walks it: silence stops the
+		// pattern, a hit runs it at the knob's rate.
+		//
+		// With no audio running this falls back to the knob rather than to
+		// zero - otherwise switching the input off would freeze every
+		// audio-driven pattern in the composition, which is not a failure mode
+		// anyone wants to find mid-set.
+		// Amount is the DEPTH of the modulation, reusing the field that means
+		// depth in AUDIO mode: at 1 the audio walks the full range, at 0 the
+		// modulator is bypassed and the knob rules. Which WAY it walks is the
+		// direction below.
+		float speedNow = speed;
+		if (isPatternMode() && audioDrivesSpeed && audioEligible &&
+			jp_audio::isRunning())
+		{
+			speedNow = applySpeedDirection(audioSpeedDirection, speed,
+				shapedAudio(dt), ofClamp(audioAmount, 0.0f, 1.0f));
+		}
+		effectiveSpeed = speedNow;
+
 		if (movtype == OSC)
 		{
 			// floatValue += speed;
-			(dir) ? floatLerpValue += speed *absolutespeed : floatLerpValue -= speed * absolutespeed;
+			(dir) ? floatLerpValue += speedNow *absolutespeed : floatLerpValue -= speedNow * absolutespeed;
 			if (floatLerpValue > high)
 			{
 				floatLerpValue = high;
@@ -143,7 +268,7 @@ void JPParameter::update()
 		if (movtype == GODER)
 		{
 			dir = true;
-			(dir) ? floatLerpValue += speed *absolutespeed : floatLerpValue -= speed * absolutespeed;
+			(dir) ? floatLerpValue += speedNow *absolutespeed : floatLerpValue -= speedNow * absolutespeed;
 			if (floatLerpValue > high)
 			{
 				floatLerpValue = low;
@@ -153,7 +278,7 @@ void JPParameter::update()
 		{
 			// cout << "FUNCIONA" << endl;
 			dir = false;
-			(dir) ? floatLerpValue += speed *absolutespeed : floatLerpValue -= speed * absolutespeed;
+			(dir) ? floatLerpValue += speedNow *absolutespeed : floatLerpValue -= speedNow * absolutespeed;
 			if (floatLerpValue < low)
 			{
 				floatLerpValue = high;
@@ -161,8 +286,18 @@ void JPParameter::update()
 		}
 		if (movtype == RANDOM)
 		{
-			float n = ofMap(ofNoise(ofGetElapsedTimeMillis() * speed * absolutespeed *.01+ seed),
-							0.0, 1.0, low, high);
+			// An INTEGRATED phase, not elapsed-time-times-speed.
+			//
+			// The old form multiplied the absolute clock by the speed, so a
+			// speed that changes does not accelerate the noise - it teleports
+			// it, by the whole accumulated time difference. Survivable while
+			// speed only moved when a hand moved it; unusable once audio
+			// modulates it every frame.
+			//
+			// For a CONSTANT speed the two are identical: the old argument grew
+			// at exactly speed * absolutespeed * 10 per second.
+			noisePhase += speedNow * absolutespeed * 10.0f * dt;
+			float n = ofMap(ofNoise(noisePhase + seed), 0.0, 1.0, low, high);
 			floatValue = n;
 			floatLerpValue = n;
 		}
@@ -178,16 +313,34 @@ void JPParameter::update()
 					getBpmMultiplier());
 				const float decayExponent = ofLerp(
 					0.5f, 12.0f, ofClamp(speed, 0.0f, 1.0f));
-				const float envelope = std::pow(
+				float envelope = std::pow(
 					std::max(0.0f, 1.0f - phase),
 					decayExponent);
-				floatLerpValue = ofLerp(low, high, envelope);
+				// Curve reshapes the decay, Invert turns it into a ramp INTO
+				// the beat instead of away from it, Amount is its depth.
+				//
+				// No Threshold: the beat envelope already starts at full and
+				// falls, so gating its bottom only clips the tail - and a
+				// threshold left behind by a stint in AUDIO mode would shape
+				// the beat with no control on screen to show it.
+				envelope = shapeCurve(envelope, false) *
+					ofClamp(audioAmount, 0.0f, 1.0f);
+				// Release extends the tail, and ONLY the tail: the rise on the
+				// beat stays instant, which is the whole character of a pulse.
+				if (envelope >= audioSmoothed)
+				{
+					audioSmoothed = envelope;
+				}
+				else
+				{
+					audioSmoothed = jp_audio_internal::smoothToward(
+						audioSmoothed, envelope, audioReleaseMs, dt);
+				}
+				floatLerpValue = ofLerp(low, high, audioSmoothed);
 			}
 		}
 		if (movtype == AUDIO)
 		{
-			const float dt = ofClamp((float)ofGetLastFrameTime(),
-				1.0f / 1000.0f, 0.1f);
 			if (!audioEligible || !jp_audio::isRunning())
 			{
 				floatLerpValue = jp_audio_internal::smoothToward(
@@ -195,25 +348,7 @@ void JPParameter::update()
 			}
 			else
 			{
-				float shaped = jp_audio::getValue(audioSource, audioDiv);
-				const float threshold = ofClamp(audioThreshold, 0.0f, 0.99f);
-				shaped = ofClamp((shaped - threshold) / (1.0f - threshold), 0.0f, 1.0f);
-				shaped = std::pow(shaped, ofClamp(audioCurve, 0.20f, 5.0f));
-				if (audioInvert) shaped = 1.0f - shaped;
-
-				const bool logic = audioSource == jp_audio::SRC_KICK_LOGIC ||
-					audioSource == jp_audio::SRC_SNARE_LOGIC;
-				if (logic)
-					audioSmoothed = shaped;
-				else
-				{
-					const float milliseconds = shaped > audioSmoothed ?
-						audioAttackMs : audioReleaseMs;
-					audioSmoothed = jp_audio_internal::smoothToward(
-						audioSmoothed, shaped, milliseconds, dt);
-				}
-				const float mapped = ofLerp(low, high,
-					ofClamp(audioSmoothed, 0.0f, 1.0f));
+				const float mapped = ofLerp(low, high, shapedAudio(dt));
 				floatLerpValue = ofLerp(audioBase, mapped,
 					ofClamp(audioAmount, 0.0f, 1.0f));
 			}
@@ -578,6 +713,18 @@ void JPParameterGroup::setAudioInvert(bool value, int index)
 {
 	if (index >= 0 && index < parameters.size()) parameters[index]->audioInvert = value;
 }
+void JPParameterGroup::setAudioDrivesSpeed(bool value, int index)
+{
+	if (index >= 0 && index < parameters.size()) parameters[index]->audioDrivesSpeed = value;
+}
+void JPParameterGroup::setAudioSpeedDirection(int value, int index)
+{
+	// Clamped: this arrives from a hand-editable settings file.
+	if (index >= 0 && index < parameters.size())
+		parameters[index]->audioSpeedDirection =
+			std::clamp(value, int(JPParameter::SPEED_DOWN),
+				int(JPParameter::SPEED_CENTRE));
+}
 void JPParameterGroup::setAudioThreshold(float value, int index)
 {
 	if (index >= 0 && index < parameters.size()) parameters[index]->audioThreshold = ofClamp(value, 0.0f, 0.99f);
@@ -693,6 +840,8 @@ int JPParameterGroup::getAudioDiv(int _index)
 float JPParameterGroup::getAudioBase(int i) { return i >= 0 && i < parameters.size() ? parameters[i]->audioBase : 0.0f; }
 float JPParameterGroup::getAudioAmount(int i) { return i >= 0 && i < parameters.size() ? parameters[i]->audioAmount : 1.0f; }
 bool JPParameterGroup::getAudioInvert(int i) { return i >= 0 && i < parameters.size() && parameters[i]->audioInvert; }
+bool JPParameterGroup::getAudioDrivesSpeed(int i) { return i >= 0 && i < parameters.size() && parameters[i]->audioDrivesSpeed; }
+int JPParameterGroup::getAudioSpeedDirection(int i) { return i >= 0 && i < parameters.size() ? parameters[i]->audioSpeedDirection : JPParameter::SPEED_DOWN; }
 float JPParameterGroup::getAudioThreshold(int i) { return i >= 0 && i < parameters.size() ? parameters[i]->audioThreshold : 0.0f; }
 float JPParameterGroup::getAudioCurve(int i) { return i >= 0 && i < parameters.size() ? parameters[i]->audioCurve : 1.0f; }
 float JPParameterGroup::getAudioAttackMs(int i) { return i >= 0 && i < parameters.size() ? parameters[i]->audioAttackMs : 8.0f; }

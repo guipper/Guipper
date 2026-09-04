@@ -45,7 +45,8 @@ namespace
 
 	enum Arm
 	{
-		ARM_COLLAPSED = 0, ARM_RANGE, ARM_AUTOMATED, ARM_BPM, ARM_AUDIO, ARM_AUDIOSHAPE,
+		ARM_COLLAPSED = 0, ARM_RANGE, ARM_AUTOMATED, ARM_SPEEDAUDIO,
+		ARM_BPM, ARM_AUDIO, ARM_AUDIOSHAPE,
 		ARM_MIXED, ARM_BOOL, ARM_INPUTS, ARM_INPUTS_COLLAPSED, ARM_LONG_TITLE,
 		ARM_MEDIA, ARM_MEDIA_TRANSPORT, ARM_SCROLL_TOP, ARM_SCROLL_MIDDLE, ARM_SCROLL_BOTTOM,
 		ARM_WINDOW_SELECTED, ARM_WINDOW_UNSELECTED, ARM_SETTINGS_TOP,
@@ -59,6 +60,7 @@ namespace
 		{"collapsed",        kFixtureFloats, ARM_COLLAPSED},
 		{"custom_range",     kFixtureFloats, ARM_RANGE},
 		{"automated",        kFixtureFloats, ARM_AUTOMATED},
+		{"speedaudio",       kFixtureFloats, ARM_SPEEDAUDIO},
 		{"bpm",              kFixtureFloats, ARM_BPM},
 		{"audio",            kFixtureFloats, ARM_AUDIO},
 		{"audioshape",       kFixtureFloats, ARM_AUDIOSHAPE},
@@ -230,7 +232,26 @@ namespace
 			}
 			break;
 		case ARM_AUTOMATED: setMode(0, JPParameter::OSC); break;
-		case ARM_BPM:       setMode(0, JPParameter::BPM); break;
+		// A pattern whose SPEED follows audio: grows the second row that only
+		// BPM and AUDIO used to have, so it is where that layout breaks first.
+		case ARM_SPEEDAUDIO:
+			setMode(0, JPParameter::OSC);
+			if (JPParameter *p = param(0))
+			{
+				p->audioDrivesSpeed = true;
+				// Shaping open too: the whole point is that a pattern now
+				// reaches the same grid AUDIO mode has, and the expanded height
+				// is where that layout breaks first.
+				p->audioShapingOpen = true;
+				p->audioSpeedDirection = JPParameter::SPEED_CENTRE;
+			}
+			break;
+		case ARM_BPM:
+			setMode(0, JPParameter::BPM);
+			// Shaping open: BPM reaches the same grid now, minus Attack and
+			// Release, and that shorter card is where its height breaks first.
+			if (JPParameter *p = param(0)) p->audioShapingOpen = true;
+			break;
 		case ARM_AUDIO:     setMode(0, JPParameter::AUDIO); break;
 		case ARM_AUDIOSHAPE:
 			setMode(0, JPParameter::AUDIO);

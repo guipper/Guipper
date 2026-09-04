@@ -68,10 +68,15 @@ public:
 	// Same reason: the rhythm sources add a division chip, which changes where
 	// the second row starts.
 	int builtForAudioSource = -1;
+	bool builtForSpeedAudio = false;
 	float primaryRowY = 0.0f;
 	JPdragobject audio_source_button;
 	JPdragobject audio_div_button;
 	JPdragobject audio_shape_button;
+	// Which way the audio moves the speed. Only on the second row of a pattern
+	// whose speed follows audio - in AUDIO mode the value has audioBase and
+	// Amount instead, which is a different mechanism.
+	JPdragobject audio_speeddir_button;
 	JPdragobject audio_amount_button;
 	JPdragobject audio_invert_button;
 	JPdragobject audio_threshold_button;
@@ -79,6 +84,10 @@ public:
 	JPdragobject audio_attack_button;
 	JPdragobject audio_release_button;
 
+	// Turns audio into the SPEED modulator for a pattern. A plain rect, not a
+	// JPToogle: the toggle class actuates from inside draw(), and this is
+	// hit-tested by JPboxgroup like every other chip on this row.
+	JPdragobject boton_speed_audio;
 	JPKnob slider_speed;
 	JPSlider slider_value;
 	ofColor testcol;

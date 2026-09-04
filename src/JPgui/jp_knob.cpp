@@ -108,11 +108,33 @@ void JPKnob::draw()
 
 	drawKnobArc(x, y, radius - 1.5f, arcStart, arcEnd,
 		ofColor(COL_TEXT_SECONDARY, 145), 2.2f);
+	// Where something else is currently driving this value - the audio
+	// modulator on an automation speed.
+	//
+	// A radial tick INSIDE the ring, not a second arc: at 34 px an arc on a
+	// smaller radius lands on the inner border circle and reads as the border
+	// having changed colour. A tick that sweeps is unmistakable, and it leaves
+	// the cyan value arc and the number alone, which is the point - the
+	// reference has to stay readable while the ghost moves.
 	if (normalizedValue > 0.001f)
 	{
 		drawKnobArc(x, y, radius - 1.5f, arcStart, valueAngle,
 			COL_ACCENT_CYAN,
 			activeFlag || hovered ? 3.2f : 2.8f);
+	}
+
+	if (ghostValue >= 0.0f)
+	{
+		const float ghostAngle = ofDegToRad(ofLerp(arcStart, arcEnd,
+			ofMap(ghostValue, min, max, 0.0f, 1.0f, true)));
+		ofSetColor(COL_ACCENT_GREEN);
+		ofSetLineWidth(2.0f);
+		ofDrawLine(
+			x + std::cos(ghostAngle) * (radius - 9.0f),
+			y + std::sin(ghostAngle) * (radius - 9.0f),
+			x + std::cos(ghostAngle) * (radius - 4.0f),
+			y + std::sin(ghostAngle) * (radius - 4.0f));
+		ofSetLineWidth(1.0f);
 	}
 
 	const float angle = ofDegToRad(valueAngle);

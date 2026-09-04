@@ -8,6 +8,7 @@
 #include "../JPbox/jp_box_paint.h"
 #include "../JPbox/jp_quick_image.h"
 #include "../JPbox/jp_graph_walk.h"
+#include "../JPgui/jp_knob.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -93,11 +94,92 @@ namespace
 		return true;
 	}
 
+	// A press only counts for a control if it STARTED on it.
+	//
+	// Without this, holding the button anywhere - dragging a cable out of a
+	// box' OUT, moving a box, sweeping a marquee - and passing over a knob or a
+	// toggle fired it, because the test was just "pressed AND hovered". The
+	// origin belongs to the GESTURE, so it lives in JPdragobject rather than in
+	// each widget: an inspector click rebuilds every controller, which would
+	// destroy a per-object latch before it could ever fire.
+	bool pressOriginGatingWorks()
+	{
+		JPParameter probe;
+		probe.setup(0.5f, "press-origin-probe");
+		JPKnob knob;
+		knob.setParametersPointer(&probe);
+		knob.setup(100.0f, 100.0f, 34.0f, 34.0f, 0.0f, 1.0f, 0.3f);
+
+		JPdragobject::clearPressOrigin();
+		if (knob.pressStartedHere()) return false;
+
+		JPdragobject::notePressOrigin(600.0f, 600.0f);
+		if (knob.pressStartedHere()) return false;   // began far away
+		JPdragobject::notePressOrigin(100.0f, 100.0f);
+		if (!knob.pressStartedHere()) return false;  // began on the knob
+
+		// Canvas space. Box headers are drawn under the mouse override, so
+		// their bounds are canvas coordinates: testing a screen-space origin
+		// against them silently stops matching as soon as the canvas is panned,
+		// and the header toggles go dead. The origin has to follow the same
+		// rule getMouseX() does.
+		JPdragobject::notePressOrigin(600.0f, 600.0f);
+		JPdragobject::notePressOriginCanvas(100.0f, 100.0f);
+		JPdragobject::setMouseOverride(ofVec2f(100.0f, 100.0f));
+		const bool canvasOrigin = knob.pressStartedHere();
+		JPdragobject::clearMouseOverride();
+		const bool screenOrigin = knob.pressStartedHere();
+		JPdragobject::clearPressOrigin();
+		return canvasOrigin && !screenOrigin;
+	}
+
+	// The three ways the audio modulator can move a pattern's speed away from
+	// the knob. Pure maths, so it is testable without an audio device - which
+	// is the reason it was pulled out of update() in the first place.
+	bool speedDirectionsWork()
+	{
+		using P = JPParameter;
+		auto at = [](int dir, float knob, float shaped) {
+			return P::applySpeedDirection(dir, knob, shaped, 1.0f);
+		};
+
+		// DOWN: the knob is the ceiling. Silence stops it, a hit runs at knob.
+		if (!near(at(P::SPEED_DOWN, 0.6f, 0.0f), 0.0f)) return false;
+		if (!near(at(P::SPEED_DOWN, 0.6f, 1.0f), 0.6f)) return false;
+
+		// UP: the knob is the floor. Silence runs at knob, a hit goes to full.
+		if (!near(at(P::SPEED_UP, 0.6f, 0.0f), 0.6f)) return false;
+		if (!near(at(P::SPEED_UP, 0.6f, 1.0f), 1.0f)) return false;
+
+		// CENTRE: the knob is the middle and the swing is symmetric about it.
+		if (!near(at(P::SPEED_CENTRE, 0.5f, 0.5f), 0.5f)) return false;
+		if (!near(at(P::SPEED_CENTRE, 0.5f, 0.0f), 0.0f)) return false;
+		if (!near(at(P::SPEED_CENTRE, 0.5f, 1.0f), 1.0f)) return false;
+		// Off centre it must stay symmetric rather than clip on the near side:
+		// at 0.1 the room below is 0.1, so the swing is 0.0 .. 0.2.
+		if (!near(at(P::SPEED_CENTRE, 0.1f, 0.0f), 0.0f)) return false;
+		if (!near(at(P::SPEED_CENTRE, 0.1f, 1.0f), 0.2f)) return false;
+
+		// Amount 0 bypasses the modulator whichever way it points.
+		for (int dir = P::SPEED_DOWN; dir <= P::SPEED_CENTRE; dir++)
+		{
+			if (!near(P::applySpeedDirection(dir, 0.4f, 0.0f, 0.0f), 0.4f))
+				return false;
+			if (!near(P::applySpeedDirection(dir, 0.4f, 1.0f, 0.0f), 0.4f))
+				return false;
+		}
+		// Everything stays inside the knob's own 0..1 domain, including for a
+		// direction value a hand-edited file could invent.
+		const float wild = P::applySpeedDirection(99, 2.0f, 5.0f, 5.0f);
+		return wild >= 0.0f && wild <= 1.0f;
+	}
+
 	void removeAudioFields(ofXml &xml)
 	{
 		static const char *fields[] = {"audiosource", "audiodiv", "audiobase",
 			"audioamount", "audioinvert", "audiothreshold", "audiocurve",
-			"audioattackms", "audioreleasems", "randomlocked",
+			"audioattackms", "audioreleasems", "audiodrivesspeed",
+			"audiospeeddirection", "randomlocked",
 			"defaultvalue", "defaultbool", "rangeenabled"};
 		for (auto &box : xml.getChildren("box"))
 			for (auto &param : box.getChild("parameters").getChildren("param"))
@@ -369,6 +451,8 @@ bool jp_persistence_test::run(ofApp &app)
 	box->parameters.setAudioCurve(2.0f, 0);
 	box->parameters.setAudioAttackMs(31.0f, 0);
 	box->parameters.setAudioReleaseMs(777.0f, 0);
+	box->parameters.setAudioDrivesSpeed(true, 0);
+	box->parameters.setAudioSpeedDirection(JPParameter::SPEED_CENTRE, 0);
 	box->parameters.getJParameter(0)->randomLocked = true;
 	box->parameters.getJParameter(0)->defaultFloatValue = 0.62f;
 	box->parameters.setBoolValue(true, boolIndex);
@@ -415,7 +499,9 @@ bool jp_persistence_test::run(ofApp &app)
 		near(box->parameters.getAudioThreshold(0), 0.23f) &&
 		near(box->parameters.getAudioCurve(0), 2.0f) &&
 		near(box->parameters.getAudioAttackMs(0), 31.0f) &&
-		near(box->parameters.getAudioReleaseMs(0), 777.0f);
+		near(box->parameters.getAudioReleaseMs(0), 777.0f) &&
+		box->parameters.getAudioDrivesSpeed(0) &&
+		box->parameters.getAudioSpeedDirection(0) == JPParameter::SPEED_CENTRE;
 	if (current)
 	{
 		box->parameters.getJParameter(0)->toggleAutomation();
@@ -442,7 +528,9 @@ bool jp_persistence_test::run(ofApp &app)
 		near(box->parameters.getAudioThreshold(0), 0.0f) &&
 		near(box->parameters.getAudioCurve(0), 1.0f) &&
 		near(box->parameters.getAudioAttackMs(0), 8.0f) &&
-		near(box->parameters.getAudioReleaseMs(0), 250.0f);
+		near(box->parameters.getAudioReleaseMs(0), 250.0f) &&
+		!box->parameters.getAudioDrivesSpeed(0) &&
+		box->parameters.getAudioSpeedDirection(0) == JPParameter::SPEED_CENTRE;
 
 	ofXml invalid; invalid.load(currentPath);
 	auto param = invalid.getChild("box").getChild("parameters").getChild("param");
@@ -454,6 +542,7 @@ bool jp_persistence_test::run(ofApp &app)
 	param.getChild("audiocurve").set(99.0f);
 	param.getChild("audioattackms").set(-1.0f);
 	param.getChild("audioreleasems").set(99999.0f);
+	param.getChild("audiospeeddirection").set(99);
 	param.getChild("lastmovtype").set(999);
 	param.getChild("defaultvalue").set(99.0f);
 	invalid.save(invalidPath);
@@ -469,7 +558,8 @@ bool jp_persistence_test::run(ofApp &app)
 		near(box->parameters.getAudioThreshold(0), 0.99f) &&
 		near(box->parameters.getAudioCurve(0), 5.0f) &&
 		near(box->parameters.getAudioAttackMs(0), 0.0f) &&
-		near(box->parameters.getAudioReleaseMs(0), 5000.0f);
+		near(box->parameters.getAudioReleaseMs(0), 5000.0f) &&
+		box->parameters.getAudioSpeedDirection(0) == JPParameter::SPEED_CENTRE;
 
 	bool midiRange = false;
 	bool midiAudioAmount = false;
@@ -524,6 +614,9 @@ bool jp_persistence_test::run(ofApp &app)
 		JPParameter *real = box->parameters.getJParameter(0);
 		real->randomLocked = false;
 		real->defaultFloatValue = 0.15f;
+		// Explicitly OFF on the live parameter: the round-trip case above left
+		// it on, and an assertion that starts out already true tests nothing.
+		real->audioDrivesSpeed = false;
 		real->setRangeStart(0.1f);
 		real->setRangeEnd(0.9f);
 		real->setRangeEnabled(false);
@@ -539,15 +632,22 @@ bool jp_persistence_test::run(ofApp &app)
 				draft->setRangeStart(0.25f);
 				draft->setRangeEnd(0.75f);
 				draft->setRangeEnabled(true);
+				// Audio-driven speed rides along: it is copied field by field
+				// on apply, which is exactly the path a new parameter field
+				// gets forgotten in - it survives editing and vanishes the
+				// moment the cue lands.
+				draft->audioDrivesSpeed = true;
 				app.boxes.setOpenBoxParameterAtIndex(0, 0.5f);
 				if (app.boxes.applyCue())
 				{
 					const bool applied = real->randomLocked && real->rangeEnabled &&
 						near(real->min, 0.25f) && near(real->max, 0.75f) &&
-						near(real->defaultFloatValue, 0.73f);
+						near(real->defaultFloatValue, 0.73f) &&
+						real->audioDrivesSpeed;
 					app.boxes.clearCue();
 					real->randomLocked = false;
 					real->defaultFloatValue = 0.15f;
+					real->audioDrivesSpeed = false;
 					real->setRangeEnabled(false);
 					if (app.boxes.setCueBoxByIndex(0))
 					{
@@ -571,6 +671,8 @@ bool jp_persistence_test::run(ofApp &app)
 	}
 
 	const bool modeMemory = automationModeMemoryWorks();
+	const bool pressOrigin = pressOriginGatingWorks();
+	const bool speedDirections = speedDirectionsWork();
 	const bool cycleStepBack = cycleStepBackWorks();
 	const bool rangeCapture = rangeCaptureWorks();
 	const bool lockDefault = lockAndDefaultWork();
@@ -4956,6 +5058,8 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " shaderReload=" << shaderReload
 		<< " feedbackFrames=" << feedbackFrames
 		<< " modeMemory=" << modeMemory
+		<< " pressOrigin=" << pressOrigin
+		<< " speedDirections=" << speedDirections
 		<< " cycleStepBack=" << cycleStepBack
 		<< " rangeCapture=" << rangeCapture
 		<< " midiRange=" << midiRange
@@ -5012,7 +5116,7 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " overlayOrder=" << overlayOrder
 		<< " overlaySchedule=" << overlaySchedule;
 	return current && old && clamped && shaderReload && feedbackFrames &&
-		modeMemory && cycleStepBack &&
+		modeMemory && pressOrigin && speedDirections && cycleStepBack &&
 		rangeCapture && midiRange && midiAudioAmount && oscIndexed && cueState && lockDefault && mediaState &&
 		mediaBoundary && mediaAlpha && mediaMotionClear && mediaStraightMix &&
 		mediaSingleComposite && mediaPausePreserves && mediaTransforms &&
