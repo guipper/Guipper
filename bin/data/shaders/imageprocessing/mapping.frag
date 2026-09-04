@@ -143,5 +143,9 @@ void main()
 		smoothstep(0.0, featherWidth, edgeDistance) : 1.0;
 
 	vec4 sourceColor = texture(textura1, sourceUv);
-	fragColor = vec4(sourceColor.rgb * mask, 1.0);
+	// The feather fades to TRANSPARENT, not to black. Multiplying rgb by the
+	// mask and writing a=1.0 looked the same over a black background and wrong
+	// over anything else - and the box FBO is written with blending disabled,
+	// so this alpha is the one the FINAL compositor gets.
+	fragColor = vec4(sourceColor.rgb, sourceColor.a * mask);
 }

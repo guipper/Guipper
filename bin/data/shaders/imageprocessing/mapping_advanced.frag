@@ -376,15 +376,28 @@ vec4 renderLayer(sampler2D sourceTexture, sampler2D maskTexture,
 	return vec4(source.rgb, alpha);
 }
 
-void compositeLayer(inout vec3 color, vec4 layer)
+// Straight-alpha "over". The accumulator carries alpha because what is NOT
+// covered by any layer has to come out TRANSPARENT: the box FBO is written with
+// blending disabled, so whatever this shader puts in .a is final, and writing
+// 1.0 there meant every mapping box dropped an opaque black rectangle over
+// whatever it was composited onto. That is why mapping more surfaces than four
+// used to need a chroma key to glue the boxes back together.
+//
+// Straight, not premultiplied: the FINAL compositor blends with
+// GL_SRC_ALPHA / GL_ONE_MINUS_SRC_ALPHA, which is what straight alpha expects.
+void compositeLayer(inout vec4 color, vec4 layer)
 {
-	color = mix(color, layer.rgb, clamp(layer.a, 0.0, 1.0));
+	float a = clamp(layer.a, 0.0, 1.0);
+	float outA = a + color.a * (1.0 - a);
+	color.rgb = outA <= 0.0 ? vec3(0.0) :
+		(layer.rgb * a + color.rgb * color.a * (1.0 - a)) / outA;
+	color.a = outA;
 }
 
 void main()
 {
 	vec2 uv = gl_FragCoord.xy / resolution;
-	vec3 color = vec3(0.0);
+	vec4 color = vec4(0.0);
 	// Back to front, so TEXTURE 1 is the top layer and TEXTURE 4 the bottom -
 	// the same order the T1..T4 buttons read in.
 	if (layer4_connected == 1 && layer4_opacity > 0.0001)
@@ -403,5 +416,5 @@ void main()
 		compositeLayer(color, renderLayer(textura1, layer1_mask,
 			layer1_surface, layer1_bounds, layer1_opacity,
 			layer1_feather, layer1_fit, uv));
-	fragColor = vec4(color, 1.0);
+	fragColor = color;
 }
