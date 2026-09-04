@@ -71,13 +71,27 @@ namespace jp_audio_internal
 			float secondsSinceLast = 0.0f, refractorySec = 0.0f;
 			bool blockedByRefractory = false, materialGate = true;
 			unsigned long long count = 0;
+			// Hits per minute over a rolling window. The cumulative count says
+			// nothing about whether a detector is RIGHT: what you compare is
+			// this against the detected tempo. Roughly double it means the
+			// detector is firing twice per hit.
+			float hitsPerMinute = 0.0f;
 		};
 		BandInfo bands[TunedSources];
 		OnsetInfo onsets[Onsets];
 		float rms = 0.0f;
 		bool gated = false;
-		// Ring of shaped values per tuned source, newest at `historyAt - 1`.
+		// Rings, newest at `historyAt - 1`, appended once per HOP. Written
+		// straight from analyzeHop rather than copied out of Impl each hop.
 		float history[TunedSources][HistoryLength] = {};
+		// The detectors' own evidence over time. A single frame's flux bar
+		// cannot answer "is this firing once per hit": an onset lasts about one
+		// hop, so at 60 fps you see its peak only by luck. The three together -
+		// flux, the threshold it had to cross, and where it actually fired -
+		// make a double trigger or a missed hit obvious at a glance.
+		float onsetFlux[Onsets][HistoryLength] = {};
+		float onsetThreshold[Onsets][HistoryLength] = {};
+		bool onsetFired[Onsets][HistoryLength] = {};
 		int historyAt = 0;
 		int historyFilled = 0;
 	};

@@ -52,6 +52,9 @@ namespace jp_audio_internal
 			// answer "why did my kick not trigger".
 			float lastFlux = 0.0f, lastMean = 0.0f;
 			bool lastMaterialGate = true, lastBlockedByRefractory = false;
+			bool lastFired = false;
+			unsigned long long countAtWindow = 0;
+			float windowStart = 0.0f, rate = 0.0f;
 			std::array<float, Divisions> triggerTime{{-10,-10,-10,-10,-10}};
 			std::array<float, Divisions> express{};
 			std::array<float, Divisions> logic{};
@@ -74,9 +77,6 @@ namespace jp_audio_internal
 		// every shader while the new device delivers nothing.
 		std::array<float, TunedSources> shaped{};
 		std::array<float, TunedSources> shapedPre{};
-		std::array<std::array<float, HistoryLength>, TunedSources> history{};
-		int historyAt = 0;
-		int historyFilled = 0;
 		std::array<float, 32> kickTimes{};
 		int kickTimesCount = 0, kickTimesAt = 0;
 		float bpm = 0.0f, confidence = 0.0f, beatAnchor = 0.0f;
@@ -402,6 +402,7 @@ namespace jp_audio_internal
 			const bool fired = flux > mean * onsetState.sensitivity + 0.00001f &&
 				!refractoryBlocked && extraGate &&
 				s.level.raw >= noiseGate_;
+			onsetState.lastFired = fired;
 			if (fired)
 			{
 				onsetState.last = s.clock; onsetState.env = 1.0f; ++onsetState.count;
@@ -468,6 +469,22 @@ namespace jp_audio_internal
 			s.spectrum[bin] = clampValue(energy(low, high) * 2.0f, 0.0f, 1.0f);
 		}
 
+		// Hit rate over a rolling window, which is what you actually compare
+		// against the tempo to tell a healthy detector from one that is firing
+		// twice per hit.
+		Impl::Onset *rated[Onsets] = { &s.kick, &s.snare };
+		for (int i = 0; i < Onsets; ++i)
+		{
+			Impl::Onset &o = *rated[i];
+			const float elapsed = s.clock - o.windowStart;
+			if (elapsed >= 3.0f)
+			{
+				o.rate = float(o.count - o.countAtWindow) * 60.0f / elapsed;
+				o.countAtWindow = o.count;
+				o.windowStart = s.clock;
+			}
+		}
+
 		// ---- step 3 of 3: the derived rows, then Smooth --------------------
 		// Low bass and High mid need kick.env / snare.env, which only exist
 		// after step 2. Each row is shaped from the UNSHAPED components, so
@@ -486,13 +503,26 @@ namespace jp_audio_internal
 			// at 0.995 and a shader testing step(0.999, ...) would stop firing.
 			s.shaped[i] = tuning_[i].smoothMs <= 0.0f ? pre[i] :
 				smoothToward(s.shaped[i], pre[i], tuning_[i].smoothMs, dt);
-			s.history[i][s.historyAt] = s.shaped[i];
+			diagnostics_.history[i][diagnostics_.historyAt] = s.shaped[i];
 		}
-		// One ring for every traced source, appended once per HOP. The UI cannot
-		// do this: at 60 fps it would sample one hop in three and alias away the
-		// 8 ms attack the screen exists to show.
-		s.historyAt = (s.historyAt + 1) % HistoryLength;
-		s.historyFilled = std::min(HistoryLength, s.historyFilled + 1);
+		// One ring per traced value, appended once per HOP. The UI cannot do
+		// this: at 60 fps it would sample one hop in three and alias away the
+		// 8 ms attack the screen exists to show. They are written straight into
+		// the diagnostics struct - it is display state, wiped by reset() with
+		// everything else.
+		const Impl::Onset *rings[Onsets] = { &s.kick, &s.snare };
+		for (int i = 0; i < Onsets; ++i)
+		{
+			diagnostics_.onsetFlux[i][diagnostics_.historyAt] = rings[i]->lastFlux;
+			diagnostics_.onsetThreshold[i][diagnostics_.historyAt] =
+				rings[i]->lastMean * rings[i]->sensitivity;
+			diagnostics_.onsetFired[i][diagnostics_.historyAt] =
+				rings[i]->lastFired;
+		}
+		diagnostics_.historyAt =
+			(diagnostics_.historyAt + 1) % HistoryLength;
+		diagnostics_.historyFilled =
+			std::min(HistoryLength, diagnostics_.historyFilled + 1);
 
 		rebuildSnapshot();
 		fillDiagnostics(rms, gated);
@@ -555,14 +585,10 @@ namespace jp_audio_internal
 			info.blockedByRefractory = onsets[i]->lastBlockedByRefractory;
 			info.materialGate = onsets[i]->lastMaterialGate;
 			info.count = onsets[i]->count;
+			info.hitsPerMinute = onsets[i]->rate;
 		}
 		diagnostics_.rms = rms;
 		diagnostics_.gated = gated;
-		for (int i = 0; i < TunedSources; ++i)
-			std::copy(s.history[i].begin(), s.history[i].end(),
-				diagnostics_.history[i]);
-		diagnostics_.historyAt = s.historyAt;
-		diagnostics_.historyFilled = s.historyFilled;
 	}
 
 	float AudioAnalyzer::sourceValue(int source, int division) const

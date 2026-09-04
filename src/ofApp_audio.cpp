@@ -384,14 +384,14 @@ ofApp::AudioScreenLayout ofApp::getAudioScreenLayout() const
 	{
 		l.onsetName[i].set(l.leftColumn.x, y, kNameWidth, kCellHeight);
 		l.onsetPlot[i].set(l.leftColumn.x + kNameWidth + kCellGap, y,
-			120.0f, kCellHeight + 8.0f);
-		const float cellY = y + kCellHeight + 11.0f;
+			l.leftColumn.width - kNameWidth - kCellGap - 96.0f, 40.0f);
+		const float cellY = y + 44.0f;
 		for (int c = 0; c < 2; c++)
 		{
 			l.onsetCell[i][c].set(l.leftColumn.x + c * (onsetCellW + kCellGap),
 				cellY, onsetCellW, kCellHeight);
 		}
-		y += kRowHeight + 8.0f;
+		y += 44.0f + kCellHeight + 12.0f;
 	}
 
 	float ry = l.rightColumn.y;
@@ -533,36 +533,87 @@ void ofApp::draw_audio()
 		font.drawString(kOnsetNames[i], L.onsetName[i].x,
 			L.onsetName[i].y + 14.0f);
 
-		// Flux against its own moving threshold. This is the whole answer to
-		// "why is my kick not triggering": if the bar never reaches the line,
-		// lower Sens; if it does and nothing fires, the refractory or the
-		// material gate is holding it.
+		// Flux against its own moving threshold, over time, with a tick
+		// wherever it actually fired. This is the whole answer to "is my kick
+		// detector right", and none of the three parts works alone:
+		//
+		//   peaks that never reach the red line   -> Sens is too high
+		//   two ticks per musical hit             -> Hold is too short
+		//   a peak over the line with no tick     -> Hold, or the material gate
+		//   the line riding on top of the peaks   -> there is no transient here
+		//
+		// The bar-per-frame this replaces could not show any of it: an onset
+		// lasts about one hop, so at 60 fps you caught its peak by luck.
 		drawWell(L.onsetPlot[i]);
-		const float scale = std::max(0.00002f, onset.threshold * 1.6f);
-		const float fluxH = L.onsetPlot[i].height *
-			ofClamp(onset.flux / scale, 0.0f, 1.0f);
-		ofSetColor(onset.flux > onset.threshold ?
-			ofColor(COL_ACCENT_GREEN, 220) : ofColor(COL_ACCENT_CYAN, 170));
-		ofDrawRectangle(L.onsetPlot[i].x + 3.0f,
-			L.onsetPlot[i].getMaxY() - fluxH,
-			L.onsetPlot[i].width - 6.0f, fluxH);
-		const float threshY = L.onsetPlot[i].getMaxY() -
-			L.onsetPlot[i].height * ofClamp(onset.threshold / scale, 0.0f, 1.0f);
-		// The line the flux has to cross. Everything about "why did this not
-		// fire" is the relationship between these two.
-		ofSetColor(COL_ACCENT_RED);
-		ofDrawRectangle(L.onsetPlot[i].x + 1.0f, threshY,
-			L.onsetPlot[i].width - 2.0f, 1.0f);
+		const int shownHops = std::min(d.historyFilled,
+			jp_audio_internal::HistoryLength);
+		// One shared vertical scale for flux and threshold, from whatever the
+		// window actually holds - the absolute numbers are tiny and meaningless,
+		// only their relationship matters.
+		float scale = 0.00002f;
+		for (int k = 0; k < shownHops; k++)
+		{
+			scale = std::max(scale, d.onsetFlux[i][k]);
+			scale = std::max(scale, d.onsetThreshold[i][k]);
+		}
+		scale *= 1.15f;
+		const ofRectangle &plot = L.onsetPlot[i];
+		auto plotX = [&](int step) {
+			return plot.x + 2.0f + (plot.width - 4.0f) *
+				(shownHops < 2 ? 0.0f : float(step) / float(shownHops - 1));
+		};
+		auto plotY = [&](float value) {
+			return plot.getMaxY() - 3.0f - (plot.height - 6.0f) *
+				ofClamp(value / scale, 0.0f, 1.0f);
+		};
+		if (shownHops >= 2)
+		{
+			// Fire ticks first, so the traces sit on top of them.
+			ofSetColor(ofColor(COL_ACCENT_GREEN, 150));
+			for (int step = 0; step < shownHops; step++)
+			{
+				const int at = (d.historyAt - shownHops + step +
+					jp_audio_internal::HistoryLength * 2) %
+					jp_audio_internal::HistoryLength;
+				if (!d.onsetFired[i][at]) continue;
+				ofDrawRectangle(plotX(step), plot.y + 2.0f, 1.0f,
+					plot.height - 4.0f);
+			}
+			ofSetLineWidth(1.2f);
+			for (int pass = 0; pass < 2; pass++)
+			{
+				// pass 0 = the moving threshold, pass 1 = the flux itself.
+				ofSetColor(pass == 0 ? COL_ACCENT_RED : COL_ACCENT_CYAN);
+				ofNoFill();
+				ofBeginShape();
+				for (int step = 0; step < shownHops; step++)
+				{
+					const int at = (d.historyAt - shownHops + step +
+						jp_audio_internal::HistoryLength * 2) %
+						jp_audio_internal::HistoryLength;
+					ofVertex(plotX(step), plotY(pass == 0 ?
+						d.onsetThreshold[i][at] : d.onsetFlux[i][at]));
+				}
+				ofEndShape(false);
+				ofFill();
+			}
+			ofSetLineWidth(1.0f);
+		}
 
-		// Status beside the well, not inside it.
-		const float textX = L.onsetPlot[i].getMaxX() + 10.0f;
+		// Status beside the plot. The rate is the number that says whether the
+		// detector is right: compare it with the tempo below.
+		const float textX = plot.getMaxX() + 10.0f;
 		ofSetColor(onset.blockedByRefractory ? COL_ACCENT_GOLD : COL_TEXT_MUTED);
 		small.drawString(onset.blockedByRefractory ? "holding" :
-			(onset.materialGate ? "listening" : "gated by material"),
-			textX, L.onsetPlot[i].y + 12.0f);
+			(onset.materialGate ? "listening" : "gated"),
+			textX, plot.y + 12.0f);
+		ofSetColor(onset.hitsPerMinute > 0.0f ? COL_TEXT_SECONDARY :
+			COL_TEXT_MUTED);
+		small.drawString(ofToString((int)(onset.hitsPerMinute + 0.5f)) + "/min",
+			textX, plot.y + 26.0f);
 		ofSetColor(COL_TEXT_MUTED);
 		small.drawString(ofToString((long long)onset.count) + " hits",
-			textX, L.onsetPlot[i].y + 24.0f);
+			textX, plot.y + 39.0f);
 
 		const float sens = jp_audio::getOnsetSensitivity(i);
 		const float hold = jp_audio::getOnsetRefractory(i);
@@ -684,10 +735,45 @@ void ofApp::draw_audio()
 			"%", L.rightColumn.x, statusY);
 		statusY += 14.0f;
 	}
-	// The single most common reason a band "does not react": with the
-	// normaliser off, every band reports its raw energy, and high frequencies
-	// carry far less of that than bass. Say so rather than making it something
-	// you have to already know.
+
+	// The verdict on the kick detector - the point of showing a rate at all.
+	//
+	// Deliberately does NOT require a confident tempo. The tempo is derived
+	// from the kick, so a detector that fires three times a beat produces a
+	// low confidence: gating the verdict on confidence would silence it in
+	// exactly the case it exists for. A musical kick sits somewhere around
+	// 60-200 per minute whatever the track, so the out-of-range verdicts stand
+	// on their own and only the "tracks the beat" one needs the tempo.
+	{
+		const float rate = d.onsets[jp_audio_internal::ONSET_KICK].hitsPerMinute;
+		const bool tempoTrusted = snapshot.tempoConfidence >= 0.35f &&
+			snapshot.detectedBpm > 0.0f;
+		std::string verdict;
+		ofColor verdictColor = COL_ACCENT_GOLD;
+		if (rate > 260.0f)
+			verdict = "kick fires far too often: raise Sens, then Hold";
+		else if (rate <= 0.0f && !d.gated && live)
+			verdict = "kick is not firing: lower Sens";
+		else if (tempoTrusted && rate > 0.0f)
+		{
+			const float ratio = rate / snapshot.detectedBpm;
+			if (ratio > 1.6f) verdict = "kick fires ~2x per beat: raise Hold";
+			else if (ratio < 0.65f) verdict = "kick misses hits: lower Sens";
+			else
+			{
+				verdict = "kick tracks the beat";
+				verdictColor = COL_ACCENT_GREEN;
+			}
+		}
+		if (!verdict.empty())
+		{
+			ofSetColor(verdictColor);
+			small.drawString(verdict, L.rightColumn.x, statusY);
+			ofSetColor(COL_TEXT_MUTED);
+			statusY += 14.0f;
+		}
+	}
+
 	if (!jp_audio::getAutoGain())
 	{
 		ofSetColor(COL_ACCENT_GOLD);
