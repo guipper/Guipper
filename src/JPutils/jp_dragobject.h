@@ -70,6 +70,12 @@ public:
 	// The origin belongs to the gesture, not to any widget, so it lives here
 	// and survives any number of rebuilds.
 	static void notePressOrigin(float screenX, float screenY);
+	// The same press, in CANVAS space. Box headers are drawn under the canvas
+	// mouse override, so their hitBounds() are canvas coordinates: testing a
+	// screen-space origin against them silently stops matching the moment the
+	// canvas is panned or zoomed. Recorded by JPboxgroup::update_mousePressed,
+	// which already computes this point.
+	static void notePressOriginCanvas(float canvasX, float canvasY);
 	static void clearPressOrigin();
 	bool pressStartedHere() const;
 
@@ -79,4 +85,5 @@ protected:
 	static ofVec2f mouseOverride;
 	static bool pressOriginValid;
 	static ofVec2f pressOrigin;
+	static ofVec2f pressOriginCanvas;
 };

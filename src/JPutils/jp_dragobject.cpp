@@ -78,11 +78,21 @@ bool JPdragobject::mouseOver()
 }
 bool JPdragobject::pressOriginValid = false;
 ofVec2f JPdragobject::pressOrigin;
+ofVec2f JPdragobject::pressOriginCanvas;
 
 void JPdragobject::notePressOrigin(float screenX, float screenY)
 {
 	pressOriginValid = true;
 	pressOrigin.set(screenX, screenY);
+	// Seeded to the screen point so a stale canvas origin from an earlier press
+	// can never survive into this one. The canvas view overwrites it below when
+	// this press actually reaches the graph.
+	pressOriginCanvas.set(screenX, screenY);
+}
+
+void JPdragobject::notePressOriginCanvas(float canvasX, float canvasY)
+{
+	pressOriginCanvas.set(canvasX, canvasY);
 }
 
 void JPdragobject::clearPressOrigin()
@@ -92,9 +102,13 @@ void JPdragobject::clearPressOrigin()
 
 bool JPdragobject::pressStartedHere() const
 {
-	// Tested against the SAME padded rect mouseOver() uses, so a control can
-	// never be drawn in one place and armed from another.
-	return pressOriginValid && hitBounds().inside(pressOrigin);
+	// Tested against the SAME padded rect mouseOver() uses, in the SAME space:
+	// the override picks canvas coordinates for both, exactly as getMouseX()
+	// does, so a control can never be drawn in one place and armed from
+	// another - on a panned canvas included.
+	if (!pressOriginValid) return false;
+	return hitBounds().inside(
+		useMouseOverride ? pressOriginCanvas : pressOrigin);
 }
 
 bool JPdragobject::mouseGrab()

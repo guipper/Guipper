@@ -74,7 +74,15 @@ void JPKnob::draw()
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CENTER);
 	const bool hovered = mouseOver();
-	if (hovered && ofGetMousePressed() && activable2)
+	// A press only counts for this knob if it STARTED on it.
+	//
+	// Without pressStartedHere() the test was just "pressed AND hovered", so
+	// holding the button anywhere - dragging a cable out of a box' OUT, moving
+	// a box, sweeping a marquee - and passing over a knob latched it and
+	// rewrote its value on the spot. Same defect, same fix, as JPToogle: the
+	// origin belongs to the gesture, so it lives in JPdragobject and survives
+	// the controller rebuild that every inspector click triggers.
+	if (hovered && ofGetMousePressed() && pressStartedHere() && activable2)
 	{
 		activeFlag = true;
 	}
@@ -133,27 +141,19 @@ void JPKnob::draw()
 		x - jp_constants::p2_font.stringWidth(valueLabel) / 2.0f,
 		y + jp_constants::p2_font.stringHeight(valueLabel) / 2.0f);
 
-	// ESTO DE ACA EN REALIDAD IRIA COMO EN UN UPDATE NO EN UN DRAW. PERO BUENO  POR AHORA QUEDA ACA TOTAL SON 2 IFS NOMA
-	if (movtype == 0)
+	// ESTO DE ACA EN REALIDAD IRIA COMO EN UN UPDATE NO EN UN DRAW.
+	//
+	// The two branches this replaces were byte-identical, one per side of an
+	// `if (movtype == 0)` that decided nothing.
+	if (activeFlag && parameters != nullptr)
 	{
-		ofSetRectMode(OF_RECTMODE_CENTER);
-		if (activeFlag)
-		{
-			float prevalue;
-			value = ofMap(ofGetMouseX(), x - width / 2, x + width / 2, min, max);
-			value = ofClamp(value, min, max);
-			parameters->speed = value;
-		}
-	}
-	else
-	{
-		if (activeFlag)
-		{
-			float prevalue;
-			value = ofMap(ofGetMouseX(), x - width / 2, x + width / 2, min, max);
-			value = ofClamp(value, min, max);
-			parameters->speed = value;
-		}
+		// getMouseX(), not ofGetMouseX(): mouseOver() above hit-tests through
+		// JPdragobject's canvas override, so reading the raw pointer here made
+		// a knob on a panned or zoomed canvas highlight in one place and take
+		// its value from another.
+		value = ofClamp(ofMap(getMouseX(), x - width / 2, x + width / 2,
+			min, max), min, max);
+		parameters->speed = value;
 	}
 	// ESTO DE ACA EN REALIDAD IRIA COMO EN UN UPDATE NO EN UN DRAW. PERO BUENO ; POR AHORA QUEDA ACA TOTAL SON 2 IFS NOMA
 	if (!ofGetMousePressed())

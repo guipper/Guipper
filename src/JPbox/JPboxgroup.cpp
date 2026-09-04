@@ -4684,6 +4684,9 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 {
 	////SET OPEN GUI NUMBER :
 	ofVec2f canvasMouse = screenToCanvas(ofVec2f(ofGetMouseX(), ofGetMouseY()));
+	// Box headers hit-test in canvas space, so the press origin the controls
+	// that actuate from draw() consult has to be recorded there too.
+	JPdragobject::notePressOriginCanvas(canvasMouse.x, canvasMouse.y);
 	// Capture the gesture at its origin. Checking only the current hover in
 	// update() is too late: a slider drag may leave the inspector and cross a
 	// box, while a box drag may enter the inspector. Each surface must retain
