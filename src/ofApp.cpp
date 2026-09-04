@@ -8478,6 +8478,10 @@ vector<ofApp::ScreenBarItem> ofApp::buildScreenBar() const {
 			break;
 		case kFinalStackBarItem:
 			item.lit = boxes.isQuickImageEditorOpen();
+			// Same reading as MAP: nothing sent to the final, nothing to open.
+			// The `lit ||` matters - with the panel already up the button has to
+			// stay clickable or there is no way to close it again.
+			item.enabled = item.lit || boxes.finalStackSize() > 0;
 			break;
 		case kMappingPanelBarItem:
 			item.lit = boxes.isMappingEditActive();
