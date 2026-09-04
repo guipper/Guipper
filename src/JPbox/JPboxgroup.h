@@ -314,6 +314,10 @@ public:
 	JPQuickImageLayerState *finalLayerForBox(const JPbox *box);
 	JPQuickImageLayerState *finalLayerById(uint64_t id);
 	size_t finalStackSize() const { return finalQuickImages.layers.size(); }
+	// Read-only view of the stack. The list IS the draw order, so anything that
+	// needs to know where a layer sits reads it from here rather than keeping a
+	// position of its own.
+	const JPQuickImageStackState &finalStack() const { return finalQuickImages; }
 	// A box leaving the graph takes its FINAL layers with it, and undo brings
 	// them back - the same contract as the severed inlets. Recursive into a
 	// group: a layer naming a box INSIDE a deleted group is just as orphaned as

@@ -3242,6 +3242,118 @@ bool jp_persistence_test::run(ofApp &app)
 		}
 		app.boxes.clear();
 	}
+	// A FINAL layer names its box by uid, so a deleted box leaves a row that
+	// draws nothing and cannot be told apart from a healthy one. The layer has
+	// to leave WITH the box and come back with it, exactly like a severed cable.
+	bool overlayLifecycle = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			overlayLifecycle = false;
+			ofLogNotice("overlaylifecycle") << why;
+		};
+		const string shader = "shaders/imageprocessing/transform.frag";
+		app.boxes.clear();
+		for (int i = 0; i < 3; ++i)
+			app.boxes.addBox(shader, 40.0f + i * 30.0f, 40.0f);
+		if (app.boxes.boxes.size() < 3)
+		{
+			ofLogNotice("overlaylifecycle") << "fixture unavailable - skipped";
+		}
+		else
+		{
+			vector<JPbox *> &bx = app.boxes.boxes;
+			// Uids, not pointers: the box list is rebuilt by every delete and
+			// every undo, so an index or a JPbox* captured here goes stale.
+			const string uid0 = bx[0]->uid;
+			const string uid1 = bx[1]->uid;
+			const string uid2 = bx[2]->uid;
+			for (int i = 0; i < 3; ++i) app.boxes.addFinalLayerForBox(bx[i]);
+			// A value that only the middle layer carries, so the undo case
+			// cannot pass by restoring some other layer in its place.
+			if (JPQuickImageLayerState *middle = app.boxes.finalLayerForBox(bx[1]))
+				middle->opacity = 0.42f;
+			auto uidAt = [&](int index) -> string
+			{
+				const JPQuickImageStackState &stack = app.boxes.finalStack();
+				if (index < 0 || index >= (int)stack.layers.size()) return "";
+				return stack.layers[(size_t)index].sourceUid;
+			};
+
+			// --------------------------------------------- delete takes it
+			app.boxes.toggleBoxSelection(1);
+			app.boxes.deleteSelectedShader();
+			if (app.boxes.finalStackSize() != 2)
+				fail("deleting a box left " +
+					ofToString((int)app.boxes.finalStackSize()) +
+					" layer(s) in the FINAL stack instead of 2");
+			else if (uidAt(0) != uid0 || uidAt(1) != uid2)
+				fail("deleting the middle layer disturbed the order of the "
+					"other two");
+
+			// --------------------------------------------- undo brings it back
+			app.boxes.graphUndoShortcut(false);
+			if (app.boxes.finalStackSize() != 3)
+				fail("undoing the delete restored " +
+					ofToString((int)app.boxes.finalStackSize()) +
+					" layer(s) instead of 3");
+			else if (uidAt(0) != uid0 || uidAt(1) != uid1 || uidAt(2) != uid2)
+				fail("undo put the layer back in the wrong place in the stack");
+			else
+			{
+				const JPQuickImageStackState &stack = app.boxes.finalStack();
+				if (std::abs(stack.layers[1].opacity - 0.42f) > 0.001f)
+					fail("undo restored the layer but not its opacity");
+			}
+
+			// --------------------------------------------- the file exception
+			// A layer with a file of its own degrades to that still image
+			// rather than leaving with the box - the documented rule.
+			if (JPQuickImageLayerState *middle =
+				app.boxes.finalLayerForBox(app.boxes.boxes[1]))
+			{
+				middle->path = "images/nothing-here.png";
+			}
+			app.boxes.toggleBoxSelection(1);
+			app.boxes.deleteSelectedShader();
+			if (app.boxes.finalStackSize() != 3)
+				fail("a file-backed layer did not survive its box being "
+					"deleted");
+			app.boxes.graphUndoShortcut(false);
+			if (JPQuickImageLayerState *middle =
+				app.boxes.finalLayerForBox(app.boxes.boxes[1]))
+			{
+				middle->path.clear();
+			}
+
+			// --------------------------------------------- a stale save file
+			// Written before this rule existed, or hand-edited: the uid names
+			// nothing. loadStack() runs before a single box is built and cannot
+			// tell, so the prune has to happen once load() is finished.
+			{
+				const string stalePath = directory + "stalefinal.xml";
+				app.boxes.save(stalePath);
+				ofXml staleXml;
+				staleXml.load(stalePath);
+				int rewritten = 0;
+				for (auto &node : staleXml.find("//quickImages/image/sourceUid"))
+				{
+					node.set("no-such-box-" + ofToString(rewritten));
+					++rewritten;
+				}
+				staleXml.save(stalePath);
+				if (rewritten == 0)
+					fail("the fixture wrote no <sourceUid> to break");
+				app.boxes.clear();
+				app.boxes.load(stalePath);
+				if (app.boxes.finalStackSize() != 0)
+					fail("loading kept " +
+						ofToString((int)app.boxes.finalStackSize()) +
+						" layer(s) whose box does not exist");
+			}
+		}
+		app.boxes.clear();
+	}
 	bool selfLink = true;
 	{
 		auto fail = [&](const string &why)
@@ -5114,7 +5226,8 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " imageAsyncLoad=" << imageAsyncLoad
 		<< " overlayChain=" << overlayChain
 		<< " overlayOrder=" << overlayOrder
-		<< " overlaySchedule=" << overlaySchedule;
+		<< " overlaySchedule=" << overlaySchedule
+		<< " overlayLifecycle=" << overlayLifecycle;
 	return current && old && clamped && shaderReload && feedbackFrames &&
 		modeMemory && pressOrigin && speedDirections && cycleStepBack &&
 		rangeCapture && midiRange && midiAudioAmount && oscIndexed && cueState && lockDefault && mediaState &&
@@ -5127,6 +5240,6 @@ bool jp_persistence_test::run(ofApp &app)
 		renderSchedule && scheduleObeyed && tooltipLayout &&
 		tooltipTransform &&
 		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke && quickImages && mediaFitReload && imageAsyncLoad &&
-		overlayChain && overlayOrder && overlaySchedule &&
+		overlayChain && overlayOrder && overlaySchedule && overlayLifecycle &&
 		graphUndo && transitionRectMode && exposeParams && midiUndo && groupNesting;
 }
