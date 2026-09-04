@@ -376,6 +376,11 @@ namespace
 		const Tuning &held = analyzer.tuning(jp_audio_internal::TUNED_LOW);
 		expect(held.threshold == 0.95f, "threshold clamps below the 1.0 divisor");
 		expect(held.gain == 0.0f && held.add == 1.0f, "gain and add clamp");
+		Tuning loud; loud.gain = 999.0f;
+		analyzer.setTuning(jp_audio_internal::TUNED_HIGH, loud);
+		expect(analyzer.tuning(jp_audio_internal::TUNED_HIGH).gain == 16.0f,
+			"gain reaches 16x - MANUAL needs the headroom, 4x could not "
+			"rescue a raw high band");
 		expect(held.smoothMs == 1000.0f, "smooth clamps");
 		analyzer.setOnsetSensitivity(jp_audio_internal::ONSET_KICK, 0.1f);
 		expect(analyzer.onsetSensitivity(jp_audio_internal::ONSET_KICK) == 1.0f,

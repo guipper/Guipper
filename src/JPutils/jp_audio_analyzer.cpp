@@ -140,7 +140,14 @@ namespace jp_audio_internal
 		if (index < 0 || index >= TunedSources) return;
 		SourceTuning &slot = tuning_[index];
 		slot.threshold = clampValue(tuning.threshold, 0.0f, 0.95f);
-		slot.gain = clampValue(tuning.gain, 0.0f, 4.0f);
+		// Up to 16x, not 4x. With NORMALISE on AUTO the normaliser has already
+		// equalised the bands and 4x is far more than enough; with it on MANUAL
+		// a band reports its raw log energy, and high frequencies genuinely
+		// carry 20-30x less of that than bass does - measured on a kick-and-hat
+		// pattern, High spans 0.015 in MANUAL against 0.506 in AUTO. 4x could
+		// not rescue that, so the control was useless in exactly the mode that
+		// needed it.
+		slot.gain = clampValue(tuning.gain, 0.0f, 16.0f);
 		slot.add = clampValue(tuning.add, -1.0f, 1.0f);
 		slot.smoothMs = clampValue(tuning.smoothMs, 0.0f, 1000.0f);
 	}

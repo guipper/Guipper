@@ -65,7 +65,9 @@ namespace
 		switch (cell)
 		{
 		case CELL_THRESH: return t.threshold / 0.95f;
-		case CELL_GAIN: return t.gain / 4.0f;
+		// Squared, so the useful ground around 1x keeps its resolution while the
+		// track still reaches 16x: n=0.25 is unity, n=0.5 is 4x, n=1 is 16x.
+		case CELL_GAIN: return std::sqrt(ofClamp(t.gain, 0.0f, 16.0f) / 16.0f);
 		case CELL_ADD: return (t.add + 1.0f) * 0.5f;
 		default: return t.smoothMs / 1000.0f;
 		}
@@ -77,7 +79,7 @@ namespace
 		switch (cell)
 		{
 		case CELL_THRESH: t.threshold = n * 0.95f; break;
-		case CELL_GAIN: t.gain = n * 4.0f; break;
+		case CELL_GAIN: t.gain = 16.0f * n * n; break;
 		// Bipolar, with a snap to the centre: 0 is the identity and has to be
 		// reachable with the mouse, not only with RESET.
 		case CELL_ADD: t.add = std::fabs(n - 0.5f) < 0.02f ? 0.0f :
@@ -187,8 +189,11 @@ void ofApp::drawAudioInput(const AudioScreenLayout &L)
 	jp_button::draw(L.audioAutoGain, jp_audio::getAutoGain() ? "AUTO" : "MANUAL",
 		jp_audio::getAutoGain(), true);
 	jp_tooltip::draw(
-		"Adapt each band to the incoming level. Off is a raw clamp - use it "
-		"when the normaliser's range keeps collapsing.", L.audioAutoGain);
+		"AUTO adapts each band to the incoming level. MANUAL reports raw energy "
+		"instead, and high frequencies carry far less of it than bass - on a "
+		"kick-and-hat pattern High spans 0.015 in MANUAL against 0.506 in AUTO. "
+		"Use MANUAL only when the normaliser's range keeps collapsing.",
+		L.audioAutoGain);
 
 	caption(L.audioChannel, "CHANNEL");
 	jp_button::draw(L.audioChannel,
@@ -678,6 +683,21 @@ void ofApp::draw_audio()
 			" BPM at " + ofToString((int)(snapshot.tempoConfidence * 100.0f)) +
 			"%", L.rightColumn.x, statusY);
 		statusY += 14.0f;
+	}
+	// The single most common reason a band "does not react": with the
+	// normaliser off, every band reports its raw energy, and high frequencies
+	// carry far less of that than bass. Say so rather than making it something
+	// you have to already know.
+	if (!jp_audio::getAutoGain())
+	{
+		ofSetColor(COL_ACCENT_GOLD);
+		small.drawString("NORMALISE is MANUAL: bands report raw energy, so High",
+			L.rightColumn.x, statusY);
+		statusY += 12.0f;
+		small.drawString("and Mid read far lower than Low. AUTO evens them out.",
+			L.rightColumn.x, statusY);
+		statusY += 16.0f;
+		ofSetColor(COL_TEXT_MUTED);
 	}
 	if (!audioSelfTestReport.empty())
 	{
