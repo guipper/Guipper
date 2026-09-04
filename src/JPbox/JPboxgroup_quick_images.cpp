@@ -249,24 +249,43 @@ void JPboxgroup::drawQuickImagePanel()
 		ofSetColor(layer.id == quickImageSelectedId ?
 			ofColor(COL_ACCENT_CYAN, 50) : COL_BG_INPUT);
 		ofDrawRectRounded(row, 3);
-		ofSetColor(layer.visible ? COL_ACCENT_CYAN : COL_TEXT_MUTED);
-		ofDrawCircle(row.x + 10, row.getCenter().y, 4);
 		string label = layer.name;
-		// Which box is really drawn: in a patched chain that is not the box the
-		// layer names, and there is nowhere else to see it.
+		// A layer that is not reaching the output has to LOOK like it, and say
+		// why: a text suffix on an otherwise normal-looking row was too easy to
+		// miss. The two reasons are already told apart in collectFinalOverlays;
+		// this is the same order, so the row and the composite always agree.
+		bool drawing = layer.visible;
 		if (const ResolvedOverlay *resolved = finalOverlayFor(layer))
 		{
-			if (resolved->texture == nullptr) label += "  (not drawing)";
+			if (resolved->texture == nullptr)
+			{
+				drawing = false;
+				if (resolved->source != nullptr && !resolved->source->getonoff())
+					label += "  (box off)";
+				else if (resolved->terminal != nullptr &&
+					feedsActiveRender(resolved->terminal))
+					label += "  (feedback)";
+				else
+					label += "  (not drawing)";
+			}
+			// Which box is really drawn: in a patched chain that is not the box
+			// the layer names, and there is nowhere else to see it.
 			else if (resolved->terminal != nullptr &&
 				resolved->terminal != resolved->source)
 				label += "  > " + resolved->terminal->name;
 		}
+		ofSetColor(layer.visible ? COL_ACCENT_CYAN : COL_TEXT_MUTED);
+		ofDrawCircle(row.x + 10, row.getCenter().y, 4);
 		const float labelRoom = (row.getRight() - 76.0f) - (row.x + 21.0f);
 		while (label.size() > 1 &&
 			jp_constants::p_font.stringWidth(label) > labelRoom)
 			label.pop_back();
-		ofSetColor(COL_TEXT_PRIMARY);
+		ofSetColor(drawing ? COL_TEXT_PRIMARY : COL_TEXT_MUTED);
 		jp_constants::p_font.drawString(label, row.x + 21, row.y + 17);
+		// The arrows keep their own meaning - dim means "already at that end of
+		// the stack" - so they are NOT dimmed for a layer that is off. A row
+		// that is off is still reorderable, and greying them would say it is
+		// not.
 		ofSetColor(i + 1 < count ? COL_TEXT_SECONDARY : COL_TEXT_MUTED);
 		jp_constants::p_font.drawString("^", row.getRight() - 62, row.y + 17);
 		ofSetColor(i > 0 ? COL_TEXT_SECONDARY : COL_TEXT_MUTED);
