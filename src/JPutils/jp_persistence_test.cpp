@@ -3354,6 +3354,118 @@ bool jp_persistence_test::run(ofApp &app)
 		}
 		app.boxes.clear();
 	}
+	// MAPPING ALPHA: what a mapping box does NOT cover has to come out
+	// transparent, or every mapping box drops an opaque black rectangle over
+	// whatever it is composited onto - which is why mapping more than four
+	// surfaces used to need a chroma key to glue several boxes back together.
+	//
+	// The box FBO is written with blending disabled, so the shader's alpha IS
+	// the FBO's alpha and reading it back is a real end to end check of the
+	// .frag, not of a C++ mirror of it.
+	bool mappingAlpha = true;
+	{
+		auto fail = [&](const string &why)
+		{
+			mappingAlpha = false;
+			ofLogNotice("mappingalpha") << why;
+		};
+		app.boxes.clear();
+		app.boxes.addBox("shaders/imageprocessing/transform.frag", 40, 40);
+		app.boxes.addBox("shaders/imageprocessing/mapping_advanced.frag",
+			200, 40);
+		JPbox_shader *mapping = app.boxes.boxes.size() >= 2 ?
+			dynamic_cast<JPbox_shader *>(app.boxes.boxes[1]) : nullptr;
+		JPbox_shader::AdvancedMappingState *state =
+			mapping != nullptr ? mapping->getAdvancedMappingState() : nullptr;
+		if (state == nullptr)
+		{
+			ofLogNotice("mappingalpha") << "fixture unavailable - skipped";
+		}
+		else
+		{
+			JPbox *source = app.boxes.boxes[0];
+			// Hold a flat colour in the source: the mapped half must come out
+			// as exactly this, which is what proves the alpha did not eat the
+			// colour on its way through.
+			const ofColor flat(40, 180, 220, 255);
+			source->setRenderThisFrame(true);
+			for (int i = 0; i < 4; ++i) source->update();
+			if (source->fbo.isAllocated())
+			{
+				source->fbo.begin();
+				ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+				ofClear(flat);
+				source->fbo.end();
+				ofEnableAlphaBlending();
+			}
+			source->setRenderThisFrame(false);
+
+			const int inlet =
+				mapping->fbohandlergroup.findIndexByName("textura1");
+			if (inlet < 0)
+				fail("the mapping box has no textura1 inlet");
+			else
+				mapping->fbohandlergroup.setFboPointer(&source->fbo,
+					&source->name, inlet);
+
+			// Layer 0 covers the LEFT HALF only. The handles are derived from
+			// the corners rather than written out, so the Coons patch stays
+			// flat and the edge lands exactly at x = 0.5.
+			JPbox_shader::AdvancedMappingLayer &layer = state->layers[0];
+			const ofVec2f tl(0.0f, 0.0f), tr(0.5f, 0.0f);
+			const ofVec2f br(0.5f, 1.0f), bl(0.0f, 1.0f);
+			auto third = [](const ofVec2f &a, const ofVec2f &b, float t)
+			{
+				return a + (b - a) * t;
+			};
+			layer.corners = {tl, tr, br, bl};
+			layer.edgeHandles = {
+				third(tl, tr, 1.0f / 3.0f), third(tl, tr, 2.0f / 3.0f),
+				third(tr, br, 1.0f / 3.0f), third(tr, br, 2.0f / 3.0f),
+				third(bl, br, 1.0f / 3.0f), third(bl, br, 2.0f / 3.0f),
+				third(tl, bl, 1.0f / 3.0f), third(tl, bl, 2.0f / 3.0f)};
+			mapping->markAdvancedMappingMaskDirty();
+
+			mapping->setonoff(true);
+			mapping->setRenderThisFrame(true);
+			for (int i = 0; i < 3; ++i) mapping->update();
+
+			ofPixels out;
+			if (!mapping->fbo.isAllocated())
+				fail("the mapping box has no FBO");
+			else
+			{
+				mapping->fbo.readToPixels(out);
+				if (!out.isAllocated())
+					fail("the mapping FBO could not be read back");
+				else if (out.getNumChannels() < 4)
+					fail("the mapping FBO came back with " +
+						ofToString(out.getNumChannels()) +
+						" channels - no alpha to check");
+				else
+				{
+					const int w = (int)mapping->fbo.getWidth();
+					const int h = (int)mapping->fbo.getHeight();
+					const ofColor inside = out.getColor(w / 4, h / 2);
+					const ofColor outside = out.getColor(w * 3 / 4, h / 2);
+					if (outside.a != 0)
+						fail("the unmapped half came back with alpha " +
+							ofToString((int)outside.a) +
+							" instead of 0 - it would paint black over "
+							"whatever is under it");
+					if (inside.a < 250)
+						fail("the mapped half came back with alpha " +
+							ofToString((int)inside.a) + " instead of 255");
+					if (std::abs((int)inside.r - (int)flat.r) > 4 ||
+						std::abs((int)inside.g - (int)flat.g) > 4 ||
+						std::abs((int)inside.b - (int)flat.b) > 4)
+						fail("the mapped half lost its colour: expected " +
+							ofToString(flat) + ", got " + ofToString(inside));
+				}
+			}
+		}
+		app.boxes.clear();
+	}
 	bool selfLink = true;
 	{
 		auto fail = [&](const string &why)
@@ -5227,7 +5339,8 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " overlayChain=" << overlayChain
 		<< " overlayOrder=" << overlayOrder
 		<< " overlaySchedule=" << overlaySchedule
-		<< " overlayLifecycle=" << overlayLifecycle;
+		<< " overlayLifecycle=" << overlayLifecycle
+		<< " mappingAlpha=" << mappingAlpha;
 	return current && old && clamped && shaderReload && feedbackFrames &&
 		modeMemory && pressOrigin && speedDirections && cycleStepBack &&
 		rangeCapture && midiRange && midiAudioAmount && oscIndexed && cueState && lockDefault && mediaState &&
@@ -5240,6 +5353,6 @@ bool jp_persistence_test::run(ofApp &app)
 		renderSchedule && scheduleObeyed && tooltipLayout &&
 		tooltipTransform &&
 		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke && quickImages && mediaFitReload && imageAsyncLoad &&
-		overlayChain && overlayOrder && overlaySchedule && overlayLifecycle &&
+		overlayChain && overlayOrder && overlaySchedule && overlayLifecycle && mappingAlpha &&
 		graphUndo && transitionRectMode && exposeParams && midiUndo && groupNesting;
 }
