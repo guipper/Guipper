@@ -23,10 +23,10 @@ Historical design plans are not the active backlog.
 
 ## High Priority
 - Extend the internal file browser/picker to images, videos, and savefiles (shaders done; these are still drag-and-drop only).
-- Make session loading transactional: `JPboxgroup::load()` currently clears the graph before checking whether XML loading succeeded. Validate a candidate composition before replacing the active state.
+- Complete transactional session loading: XML parsing and basic composition/source-field validation now run before clearing live state. Next, construct and validate candidate nodes and nested groups before replacing the active graph.
 - Check write failures and make project/preset saves atomic where possible; introduce schema versioning and explicit migrations.
 - Refactor pointer-heavy ownership (`JPbox*`, `JPcontroller*`, `JPParameter*`) incrementally. `JPParameterGroup` already deletes its parameters and deep-copies them; do not treat its `clear()` as a known leak.
-- Extract responsibilities from `ofApp` and `JPboxgroup` while preserving cue, history and nested-group behavior.
+- Continue separating state ownership from `ofApp` and `JPboxgroup`. Session orchestration, cue and output runtime now have dedicated translation units; parameter XML and node construction have shared APIs. See [architecture](ARQUITECTURA.md).
 - Harden uniform parsing against formatting differences, malformed declarations and unchecked indexing.
 - Add better error UI for shader compile failures (inline message + line hints).
 - Add autosave and crash-recovery session restore.
@@ -81,6 +81,32 @@ Historical design plans are not the active backlog.
 3. Broader import browser and editor diagnostics.
 4. Graph navigation/arrangement and measured performance improvements.
 5. Content packaging, metadata and optional interoperability extensions.
+
+## Architecture progress
+
+The parameter XML codec is shared by main compositions, presets and clipboard;
+node construction is shared by add/load/paste/cue. Legacy differences are explicit
+contexts, not silent behavior changes. Session, cue and output lifecycle methods
+are separated into dedicated translation units. Full class decomposition and
+migration of graph/history/draft ownership to smart pointers remain future work.
+
+## Persistence progress
+
+The first load-safety increment returns `JPboxgroup::LoadResult`, preserves the
+current graph and save destination on XML preflight failure, and shows an ES/EN
+non-modal notice. Legacy files without `activerender` and intentionally empty
+projects remain accepted. Nested asset construction, atomic saves, schema
+versioning and recovery are still pending.
+
+Targeted graphics-backed regression check after rebuilding:
+
+```bash
+cd bin
+GUIPPER_PERSISTENCE_TEST=load_safety ./Guipper
+```
+
+Set `GUIPPER_LOAD_ERROR_CAPTURE=1` with that check to capture the notice in
+both languages under `data/uishots/persistence/load-safety/`.
 
 ## Verification baseline
 

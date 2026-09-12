@@ -721,7 +721,6 @@ private:
 	bool buildCueDraftGraph(int sourceIndex);
 	bool collectCueDraftPath(int currentIndex, int activeIndex, vector<int> &path, vector<bool> &visiting);
 	JPbox *cloneBoxForCueDraft(int index);
-	JPbox *createBoxForDirectory(const string &directory, string &name) const;
 	string makeNameFromDirectory(const string &directory) const;
 	string makeUniqueBoxName(const string &baseName) const;
 	string makeUniqueBoxName(const string &baseName, const vector<JPbox *> &checkBoxes) const;

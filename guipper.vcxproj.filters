@@ -1,6 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <ClCompile Include="src\JPbox\JPboxgroup_cue.cpp">
+      <Filter>src\JPbox</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ofApp_outputs.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPbox\JPboxgroup_persistence.cpp">
+      <Filter>src\JPbox</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPbox\jp_box_factory.cpp">
+      <Filter>src\JPbox</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPutils\jp_parameter_xml.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
     <ClCompile Include="src\ofApp.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -320,6 +335,12 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\JPbox\jp_box_factory.h">
+      <Filter>src\JPbox</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_parameter_xml.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
     <ClInclude Include="src\ofApp.h">
       <Filter>src</Filter>
     </ClInclude>

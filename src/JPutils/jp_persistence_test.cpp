@@ -2,6 +2,8 @@
 
 #include "../ofApp.h"
 #include "jp_audio.h"
+#include "jp_parameter_xml.h"
+#include "../JPbox/jp_box_factory.h"
 #include "../JPbox/jp_box_image.h"
 #include "../JPbox/jp_box_video.h"
 #include "../JPbox/jp_media.h"
@@ -395,6 +397,90 @@ namespace
 
 namespace
 {
+	bool checkPersistenceModules()
+	{
+		using Context = jp_parameter_xml::LoadContext;
+		ofXml fixture;
+		if (!fixture.parse(R"xml(<box><parameters>
+<param><name>first</name><min>0</min><max>1</max><value>0.7</value><movtype>0</movtype><speed>0.2</speed><audioamount>0.6</audioamount><randomlocked>1</randomlocked><defaultvalue>0.4</defaultvalue></param>
+<param><name>second</name><min>0</min><max>1</max><value>0.3</value><movtype>0</movtype><speed>0.1</speed></param>
+<param><name>enabled</name><value>1</value><defaultbool>1</defaultbool></param>
+</parameters></box>)xml")) return false;
+		bool passed = true;
+		for (Context context : {Context::Composition, Context::Preset, Context::Clipboard})
+		{
+			JPParameterGroup group;
+			group.addFloatValue(0.11f, "second");
+			group.addFloatValue(0.22f, "first");
+			group.addBoolValue(false, "enabled");
+			jp_parameter_xml::load(fixture.getChild("box"), group, context);
+			const int first = context == Context::Composition ? 1 : 0;
+			const int second = 1 - first;
+			JPParameter *a = group.getJParameter(first);
+			JPParameter *b = group.getJParameter(second);
+			passed = passed && near(a->floatLerpValue, 0.7f) &&
+				near(b->floatLerpValue, 0.3f) && near(a->audioAmount, 0.6f) &&
+				a->randomLocked && near(a->defaultFloatValue, 0.4f) &&
+				!b->randomLocked && group.getBoolValue(2) &&
+				group.getJParameter(2)->defaultBoolValue;
+			if (context == Context::Preset)
+				passed = passed && near(group.getFloatValue(0), 0.11f) &&
+					near(group.getFloatValue(1), 0.22f);
+			else
+				passed = passed && near(a->floatValue, 0.7f) && near(b->floatValue, 0.3f);
+
+			ofXml saved;
+			jp_parameter_xml::save(saved, group);
+			JPParameterGroup restored;
+			restored.addFloatValue(0.0f, "second");
+			restored.addFloatValue(0.0f, "first");
+			restored.addBoolValue(false, "enabled");
+			jp_parameter_xml::load(saved, restored, Context::Composition);
+			for (int i = 0; i < 2; ++i)
+			{
+				passed = passed && near(restored.getFloatValue(i), group.getFloatValue(i)) &&
+					near(restored.getAudioAmount(i), group.getAudioAmount(i)) &&
+					restored.getJParameter(i)->randomLocked == group.getJParameter(i)->randomLocked;
+			}
+			passed = passed && restored.getBoolValue(2) && restored.getJParameter(2)->defaultBoolValue;
+		}
+
+		using Kind = jp_box_factory::Kind;
+		using FactoryContext = jp_box_factory::Context;
+		const std::pair<const char *, Kind> kinds[] = {
+			{"effect.frag", Kind::Shader}, {"photo.png", Kind::Image},
+			{"clip.mp4", Kind::Video}, {"group.xml", Kind::Preset},
+			{"kinect2", Kind::Kinect2}, {"pointercloud", Kind::PointerCloud},
+			{"camdepth", Kind::CameraDepth}, {"cam", Kind::Camera},
+			{"framedifference", Kind::FrameDifference}, {"paint", Kind::Paint},
+			{"unrecognized", Kind::Unknown}};
+		for (const auto &entry : kinds)
+			for (FactoryContext context : {FactoryContext::Interactive, FactoryContext::Stored})
+				passed = passed && jp_box_factory::classify(entry.first, context) == entry.second;
+		// Precedence remains deliberately compatible, rather than fixing old
+		// filename interpretation as an incidental side effect of moving code.
+		passed = passed && jp_box_factory::classify("cam.xml", FactoryContext::Interactive) == Kind::Preset &&
+			jp_box_factory::classify("cam.xml", FactoryContext::Stored) == Kind::Camera;
+#ifdef NDI
+		passed = passed && jp_box_factory::classify("ndiReceiver", FactoryContext::Stored) == Kind::Ndi;
+#else
+		passed = passed && jp_box_factory::classify("ndiReceiver", FactoryContext::Stored) == Kind::Unknown;
+#endif
+#ifdef SPOUT
+		passed = passed && jp_box_factory::classify("spoutReceiver", FactoryContext::Stored) == Kind::Spout;
+#else
+		passed = passed && jp_box_factory::classify("spoutReceiver", FactoryContext::Stored) == Kind::Unknown;
+#endif
+		// Construction is separate from setup: these checks open no devices.
+		std::unique_ptr<JPbox> depth(jp_box_factory::create("camdepth", FactoryContext::Stored));
+		std::unique_ptr<JPbox> preset(jp_box_factory::create("group.xml", FactoryContext::Interactive));
+		std::unique_ptr<JPbox> unknown(jp_box_factory::create("unrecognized", FactoryContext::Stored));
+		passed = passed && dynamic_cast<JPbox_camdepth *>(depth.get()) &&
+			dynamic_cast<JPbox_preset *>(preset.get()) && !unknown;
+		ofLogNotice("persistence-modules") << "passed=" << passed;
+		return passed;
+	}
+
 	bool checkLoadSafety(ofApp &app)
 	{
 		using Result = JPboxgroup::LoadResult;
@@ -484,9 +570,10 @@ namespace
 
 bool jp_persistence_test::run(ofApp &app)
 {
-	if (!checkLoadSafety(app)) return false;
+	if (!checkLoadSafety(app) || !checkPersistenceModules()) return false;
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
-	if (testMode && string(testMode) == "load_safety") return true;
+	if (testMode && (string(testMode) == "load_safety" ||
+		string(testMode) == "architecture")) return true;
 	// Several checks below probe the RENDERED output, which is drawn through
 	// the MAIN crossfader - so an in-flight transition blends the probe with
 	// whatever was on screen before and the colours come out wrong.

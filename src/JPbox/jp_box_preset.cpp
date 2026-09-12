@@ -1,39 +1,7 @@
 #include "jp_box_preset.h"
 #include "jp_media.h"
-
-namespace
-{
-	void saveParameterUserState(ofXml &node, JPParameter *parameter)
-	{
-		if (parameter == nullptr) return;
-		node.appendChild("randomlocked").set(parameter->randomLocked);
-		if (parameter->variabletype == JPParameter::FLOAT)
-		{
-			node.appendChild("rangeenabled").set(parameter->rangeEnabled);
-			node.appendChild("defaultvalue").set(parameter->defaultFloatValue);
-		}
-		else if (parameter->variabletype == JPParameter::BOOL)
-			node.appendChild("defaultbool").set(parameter->defaultBoolValue);
-	}
-	void loadParameterUserState(ofXml &node, JPParameter *parameter)
-	{
-		if (parameter == nullptr) return;
-		auto locked = node.getChild("randomlocked");
-		if (locked) parameter->randomLocked = locked.getBoolValue();
-		auto value = node.getChild("defaultvalue");
-		if (value && parameter->variabletype == JPParameter::FLOAT)
-			parameter->defaultFloatValue = ofClamp(
-				value.getFloatValue(), parameter->nativeMin, parameter->nativeMax);
-		if (parameter->variabletype == JPParameter::FLOAT)
-		{
-			auto enabled = node.getChild("rangeenabled");
-			parameter->setRangeEnabled(enabled ? enabled.getBoolValue() : false);
-		}
-		auto boolean = node.getChild("defaultbool");
-		if (boolean && parameter->variabletype == JPParameter::BOOL)
-			parameter->defaultBoolValue = boolean.getBoolValue();
-	}
-}
+#include "jp_box_factory.h"
+#include "../JPutils/jp_parameter_xml.h"
 
 JPbox_preset::JPbox_preset()
 {
@@ -73,60 +41,8 @@ void JPbox_preset::setup(string _directory, string _name)
 		// cout << "x : " << y.getValue() << endl;
 		// cout << "Directory : " << directory.getValue() << endl;
 
-		JPbox *bx = nullptr;
-		if (directory.getValue().find(".frag") != std::string::npos)
-		{
-			bx = new JPbox_shader();
-		}
-		else if (jp_media::isImage(directory.getValue()))
-		{
-			bx = new JPbox_image();
-		}
-		else if (jp_media::isVideo(directory.getValue()))
-		{
-			bx = new JPbox_video();
-		}
-		else if (directory.getValue().find("kinect2") != std::string::npos)
-		{
-			bx = new JPbox_kinect2();
-		}
-		else if (directory.getValue().find("pointercloud") != std::string::npos)
-		{
-			bx = new JPbox_pointercloud();
-		}
-		// BEFORE the plain "cam" test: "camdepth" contains "cam", so the
-		// looser check would swallow it and build a CAMARITA instead.
-		else if (directory.getValue().find("camdepth") != std::string::npos)
-		{
-			bx = new JPbox_camdepth();
-		}
-		else if (directory.getValue().find("cam") != std::string::npos)
-		{
-			bx = new JPbox_cam();
-		}
-#ifdef NDI
-		else if (directory.getValue().find("ndiReceiver") != std::string::npos) {
-			bx = new JPbox_ndi();
-		}
-#endif
-#ifdef SPOUT
-		else if (directory.getValue().find("spoutReceiver") != std::string::npos)
-		{
-			bx = new JPbox_spout();
-		}
-#endif
-		else if (directory.getValue().find(".xml") != std::string::npos)
-		{
-			bx = new JPbox_preset();
-		}
-		else if (directory.getValue().find("framedifference") != std::string::npos)
-		{
-			bx = new JPbox_framedifference();
-		}
-		else if (directory.getValue().find("paint") != std::string::npos)
-		{
-			bx = new JPbox_paint();
-		}
+		JPbox *bx = jp_box_factory::create(directory.getValue(),
+			jp_box_factory::Context::Stored);
 		if (bx == nullptr)
 		{
 			// Nothing matched: a build without NDI/Spout, or a save that
@@ -167,81 +83,8 @@ void JPbox_preset::setup(string _directory, string _name)
 		bx->setOutputCandidate(
 			toOutputChild ? toOutputChild.getBoolValue() : false);
 
-		int destinationIndex = 0;
-		auto parameters = box.getChild("parameters").getChildren();
-		int parameterLoadLimit = bx->parameters.getSize();
-		// cout << "PARAMETER SIZE SB " << sb->parameters.getSize() << endl;
-		for (auto &param : parameters)
-		{
-			if (destinationIndex >= parameterLoadLimit) break;
-			/*cout << "............" << endl;
-			cout << "nombre parametro:" << param.getChild("name").getValue() << endl;
-			cout << "min parametro:" << param.getChild("min").getFloatValue() << endl;
-			cout << "max parametro:" << param.getChild("max").getFloatValue() << endl;
-			cout << "value parametro:" << param.getChild("value").getValue() << endl;
-			cout << "
-
-			parametro:" << param.getChild("movtype").getIntValue() << endl;
-			cout << "speed parametro:" << param.getChild("speed").getFloatValue() << endl;*/
-
-			if (bx->parameters.getType(destinationIndex) == bx->parameters.FLOAT)
-			{
-
-				bx->parameters.setName(param.getChild("name").getValue());
-				bx->parameters.setRangeMin(param.getChild("min").getFloatValue(), destinationIndex);
-				bx->parameters.setRangeMax(param.getChild("max").getFloatValue(), destinationIndex);
-				bx->parameters.setFloatLerpValue(param.getChild("value").getFloatValue(), destinationIndex);
-				bx->parameters.setFloatValue(param.getChild("value").getFloatValue(), destinationIndex);
-				bx->parameters.setmovetype(param.getChild("movtype").getIntValue(), destinationIndex);
-				auto lastMoveType = param.getChild("lastmovtype");
-				if (lastMoveType)
-				{
-					bx->parameters.setlastmovetype(
-						lastMoveType.getIntValue(), destinationIndex);
-				}
-				bx->parameters.setSpeed(param.getChild("speed").getFloatValue(), destinationIndex);
-				auto bpmRate = param.getChild("bpmrate");
-				if (bpmRate)
-				{
-					bx->parameters.setBpmRate(bpmRate.getIntValue(), destinationIndex);
-				}
-				auto audioSource = param.getChild("audiosource");
-				if (audioSource)
-				{
-					bx->parameters.setAudioSource(audioSource.getIntValue(), destinationIndex);
-				}
-				auto audioDiv = param.getChild("audiodiv");
-				if (audioDiv)
-				{
-					bx->parameters.setAudioDiv(audioDiv.getIntValue(), destinationIndex);
-				}
-				auto loadAudioFloat = [&](const char *key, auto setter)
-				{
-					auto node = param.getChild(key);
-					if (node) (bx->parameters.*setter)(node.getFloatValue(), destinationIndex);
-				};
-				loadAudioFloat("audiobase", &JPParameterGroup::setAudioBase);
-				loadAudioFloat("audioamount", &JPParameterGroup::setAudioAmount);
-				auto audioInvert = param.getChild("audioinvert");
-				if (audioInvert) bx->parameters.setAudioInvert(audioInvert.getBoolValue(), destinationIndex);
-				auto audioDrivesSpeed = param.getChild("audiodrivesspeed");
-				if (audioDrivesSpeed) bx->parameters.setAudioDrivesSpeed(audioDrivesSpeed.getBoolValue(), destinationIndex);
-				auto audioSpeedDir = param.getChild("audiospeeddirection");
-				if (audioSpeedDir) bx->parameters.setAudioSpeedDirection(audioSpeedDir.getIntValue(), destinationIndex);
-				loadAudioFloat("audiothreshold", &JPParameterGroup::setAudioThreshold);
-				loadAudioFloat("audiocurve", &JPParameterGroup::setAudioCurve);
-				loadAudioFloat("audioattackms", &JPParameterGroup::setAudioAttackMs);
-				loadAudioFloat("audioreleasems", &JPParameterGroup::setAudioReleaseMs);
-			}
-			else if (bx->parameters.getType(destinationIndex) == bx->parameters.BOOL)
-			{
-				bx->parameters.setName(param.getChild("name").getValue());
-				bx->parameters.setBoolValue(param.getChild("value").getBoolValue(), destinationIndex);
-			}
-			loadParameterUserState(param,
-				bx->parameters.getJParameter(destinationIndex));
-			destinationIndex++;
-		}
+		jp_parameter_xml::load(box, bx->parameters,
+			jp_parameter_xml::LoadContext::Preset);
 		bx->loadCustomState(box);
 		boxes.push_back(bx);
 	}
@@ -986,43 +829,7 @@ void JPbox_preset::save()
 		data.appendChild("bypass").set(boxes[i]->getBypass());
 		boxes[i]->saveCustomState(data);
 
-		if (boxes[i]->parameters.getSize() > 0)
-		{
-			auto parameters = data.appendChild("parameters");
-			for (int k = 0; k < boxes[i]->parameters.getSize(); k++)
-			{
-				auto param = parameters.appendChild("param");
-				if (boxes[i]->parameters.getType(k) == boxes[i]->parameters.BOOL)
-				{
-					param.appendChild("name").set(boxes[i]->parameters.getName(k));
-					param.appendChild("value").set(boxes[i]->parameters.getBoolValue(k));
-				}
-				else
-				{
-					param.appendChild("name").set(boxes[i]->parameters.getName(k));
-					param.appendChild("min").set(boxes[i]->parameters.getRangeMin(k));
-					param.appendChild("max").set(boxes[i]->parameters.getRangeMax(k));
-					param.appendChild("value").set(boxes[i]->parameters.getFloatValue(k));
-					param.appendChild("movtype").set(boxes[i]->parameters.getMovType(k));
-					param.appendChild("lastmovtype").set(boxes[i]->parameters.getLastMovType(k));
-					param.appendChild("speed").set(boxes[i]->parameters.getSpeed(k));
-					param.appendChild("bpmrate").set(boxes[i]->parameters.getBpmRate(k));
-					param.appendChild("audiosource").set(boxes[i]->parameters.getAudioSource(k));
-					param.appendChild("audiodiv").set(boxes[i]->parameters.getAudioDiv(k));
-					param.appendChild("audiobase").set(boxes[i]->parameters.getAudioBase(k));
-					param.appendChild("audioamount").set(boxes[i]->parameters.getAudioAmount(k));
-					param.appendChild("audioinvert").set(boxes[i]->parameters.getAudioInvert(k));
-					param.appendChild("audiodrivesspeed").set(boxes[i]->parameters.getAudioDrivesSpeed(k));
-					param.appendChild("audiospeeddirection").set(boxes[i]->parameters.getAudioSpeedDirection(k));
-					param.appendChild("audiothreshold").set(boxes[i]->parameters.getAudioThreshold(k));
-					param.appendChild("audiocurve").set(boxes[i]->parameters.getAudioCurve(k));
-					param.appendChild("audioattackms").set(boxes[i]->parameters.getAudioAttackMs(k));
-					param.appendChild("audioreleasems").set(boxes[i]->parameters.getAudioReleaseMs(k));
-				}
-				saveParameterUserState(param,
-					boxes[i]->parameters.getJParameter(k));
-			}
-		}
+		jp_parameter_xml::save(data, boxes[i]->parameters);
 
 		// Save FBO links
 		if (boxes[i]->fbohandlergroup.getPointerSetsSize() > 0)

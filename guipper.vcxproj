@@ -184,6 +184,11 @@
     <PostBuildEvent />
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\JPbox\JPboxgroup_cue.cpp" />
+    <ClCompile Include="src\ofApp_outputs.cpp" />
+    <ClCompile Include="src\JPbox\JPboxgroup_persistence.cpp" />
+    <ClCompile Include="src\JPbox\jp_box_factory.cpp" />
+    <ClCompile Include="src\JPutils\jp_parameter_xml.cpp" />
     <ClCompile Include="src\JPutils\TransitionSR.cpp" />
     <ClCompile Include="src\JPutils\jp_midi_keymap.cpp" />
     <ClCompile Include="src\main.cpp" />
@@ -270,6 +275,8 @@
     <ClCompile Include="src\SpoutSDK\SpoutSharedMemory.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\JPbox\jp_box_factory.h" />
+    <ClInclude Include="src\JPutils\jp_parameter_xml.h" />
     <ClInclude Include="src\defines.h" />
     <ClInclude Include="src\JPutils\TransitionSR.h" />
     <ClInclude Include="src\JPutils\jp_midi_keymap.h" />

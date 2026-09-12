@@ -40,8 +40,13 @@ Primary runtime code:
 - `src/defines.h`: compile flags.
 - `src/ofApp.h/.cpp`: top-level app orchestration, live outputs and settings.
 - `src/ofApp_audio.cpp`: audio screen and controls.
+- `src/ofApp_outputs.cpp`: output window lifecycle, source resolution and callbacks.
 - `src/JPbox/*`: graph engine + box classes.
 - `JPboxgroup_history.cpp`: reversible graph edits.
+- `JPboxgroup_persistence.cpp`: session XML preflight, graph reconstruction and saving.
+- `JPboxgroup_cue.cpp`: cue drafts, apply/cancel and nested preset synchronization.
+- `jp_box_factory.*`: shared node classification/construction; callers retain setup and ownership.
+- `src/JPutils/jp_parameter_xml.*`: shared parameter XML codec for compositions, presets and clipboard.
 - `JPboxgroup_paint.cpp`: PAINT interaction and UI.
 - `JPboxgroup_mapping_advanced.cpp`: advanced mapping.
 - `JPboxgroup_overlays.cpp` and `JPboxgroup_quick_images.cpp`: overlays and image stacks.
@@ -133,9 +138,12 @@ Key functions:
 
 ## 5.2 `JPboxgroup` (Graph + Inspector + Session Engine)
 
-This is the most important domain module. `JPboxgroup.cpp` exceeds 12,600
-lines and `ofApp.cpp` exceeds 8,500 at this review; extracting responsibilities
-is still useful even with the existing companion implementation files.
+This is the most important domain module. The first structural extraction reduced
+`JPboxgroup.cpp` from 12,643 to 9,682 lines and `ofApp.cpp` from 8,626 to
+8,063. The parameter codec and factory have independent APIs; cue and output
+runtime methods remain on their original owning classes in dedicated translation
+units. This is an incremental separation, not a completed ownership migration.
+See [architecture boundaries](ARQUITECTURA.md).
 
 Responsibilities:
 - Own all boxes (`vector<JPbox*> boxes`).
@@ -405,7 +413,7 @@ Write behavior in `saveSettings()`:
 
 ## 10.2 Session XML (`savefiles/*.xml`)
 
-Saved by `JPboxgroup::save`.
+Saved by `JPboxgroup::save` in `JPboxgroup_persistence.cpp`; parameter fields are encoded by `jp_parameter_xml`.
 
 Top-level:
 - `activerender`
@@ -435,9 +443,12 @@ Load behavior notes:
   extends the format and legacy fields are migrated in selected paths.
 - `save()` writes the main XML and then child presets to their own files.
   This is not an atomic multi-file transaction, and write results are not checked here.
-- `load()` calls `clear()` before `xml.load()` and does not check that return
-  value: failed input can discard the current graph. Transactional loading is
-  pending, not a guarantee of the current implementation.
+- `load()` parses the XML once and validates composition markers and box source
+  fields before `clear()`. It returns `LoadResult` (success, read error or invalid
+  composition). `ofApp::loadSession()` changes the save destination only after
+  success and displays a non-modal ES/EN notice on failure.
+- Reconstruction of nodes and nested assets still happens after `clear()`;
+  fully transactional graph construction remains pending.
 
 ---
 
@@ -509,7 +520,7 @@ See [`AUDIO_REACTIVITY.md`](AUDIO_REACTIVITY.md) for the component contract.
 - Pointer ownership uses many raw pointers (`JPbox*`, `JPcontroller*`, `JPParameter*`).
 - `JPParameterGroup::clear()` deletes parameters; remaining raw ownership requires care around graph edits, history, reload and cue drafts.
 - Several code paths/comments indicate historic crash workarounds and defensive hacks.
-- Session loading is destructive before validation; project and child-preset writes are separate and unchecked.
+- XML preflight preserves the live graph on invalid input, but subsequent asset construction is not transactional; project and child-preset writes remain separate and unchecked.
 - Uniform parsing is string-format sensitive and not a full GLSL parser; the float tokenization loop accesses `i - 1` without guarding the initial iteration.
 - Spout SDK is duplicated in multiple directories.
 
@@ -538,7 +549,7 @@ Modify OSC API:
 3. Keep backward compatibility if existing controllers/presets depend on addresses.
 
 Change persistence schema:
-1. Update `JPboxgroup::save` and `JPboxgroup::load` together.
+1. Update the session orchestration in `JPboxgroup_persistence.cpp`; change shared parameter fields in `jp_parameter_xml` so presets and clipboard use the same field implementation.
 2. Consider migration strategy for old XML savefiles.
 
 ---
