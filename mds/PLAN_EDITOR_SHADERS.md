@@ -1,5 +1,9 @@
 # Plan: Módulo EDITOR de Shaders para Guipper4
 
+> **Referencia histórica — revisión 2026-09-12.** El editor ya está implementado: múltiples pestañas, resaltado GLSL, selección, scroll horizontal/vertical, zoom y guardado con recarga por detección de cambios. Este documento conserva el diseño original; sus pasos, límites propuestos y casillas no representan tareas pendientes ni resultados de QA actuales.
+>
+> Documentación vigente: [mapa técnico](SKILLS.md) y [backlog](FEATURE_BACKLOG.md).
+
 ## Objetivo
 
 Crear un editor de shaders integrado en guipper4 que permita editar código GLSL con:

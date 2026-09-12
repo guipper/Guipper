@@ -1,5 +1,9 @@
 # REFACTOR: Unificacion MAIN / GROUP VIEW (TABS)
 
+> **Referencia histórica — revisión 2026-09-12.** El código actual incorpora `getCurrentViewBoxes()`, selección compartida y alta de cualquier tipo de nodo dentro de grupos. También tiene helpers de contexto para CUE. Este plan conserva la propuesta original; las referencias de línea y casillas no describen el estado actual ni certifican que cada fase se haya ejecutado literalmente.
+>
+> Documentación vigente: [mapa técnico](SKILLS.md) y [backlog](FEATURE_BACKLOG.md).
+
 ## Objetivo General
 
 Eliminar la duplicacion de funcionalidad entre la vista principal (MAIN) y las

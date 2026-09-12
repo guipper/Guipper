@@ -3466,6 +3466,122 @@ bool jp_persistence_test::run(ofApp &app)
 		}
 		app.boxes.clear();
 	}
+	// Every shader in the browsable library has to COMPILE. A .frag that fails
+	// only says so in the console, and the box then holds whatever was in its
+	// FBO - so a broken shader looks like a frozen box in the middle of a set,
+	// which is the worst possible moment to find out. Two people add shaders to
+	// this folder from two different machines; this is the check that neither
+	// of them ships a red one.
+	//
+	// Doubles as the compile check for the analogue boxes below.
+	bool shaderLibrary = true;
+	{
+		ofDirectory dir(ofToDataPath("shaders/imageprocessing", true));
+		dir.allowExt("frag");
+		dir.listDir();
+		dir.sort();
+		for (int i = 0; i < (int)dir.size(); ++i)
+		{
+			const string rel = "shaders/imageprocessing/" +
+				ofFilePath::getFileName(dir.getPath(i));
+			app.boxes.clear();
+			app.boxes.addBox(rel, 40, 40);
+			JPbox_shader *built = app.boxes.boxes.empty() ? nullptr :
+				dynamic_cast<JPbox_shader *>(app.boxes.boxes.front());
+			if (built == nullptr || !built->shader.isLoaded())
+			{
+				shaderLibrary = false;
+				ofLogNotice("shaderlibrary") << rel << " does not compile";
+			}
+		}
+		app.boxes.clear();
+	}
+	// The analogue chain - signalwarp, crttube, composite, signalfault - is
+	// built to be NEUTRAL with every knob at its default, so dropping one into
+	// a patch changes nothing until a knob is moved. That contract is easy to
+	// break by getting one mapr() range backwards, and impossible to notice by
+	// eye on a moving image, so it is asserted on a flat colour.
+	bool analogNeutral = true;
+	{
+		const char *shaders[] = {
+			"shaders/imageprocessing/signalwarp.frag",
+			"shaders/imageprocessing/crttube.frag",
+			"shaders/imageprocessing/composite.frag",
+			"shaders/imageprocessing/signalfault.frag"};
+		const ofColor flat(64, 150, 210, 255);
+		for (const char *shaderPath : shaders)
+		{
+			app.boxes.clear();
+			app.boxes.addBox("shaders/imageprocessing/transform.frag", 40, 40);
+			app.boxes.addBox(shaderPath, 200, 40);
+			if (app.boxes.boxes.size() < 2)
+			{
+				ofLogNotice("analogneutral")
+					<< shaderPath << " could not be built - skipped";
+				continue;
+			}
+			JPbox *source = app.boxes.boxes[0];
+			JPbox *effect = app.boxes.boxes[1];
+			source->setRenderThisFrame(true);
+			for (int i = 0; i < 4; ++i) source->update();
+			if (source->fbo.isAllocated())
+			{
+				source->fbo.begin();
+				ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+				ofClear(flat);
+				source->fbo.end();
+				ofEnableAlphaBlending();
+			}
+			source->setRenderThisFrame(false);
+			const int inlet =
+				effect->fbohandlergroup.findIndexByName("textura1");
+			if (inlet < 0)
+			{
+				analogNeutral = false;
+				ofLogNotice("analogneutral")
+					<< shaderPath << " has no textura1 inlet";
+				continue;
+			}
+			effect->fbohandlergroup.setFboPointer(&source->fbo,
+				&source->name, inlet);
+			effect->setonoff(true);
+			effect->setRenderThisFrame(true);
+			for (int i = 0; i < 3; ++i) effect->update();
+
+			ofPixels out;
+			if (!effect->fbo.isAllocated()) { effect->fbo.allocate(1, 1); }
+			effect->fbo.readToPixels(out);
+			if (!out.isAllocated())
+			{
+				analogNeutral = false;
+				ofLogNotice("analogneutral")
+					<< shaderPath << " produced an unreadable FBO";
+				continue;
+			}
+			const ofColor got = out.getColor((int)effect->fbo.getWidth() / 2,
+				(int)effect->fbo.getHeight() / 2);
+			// Loose on colour because composite.frag makes a real round trip
+			// through YIQ, and exact on alpha because passing the source's
+			// alpha through is the rule these were written to.
+			if (std::abs((int)got.r - (int)flat.r) > 3 ||
+				std::abs((int)got.g - (int)flat.g) > 3 ||
+				std::abs((int)got.b - (int)flat.b) > 3)
+			{
+				analogNeutral = false;
+				ofLogNotice("analogneutral") << shaderPath
+					<< " is not neutral at its defaults: expected "
+					<< ofToString(flat) << ", got " << ofToString(got);
+			}
+			if (got.a < 250)
+			{
+				analogNeutral = false;
+				ofLogNotice("analogneutral") << shaderPath
+					<< " dropped the source alpha: got "
+					<< ofToString((int)got.a);
+			}
+		}
+		app.boxes.clear();
+	}
 	bool selfLink = true;
 	{
 		auto fail = [&](const string &why)
@@ -5340,7 +5456,9 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " overlayOrder=" << overlayOrder
 		<< " overlaySchedule=" << overlaySchedule
 		<< " overlayLifecycle=" << overlayLifecycle
-		<< " mappingAlpha=" << mappingAlpha;
+		<< " mappingAlpha=" << mappingAlpha
+		<< " shaderLibrary=" << shaderLibrary
+		<< " analogNeutral=" << analogNeutral;
 	return current && old && clamped && shaderReload && feedbackFrames &&
 		modeMemory && pressOrigin && speedDirections && cycleStepBack &&
 		rangeCapture && midiRange && midiAudioAmount && oscIndexed && cueState && lockDefault && mediaState &&
@@ -5353,6 +5471,6 @@ bool jp_persistence_test::run(ofApp &app)
 		renderSchedule && scheduleObeyed && tooltipLayout &&
 		tooltipTransform &&
 		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke && quickImages && mediaFitReload && imageAsyncLoad &&
-		overlayChain && overlayOrder && overlaySchedule && overlayLifecycle && mappingAlpha &&
+		overlayChain && overlayOrder && overlaySchedule && overlayLifecycle && mappingAlpha && shaderLibrary && analogNeutral &&
 		graphUndo && transitionRectMode && exposeParams && midiUndo && groupNesting;
 }
