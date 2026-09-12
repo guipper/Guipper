@@ -393,8 +393,100 @@ namespace
 	}
 }
 
+namespace
+{
+	bool checkLoadSafety(ofApp &app)
+	{
+		using Result = JPboxgroup::LoadResult;
+		const string directory = ofToDataPath("uishots/persistence/load-safety/", true);
+		ofDirectory::createDirectory(directory, true, true);
+		app.boxes.clear();
+		JPbox *original = app.boxes.addBox(
+			"shaders/imageprocessing/feedback_advance.frag", 120, 180);
+		if (!original || original->parameters.getSize() == 0) return false;
+		original->parameters.setFloatValue(0.37f, 0);
+		app.boxes.selectOpenBoxForCurrentView(0);
+		const auto controllers = app.boxes.controllers;
+		const string originalPath = directory + "original.xml";
+		app.savedirectory = originalPath;
+		app.boxes.save(originalPath);
+		const int active = app.activerender;
+		const int inspector = app.boxes.openguinumber;
+		bool passed = true;
+		auto reject = [&](const string &path, Result expected)
+		{
+			const bool loaded = app.loadSession(path);
+			const bool retained = !loaded && app.sessionLoadResult == expected &&
+				app.savedirectory == originalPath && app.activerender == active &&
+				app.boxes.openguinumber == inspector &&
+				app.boxes.controllers == controllers &&
+				app.boxes.boxes.size() == 1 && app.boxes.boxes.front() == original &&
+				near(original->parameters.getFloatValue(0), 0.37f);
+			if (!retained) ofLogError("load-safety") << "Failed preservation: " << path;
+			passed = passed && retained;
+		};
+		const string missing = directory + "missing.xml";
+		if (ofFile::doesFileExist(missing)) ofFile::removeFile(missing, false);
+		reject(missing, Result::ReadError);
+		const std::pair<string, string> invalid[] = {
+			{"truncated.xml", "<activerender>0</activerender><box><directory>broken"},
+			{"empty.xml", ""},
+			{"settings.xml", "<settings><renderwidth>600</renderwidth></settings>"},
+			{"missing-source.xml", "<activerender>0</activerender><box><nombre>broken</nombre></box>"}};
+		for (const auto &fixture : invalid)
+		{
+			const string path = directory + fixture.first;
+			if (!ofBufferToFile(path, ofBuffer(fixture.second.data(), fixture.second.size()))) return false;
+			reject(path, fixture.first == "truncated.xml" || fixture.first == "empty.xml" ?
+				Result::ReadError : Result::InvalidComposition);
+		}
+		// Capture just the notice: the harness runs before normal screen setup.
+		if (std::getenv("GUIPPER_LOAD_ERROR_CAPTURE"))
+		{
+			const int language = app.language;
+			for (int value = 0; value < 2; ++value)
+			{
+				app.language = value;
+				ofFbo capture;
+				capture.allocate(ofGetWidth(), ofGetHeight(), GL_RGBA);
+				capture.begin();
+				ofClear(COL_BG_DARK);
+				app.drawSessionLoadError();
+				capture.end();
+				ofPixels pixels;
+				capture.readToPixels(pixels);
+				ofSaveImage(pixels, directory + (value == 0 ? "error-en.png" : "error-es.png"));
+			}
+			app.language = language;
+		}
+		// A legacy file without activerender still opens, and only success
+		// changes the save destination. Do not dereference original after this.
+		ofXml legacy;
+		if (!legacy.load(originalPath)) return false;
+		legacy.removeChild("activerender");
+		const string legacyPath = directory + "legacy.xml";
+		if (!legacy.save(legacyPath)) return false;
+		passed = app.loadSession(legacyPath) && passed;
+		passed = passed && app.savedirectory == legacyPath &&
+			app.sessionLoadErrorTime < 0.0f && app.boxes.boxes.size() == 1 &&
+			near(app.boxes.boxes.front()->parameters.getFloatValue(0), 0.37f);
+		// Saving/loading an intentionally empty composition is valid.
+		app.boxes.clear();
+		const string emptyPath = directory + "empty-project.xml";
+		app.boxes.save(emptyPath);
+		passed = app.loadSession(emptyPath) && passed;
+		passed = passed && app.boxes.boxes.empty() && app.activerender == 0 &&
+			app.savedirectory == emptyPath;
+		ofLogNotice("load-safety") << "passed=" << passed;
+		return passed;
+	}
+}
+
 bool jp_persistence_test::run(ofApp &app)
 {
+	if (!checkLoadSafety(app)) return false;
+	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+	if (testMode && string(testMode) == "load_safety") return true;
 	// Several checks below probe the RENDERED output, which is drawn through
 	// the MAIN crossfader - so an in-flight transition blends the probe with
 	// whatever was on screen before and the colours come out wrong.

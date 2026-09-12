@@ -295,7 +295,10 @@ public:
 	void loadSettings();
 	void saveSettings();
 	void saveSession(string path);
-	void loadSession(string path);
+	bool loadSession(string path);
+	JPboxgroup::LoadResult sessionLoadResult = JPboxgroup::LoadResult::Success;
+	float sessionLoadErrorTime = -1.0f;
+	void drawSessionLoadError();
 
 	// OSC MANAGMENT
 	ofxOscSender sender;

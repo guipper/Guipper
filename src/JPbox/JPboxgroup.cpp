@@ -6005,16 +6005,34 @@ void JPboxgroup::load2(string _dirinput)
 
 	*activerender = 0;*/
 }
-void JPboxgroup::load(string _dirinput)
+JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 {
-	clear();
+	// Parse exactly once before touching any live state. ofXml retains the
+	// parsed document for the reconstruction below, even if the file changes.
 	ofXml xml;
-
-	ofDirectory dir(_dirinput);
-
-	// if(dir.doesDirectoryExist(_dirinput)){
-
-	xml.load(_dirinput);
+	if (!xml.load(_dirinput))
+	{
+		ofLogError("session") << "Cannot read composition XML: " << _dirinput;
+		return LoadResult::ReadError;
+	}
+	// Legacy compositions may omit activerender. An explicitly empty project
+	// saved by Guipper contains activerender, so it remains a valid load.
+	if (!xml.getChild("activerender") && !xml.getChild("box"))
+	{
+		ofLogError("session") << "Not a Guipper composition: " << _dirinput;
+		return LoadResult::InvalidComposition;
+	}
+	for (const auto &node : xml.getChildren("box"))
+	{
+		if (ofTrim(node.getChild("directory").getValue()).empty())
+		{
+			ofLogError("session") << "Box has no source directory: " << _dirinput;
+			return LoadResult::InvalidComposition;
+		}
+	}
+	// Asset construction is still the legacy path; transactional construction
+	// of nested graphs is a separate step beyond this XML preflight.
+	clear();
 	jp_quick_image::loadStack(xml, finalQuickImages);
 	finalQuickImageHistory.clear();
 	finalQuickImageHistoryCursor = 0;
@@ -6308,7 +6326,8 @@ void JPboxgroup::load(string _dirinput)
 	}
 
 	//CLAUSULA DE SEGURIDAD : 
-	*activerender = int(ofClamp(xml.getChild("activerender").getIntValue(),0,boxes.size()-1));
+	*activerender = boxes.empty() ? 0 :
+		ofClamp(xml.getChild("activerender").getIntValue(), 0, int(boxes.size()) - 1);
 	cout << "TERMINA LINKS DE LOS FBO " << endl;
 
 	updateTransition(*activerender);
@@ -6351,6 +6370,7 @@ void JPboxgroup::load(string _dirinput)
 	// took its layers with it can carry rows whose source no longer exists, and
 	// those rows draw nothing while looking exactly like a healthy one.
 	pruneOrphanFinalLayers();
+	return LoadResult::Success;
 }
 vector<JPParameter *> JPboxgroup::getInspectorActionParameters() const
 {

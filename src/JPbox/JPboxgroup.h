@@ -217,8 +217,10 @@ public:
 
 	void save(string _diroutput);
 	void load2(string _dirinput);
-	// Guarda los valores a un XML
-	void load(string _dirinput);
+	// Preflight failures leave the graph, cue, inspector and history intact.
+	// Success does not yet guarantee all referenced assets were available.
+	enum class LoadResult { Success, ReadError, InvalidComposition };
+	LoadResult load(string _dirinput);
 
 	// Returns the box it created (nullptr when the directory maps to no box
 	// type), so callers that need to keep a handle - the quick-image panel

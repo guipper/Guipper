@@ -643,6 +643,7 @@ void ofApp::draw() {
 	drawScreenTabs();
 
 	drawSaveModal();
+	drawSessionLoadError();
 
 	// Above every panel and modal: a tooltip that a later panel paints over is
 	// the bug this deferral exists to fix.
@@ -7097,7 +7098,6 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
 #endif
 		cout << "path " << path << endl;
 		if (path.find(".xml") != std::string::npos && !loadAspreset) {
-			savedirectory = path;
 			loadSession(path);
 		} else {
 
@@ -7976,8 +7976,47 @@ void ofApp::saveSettings() {
 void ofApp::saveSession(string path) {
 	boxes.save(path);
 }
-void ofApp::loadSession(string path) {
-	boxes.load(path);
+bool ofApp::loadSession(string path) {
+	sessionLoadResult = boxes.load(path);
+	if (sessionLoadResult != JPboxgroup::LoadResult::Success)
+	{
+		sessionLoadErrorTime = ofGetElapsedTimef();
+		return false;
+	}
+	savedirectory = path;
+	sessionLoadErrorTime = -1.0f;
+	return true;
+}
+
+void ofApp::drawSessionLoadError()
+{
+	if (sessionLoadErrorTime < 0.0f ||
+		ofGetElapsedTimef() - sessionLoadErrorTime > 12.0f) return;
+	const bool readError = sessionLoadResult == JPboxgroup::LoadResult::ReadError;
+	const string message = language == 0 ?
+		(readError ? "Could not open composition. Check the file and try again. Current composition kept." :
+		 "This file is not a valid composition. Choose a Guipper composition. Current composition kept.") :
+		(readError ? "No se pudo abrir la composición. Revisá el archivo e intentá de nuevo. Se conservó la composición actual." :
+		 "El archivo no es una composición válida. Elegí una composición de Guipper. Se conservó la composición actual.");
+	const float width = std::min(640.0f, std::max(1.0f, float(ofGetWidth()) - 24.0f));
+	const auto lines = jp_textwrap::wrap(
+		[this](const string &text) { return modalFont.stringWidth(text); },
+		message, std::max(1.0f, width - 24.0f));
+	const float lineHeight = std::max(18.0f, modalFont.getLineHeight());
+	const float height = 24.0f + lineHeight * lines.size();
+	const float x = (ofGetWidth() - width) * 0.5f;
+	const float y = std::max(0.0f, ofGetHeight() - height - 12.0f);
+	ofPushStyle();
+	ofFill();
+	ofSetColor(COL_BG_PANEL);
+	ofDrawRectangle(x, y, width, height);
+	ofNoFill();
+	ofSetColor(COL_ACCENT_RED);
+	ofDrawRectangle(x, y, width, height);
+	ofSetColor(COL_TEXT_PRIMARY);
+	for (size_t i = 0; i < lines.size(); ++i)
+		modalFont.drawString(lines[i], x + 12.0f, y + 12.0f + lineHeight * (i + 1));
+	ofPopStyle();
 }
 void ofApp::updateOSC() {
 	// hide old messages
@@ -8000,7 +8039,6 @@ void ofApp::updateOSC() {
 			string dirfinal = "savefiles/" + dir;
 			cout << "DIR FINNAL : " << dirfinal << endl;
 			loadSession(dirfinal);
-			savedirectory = dirfinal;
 		}
 	}
 
