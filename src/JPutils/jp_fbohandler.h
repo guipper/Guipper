@@ -220,6 +220,11 @@ public:
 				return i;
 			}
 		}
+		// Legacy sampler names included whitespace from the source line.
+		const string normalized = ofTrim(name);
+		if (!normalized.empty())
+			for (int i = 0; i < (int)fbohandlers.size(); ++i)
+				if (ofTrim(fbohandlers[i].getName()) == normalized) return i;
 		return -1;
 	}
 	string getFboName(int _index)

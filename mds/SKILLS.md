@@ -47,6 +47,7 @@ Primary runtime code:
 - `JPboxgroup_cue.cpp`: cue drafts, apply/cancel and nested preset synchronization.
 - `jp_box_factory.*`: shared node classification/construction; callers retain setup and ownership.
 - `src/JPutils/jp_parameter_xml.*`: shared parameter XML codec for compositions, presets and clipboard.
+- `src/JPutils/jp_uniform_parser.*`: source-only uniform lexer/parser shared by shader nodes and preview.
 - `JPboxgroup_paint.cpp`: PAINT interaction and UI.
 - `JPboxgroup_mapping_advanced.cpp`: advanced mapping.
 - `JPboxgroup_overlays.cpp` and `JPboxgroup_quick_images.cpp`: overlays and image stacks.
@@ -487,15 +488,27 @@ Inspector model:
 
 ## 13) Shader Uniform Parsing Rules (Current Implementation)
 
-Implemented in `JPbox_shader::setUniforms`:
-- Only lines starting with `uniform` are considered.
-- `uniform float ...` creates float parameter.
-- `uniform bool ...` creates bool parameter.
-- `uniform sampler2D...` and `uniform sampler2DRect...` create texture input nodes.
+Implemented by `jp_uniform_parser::parse`, with application-specific controls
+created by `JPbox_shader::setUniforms`. The IMPORT preview uses the same parser.
 
-Float default value behavior:
-- Parser tries to detect inline assignment (formatted token pattern).
-- If no default is detected, random initial value in `[0,1]` is used.
+- Handles global declarations, whitespace, line/block comments, qualifiers,
+  multiple declarators and multiline declarations.
+- Exposes float/bool parameters and sampler2D/sampler2DRect inputs.
+- Parses finite decimal float literals (including signs/exponents/suffixes) and
+  boolean true/false defaults. Missing/unsupported scalar initializers use the
+  existing random float or false fallback; unsupported expressions are diagnosed.
+- Preserves declaration order and comment annotations (`@internal`, `@color`).
+- Returns locations and diagnostics for malformed declarations, duplicates,
+  unsupported types/arrays/blocks/initializers and conditional declarations.
+- Does not evaluate macros/includes/conditional branches or implement a full
+  GLSL compiler. See [parser contract and tests](PARSER_UNIFORMS.md).
+- Empty/unreadable files and structural parse errors preserve the previous
+  controls, connections and compiled shader on reload. Reload makes one attempt,
+  rather than looping on an empty file.
+- Successful reload matches names and types, retains audio settings and restores
+  connections. Legacy names with surrounding whitespace resolve before positional
+  parameter fallback. Shader compilation failures outside this parser's scope
+  are not yet transactional.
 
 Global uniforms are applied at render time. The parser skips names recognized
 by `jp_shader_globals::isNewGlobalName`; some older global names intentionally
@@ -521,7 +534,7 @@ See [`AUDIO_REACTIVITY.md`](AUDIO_REACTIVITY.md) for the component contract.
 - `JPParameterGroup::clear()` deletes parameters; remaining raw ownership requires care around graph edits, history, reload and cue drafts.
 - Several code paths/comments indicate historic crash workarounds and defensive hacks.
 - XML preflight preserves the live graph on invalid input, but subsequent asset construction is not transactional; project and child-preset writes remain separate and unchecked.
-- Uniform parsing is string-format sensitive and not a full GLSL parser; the float tokenization loop accesses `i - 1` without guarding the initial iteration.
+- Uniform inspection is bounded and tested, but does not evaluate preprocessing or arbitrary GLSL initializer expressions. Compiled-program replacement is not yet transactional for general compiler errors.
 - Spout SDK is duplicated in multiple directories.
 
 ---

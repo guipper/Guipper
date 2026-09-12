@@ -35,3 +35,5 @@ tests/keymap_tests_tsan
 tests/osc_address_tests
 tests/editor_shortcut_tests
 bin/data/paint_palette.xml
+
+tests/uniform_parser_tests

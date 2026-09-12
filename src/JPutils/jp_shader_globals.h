@@ -29,9 +29,9 @@ namespace jp_shader_globals
 	// not show up as a randomisable slider.
 	//
 	// NOT usable as a filter in JPbox_shader's .frag parser: that parser turns
-	// every `uniform float` into a JPParameter, and saved compositions load
-	// their <param> blocks POSITIONALLY. Dropping a parameter there would shift
-	// every later index and scramble existing saves. See isNewGlobalName().
+	// legacy float globals into JPParameters. Presets/clipboard remain
+	// positional and compositions retain a positional fallback, so dropping
+	// those slots requires migration. See isNewGlobalName().
 	bool isGlobalName(const std::string &name);
 
 	// Only the uniforms introduced WITH this helper, which therefore appear in

@@ -397,6 +397,137 @@ namespace
 
 namespace
 {
+	bool checkUniformReload()
+	{
+		const string directory = ofToDataPath("uishots/persistence/uniform-parser/", true);
+		ofDirectory::createDirectory(directory, true, true);
+		const string path = directory + "reload.frag";
+		auto write = [&](const string &uniforms) {
+			const string source = "#version 150\n" + uniforms +
+				"\nout vec4 fragColor; void main(){fragColor=vec4(0.5);}";
+			return ofBufferToFile(path, ofBuffer(source.data(), source.size()));
+		};
+		if (!write("uniform float amount=0.2; // @color r tone\nuniform bool visible;\n"
+			"uniform sampler2D source;\nuniform float time;\nuniform float audio_trigger;")) return false;
+		JPbox_shader box;
+		box.setup(path, "parser-reload");
+		if (!box.shader.isLoaded() || box.parameters.getSize() != 3 ||
+			box.parameters.getName(2) != "time") return false;
+		box.parameters.setmovetype(JPParameter::AUDIO, 0);
+		box.parameters.setAudioBase(0.31f, 0);
+		box.parameters.setAudioAmount(0.62f, 0);
+		box.parameters.setAudioSource(jp_audio::SRC_SNARE, 0);
+		box.parameters.setAudioThreshold(0.23f, 0);
+		box.parameters.setAudioAttackMs(35.0f, 0);
+		box.parameters.setAudioReleaseMs(550.0f, 0);
+		box.parameters.setFloatValue(0.37f, 0);
+		box.parameters.setFloatLerpValue(0.37f, 0);
+		box.parameters.getJParameter(0)->randomLocked = true;
+		box.parameters.setBoolValue(true, 1);
+		ofFbo input;
+		input.allocate(4, 4, GL_RGBA);
+		string inputName = "input-source";
+		// Simulate names emitted by the legacy fixed-offset parser.
+		box.parameters.getJParameter(0)->name = "amount ";
+		box.fbohandlergroup.clear();
+		box.fbohandlergroup.addFbohandler("source ");
+		box.fbohandlergroup.setFboPointer(&input, &inputName, 0);
+		if (!write("uniform bool visible;\nuniform float fresh=0.8;\n"
+			"  uniform highp\n float amount=0.9; // @color b tone\n"
+			"uniform sampler2D spare, source;\nuniform float time;")) return false;
+		box.reload();
+		const int amount = box.parameters.indexOfName("amount");
+		const int source = box.fbohandlergroup.findIndexByName("source");
+		if (amount != 2 || source != 1 || !box.shader.isLoaded()) return false;
+		JPParameter *kept = box.parameters.getJParameter(amount);
+		bool passed = near(kept->floatValue, 0.37f) && near(kept->floatLerpValue, 0.37f) &&
+			kept->randomLocked && kept->colorChannel == JPParameter::COLOR_B &&
+			kept->colorGroup == "tone" && kept->movtype == JPParameter::AUDIO &&
+			near(kept->audioBase, 0.31f) && near(kept->audioAmount, 0.62f) &&
+			kept->audioSource == jp_audio::SRC_SNARE && near(kept->audioThreshold, 0.23f) &&
+			near(kept->audioAttackMs, 35.0f) && near(kept->audioReleaseMs, 550.0f) &&
+			box.parameters.getBoolValue(0) && near(box.parameters.getFloatValue(1), 0.8f) &&
+			box.fbohandlergroup.getFboPointerReference(source) == &input &&
+			!box.fbohandlergroup.getisPointerSet(0);
+		passed = passed && box.fbohandlergroup.findIndexByName("source ") == source;
+		JPParameterGroup legacy;
+		legacy.addBoolValue(false, "first");
+		legacy.addBoolValue(false, "second");
+		ofXml legacyXml;
+		legacyXml.parse("<parameters><param><name>second </name><value>1</value></param></parameters>");
+		jp_parameter_xml::load(legacyXml, legacy, jp_parameter_xml::LoadContext::Composition);
+		passed = passed && !legacy.getBoolValue(0) && legacy.getBoolValue(1);
+		const auto program = box.shader.getProgram();
+		auto retained = [&]() {
+			return !box.uniformDiagnostics.empty() &&
+				box.parameters.getSize() == 4 && box.parameters.getJParameter(amount) == kept &&
+				box.shader.getProgram() == program && box.shader.isLoaded() &&
+				box.fbohandlergroup.getFboPointerReference(source) == &input;
+		};
+		if (!write("uniform float broken = ;")) return false;
+		box.reload();
+		passed = retained() && passed;
+		if (!ofBufferToFile(path, ofBuffer())) return false;
+		box.reload();
+		passed = retained() && passed;
+		ofFile::removeFile(path, false);
+		box.reload();
+		passed = retained() && passed;
+		// Same name with a new type must use the new default, never read an
+		// unrelated bool/float field from the previous parameter object.
+		if (!write("uniform bool amount=true;")) return false;
+		box.reload();
+		passed = passed && box.shader.isLoaded() && box.parameters.getSize() == 1 &&
+			box.parameters.getType(0) == JPParameter::BOOL && box.parameters.getBoolValue(0);
+		if (!write("")) return false;
+		box.reload();
+		passed = passed && box.shader.isLoaded() && box.parameters.getSize() == 0 &&
+			box.fbohandlergroup.getSize() == 0;
+		ofLogNotice("uniform-reload") << "passed=" << passed;
+		return passed;
+	}
+
+	bool writeUniformInventory()
+	{
+		vector<string> paths;
+		const string root = ofToDataPath("shaders", true);
+		for (const auto &entry : std::filesystem::recursive_directory_iterator(root))
+			if (entry.is_regular_file() && entry.path().extension() == ".frag")
+				paths.push_back(entry.path().string());
+		std::sort(paths.begin(), paths.end());
+		ofJson inventory = ofJson::object();
+		for (const string &path : paths)
+		{
+			JPbox_shader box;
+			ofSeedRandom(12345);
+			box.setUniforms(box.parameters, box.fbohandlergroup, path, "inventory");
+			ofJson row;
+			row["parameters"] = ofJson::array();
+			row["inputs"] = ofJson::array();
+			for (int i = 0; i < box.parameters.getSize(); ++i)
+			{
+				JPParameter *parameter = box.parameters.getJParameter(i);
+				ofJson param;
+				param["name"] = parameter->name;
+				param["type"] = parameter->variabletype;
+				param["value"] = parameter->variabletype == JPParameter::FLOAT ?
+					parameter->floatValue : float(parameter->boolValue);
+				param["colorChannel"] = parameter->colorChannel;
+				param["colorGroup"] = parameter->colorGroup;
+				row["parameters"].push_back(param);
+			}
+			for (int i = 0; i < box.fbohandlergroup.getSize(); ++i)
+				row["inputs"].push_back(box.fbohandlergroup.getName(i));
+			inventory[std::filesystem::relative(path, root).generic_string()] = row;
+		}
+		const string destination = ofToDataPath("uishots/persistence/uniform_inventory.json", true);
+		ofFilePath::createEnclosingDirectory(destination);
+		const string text = inventory.dump(2);
+		const bool saved = ofBufferToFile(destination, ofBuffer(text.data(), text.size()));
+		ofLogNotice("uniform-inventory") << "files=" << paths.size() << " saved=" << saved;
+		return saved;
+	}
+
 	bool checkPersistenceModules()
 	{
 		using Context = jp_parameter_xml::LoadContext;
@@ -570,8 +701,11 @@ namespace
 
 bool jp_persistence_test::run(ofApp &app)
 {
-	if (!checkLoadSafety(app) || !checkPersistenceModules()) return false;
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+	if (testMode && string(testMode) == "uniform_inventory") return writeUniformInventory();
+	if (!checkUniformReload()) return false;
+	if (testMode && string(testMode) == "uniform_parser") return true;
+	if (!checkLoadSafety(app) || !checkPersistenceModules()) return false;
 	if (testMode && (string(testMode) == "load_safety" ||
 		string(testMode) == "architecture")) return true;
 	// Several checks below probe the RENDERED output, which is drawn through

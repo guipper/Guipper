@@ -1,6 +1,7 @@
 #include "ofApp.h"
 #include "JPutils/jp_uishot.h"
 #include "JPutils/jp_persistence_test.h"
+#include "JPutils/jp_uniform_parser.h"
 #include "JPutils/jp_font.h"
 #include "JPutils/jp_textfield.h"
 #include <iostream>
@@ -5385,43 +5386,22 @@ void ofApp::selectShaderForPreview(int f, int s) {
 	previewRdmActive = false;
 	if (previewShader.load("shaders/default.vert", shaderPath)) {
 		previewShaderLoaded = true;
-		// Parse user-defined uniform float declarations for RDM
-		ofBuffer shaderBuf2 = ofBufferFromFile(shaderPath);
-		for (auto line : shaderBuf2.getLines()) {
-			if (line.rfind("uniform", 0) == 0 && line.find("float") != string::npos) {
-				string sl = line;
-				vector<string> tokens;
-				string tok;
-				for (char c : sl) {
-					if (c == ' ' || c == '\t') { if (!tok.empty()) { tokens.push_back(tok); tok.clear(); } }
-					else { tok += c; }
-				}
-				if (!tok.empty()) tokens.push_back(tok);
-				if (!tokens.empty()) {
-					string &last = tokens.back();
-					if (!last.empty() && last.back() == ';') last.pop_back();
-				}
-				for (int ti = 2; ti < (int)tokens.size(); ti++) {
-					if (tokens[ti] != "=" && tokens[ti] != "float" && tokens[ti] != "uniform") {
-						string uname = tokens[ti];
-						if (uname == "time" || uname == "resolution" || uname == "bpm" ||
-							uname == "mouse" || uname == "window_mouse" ||
-							uname == "globalframeNum" || uname == "boxframeNum" ||
-							uname == "texture1" || uname == "texture2" ||
-							uname == "textura" || uname == "textura1" || uname == "textura2" ||
-							uname == "tex0" || uname == "tex1" || uname == "input_texture" ||
-							uname == "texture" ||
-							// The audio globals too, or they would show up as
-							// randomisable sliders in the preview.
-							jp_shader_globals::isGlobalName(uname)) continue;
-						previewUniformNames.push_back(uname);
-						previewUniformMins.push_back(0.0f);
-						previewUniformMaxs.push_back(1.0f);
-						previewRdmValues.push_back(0.0f);
-						break;
-					}
-				}
-			}
+		// The same lexer as shader boxes; preview only filters a broader set
+		// of globals, because it has no saved positional parameter slots.
+		const auto parsed = jp_uniform_parser::parse(ofBufferFromFile(shaderPath).getText());
+		if (!parsed.hasErrors()) for (const auto &uniform : parsed.declarations)
+		{
+			if (uniform.type != jp_uniform_parser::Type::Float ||
+				uniform.internal || uniform.array) continue;
+			const string &uname = uniform.name;
+			if (jp_shader_globals::isGlobalName(uname) ||
+				uname == "texture1" || uname == "texture2" ||
+				uname == "textura" || uname == "textura1" || uname == "textura2" ||
+				uname == "tex0" || uname == "tex1" || uname == "input_texture" || uname == "texture") continue;
+			previewUniformNames.push_back(uname);
+			previewUniformMins.push_back(0.0f);
+			previewUniformMaxs.push_back(1.0f);
+			previewRdmValues.push_back(0.0f);
 		}
 		renderShaderPreview(false);
 	}

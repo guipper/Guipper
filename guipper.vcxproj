@@ -184,6 +184,7 @@
     <PostBuildEvent />
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\JPutils\jp_uniform_parser.cpp" />
     <ClCompile Include="src\JPbox\JPboxgroup_cue.cpp" />
     <ClCompile Include="src\ofApp_outputs.cpp" />
     <ClCompile Include="src\JPbox\JPboxgroup_persistence.cpp" />
@@ -275,6 +276,7 @@
     <ClCompile Include="src\SpoutSDK\SpoutSharedMemory.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\JPutils\jp_uniform_parser.h" />
     <ClInclude Include="src\JPbox\jp_box_factory.h" />
     <ClInclude Include="src\JPutils\jp_parameter_xml.h" />
     <ClInclude Include="src\defines.h" />

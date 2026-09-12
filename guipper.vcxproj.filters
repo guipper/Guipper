@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <ClCompile Include="src\JPutils\jp_uniform_parser.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
     <ClCompile Include="src\JPbox\JPboxgroup_cue.cpp">
       <Filter>src\JPbox</Filter>
     </ClCompile>
@@ -335,6 +338,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\JPutils\jp_uniform_parser.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
     <ClInclude Include="src\JPbox\jp_box_factory.h">
       <Filter>src\JPbox</Filter>
     </ClInclude>
