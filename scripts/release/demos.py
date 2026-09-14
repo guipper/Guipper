@@ -9,7 +9,7 @@ in vec4 position;
 void main(){gl_Position=modelViewProjectionMatrix*position;}
 '''
 SHADER = '''#version 150
-uniform float time;
+uniform float time; // @internal
 uniform vec2 resolution;
 uniform float audio_low; // @internal
 // Rings across the radius. Exponential, because the interesting part is the
