@@ -616,6 +616,43 @@ namespace
 		return passed;
 	}
 
+    bool checkSaveShortcut(ofApp &app) {
+        const string directory=ofToDataPath("uishots/persistence/save-shortcut/",true);
+        ofDirectory::createDirectory(directory,true,true);
+        app.boxes.clear();
+        JPbox* original=app.boxes.addBox("shaders/imageprocessing/feedback_advance.frag",120,120);
+        if (!original) return false;
+        const string originalPath=directory+"original.xml";
+        app.savedirectory=originalPath;
+        app.boxes.save(originalPath);
+        bool passed=true;
+        // Exercise the actual event dispatch: legacy and detailed callbacks
+        // must not both save when Ctrl+Shift+S opens the in-app Save As modal.
+        app.registerSurfaces(); // normal setup registers these after the test hook
+        const auto savedBytes = ofBufferFromFile(originalPath).getText();
+        const int previousScreen = app.pantallaActiva;
+        app.pantallaActiva = app.NODOS;
+        original->parameters.setFloatValue(0, 0.81f);
+        auto& events = ofGetWindowPtr()->events();
+        events.notifyKeyPressed(OF_KEY_CONTROL);
+        events.notifyKeyPressed(OF_KEY_SHIFT);
+        ofKeyEventArgs saveEvent(ofKeyEventArgs::Pressed, 's', -1, -1, 0, OF_KEY_CONTROL | OF_KEY_SHIFT);
+        events.notifyKeyEvent(saveEvent);
+        events.notifyKeyReleased('s');
+        events.notifyKeyReleased(OF_KEY_SHIFT);
+        events.notifyKeyReleased(OF_KEY_CONTROL);
+        passed = app.saveModalActive &&
+            ofBufferFromFile(originalPath).getText() == savedBytes && passed;
+        events.notifyKeyPressed(OF_KEY_ESC);
+        events.notifyKeyReleased(OF_KEY_ESC);
+        passed = !app.saveModalActive &&
+            ofBufferFromFile(originalPath).getText() == savedBytes && passed;
+        original->parameters.setFloatValue(0, 0.37f);
+        app.pantallaActiva = previousScreen;
+        ofLogNotice("save-shortcut") << "passed=" << passed;
+        return passed;
+    }
+
 	bool checkLoadSafety(ofApp &app)
 	{
 		using Result = JPboxgroup::LoadResult;
@@ -750,7 +787,7 @@ bool jp_persistence_test::run(ofApp &app)
 	if (testMode && string(testMode) == "uniform_inventory") return writeUniformInventory();
 	if (!checkUniformReload()) return false;
 	if (testMode && string(testMode) == "uniform_parser") return true;
-	if (!checkLoadSafety(app) || !checkPersistenceModules()) return false;
+	if (!checkLoadSafety(app) || !checkSaveShortcut(app) || !checkPersistenceModules()) return false;
 	if (testMode && (string(testMode) == "load_safety" ||
 		string(testMode) == "architecture")) return true;
 	// Several checks below probe the RENDERED output, which is drawn through

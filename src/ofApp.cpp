@@ -5871,6 +5871,11 @@ void ofApp::closeShaderEditorToMain()
 }
 
 void ofApp::keyPressed(int key) {
+    // Modified save chords belong exclusively to keycodePressed. Both
+    // callbacks receive the same event; treating its 's' as a bare shortcut
+    // here would overwrite the original before Save As is even confirmed.
+    if (key == 19 || ((key == 's' || key == 'S') &&
+        (ofGetKeyPressed(OF_KEY_CONTROL) || ofGetKeyPressed(OF_KEY_COMMAND)))) return;
     if (key == OF_KEY_F10 && !anyFieldFocused() && !saveModalActive) { releasePanelOpen=!releasePanelOpen; return; }
     if (releasePanelOpen) {
         if (key == OF_KEY_ESC) releasePanelOpen=false;
@@ -6198,6 +6203,7 @@ void ofApp::keyPressed(int key) {
 	prevKey = key;*/
 }
 void ofApp::keycodePressed(ofKeyEventArgs & e) {
+    if (releasePanelOpen || saveModalActive) return;
 
 	// cout << "KEY : " << e.key << endl;
 
