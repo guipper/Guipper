@@ -74,9 +74,9 @@ actualiza las anotaciones y conserva conexiones por nombre. Un cambio de tipo us
 el nuevo valor inicial, sin leer campos del tipo anterior. Un shader válido sin
 uniforms puede recargarse normalmente.
 
-**Pendiente:** una transacción completa ante errores generales de compilación GLSL.
-La protección actual no garantiza conservar el programa anterior si la sintaxis
-de uniforms es válida pero el compilador rechaza otra parte del shader.
+La recarga ahora compila un programa candidato y comprueba `GL_LINK_STATUS`
+antes de reemplazar controles o programa. La compilación y la inspección de
+uniforms reciben la misma instantánea de fuente. Ver [publicación](PUBLICACION.md).
 
 ## Pruebas reproducibles
 

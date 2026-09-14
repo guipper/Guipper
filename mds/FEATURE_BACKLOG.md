@@ -27,9 +27,9 @@ Historical design plans are not the active backlog.
 - Check write failures and make project/preset saves atomic where possible; introduce schema versioning and explicit migrations.
 - Refactor pointer-heavy ownership (`JPbox*`, `JPcontroller*`, `JPParameter*`) incrementally. `JPParameterGroup` already deletes its parameters and deep-copies them; do not treat its `clear()` as a known leak.
 - Continue separating state ownership from `ofApp` and `JPboxgroup`. Session orchestration, cue and output runtime now have dedicated translation units; parameter XML and node construction have shared APIs. See [architecture](ARQUITECTURA.md).
-- Complete shader reload transactions for compiler errors beyond uniform syntax; add preprocessor-aware reflection if needed. The shared uniform lexer/parser, structural diagnostics and empty-file protection are implemented. See [parser contract](PARSER_UNIFORMS.md).
+- Shader reload now validates candidate compile/link status before replacing live state; preprocessor-aware uniform reflection remains pending. The shared uniform lexer/parser, structural diagnostics and empty-file protection are implemented. See [parser contract](PARSER_UNIFORMS.md).
 - Add better error UI for shader compile failures (inline message + line hints).
-- Add autosave and crash-recovery session restore.
+- Recovery snapshots now run every two minutes with background writes and an explicit restore prompt; retention and large-document capture timing remain pending. See [release readiness](PUBLICACION.md).
 
 ## Livecoding and Shader Workflow
 - Add GLSL linting and richer compiler diagnostics; syntax highlighting is implemented.

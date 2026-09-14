@@ -60,6 +60,13 @@ The integrated PAINT box supports drawing, frame-by-frame animation, onion
 skin, layers and precise selection transforms. See the [PAINT guide](mds/PAINT.md)
 for its workflow, shortcuts, export options and file compatibility notes.
 
+## Release preparation
+
+User-data isolation, checked storage, recovery and the release pipeline are documented
+in [Publishing Guipper](mds/PUBLICACION.md). F10 opens version, update preferences
+and diagnostic export. Development builds have updates disabled until signed
+packages and platform validation are configured.
+
 ## Installation
 This checkout targets openFrameworks **0.12.1**, C++17 and OpenGL 3.2.
 Place it at `apps/myApps/Guipper` inside an openFrameworks installation:
