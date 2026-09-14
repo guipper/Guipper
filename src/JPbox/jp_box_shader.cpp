@@ -5,6 +5,15 @@
 #include <filesystem>
 
 
+namespace {
+bool linkedProgram(ofShader& shader) {
+    if (!shader.isLoaded() || !shader.getProgram()) return false;
+    GLint linked = GL_FALSE;
+    glGetProgramiv(shader.getProgram(), GL_LINK_STATUS, &linked);
+    return linked == GL_TRUE;
+}
+}
+
 JPbox_shader::JPbox_shader()
 {
 	advancedMappingMaskDirty.fill(true);
@@ -37,7 +46,20 @@ void JPbox_shader::reload()
 
 	// One bounded attempt. Editors can briefly leave a source empty while
 	// saving; retrying until it has uniforms used to block the render thread.
-	if (!setUniforms(parameters, fbohandlergroup, dir, name)) return;
+    const ofBuffer source = ofBufferFromFile(dir);
+    ofShaderSettings candidateSettings;
+    candidateSettings.shaderFiles[GL_VERTEX_SHADER] = ofToDataPath("shaders/default.vert", true);
+    candidateSettings.shaderSources[GL_FRAGMENT_SHADER] = source.getText();
+    candidateSettings.sourceDirectoryPath = ofFilePath::getEnclosingDirectory(ofToDataPath(dir, true));
+    ofShader candidateShader;
+    if (source.size() == 0 || !candidateShader.setup(candidateSettings) || !linkedProgram(candidateShader)) {
+        uniformDiagnostics = {{jp_uniform_parser::Severity::Error,
+            jp_uniform_parser::Code::ShaderCompileError, {1, 1}, "",
+            "Shader compilation failed; current program and controls kept. See compiler log."}};
+        ofLogError("shader-reload") << "Compilation failed; current shader and controls kept: " << dir;
+        return;
+    }
+	if (!setUniforms(parameters, fbohandlergroup, dir, name, &source)) return;
 
 	/*cout << "----------------------------------"; endl;
 	cout << "Variables anteriores" << endl;
@@ -151,7 +173,7 @@ void JPbox_shader::reload()
 			}
 		}
 	}
-	shader.load("shaders/default.vert", dir);
+	shader = candidateShader;
 	resetFeedbackFrame();
 
 	fbohandlergroup.setupdragobjects(x, y, outlet_size, outlet_size);
@@ -161,7 +183,9 @@ void JPbox_shader::reload()
 }
 void JPbox_shader::reloadShaderonly()
 {
-	shader.load("shaders/default.vert", dir);
+    ofShader candidate;
+    if (!candidate.load("shaders/default.vert", dir) || !linkedProgram(candidate)) return;
+    shader = candidate;
 	resetFeedbackFrame();
 	frameNum = 0;
 }
@@ -412,10 +436,10 @@ void JPbox_shader::updateFBO()
 	}
 }
 bool JPbox_shader::setUniforms(JPParameterGroup &_parameters,
-	JPFbohandlerGroup &_fbohandlergroup, string _dir, string _name)
+	JPFbohandlerGroup &_fbohandlergroup, string _dir, string _name, const ofBuffer* source)
 {
 	using namespace jp_uniform_parser;
-	const ofBuffer candidate = ofBufferFromFile(_dir);
+	const ofBuffer candidate = source ? *source : ofBufferFromFile(_dir);
 	if (candidate.size() == 0)
 	{
 		uniformDiagnostics = {{Severity::Error, Code::SourceReadError, {1, 1}, "",

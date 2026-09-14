@@ -1,3 +1,4 @@
+#include "../JPutils/jp_storage.h"
 #include "jp_shader_editor.h"
 #include "../JPutils/jp_editor_shortcut.h"
 #include "jp_screen.h"
@@ -214,7 +215,7 @@ bool JPShaderEditor::saveCurrentTab()
 	if (activeTab < 0 || activeTab >= (int)tabs.size()) return false;
 
 	EditorTab& tab = tabs[activeTab];
-	writeFileLines(tab.filePath, tab.lines);
+	if (!writeFileLines(tab.filePath, tab.lines)) return false;
 	tab.modified = false;
 
 	// The auto-reload system in JPboxgroup::update() detects the
@@ -263,21 +264,22 @@ vector<string> JPShaderEditor::loadFileLines(const string& path)
 	return result;
 }
 
-void JPShaderEditor::writeFileLines(const string& path, const vector<string>& lines)
+bool JPShaderEditor::writeFileLines(const string& path, const vector<string>& lines)
 {
-	string realPath = ofToDataPath(path, true);
-	ofFile f(realPath);
-	if (!f.exists()) {
-		// Use path as-is
-		realPath = path;
-	}
-	ofstream file(realPath, ios::binary);
-	if (file.is_open()) {
-		for (size_t i = 0; i < lines.size(); i++) {
-			file << lines[i];
-			if (i < lines.size() - 1) file << "\n";
-		}
-	}
+    try {
+        const auto destination = ofToDataPath(path, true);
+        string bytes;
+        for (size_t i = 0; i < lines.size(); ++i) {
+            if (i) bytes += "\n";
+            bytes += lines[i];
+        }
+        jp::AppPaths::current().makePersonal(destination);
+        jp::atomicWrite(destination, bytes);
+        return true;
+    } catch (const std::exception& error) {
+        ofLogError("shader-editor") << error.what();
+        return false;
+    }
 }
 
 // ============================================================

@@ -4,6 +4,21 @@
     <ClCompile Include="src\JPutils\jp_uniform_parser.cpp">
       <Filter>src\JPutils</Filter>
     </ClCompile>
+    <ClCompile Include="src\ofApp_release.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPutils\jp_update_platform.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPutils\jp_update_service.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPutils\jp_recovery.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPutils\jp_app_paths.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
     <ClCompile Include="src\JPbox\JPboxgroup_cue.cpp">
       <Filter>src\JPbox</Filter>
     </ClCompile>
@@ -339,6 +354,21 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\JPutils\jp_uniform_parser.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_version.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_update_service.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_recovery.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_storage.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_app_paths.h">
       <Filter>src\JPutils</Filter>
     </ClInclude>
     <ClInclude Include="src\JPbox\jp_box_factory.h">

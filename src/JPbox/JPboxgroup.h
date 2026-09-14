@@ -215,11 +215,12 @@ public:
 	bool selectOpenBoxForCurrentView(int index);
 	bool requestSetActiveRenderForCurrentView(int index, bool activeOnly = false);
 
-	void save(string _diroutput);
+	bool save(string _diroutput);
+	ofXml snapshotXml();
 	void load2(string _dirinput);
 	// Preflight failures leave the graph, cue, inspector and history intact.
 	// Success does not yet guarantee all referenced assets were available.
-	enum class LoadResult { Success, ReadError, InvalidComposition };
+	enum class LoadResult { Success, ReadError, InvalidComposition, UnsupportedVersion, AssetError };
 	LoadResult load(string _dirinput);
 
 	// Returns the box it created (nullptr when the directory maps to no box

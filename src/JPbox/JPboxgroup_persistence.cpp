@@ -1,14 +1,56 @@
+#include "../JPutils/jp_storage.h"
 #include "JPboxgroup.h"
 #include "../JPutils/jp_parameter_xml.h"
 #include "jp_media.h"
 #include "jp_box_factory.h"
 #include <algorithm>
+#include <set>
+
+namespace {
+JPboxgroup::LoadResult validateStoredTree(const ofXml& xml, std::set<std::string>& stack) {
+    using Result = JPboxgroup::LoadResult;
+    const auto format = xml.getChild("guipper_format");
+    if (format && format.getValue() != "1") return Result::UnsupportedVersion;
+    if (!xml.getChild("activerender") && !xml.getChild("box")) return Result::InvalidComposition;
+    for (auto node : xml.getChildren("box")) {
+        const auto source = jp_normalizePath(node.getChild("directory").getValue());
+        if (ofTrim(source).empty()) return Result::InvalidComposition;
+        if (ofToLower(ofFilePath::getFileExt(source)) == "frag") {
+            const auto bytes = ofBufferFromFile(source);
+            if (bytes.size() == 0 || jp_uniform_parser::parse(bytes.getText()).hasErrors()) return Result::AssetError;
+        }
+        if (ofToLower(ofFilePath::getFileExt(source)) == "xml") {
+            const auto path = std::filesystem::absolute(ofToDataPath(source, true)).lexically_normal().string();
+            if (stack.size() >= 64 || !stack.insert(path).second) return Result::InvalidComposition;
+            ofXml child;
+            if (!child.load(path)) return Result::AssetError;
+            const auto result = validateStoredTree(child, stack);
+            stack.erase(path);
+            if (result != Result::Success) return result;
+        }
+    }
+    return Result::Success;
+}
+bool validBuiltTree(JPbox* box) {
+    if (auto* shader = dynamic_cast<JPbox_shader*>(box))
+        {
+            GLint linked = GL_FALSE;
+            if (!shader->shader.isLoaded() || !shader->shader.getProgram()) return false;
+            glGetProgramiv(shader->shader.getProgram(), GL_LINK_STATUS, &linked);
+            if (linked != GL_TRUE) return false;
+        }
+    if (auto* preset = dynamic_cast<JPbox_preset*>(box))
+        for (auto* child : preset->boxes) if (!validBuiltTree(child)) return false;
+    return true;
+}
+}
 
 // Session orchestration: graph lifetime and link repair stay on JPboxgroup.
 // Parameter field encoding is shared with presets and clipboard via the codec.
-void JPboxgroup::save(string outputPath)
+ofXml JPboxgroup::snapshotXml()
 {
 	ofXml xml;
+	xml.appendChild("guipper_format").set(1);
 
 	auto activerender_save = xml.appendChild("activerender");
 	activerender_save.set(*activerender);
@@ -70,9 +112,13 @@ void JPboxgroup::save(string outputPath)
 		}
 	}
 
-	ofFilePath::createEnclosingDirectory(outputPath);
-	xml.save(outputPath);
 
+
+	return xml;
+}
+bool JPboxgroup::save(string outputPath)
+{
+	ofXml xml = snapshotXml();
 	// Save current viewport zoom/pan to the active preset (if in group view)
 	if (isGroupViewActive())
 	{
@@ -92,10 +138,11 @@ void JPboxgroup::save(string outputPath)
 			JPbox_preset *preset = dynamic_cast<JPbox_preset *>(boxes[i]);
 			if (preset != nullptr)
 			{
-				preset->save();
+				if (!preset->save()) return false;
 			}
 		}
 	}
+	return jp::saveXml(xml, outputPath);
 }
 void JPboxgroup::load2(string _dirinput)
 {
@@ -126,6 +173,10 @@ JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 		ofLogError("session") << "Cannot read composition XML: " << _dirinput;
 		return LoadResult::ReadError;
 	}
+    std::set<std::string> stack;
+    stack.insert(std::filesystem::absolute(ofToDataPath(_dirinput, true)).lexically_normal().string());
+    const auto validation = validateStoredTree(xml, stack);
+    if (validation != LoadResult::Success) return validation;
 	// Legacy compositions may omit activerender. An explicitly empty project
 	// saved by Guipper contains activerender, so it remains a valid load.
 	if (!xml.getChild("activerender") && !xml.getChild("box"))
@@ -141,12 +192,13 @@ JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 			return LoadResult::InvalidComposition;
 		}
 	}
-	// Asset construction is still the legacy path; transactional construction
-	// of nested graphs is a separate step beyond this XML preflight.
-	clear();
-	jp_quick_image::loadStack(xml, finalQuickImages);
-	finalQuickImageHistory.clear();
-	finalQuickImageHistoryCursor = 0;
+    vector<JPbox*> boxes;
+    struct CandidateCleanup {
+        vector<JPbox*>& nodes;
+        ~CandidateCleanup() { for (auto* node : nodes) { node->clear(); delete node; } }
+    } cleanup{boxes};
+    decltype(finalQuickImages) candidateFinal;
+    jp_quick_image::loadStack(xml, candidateFinal);
 	// Carga inicial de las cajitas :
 	auto boxloader = xml.find("/box");
 	// Kept in lockstep with `boxes`, so the link pass below can pair a box
@@ -186,7 +238,13 @@ JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 			continue;
 		}
 
-		bx->setup(jp_normalizePath(directory.getValue()), nombre.getValue());
+        boxes.push_back(bx);
+        try { bx->setup(jp_normalizePath(directory.getValue()), nombre.getValue()); }
+        catch (const std::exception& error) {
+            ofLogError("session") << error.what();
+            return LoadResult::AssetError;
+        }
+        if (!validBuiltTree(bx)) return LoadResult::AssetError;
 		bx->setPos(x.getIntValue(), y.getIntValue());
 		bx->setonoff(onoff ? onoff.getBoolValue() : true);
 		bx->setBypass(bypass ? bypass.getBoolValue() : false);
@@ -220,7 +278,6 @@ JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 		}
 #endif
 
-		boxes.push_back(bx);
 		loadedBoxNodes.push_back(box);
 
 		// Load exposedParams for preset boxes from the main XML
@@ -309,10 +366,14 @@ JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 		index1++;
 	}
 
-	//CLAUSULA DE SEGURIDAD :
-	*activerender = boxes.empty() ? 0 :
-		ofClamp(xml.getChild("activerender").getIntValue(), 0, int(boxes.size()) - 1);
-	cout << "TERMINA LINKS DE LOS FBO " << endl;
+    const int nextRender = boxes.empty() ? 0 :
+        ofClamp(xml.getChild("activerender").getIntValue(), 0, int(boxes.size()) - 1);
+    clear();
+    this->boxes.swap(boxes);
+    finalQuickImages = std::move(candidateFinal);
+    finalQuickImageHistory.clear();
+    finalQuickImageHistoryCursor = 0;
+    *activerender = nextRender;
 
 	updateTransition(*activerender);
 

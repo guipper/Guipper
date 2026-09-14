@@ -37,3 +37,13 @@ tests/editor_shortcut_tests
 bin/data/paint_palette.xml
 
 tests/uniform_parser_tests
+
+tests/app_paths_tests
+dist/
+tests/update_service_tests
+src/JPutils/jp_update_config.h
+**/__pycache__/
+
+tests/mapping_boolean_tests
+
+tests/appimage_backend_tests

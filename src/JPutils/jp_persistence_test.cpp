@@ -473,6 +473,10 @@ namespace
 		ofFile::removeFile(path, false);
 		box.reload();
 		passed = retained() && passed;
+        // Valid uniforms, invalid main: compilation must also be transactional.
+        if (!write("uniform float amount=0.1;\nvoid invalid(){ unknown_function(); }")) return false;
+        box.reload();
+        passed = retained() && passed;
 		// Same name with a new type must use the new default, never read an
 		// unrelated bool/float field from the previous parameter object.
 		if (!write("uniform bool amount=true;")) return false;
@@ -623,13 +627,13 @@ namespace
 		if (!original || original->parameters.getSize() == 0) return false;
 		original->parameters.setFloatValue(0.37f, 0);
 		app.boxes.selectOpenBoxForCurrentView(0);
-		const auto controllers = app.boxes.controllers;
 		const string originalPath = directory + "original.xml";
 		app.savedirectory = originalPath;
 		app.boxes.save(originalPath);
 		const int active = app.activerender;
+        bool passed = true;
+		const auto controllers = app.boxes.controllers;
 		const int inspector = app.boxes.openguinumber;
-		bool passed = true;
 		auto reject = [&](const string &path, Result expected)
 		{
 			const bool loaded = app.loadSession(path);
@@ -657,6 +661,17 @@ namespace
 			reject(path, fixture.first == "truncated.xml" || fixture.first == "empty.xml" ?
 				Result::ReadError : Result::InvalidComposition);
 		}
+        const std::pair<string, string> rejectedAssets[] = {
+            {"future.xml", "<guipper_format>99</guipper_format><activerender>0</activerender>"},
+            {"asset.xml", "<activerender>0</activerender><box><directory>shaders/not-present.frag</directory></box>"},
+            {"cycle.xml", "<activerender>0</activerender><box><directory>" + directory + "cycle.xml</directory></box>"}};
+        for (const auto& fixture : rejectedAssets) {
+            const auto path = directory + fixture.first;
+            if (!ofBufferToFile(path, ofBuffer(fixture.second.data(),fixture.second.size()))) return false;
+            reject(path, fixture.first=="future.xml"?Result::UnsupportedVersion:
+                (fixture.first=="cycle.xml"?Result::InvalidComposition:Result::AssetError));
+        }
+        passed = !app.boxes.save(directory) && passed;
 		// Capture just the notice: the harness runs before normal screen setup.
 		if (std::getenv("GUIPPER_LOAD_ERROR_CAPTURE"))
 		{
@@ -674,6 +689,24 @@ namespace
 				capture.readToPixels(pixels);
 				ofSaveImage(pixels, directory + (value == 0 ? "error-en.png" : "error-es.png"));
 			}
+            app.releasePanelOpen = true;
+            ofFbo panel; panel.allocate(ofGetWidth(), ofGetHeight(), GL_RGBA);
+            panel.begin(); ofClear(COL_BG_DARK);
+            ofPushStyle();
+            ofSetRectMode(OF_RECTMODE_CENTER);
+            app.drawReleasePanel();
+            passed = (ofGetStyle().rectMode == OF_RECTMODE_CENTER) && passed;
+            ofPopStyle(); panel.end();
+            ofPixels panelPixels; panel.readToPixels(panelPixels);
+            ofSaveImage(panelPixels, directory + "release-panel.png");
+            const int oldWidth = ofGetWidth(), oldHeight = ofGetHeight();
+            ofSetWindowShape(400, 360);
+            ofFbo narrow; narrow.allocate(ofGetWidth(), ofGetHeight(), GL_RGBA);
+            narrow.begin(); ofClear(COL_BG_DARK); app.drawReleasePanel(); narrow.end();
+            ofPixels narrowPixels; narrow.readToPixels(narrowPixels);
+            ofSaveImage(narrowPixels, directory + "release-panel-narrow.png");
+            ofSetWindowShape(oldWidth, oldHeight);
+            app.releasePanelOpen = false;
 			app.language = language;
 		}
 		// A legacy file without activerender still opens, and only success
@@ -687,6 +720,18 @@ namespace
 		passed = passed && app.savedirectory == legacyPath &&
 			app.sessionLoadErrorTime < 0.0f && app.boxes.boxes.size() == 1 &&
 			near(app.boxes.boxes.front()->parameters.getFloatValue(0), 0.37f);
+        {
+            const auto savedPaths = jp::AppPaths::current();
+            jp::AppPaths::current().state = directory + "profile-state";
+            jp::RecoveryService recovery;
+            recovery.tick(app.boxes, 121.0);
+            recovery.finish(false);
+            const auto snapshot = recovery.pending();
+            passed = !snapshot.empty() && app.loadSession(snapshot) && passed;
+            recovery.dismiss();
+            passed = recovery.pending().empty() && passed;
+            jp::AppPaths::current() = savedPaths;
+        }
 		// Saving/loading an intentionally empty composition is valid.
 		app.boxes.clear();
 		const string emptyPath = directory + "empty-project.xml";

@@ -26,6 +26,8 @@ using namespace std;
 class JPShaderEditor
 {
 public:
+    bool hasUnsavedChanges() const { for (const auto& tab : tabs) if (tab.modified) return true; return false; }
+
 	// ---- Public types ----
 	struct EditorTab
 	{
@@ -137,7 +139,7 @@ private:
 
 	// ---- File I/O ----
 	vector<string> loadFileLines(const string& path);
-	void writeFileLines(const string& path, const vector<string>& lines);
+	bool writeFileLines(const string& path, const vector<string>& lines);
 
 	// ---- Blink ----
 	float lastBlinkTime = 0.0f;

@@ -1,3 +1,4 @@
+#include "jp_storage.h"
 #include "jp_midi_keymap.h"
 #include "../JPgui/jp_gl_state.h"
 #include "jp_tooltip.h"
@@ -162,7 +163,7 @@ void JPMidiKeymap::setup(
 {
 	boxes = _boxes;
 	bpmTapCallback = _bpmTapCallback;
-	globalKeymapPath = ofToDataPath("midi_keymap.xml");
+	globalKeymapPath = jp::preferencePath("midi_keymap.xml");
 	ensureAddShaderDraftRow();
 	openInputs();
 }
@@ -592,7 +593,7 @@ void JPMidiKeymap::saveGlobal()
 {
 	if (globalKeymapPath.empty())
 	{
-		globalKeymapPath = ofToDataPath("midi_keymap.xml");
+		globalKeymapPath = jp::preferencePath("midi_keymap.xml");
 	}
 	save(globalKeymapPath);
 }
@@ -3406,7 +3407,7 @@ void JPMidiKeymap::save(string path)
 		}
 	}
 	ofFilePath::createEnclosingDirectory(path);
-	xml.save(path);
+	jp::saveXml(xml, path);
 }
 
 void JPMidiKeymap::load(string path)

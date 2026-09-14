@@ -1,11 +1,27 @@
 #include "ofMain.h"
 #include "ofApp.h"
+#include "JPutils/jp_app_paths.h"
+#include <iostream>
 
 //#include "RenderWindowApp.h"
 
 //========================================================================
 int main()
 {
+    // Graphics tests run in their own copied data tree, without importing a
+    // real user profile. Normal launches never write into the installation.
+    if (!std::getenv("GUIPPER_PERSISTENCE_TEST") && !std::getenv("GUIPPER_UISHOT")) {
+        try {
+            auto& paths = jp::AppPaths::current();
+            paths = jp::AppPaths::discover(ofToDataPath("", true));
+            paths.initialize();
+            ofSetDataPathRoot(paths.data.string() + "/");
+        } catch (const std::exception& error) {
+            std::cerr << "Guipper could not prepare user data: " << error.what() << std::endl;
+            return 1;
+        }
+    }
+
 
 	/*ofSetupOpenGL(1024, 768, OF_WINDOW);			// <-------- setup the GL context
 	ofRunApp(new ofApp());

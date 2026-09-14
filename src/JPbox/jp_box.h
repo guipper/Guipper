@@ -1,6 +1,7 @@
 #pragma once
 #include "ofMain.h"
 #include <filesystem>
+#include "../JPutils/jp_app_paths.h"
 
 #include "defines.h"
 //#include "Shaderrender.h"
@@ -16,6 +17,11 @@
 // "data/" prefix is handled by ofToDataPath. Idempotent for Unix-style paths.
 inline std::string jp_normalizePath(std::string p) {
 	for (char &c : p) { if (c == '\\') c = '/'; }
+    const auto& paths = jp::AppPaths::current();
+    if (!paths.bundle.empty() && std::filesystem::path(p).is_absolute()) {
+        const auto relative = std::filesystem::path(p).lexically_normal().lexically_relative(paths.bundle);
+        if (!relative.empty() && *relative.begin() != "..") return (paths.data / relative).string();
+    }
 	return p;
 }
 

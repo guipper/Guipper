@@ -1,3 +1,4 @@
+#include "../JPutils/jp_storage.h"
 #include "jp_box_preset.h"
 #include "jp_media.h"
 #include "jp_box_factory.h"
@@ -795,12 +796,10 @@ void JPbox_preset::addBox(JPbox &_box)
 {
 }
 
-void JPbox_preset::save()
+ofXml JPbox_preset::snapshotXml()
 {
-	// Save internal boxes back to this preset's XML file
-	if (dir.empty()) return;
-
 	ofXml xml;
+	xml.appendChild("guipper_format").set(1);
 
 	// Save activerender
 	auto activerender_save = xml.appendChild("activerender");
@@ -848,15 +847,7 @@ void JPbox_preset::save()
 			}
 		}
 
-		// Recursively save nested presets
-		if (boxes[i]->getTipo() == JPbox::PRESETBOX)
-		{
-			JPbox_preset *childPreset = dynamic_cast<JPbox_preset *>(boxes[i]);
-			if (childPreset != nullptr)
-			{
-				childPreset->save();
-			}
-		}
+
 	}
 
 	if (!exposedTextureInputs.empty())
@@ -907,6 +898,14 @@ void JPbox_preset::save()
 		}
 	}
 
-	ofFilePath::createEnclosingDirectory(dir);
-	xml.save(dir);
+    return xml;
+}
+bool JPbox_preset::save()
+{
+    if (dir.empty()) return false;
+    for (auto* child : boxes) {
+        if (auto* preset = dynamic_cast<JPbox_preset*>(child))
+            if (!preset->save()) return false;
+    }
+    return jp::saveXml(snapshotXml(), dir);
 }

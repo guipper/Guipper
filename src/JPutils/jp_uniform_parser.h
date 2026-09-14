@@ -14,7 +14,7 @@ namespace jp_uniform_parser
 	enum class Code {
 		InvalidDeclaration, UnterminatedComment, DuplicateName,
 		UnsupportedType, UnsupportedArray, UnsupportedInitializer,
-		ConditionalDeclaration, SourceReadError
+		ConditionalDeclaration, ShaderCompileError, SourceReadError
 	};
 	struct Location
 	{

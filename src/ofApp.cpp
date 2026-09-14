@@ -1,3 +1,6 @@
+#include "JPutils/jp_version.h"
+#include <ctime>
+#include "JPutils/jp_storage.h"
 #include "ofApp.h"
 #include "JPutils/jp_uishot.h"
 #include "JPutils/jp_persistence_test.h"
@@ -58,6 +61,8 @@ void ofApp::recordProfileValue(float &average, float &peak, float sampleMs)
 
 //--------------------------------------------------------------
 void ofApp::setup() {
+    ofSetWindowTitle("Guipper " + std::string(jp::version) + " | F10: Updates / Actualizaciones");
+    loadReleasePreferences();
 
 	// ESC is used to cancel modals / leave screens, not to quit the whole app.
 	ofSetEscapeQuitsApp(false);
@@ -110,8 +115,9 @@ void ofApp::setup() {
 	dirmanager.loadDirectorys();
 
 	receiver.setup(PORT);
-	oscout_mode1 = true;
-	oscout_mode2 = true;
+    sender.setup("127.0.0.1", PORT + 1);
+	oscout_mode1 = false;
+	oscout_mode2 = false;
 	midiKeymap.setup(&boxes, [this]() { autoTap(); });
 
 	loadSettings();
@@ -195,8 +201,16 @@ void ofApp::setup() {
 		savedirectory = defaultCompoPath;
 	}
 	loadSession(savedirectory);
-	midiKeymap.load(ofToDataPath("midi_keymap.xml"));
+	midiKeymap.load(jp::preferencePath("midi_keymap.xml"));
 	registerSurfaces();
+    jp::recordEvent("startup_complete");
+    if (const char* health = std::getenv("GUIPPER_UPDATE_HEALTH_FILE")) {
+        try {
+            const std::filesystem::path marker(health);
+            if (marker.parent_path() == jp::AppPaths::current().cache)
+                jp::atomicWrite(marker, "ready");
+        } catch (const std::exception& error) { ofLogError("updates") << error.what(); }
+    }
 }
 
 bool ofApp::anyFieldFocused() const
@@ -355,19 +369,19 @@ void ofApp::registerSurfaces()
 	// The node canvas must yield to anything stacked above it, not just to the
 	// inspector and the mapping panel it happens to own.
 	boxes.setExternalGuiHitTest([this](float x, float y) {
-		return surfaces.blockedAt(x, y, SURFACE_MAPPING_PANEL);
+		return releasePanelOpen || surfaces.blockedAt(x, y, SURFACE_MAPPING_PANEL);
 	});
 
 	// Space pans the canvas, but space is also a character. anyFieldFocused does
 	// not cover the save modal, so both are asked here rather than letting the
 	// canvas guess.
 	boxes.setExternalTextCaptureTest([this]() {
-		return anyFieldFocused() || saveModalActive;
+		return releasePanelOpen || anyFieldFocused() || saveModalActive;
 	});
 
 	// One pointer-owner rule for every control that opts into a layer.
 	jp_pointer::setOcclusionTest([this](float x, float y, int order) {
-		return surfaces.blockedAt(x, y, order);
+		return releasePanelOpen || surfaces.blockedAt(x, y, order);
 	});
 }
 // One way in to every screen.
@@ -416,6 +430,20 @@ void ofApp::enterScreen(int screen)
 }
 
 void ofApp::update() {
+    const auto lastCheck = updates.lastCheck;
+    updates.check(false, std::time(nullptr));
+    if (lastCheck != updates.lastCheck) saveReleasePreferences();
+    if (!recoveryChecked) {
+        recoveryChecked = true;
+        recoveryCandidate = recovery.pending();
+        if (!recoveryCandidate.empty()) {
+            storageNotice = language == 0 ? "Recovery available. Press F9 to open it, or F8 to dismiss." :
+                "Hay una recuperación disponible. F9 para abrirla; F8 para descartarla.";
+            sessionLoadErrorTime = ofGetElapsedTimef();
+        }
+    }
+    // Keep the offered snapshot intact until the user resolves it.
+    if (recoveryCandidate.empty()) recovery.tick(boxes, ofGetElapsedTimef());
 
 	const auto updateStart = ProfileClock::now();
 	// Publishes last frame's media pass totals before this frame's boxes start
@@ -645,6 +673,7 @@ void ofApp::draw() {
 
 	drawSaveModal();
 	drawSessionLoadError();
+    drawReleasePanel();
 
 	// Above every panel and modal: a tooltip that a later panel paints over is
 	// the bug this deferral exists to fix.
@@ -5040,7 +5069,7 @@ bool ofApp::isFavorite(const string &path) const {
 }
 void ofApp::loadFavorites() {
 	favoritePaths.clear();
-	string p = ofToDataPath("shader_favorites.xml");
+	string p = jp::preferencePath("shader_favorites.xml");
 	if (!ofFile(p).exists()) return;
 	ofXml xml;
 	if (!xml.load(p)) return;
@@ -5055,7 +5084,7 @@ void ofApp::saveFavorites() {
 	for (auto &p : favoritePaths) {
 		xml.appendChild("favorite").set(p);
 	}
-	xml.save(ofToDataPath("shader_favorites.xml"));
+	jp::saveXml(xml, jp::preferencePath("shader_favorites.xml"));
 }
 void ofApp::toggleFavorite(const string &path) {
 	auto it = std::find(favoritePaths.begin(), favoritePaths.end(), path);
@@ -5842,6 +5871,27 @@ void ofApp::closeShaderEditorToMain()
 }
 
 void ofApp::keyPressed(int key) {
+    if (key == OF_KEY_F10 && !anyFieldFocused() && !saveModalActive) { releasePanelOpen=!releasePanelOpen; return; }
+    if (releasePanelOpen) {
+        if (key == OF_KEY_ESC) releasePanelOpen=false;
+        else if (key >= '1' && key <= '7') releaseAction(key-'1');
+        return;
+    }
+    if (!recoveryCandidate.empty() && (key == OF_KEY_F9 || key == OF_KEY_F8)) {
+        if (key == OF_KEY_F9) {
+            // Preserve the current composition before replacing it, including
+            // its nested groups, through the normal checked save path.
+            if (!saveSession("savefiles/before-recovery.xml")) return;
+            if (!loadSession(recoveryCandidate)) return;
+            // Save As after recovery: never overwrite the recovery files.
+            savedirectory = "savefiles/recovered.xml";
+        }
+        recovery.dismiss();
+        recoveryCandidate.clear();
+        storageNotice.clear();
+        sessionLoadErrorTime = -1.0f;
+        return;
+    }
 
 	if (midiKeymap.keyPressed(key)) {
 		return;
@@ -6333,6 +6383,7 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	prevKey = e.keycode;
 }
 void ofApp::mouseDragged(int x, int y, int button) {
+    if (releasePanelOpen) return;
 	if (pantallaActiva == TUTORIAL && helpIndexScrollbarDragging)
 	{
 		const HelpLayout L = getHelpLayout();
@@ -6423,6 +6474,11 @@ void ofApp::mouseDragged(int x, int y, int button) {
 	}
 }
 void ofApp::mousePressed(int x, int y, int button) {
+    if (releasePanelOpen) {
+        if (button != OF_MOUSE_BUTTON_LEFT || !releaseViewport.inside(x,y)) return;
+        for (int i=0;i<7;++i) if (releaseButtons[i].inside(x,y)) { releaseAction(i); break; }
+        return;
+    }
 	// FIRST, before any early return below: the controls that actuate from
 	// inside draw() ask where the press began, and a press swallowed by a modal
 	// or a panel still has to be recorded or the next one inherits a stale one.
@@ -6937,6 +6993,7 @@ void ofApp::touchUp(ofTouchEventArgs &touch) {
 }
 
 void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
+    if (releasePanelOpen) { releaseScroll -= scrollY*28.0f; return; }
 	if (midiKeymap.mouseScrolled(x, y, scrollX, scrollY)) {
 		return;
 	}
@@ -7064,7 +7121,7 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
 }
 
 void ofApp::loadSettings() {
-	const auto settingsPath = ofToDataPath("settings.xml");
+	const auto settingsPath = jp::preferencePath("settings.xml");
 	refreshLiveOutputMonitors();
 	if (!ofFile(settingsPath).exists())
 	{
@@ -7379,7 +7436,7 @@ std::string toXmlString(const bool value) {
 	return value ? "true" : "false";
 }
 void ofApp::saveSettings() {
-	const auto settingsPath = ofToDataPath("settings.xml");
+	const auto settingsPath = jp::preferencePath("settings.xml");
 
 	ofXml xml;
 	float cuePanelX = 0.0f;
@@ -7532,33 +7589,53 @@ void ofApp::saveSettings() {
 			toXmlString(config.virtualMonitor));
 	}
 
-	xml.save(settingsPath);
+	jp::saveXml(xml, settingsPath);
 }
-void ofApp::saveSession(string path) {
-	boxes.save(path);
+bool ofApp::saveSession(string path) {
+    jp::recordEvent("session_save_requested");
+    if (!boxes.save(jp_normalizePath(path))) {
+        jp::recordEvent("session_save_failed");
+        storageNotice = language == 0 ?
+            "Could not save. Check free space and folder permissions, then try again." :
+            "No se pudo guardar. Revisá el espacio y los permisos de la carpeta e intentá de nuevo.";
+        sessionLoadErrorTime = ofGetElapsedTimef();
+        return false;
+    }
+    recovery.markSaved(boxes);
+    return true;
 }
 bool ofApp::loadSession(string path) {
-	sessionLoadResult = boxes.load(path);
+	storageNotice.clear();
+	sessionLoadResult = boxes.load(jp_normalizePath(path));
 	if (sessionLoadResult != JPboxgroup::LoadResult::Success)
 	{
 		sessionLoadErrorTime = ofGetElapsedTimef();
+        jp::recordEvent("session_load_failed");
 		return false;
 	}
 	savedirectory = path;
 	sessionLoadErrorTime = -1.0f;
+    recovery.markSaved(boxes, false);
 	return true;
 }
 
 void ofApp::drawSessionLoadError()
 {
 	if (sessionLoadErrorTime < 0.0f ||
-		ofGetElapsedTimef() - sessionLoadErrorTime > 12.0f) return;
+		(recoveryCandidate.empty() && ofGetElapsedTimef() - sessionLoadErrorTime > 12.0f)) return;
 	const bool readError = sessionLoadResult == JPboxgroup::LoadResult::ReadError;
-	const string message = language == 0 ?
+	string message = language == 0 ?
 		(readError ? "Could not open composition. Check the file and try again. Current composition kept." :
 		 "This file is not a valid composition. Choose a Guipper composition. Current composition kept.") :
 		(readError ? "No se pudo abrir la composición. Revisá el archivo e intentá de nuevo. Se conservó la composición actual." :
 		 "El archivo no es una composición válida. Elegí una composición de Guipper. Se conservó la composición actual.");
+    if (sessionLoadResult == JPboxgroup::LoadResult::UnsupportedVersion)
+        message = language == 0 ? "This project needs a newer Guipper version. Current composition kept." :
+            "Este proyecto requiere una versión más reciente de Guipper. Se conservó la composición actual.";
+    if (sessionLoadResult == JPboxgroup::LoadResult::AssetError)
+        message = language == 0 ? "A shader or group could not load. Check the source files. Current composition kept." :
+            "No se pudo cargar un shader o grupo. Revisá sus archivos. Se conservó la composición actual.";
+    if (!storageNotice.empty()) message = storageNotice;
 	const float width = std::min(640.0f, std::max(1.0f, float(ofGetWidth()) - 24.0f));
 	const auto lines = jp_textwrap::wrap(
 		[this](const string &text) { return modalFont.stringWidth(text); },
@@ -7655,6 +7732,7 @@ void ofApp::shutdownApp() {
 	closeAllLiveOutputWindows();
 }
 void ofApp::exit() {
+    recovery.finish(false);
 	shutdownApp();
 }
 
@@ -7882,8 +7960,8 @@ void ofApp::confirmSaveModal() {
 	}
 	string path = "savefiles/" + filename;
 	cout << "Save modal confirmed: " << path << endl;
+	if (!saveSession(path)) return;
 	savedirectory = path;
-	saveSession(path);
 	saveModalActive = false;
 	saveModalName = "";
 }

@@ -138,7 +138,7 @@ public:
 	void update_globalUniforms(); // GLOBAL UNIFORMS
 	// JPParameterGroup getUniformsToJPParameterGroup(string _dir, string _name);
 	// Failed reads or malformed declarations preserve existing controls/inputs.
-	bool setUniforms(JPParameterGroup &_parameters, JPFbohandlerGroup &_fbohandlergroup, string _dir, string _name);
+	bool setUniforms(JPParameterGroup &_parameters, JPFbohandlerGroup &_fbohandlergroup, string _dir, string _name, const ofBuffer* source = nullptr);
 	std::vector<jp_uniform_parser::Diagnostic> uniformDiagnostics;
 	bool isAdvancedMappingShader() const;
 	AdvancedMappingState *getAdvancedMappingState();
