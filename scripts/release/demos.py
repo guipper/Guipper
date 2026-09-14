@@ -11,7 +11,7 @@ void main(){gl_Position=modelViewProjectionMatrix*position;}
 SHADER = '''#version 150
 uniform float time; // @internal
 uniform vec2 resolution;
-uniform float audio_low; // @internal
+uniform vec4 audio_bands; // @internal
 // Rings across the radius. Exponential, because the interesting part is the
 // low end: linear spacing spends most of the slider on rings too fine to read.
 uniform float density = 0.25;
@@ -36,7 +36,7 @@ void main(){
  // the soft gradient and 1 is a hard ring. The flat mean above stays flat.
  float edge=mix(.5,.01,sharpness);
  wave=mix(wave,smoothstep(.5-edge,.5+edge,wave),sharpness);
- fragColor=vec4(vec3(red,green,blue)*wave*(1.-audio_amount+audio_amount*audio_low),1.);
+ fragColor=vec4(vec3(red,green,blue)*wave*(1.-audio_amount+audio_amount*audio_bands.x),1.);
 }
 '''
 MIX = '''#version 150
