@@ -1,0 +1,70 @@
+name: Prepare release draft
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  # Dedicated release runners contain the reviewed OF SDK and packaging tools.
+  # No pull-request workflow may execute on these signing-capable runners.
+  linux:
+    defaults:
+      run:
+        working-directory: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper
+    runs-on: [self-hosted, Linux, X64, guipper-release]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated SDK workspace
+        working-directory: ${{ github.workspace }}
+        run: python3 scripts/release/prepare_workspace.py --sdk "$GUIPPER_OF_SDK" --output "$RUNNER_TEMP/guipper-sdk-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - name: Verify SDK and version
+        run: |
+          test "${GITHUB_REF_NAME}" = "v$(cat VERSION)"
+          python3 scripts/release/verify_dependencies.py --of-root ../../..
+      - run: make -C tests run && make Release -j2
+      - run: bash scripts/release/package-linux.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-package
+          path: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper/dist/*.AppImage
+          if-no-files-found: error
+  windows:
+    defaults:
+      run:
+        working-directory: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper
+    runs-on: [self-hosted, Windows, X64, guipper-release]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated SDK workspace
+        working-directory: ${{ github.workspace }}
+        shell: pwsh
+        run: python scripts/release/prepare_workspace.py --sdk "$env:GUIPPER_OF_SDK" --output "$env:RUNNER_TEMP/guipper-sdk-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+      - shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -ne "v$((Get-Content VERSION).Trim())") { throw 'Version/tag mismatch' }
+          ./scripts/release/build-windows.ps1
+          python scripts/release/stage.py --output dist/windows --binary bin/Guipper.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Staging failed' }
+          & $env:ISCC "/DStageDir=$pwd/dist/windows" "/DAppVersion=$((Get-Content VERSION).Trim())" /Odist release/guipper.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Installer failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-package
+          path: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper/dist/*.exe
+          if-no-files-found: error
+  draft:
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+      - name: Create draft only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" packages/* --draft --title "Guipper $GITHUB_REF_NAME" --notes "Candidate packages. Signing, runtime dependencies and hardware acceptance must pass before publication."

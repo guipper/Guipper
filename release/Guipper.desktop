@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Guipper
+Comment=Create and perform real-time visuals
+Exec=Guipper
+Icon=guipper
+Terminal=false
+Categories=AudioVideo;Graphics;
+PrefersNonDefaultGPU=true
