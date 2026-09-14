@@ -40,11 +40,12 @@ void main(){
 }
 '''
 MIX = '''#version 150
-uniform sampler2DRect source;
-uniform sampler2DRect overlay;
+uniform sampler2D source;
+uniform sampler2D overlay;
+uniform vec2 resolution;
 uniform float amount = 0.5;
 out vec4 fragColor;
-void main(){fragColor=mix(texture(source,gl_FragCoord.xy),texture(overlay,gl_FragCoord.xy),amount);}
+void main(){vec2 uv=gl_FragCoord.xy/resolution; fragColor=mix(texture(source,uv),texture(overlay,uv),amount);}
 '''
 def generate(data: Path):
     shaders=data/'shaders/Getting Started'; shaders.mkdir(parents=True,exist_ok=True)
