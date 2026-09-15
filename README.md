@@ -4,6 +4,7 @@
 Documentation reviewed against the local source on 2026-09-12. See the
 [technical handbook](mds/SKILLS.md), [architecture boundaries](mds/ARQUITECTURA.md)
 and [current backlog](mds/FEATURE_BACKLOG.md).
+Release notes: [Changelog](CHANGELOG.md).
 
 
 <img src="https://github.com/guipper/Guipper/blob/main/muchosnodos.png" width="800" height="450">

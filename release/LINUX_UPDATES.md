@@ -95,6 +95,24 @@ Para volver a una compilación de desarrollo, quitar únicamente el archivo
 GENERADO `src/JPutils/jp_update_config.h` y recompilar. Las actualizaciones estarán
 desactivadas; el perfil del usuario permanece intacto.
 
+## Cómo pedir una release
+
+- **Prepará la próxima beta**: cerrar el changelog de la versión, compilar,
+  validar y preparar los paquetes; todavía no publicarlos.
+- **Publicá la próxima beta**: realizar esa preparación, firmar, publicar la
+  pre-release, verificar los paquetes públicos y actualizar el canal beta.
+  Incluye commits separados, push y prueba de actualización con perfil aislado.
+- **Publicá una estable**: requiere completar los criterios de aceptación
+  establecidos en `BETA.md` antes de activar el canal stable.
+
+## Registro de cambios
+
+Mantener `CHANGELOG.md` en la raíz como historial para usuarios, separado de los
+commits. Anotar cada cambio visible en «Sin publicar»; al preparar una versión,
+mover sus entradas a una sección con versión, fecha y enlace a GitHub Releases.
+Usar esa sección como base de las notas de la release y del canal. No marcar
+como publicados los cambios que solo están compilados localmente.
+
 ## Publicación: paquetes primero, canal después
 
 El workflow genera una release en borrador; no mueve los canales. Requiere la
