@@ -112,7 +112,8 @@ public:
 	void pruneInvalidExposedTextureInputs();
 	string getExposedTextureInputTargetLabel(
 		const string &publicName) const;
-	void save();
+	bool save();
+	ofXml snapshotXml();
 
 private:
 	JPbox *findDirectChildByName(const string &childName) const;

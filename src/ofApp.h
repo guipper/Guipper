@@ -1,3 +1,5 @@
+#include "JPutils/jp_update_service.h"
+#include "JPutils/jp_recovery.h"
 /*
 	Made by JPUPPER vieja
 	Ultima modificaci�n : 7/5/2021
@@ -294,8 +296,29 @@ public:
 
 	void loadSettings();
 	void saveSettings();
-	void saveSession(string path);
-	void loadSession(string path);
+	bool saveSession(string path);
+	string storageNotice;
+	jp::RecoveryService recovery;
+	string recoveryCandidate;
+	bool recoveryChecked = false;
+    jp::UpdateService updates{jp::platformUpdateBackend()};
+    bool releasePanelOpen = false;
+    std::string announcedUpdate;
+    string releaseMessage;
+    float releaseScroll = 0;
+    float releaseScrollMax = 0;
+    ofRectangle releaseCloseButton;
+    ofRectangle releaseViewport;
+    bool releaseActionEnabled(int action);
+    std::array<ofRectangle,9> releaseButtons;
+    void loadReleasePreferences();
+    void saveReleasePreferences();
+    void releaseAction(int action);
+    void drawReleasePanel();
+	bool loadSession(string path);
+	JPboxgroup::LoadResult sessionLoadResult = JPboxgroup::LoadResult::Success;
+	float sessionLoadErrorTime = -1.0f;
+	void drawSessionLoadError();
 
 	// OSC MANAGMENT
 	ofxOscSender sender;

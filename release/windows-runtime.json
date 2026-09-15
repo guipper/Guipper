@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "reviewed": false,
+  "sdk_version": "",
+  "review_note": "Pending inventory from the Windows x64 Release build and redistribution review, including dynamically loaded libraries.",
+  "files": []
+}

@@ -215,10 +215,13 @@ public:
 	bool selectOpenBoxForCurrentView(int index);
 	bool requestSetActiveRenderForCurrentView(int index, bool activeOnly = false);
 
-	void save(string _diroutput);
+	bool save(string _diroutput);
+	ofXml snapshotXml();
 	void load2(string _dirinput);
-	// Guarda los valores a un XML
-	void load(string _dirinput);
+	// Preflight failures leave the graph, cue, inspector and history intact.
+	// Success does not yet guarantee all referenced assets were available.
+	enum class LoadResult { Success, ReadError, InvalidComposition, UnsupportedVersion, AssetError };
+	LoadResult load(string _dirinput);
 
 	// Returns the box it created (nullptr when the directory maps to no box
 	// type), so callers that need to keep a handle - the quick-image panel
@@ -719,7 +722,6 @@ private:
 	bool buildCueDraftGraph(int sourceIndex);
 	bool collectCueDraftPath(int currentIndex, int activeIndex, vector<int> &path, vector<bool> &visiting);
 	JPbox *cloneBoxForCueDraft(int index);
-	JPbox *createBoxForDirectory(const string &directory, string &name) const;
 	string makeNameFromDirectory(const string &directory) const;
 	string makeUniqueBoxName(const string &baseName) const;
 	string makeUniqueBoxName(const string &baseName, const vector<JPbox *> &checkBoxes) const;

@@ -1,6 +1,10 @@
+#include "JPutils/jp_version.h"
+#include <ctime>
+#include "JPutils/jp_storage.h"
 #include "ofApp.h"
 #include "JPutils/jp_uishot.h"
 #include "JPutils/jp_persistence_test.h"
+#include "JPutils/jp_uniform_parser.h"
 #include "JPutils/jp_font.h"
 #include "JPutils/jp_textfield.h"
 #include <iostream>
@@ -57,6 +61,8 @@ void ofApp::recordProfileValue(float &average, float &peak, float sampleMs)
 
 //--------------------------------------------------------------
 void ofApp::setup() {
+    ofSetWindowTitle("Guipper " + std::string(jp::version) + " | F10: Updates / Actualizaciones");
+    loadReleasePreferences();
 
 	// ESC is used to cancel modals / leave screens, not to quit the whole app.
 	ofSetEscapeQuitsApp(false);
@@ -109,8 +115,9 @@ void ofApp::setup() {
 	dirmanager.loadDirectorys();
 
 	receiver.setup(PORT);
-	oscout_mode1 = true;
-	oscout_mode2 = true;
+    sender.setup("127.0.0.1", PORT + 1);
+	oscout_mode1 = false;
+	oscout_mode2 = false;
 	midiKeymap.setup(&boxes, [this]() { autoTap(); });
 
 	loadSettings();
@@ -194,8 +201,16 @@ void ofApp::setup() {
 		savedirectory = defaultCompoPath;
 	}
 	loadSession(savedirectory);
-	midiKeymap.load(ofToDataPath("midi_keymap.xml"));
+	midiKeymap.load(jp::preferencePath("midi_keymap.xml"));
 	registerSurfaces();
+    jp::recordEvent("startup_complete");
+    if (const char* health = std::getenv("GUIPPER_UPDATE_HEALTH_FILE")) {
+        try {
+            const std::filesystem::path marker(health);
+            if (marker.parent_path() == jp::AppPaths::current().cache)
+                jp::atomicWrite(marker, "ready");
+        } catch (const std::exception& error) { ofLogError("updates") << error.what(); }
+    }
 }
 
 bool ofApp::anyFieldFocused() const
@@ -354,19 +369,19 @@ void ofApp::registerSurfaces()
 	// The node canvas must yield to anything stacked above it, not just to the
 	// inspector and the mapping panel it happens to own.
 	boxes.setExternalGuiHitTest([this](float x, float y) {
-		return surfaces.blockedAt(x, y, SURFACE_MAPPING_PANEL);
+		return releasePanelOpen || surfaces.blockedAt(x, y, SURFACE_MAPPING_PANEL);
 	});
 
 	// Space pans the canvas, but space is also a character. anyFieldFocused does
 	// not cover the save modal, so both are asked here rather than letting the
 	// canvas guess.
 	boxes.setExternalTextCaptureTest([this]() {
-		return anyFieldFocused() || saveModalActive;
+		return releasePanelOpen || anyFieldFocused() || saveModalActive;
 	});
 
 	// One pointer-owner rule for every control that opts into a layer.
 	jp_pointer::setOcclusionTest([this](float x, float y, int order) {
-		return surfaces.blockedAt(x, y, order);
+		return (releasePanelOpen && order < jp_pointer::kModal) || surfaces.blockedAt(x, y, order);
 	});
 }
 // One way in to every screen.
@@ -415,6 +430,27 @@ void ofApp::enterScreen(int screen)
 }
 
 void ofApp::update() {
+    if (updates.exitRequested()) {ofExit();return;}
+    const auto lastCheck = updates.lastCheck;
+    updates.check(false, std::time(nullptr));
+    if (lastCheck != updates.lastCheck) saveReleasePreferences();
+    const auto updateStatus=updates.status();
+    if (updateStatus.state==jp::UpdateState::Available && announcedUpdate!=updateStatus.version) {
+        announcedUpdate=updateStatus.version;
+        storageNotice=language==0?"An update is available. F10 to review it.":"Hay una actualización disponible. F10 para verla.";
+        sessionLoadErrorTime=ofGetElapsedTimef();
+    }
+    if (!recoveryChecked) {
+        recoveryChecked = true;
+        recoveryCandidate = recovery.pending();
+        if (!recoveryCandidate.empty()) {
+            storageNotice = language == 0 ? "Recovery available. Press F9 to open it, or F8 to dismiss." :
+                "Hay una recuperación disponible. F9 para abrirla; F8 para descartarla.";
+            sessionLoadErrorTime = ofGetElapsedTimef();
+        }
+    }
+    // Keep the offered snapshot intact until the user resolves it.
+    if (recoveryCandidate.empty()) recovery.tick(boxes, ofGetElapsedTimef());
 
 	const auto updateStart = ProfileClock::now();
 	// Publishes last frame's media pass totals before this frame's boxes start
@@ -643,6 +679,8 @@ void ofApp::draw() {
 	drawScreenTabs();
 
 	drawSaveModal();
+	drawSessionLoadError();
+    drawReleasePanel();
 
 	// Above every panel and modal: a tooltip that a later panel paints over is
 	// the bug this deferral exists to fix.
@@ -2317,30 +2355,6 @@ void ofApp::applyTransitionDurationFromMouse(float mouseX,
 			std::max(1.0f, L.transitionDurationSlider.width), 0.0f, 1.0f);
 	boxes.setTransitionDurationMs(
 		ofLerp(kTransitionMinMs, kTransitionMaxMs, t));
-}
-
-JPbox *ofApp::resolveLiveOutputSource(LiveOutputConfig &config)
-{
-	if (config.sourceMode != LIVE_OUTPUT_FIXED_BOX) return nullptr;
-	if (!config.sourceUid.empty())
-	{
-		JPbox *box = boxes.findBoxByUid(config.sourceUid);
-		if (box != nullptr) return box;
-	}
-	// Legacy binding: settings written before uids existed name the box. Heal
-	// it the first time it resolves, so the binding survives the next rename
-	// without anyone having to re-pick it. Top-level only, which is all a name
-	// could ever address anyway.
-	if (!config.sourceBox.empty())
-	{
-		JPbox *box = boxes.findTopLevelBoxByName(config.sourceBox);
-		if (box != nullptr)
-		{
-			config.sourceUid = box->uid;
-			return box;
-		}
-	}
-	return nullptr;
 }
 
 float ofApp::getSettingsPanelWidth() const
@@ -5062,7 +5076,7 @@ bool ofApp::isFavorite(const string &path) const {
 }
 void ofApp::loadFavorites() {
 	favoritePaths.clear();
-	string p = ofToDataPath("shader_favorites.xml");
+	string p = jp::preferencePath("shader_favorites.xml");
 	if (!ofFile(p).exists()) return;
 	ofXml xml;
 	if (!xml.load(p)) return;
@@ -5077,7 +5091,7 @@ void ofApp::saveFavorites() {
 	for (auto &p : favoritePaths) {
 		xml.appendChild("favorite").set(p);
 	}
-	xml.save(ofToDataPath("shader_favorites.xml"));
+	jp::saveXml(xml, jp::preferencePath("shader_favorites.xml"));
 }
 void ofApp::toggleFavorite(const string &path) {
 	auto it = std::find(favoritePaths.begin(), favoritePaths.end(), path);
@@ -5408,43 +5422,22 @@ void ofApp::selectShaderForPreview(int f, int s) {
 	previewRdmActive = false;
 	if (previewShader.load("shaders/default.vert", shaderPath)) {
 		previewShaderLoaded = true;
-		// Parse user-defined uniform float declarations for RDM
-		ofBuffer shaderBuf2 = ofBufferFromFile(shaderPath);
-		for (auto line : shaderBuf2.getLines()) {
-			if (line.rfind("uniform", 0) == 0 && line.find("float") != string::npos) {
-				string sl = line;
-				vector<string> tokens;
-				string tok;
-				for (char c : sl) {
-					if (c == ' ' || c == '\t') { if (!tok.empty()) { tokens.push_back(tok); tok.clear(); } }
-					else { tok += c; }
-				}
-				if (!tok.empty()) tokens.push_back(tok);
-				if (!tokens.empty()) {
-					string &last = tokens.back();
-					if (!last.empty() && last.back() == ';') last.pop_back();
-				}
-				for (int ti = 2; ti < (int)tokens.size(); ti++) {
-					if (tokens[ti] != "=" && tokens[ti] != "float" && tokens[ti] != "uniform") {
-						string uname = tokens[ti];
-						if (uname == "time" || uname == "resolution" || uname == "bpm" ||
-							uname == "mouse" || uname == "window_mouse" ||
-							uname == "globalframeNum" || uname == "boxframeNum" ||
-							uname == "texture1" || uname == "texture2" ||
-							uname == "textura" || uname == "textura1" || uname == "textura2" ||
-							uname == "tex0" || uname == "tex1" || uname == "input_texture" ||
-							uname == "texture" ||
-							// The audio globals too, or they would show up as
-							// randomisable sliders in the preview.
-							jp_shader_globals::isGlobalName(uname)) continue;
-						previewUniformNames.push_back(uname);
-						previewUniformMins.push_back(0.0f);
-						previewUniformMaxs.push_back(1.0f);
-						previewRdmValues.push_back(0.0f);
-						break;
-					}
-				}
-			}
+		// The same lexer as shader boxes; preview only filters a broader set
+		// of globals, because it has no saved positional parameter slots.
+		const auto parsed = jp_uniform_parser::parse(ofBufferFromFile(shaderPath).getText());
+		if (!parsed.hasErrors()) for (const auto &uniform : parsed.declarations)
+		{
+			if (uniform.type != jp_uniform_parser::Type::Float ||
+				uniform.internal || uniform.array) continue;
+			const string &uname = uniform.name;
+			if (jp_shader_globals::isGlobalName(uname) ||
+				uname == "texture1" || uname == "texture2" ||
+				uname == "textura" || uname == "textura1" || uname == "textura2" ||
+				uname == "tex0" || uname == "tex1" || uname == "input_texture" || uname == "texture") continue;
+			previewUniformNames.push_back(uname);
+			previewUniformMins.push_back(0.0f);
+			previewUniformMaxs.push_back(1.0f);
+			previewRdmValues.push_back(0.0f);
 		}
 		renderShaderPreview(false);
 	}
@@ -5885,6 +5878,36 @@ void ofApp::closeShaderEditorToMain()
 }
 
 void ofApp::keyPressed(int key) {
+    // Modified save chords belong exclusively to keycodePressed. Both
+    // callbacks receive the same event; treating its 's' as a bare shortcut
+    // here would overwrite the original before Save As is even confirmed.
+    if (key == 19 || ((key == 's' || key == 'S') &&
+        (ofGetKeyPressed(OF_KEY_CONTROL) || ofGetKeyPressed(OF_KEY_COMMAND)))) return;
+    if (key == OF_KEY_F10 && !anyFieldFocused() && !saveModalActive && updates.status().state!=jp::UpdateState::Installing) { releasePanelOpen=!releasePanelOpen; return; }
+    if (releasePanelOpen) {
+        if (key == OF_KEY_ESC && updates.status().state!=jp::UpdateState::Installing) releasePanelOpen=false;
+        else if (key >= '1' && key <= '9') releaseAction(key-'1');
+        else if (key == OF_KEY_PAGE_DOWN) releaseScroll += releaseViewport.height*0.8f;
+        else if (key == OF_KEY_PAGE_UP) releaseScroll -= releaseViewport.height*0.8f;
+        else if (key == OF_KEY_HOME) releaseScroll=0;
+        else if (key == OF_KEY_END) releaseScroll=releaseScrollMax;
+        return;
+    }
+    if (!recoveryCandidate.empty() && (key == OF_KEY_F9 || key == OF_KEY_F8)) {
+        if (key == OF_KEY_F9) {
+            // Preserve the current composition before replacing it, including
+            // its nested groups, through the normal checked save path.
+            if (!saveSession("savefiles/before-recovery.xml")) return;
+            if (!loadSession(recoveryCandidate)) return;
+            // Save As after recovery: never overwrite the recovery files.
+            savedirectory = "savefiles/recovered.xml";
+        }
+        recovery.dismiss();
+        recoveryCandidate.clear();
+        storageNotice.clear();
+        sessionLoadErrorTime = -1.0f;
+        return;
+    }
 
 	if (midiKeymap.keyPressed(key)) {
 		return;
@@ -6191,6 +6214,7 @@ void ofApp::keyPressed(int key) {
 	prevKey = key;*/
 }
 void ofApp::keycodePressed(ofKeyEventArgs & e) {
+    if (releasePanelOpen || saveModalActive) return;
 
 	// cout << "KEY : " << e.key << endl;
 
@@ -6233,8 +6257,10 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	{
 		const bool ctrlOrCmd = e.hasModifier(OF_KEY_CONTROL) ||
 			e.hasModifier(OF_KEY_SUPER);
-		const bool debugChord = e.key == 4 ||
-			(ctrlOrCmd && (e.key == 'd' || e.key == 'D'));
+		// OF_KEY_ALT and the folded Ctrl+D character are both 4. Use the
+		// physical D key so modifier events cannot open the panel.
+		const bool debugChord = ctrlOrCmd && !e.hasModifier(OF_KEY_ALT) &&
+			e.keycode == GLFW_KEY_D;
 		if (debugChord)
 		{
 			if (shaderEditor.wantsKeyCapture()) return;
@@ -6376,6 +6402,7 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	prevKey = e.keycode;
 }
 void ofApp::mouseDragged(int x, int y, int button) {
+    if (releasePanelOpen) return;
 	if (pantallaActiva == TUTORIAL && helpIndexScrollbarDragging)
 	{
 		const HelpLayout L = getHelpLayout();
@@ -6466,6 +6493,12 @@ void ofApp::mouseDragged(int x, int y, int button) {
 	}
 }
 void ofApp::mousePressed(int x, int y, int button) {
+    if (releasePanelOpen) {
+        if (button != OF_MOUSE_BUTTON_LEFT || !releaseViewport.inside(x,y)) return;
+        if (releaseCloseButton.inside(x,y) && updates.status().state!=jp::UpdateState::Installing) { releasePanelOpen=false; return; }
+        for (int i=0;i<9;++i) if (releaseButtons[i].inside(x,y)) { releaseAction(i); break; }
+        return;
+    }
 	// FIRST, before any early return below: the controls that actuate from
 	// inside draw() ask where the press began, and a press swallowed by a modal
 	// or a panel still has to be recorded or the next one inherits a stale one.
@@ -6980,6 +7013,7 @@ void ofApp::touchUp(ofTouchEventArgs &touch) {
 }
 
 void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
+    if (releasePanelOpen) { releaseScroll -= scrollY*28.0f; return; }
 	if (midiKeymap.mouseScrolled(x, y, scrollX, scrollY)) {
 		return;
 	}
@@ -7097,7 +7131,6 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
 #endif
 		cout << "path " << path << endl;
 		if (path.find(".xml") != std::string::npos && !loadAspreset) {
-			savedirectory = path;
 			loadSession(path);
 		} else {
 
@@ -7107,403 +7140,8 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
 	}
 }
 
-void ofApp::refreshLiveOutputMonitors()
-{
-	liveOutputMonitors.clear();
-	lastLiveOutputMonitorRefresh = ofGetElapsedTimef();
-	int count = 0;
-	GLFWmonitor **monitors = glfwGetMonitors(&count);
-	GLFWmonitor *primary = glfwGetPrimaryMonitor();
-	for (int i = 0; i < count; i++)
-	{
-		const GLFWvidmode *mode = glfwGetVideoMode(monitors[i]);
-		if (mode == nullptr)
-		{
-			continue;
-		}
-
-		LiveOutputMonitor monitor;
-		const char *name = glfwGetMonitorName(monitors[i]);
-		monitor.name = name != nullptr && name[0] != '\0' ?
-			name : "Monitor " + ofToString(i + 1);
-		monitor.index = i;
-		glfwGetMonitorPos(monitors[i], &monitor.x, &monitor.y);
-		monitor.width = mode->width;
-		monitor.height = mode->height;
-		monitor.primary = monitors[i] == primary;
-		liveOutputMonitors.push_back(monitor);
-	}
-}
-
-int ofApp::resolveLiveOutputMonitor(const LiveOutputConfig &config) const
-{
-	if (!config.monitorName.empty())
-	{
-		int firstNameMatch = -1;
-		for (int i = 0; i < (int)liveOutputMonitors.size(); i++)
-		{
-			if (liveOutputMonitors[i].name != config.monitorName)
-			{
-				continue;
-			}
-			if (firstNameMatch < 0)
-			{
-				firstNameMatch = i;
-			}
-			if (liveOutputMonitors[i].index == config.monitorIndex)
-			{
-				return i;
-			}
-		}
-		return firstNameMatch;
-	}
-
-	for (int i = 0; i < (int)liveOutputMonitors.size(); i++)
-	{
-		if (liveOutputMonitors[i].index == config.monitorIndex)
-		{
-			return i;
-		}
-	}
-	return -1;
-}
-
-string ofApp::makeLiveOutputId()
-{
-	while (true)
-	{
-		const string candidate = "output_" + ofToString(nextLiveOutputId++);
-		bool used = false;
-		for (const LiveOutputRuntime &output : liveOutputs)
-		{
-			if (output.config.id == candidate)
-			{
-				used = true;
-				break;
-			}
-		}
-		if (!used)
-		{
-			return candidate;
-		}
-	}
-}
-
-string ofApp::getLiveOutputDisplayName(int index) const
-{
-	if (index >= 0 && index < (int)liveOutputs.size())
-	{
-		const string &id = liveOutputs[index].config.id;
-		const string prefix = "output_";
-		if (id.rfind(prefix, 0) == 0 &&
-			id.size() > prefix.size())
-		{
-			return "Output " + id.substr(prefix.size());
-		}
-	}
-	return "Output " + ofToString(index + 1);
-}
-
-void ofApp::initializeDefaultLiveOutput()
-{
-	if (liveOutputMonitors.empty())
-	{
-		refreshLiveOutputMonitors();
-	}
-
-	LiveOutputRuntime output;
-	output.config.id = makeLiveOutputId();
-	for (const LiveOutputMonitor &monitor : liveOutputMonitors)
-	{
-		if (monitor.primary)
-		{
-			output.config.monitorName = monitor.name;
-			output.config.monitorIndex = monitor.index;
-			break;
-		}
-	}
-	if (output.config.monitorName.empty() && !liveOutputMonitors.empty())
-	{
-		output.config.monitorName = liveOutputMonitors[0].name;
-		output.config.monitorIndex = liveOutputMonitors[0].index;
-	}
-	liveOutputs.push_back(output);
-	selectedLiveOutput = (int)liveOutputs.size() - 1;
-	initLiveOutputFields();
-}
-
-void ofApp::addLiveOutput()
-{
-	initializeDefaultLiveOutput();
-	// Before the save, not after: the bounding box just changed, so every
-	// derived crop has too and the file must hold the new ones.
-	applySpatialLayout();
-	initLiveOutputFields();
-	saveSettings();
-}
-
-void ofApp::removeSelectedLiveOutput()
-{
-	if (selectedLiveOutput < 0 ||
-		selectedLiveOutput >= (int)liveOutputs.size())
-	{
-		return;
-	}
-	closeLiveOutputWindow(selectedLiveOutput, true);
-	liveOutputs.erase(liveOutputs.begin() + selectedLiveOutput);
-	selectedLiveOutput = liveOutputs.empty() ? -1 :
-		ofClamp(selectedLiveOutput, 0, (int)liveOutputs.size() - 1);
-	clearLiveOutputInteractionState();
-	applySpatialLayout();
-	initLiveOutputFields();
-	saveSettings();
-}
-
-int ofApp::findLiveOutputByWindow(ofAppBaseWindow *window) const
-{
-	if (window == nullptr)
-	{
-		return -1;
-	}
-	for (int i = 0; i < (int)liveOutputs.size(); i++)
-	{
-		if (liveOutputs[i].window.get() == window)
-		{
-			return i;
-		}
-	}
-	return -1;
-}
-
-void ofApp::closeLiveOutputWindow(int index, bool intentional)
-{
-	if (index < 0 || index >= (int)liveOutputs.size())
-	{
-		return;
-	}
-	LiveOutputRuntime &output = liveOutputs[index];
-	if (!output.window)
-	{
-		output.closePending = false;
-		return;
-	}
-
-	(void)intentional;
-	ofRemoveListener(output.window->events().draw,
-		this, &ofApp::window_drawRender);
-	ofRemoveListener(output.window->events().exit,
-		this, &ofApp::exit);
-	ofRemoveListener(output.window->events().keyPressed,
-		this, &ofApp::window_keyPressed);
-	ofRemoveListener(output.window->events().mouseMoved,
-		this, &ofApp::window_mouseMove);
-	ofRemoveListener(output.window->events().windowResized,
-		this, &ofApp::window_resized);
-	ofRemoveListener(output.window->events().windowMoved,
-		this, &ofApp::window_moved);
-	output.window->setWindowShouldClose();
-	RetiredLiveOutputWindow retired;
-	retired.window = output.window;
-	retiredLiveOutputWindows.push_back(retired);
-	output.window.reset();
-	output.closePending = false;
-}
-
-// The live outputs are separate windows owned by the main loop, so closing the
-// GUI does not remove them: the loop keeps spinning on the leftovers and the
-// process survives with orphaned output windows on screen. Tear them all down
-// when the app exits. This deliberately leaves config.enabled alone, so the
-// outputs come back on the next launch.
-void ofApp::closeAllLiveOutputWindows()
-{
-	for (int i = 0; i < (int)liveOutputs.size(); i++)
-	{
-		liveOutputs[i].recreatePending = false;
-		liveOutputs[i].closePending = false;
-		if (liveOutputs[i].window)
-		{
-			closeLiveOutputWindow(i, true);
-		}
-	}
-	// Nothing will drain the retired list after exit, so release it here
-	// instead of holding the windows alive until ofApp is destroyed.
-	retiredLiveOutputWindows.clear();
-}
-
-void ofApp::createLiveOutputWindow(int index)
-{
-	if (index < 0 || index >= (int)liveOutputs.size())
-	{
-		return;
-	}
-	LiveOutputRuntime &output = liveOutputs[index];
-	if (!output.config.enabled || output.window)
-	{
-		return;
-	}
-
-	output.createAttempted = true;
-	refreshLiveOutputMonitors();
-	// A virtual screen stands in for hardware that is not here: it opens as an
-	// ordinary window at its configured resolution so a whole installation can
-	// be built and rehearsed on one machine, then deployed.
-	const bool virtualScreen = output.config.virtualMonitor;
-	int resolvedMonitor = virtualScreen ? -1 :
-		resolveLiveOutputMonitor(output.config);
-	if (!virtualScreen && resolvedMonitor < 0)
-	{
-		return;
-	}
-	if (virtualScreen)
-	{
-		// Land it on the primary display, or on whatever exists.
-		for (int i = 0; i < (int)liveOutputMonitors.size(); i++)
-		{
-			if (liveOutputMonitors[i].primary) { resolvedMonitor = i; break; }
-		}
-		if (resolvedMonitor < 0 && !liveOutputMonitors.empty())
-			resolvedMonitor = 0;
-		if (resolvedMonitor < 0) return;
-	}
-	const LiveOutputMonitor &monitor = liveOutputMonitors[resolvedMonitor];
-	if (!virtualScreen) output.config.monitorIndex = monitor.index;
-	// Never fullscreen a virtual screen: it would swallow a real display.
-	const bool wantFullscreen = output.config.fullscreen && !virtualScreen;
-
-	ofGLFWWindowSettings settings;
-	settings.setGLVersion(3, 2);
-	settings.shareContextWith = mainWindow;
-	settings.monitor = monitor.index;
-	settings.resizable = !wantFullscreen;
-	settings.title = "Guipper - " + getLiveOutputDisplayName(index) +
-		(virtualScreen ? " (virtual)" : "");
-	if (wantFullscreen)
-	{
-		settings.windowMode = OF_FULLSCREEN;
-		settings.setSize(monitor.width, monitor.height);
-	}
-	else
-	{
-		output.config.width = ofClamp(output.config.width, 64, 16384);
-		output.config.height = ofClamp(output.config.height, 64, 16384);
-		settings.windowMode = OF_WINDOW;
-		settings.setSize(output.config.width, output.config.height);
-		if (!output.config.hasPosition)
-		{
-			output.config.x = monitor.x +
-				(monitor.width - output.config.width) / 2;
-			output.config.y = monitor.y +
-				(monitor.height - output.config.height) / 2;
-			output.config.hasPosition = true;
-		}
-		settings.setPosition(ofVec2f(output.config.x, output.config.y));
-	}
-
-	output.window = ofCreateWindow(settings);
-	if (!output.window)
-	{
-		return;
-	}
-	output.createAttempted = false;
-	output.window->setWindowTitle(settings.title);
-#ifdef TARGET_LINUX
-	auto glfwWindow = dynamic_pointer_cast<ofAppGLFWWindow>(output.window);
-	if (glfwWindow)
-	{
-		ofImage appIcon;
-		if (appIcon.load("guipper.png"))
-		{
-			appIcon.setImageType(OF_IMAGE_COLOR_ALPHA);
-			glfwWindow->setWindowIcon(appIcon.getPixels());
-		}
-	}
-#endif
-
-	ofAddListener(output.window->events().draw,
-		this, &ofApp::window_drawRender);
-	ofAddListener(output.window->events().exit,
-		this, &ofApp::exit);
-	ofAddListener(output.window->events().keyPressed,
-		this, &ofApp::window_keyPressed);
-	ofAddListener(output.window->events().mouseMoved,
-		this, &ofApp::window_mouseMove);
-	ofAddListener(output.window->events().windowResized,
-		this, &ofApp::window_resized);
-	ofAddListener(output.window->events().windowMoved,
-		this, &ofApp::window_moved);
-}
-
-void ofApp::requestLiveOutputRecreate(int index)
-{
-	if (index < 0 || index >= (int)liveOutputs.size())
-	{
-		return;
-	}
-	liveOutputs[index].recreatePending = true;
-	liveOutputs[index].createAttempted = false;
-}
-
-void ofApp::updateLiveOutputs()
-{
-	for (int i = 0; i < (int)liveOutputs.size(); i++)
-	{
-		LiveOutputRuntime &output = liveOutputs[i];
-		if (output.recreatePending)
-		{
-			if (output.window)
-			{
-				closeLiveOutputWindow(i, true);
-			}
-			output.recreatePending = false;
-			output.createAttempted = false;
-		}
-		else if (output.closePending || (!output.config.enabled && output.window))
-		{
-			closeLiveOutputWindow(i, true);
-			continue;
-		}
-
-		if (output.config.enabled && !output.window &&
-			!output.createAttempted)
-		{
-			createLiveOutputWindow(i);
-		}
-	}
-}
-
-void ofApp::updateRetiredLiveOutputWindows()
-{
-	for (int i = (int)retiredLiveOutputWindows.size() - 1;
-		i >= 0; i--)
-	{
-		RetiredLiveOutputWindow &retired =
-			retiredLiveOutputWindows[i];
-		if (retired.releaseCountdown > 0)
-		{
-			retired.releaseCountdown--;
-			continue;
-		}
-		retiredLiveOutputWindows.erase(
-			retiredLiveOutputWindows.begin() + i);
-	}
-}
-
-void ofApp::openRenderWindow() {
-	if (liveOutputs.empty())
-	{
-		initializeDefaultLiveOutput();
-	}
-	selectedLiveOutput = 0;
-	liveOutputs[0].config.enabled = true;
-	if (!liveOutputs[0].window)
-	{
-		liveOutputs[0].recreatePending = true;
-	}
-	updateLiveOutputs();
-	saveSettings();
-}
 void ofApp::loadSettings() {
-	const auto settingsPath = ofToDataPath("settings.xml");
+	const auto settingsPath = jp::preferencePath("settings.xml");
 	refreshLiveOutputMonitors();
 	if (!ofFile(settingsPath).exists())
 	{
@@ -7818,7 +7456,7 @@ std::string toXmlString(const bool value) {
 	return value ? "true" : "false";
 }
 void ofApp::saveSettings() {
-	const auto settingsPath = ofToDataPath("settings.xml");
+	const auto settingsPath = jp::preferencePath("settings.xml");
 
 	ofXml xml;
 	float cuePanelX = 0.0f;
@@ -7971,13 +7609,77 @@ void ofApp::saveSettings() {
 			toXmlString(config.virtualMonitor));
 	}
 
-	xml.save(settingsPath);
+	jp::saveXml(xml, settingsPath);
 }
-void ofApp::saveSession(string path) {
-	boxes.save(path);
+bool ofApp::saveSession(string path) {
+    jp::recordEvent("session_save_requested");
+    if (!boxes.save(jp_normalizePath(path))) {
+        jp::recordEvent("session_save_failed");
+        storageNotice = language == 0 ?
+            "Could not save. Check free space and folder permissions, then try again." :
+            "No se pudo guardar. Revisá el espacio y los permisos de la carpeta e intentá de nuevo.";
+        sessionLoadErrorTime = ofGetElapsedTimef();
+        return false;
+    }
+    recovery.markSaved(boxes);
+    return true;
 }
-void ofApp::loadSession(string path) {
-	boxes.load(path);
+bool ofApp::loadSession(string path) {
+	storageNotice.clear();
+	sessionLoadResult = boxes.load(jp_normalizePath(path));
+	if (sessionLoadResult != JPboxgroup::LoadResult::Success)
+	{
+		sessionLoadErrorTime = ofGetElapsedTimef();
+        jp::recordEvent("session_load_failed");
+		return false;
+	}
+	savedirectory = path;
+	sessionLoadErrorTime = -1.0f;
+    recovery.markSaved(boxes, false);
+	return true;
+}
+
+void ofApp::drawSessionLoadError()
+{
+	if (sessionLoadErrorTime < 0.0f ||
+		(recoveryCandidate.empty() && ofGetElapsedTimef() - sessionLoadErrorTime > 12.0f)) return;
+	const bool readError = sessionLoadResult == JPboxgroup::LoadResult::ReadError;
+	string message = language == 0 ?
+		(readError ? "Could not open composition. Check the file and try again. Current composition kept." :
+		 "This file is not a valid composition. Choose a Guipper composition. Current composition kept.") :
+		(readError ? "No se pudo abrir la composición. Revisá el archivo e intentá de nuevo. Se conservó la composición actual." :
+		 "El archivo no es una composición válida. Elegí una composición de Guipper. Se conservó la composición actual.");
+    if (sessionLoadResult == JPboxgroup::LoadResult::UnsupportedVersion)
+        message = language == 0 ? "This project needs a newer Guipper version. Current composition kept." :
+            "Este proyecto requiere una versión más reciente de Guipper. Se conservó la composición actual.";
+    if (sessionLoadResult == JPboxgroup::LoadResult::AssetError)
+        message = language == 0 ? "A shader or group could not load. Check the source files. Current composition kept." :
+            "No se pudo cargar un shader o grupo. Revisá sus archivos. Se conservó la composición actual.";
+    if (!storageNotice.empty()) message = storageNotice;
+	const float width = std::min(640.0f, std::max(1.0f, float(ofGetWidth()) - 24.0f));
+	const auto lines = jp_textwrap::wrap(
+		[this](const string &text) { return modalFont.stringWidth(text); },
+		message, std::max(1.0f, width - 24.0f));
+	const float lineHeight = std::max(18.0f, modalFont.getLineHeight());
+	const float height = 24.0f + lineHeight * lines.size();
+	const float x = (ofGetWidth() - width) * 0.5f;
+	const float y = std::max(0.0f, ofGetHeight() - height - 12.0f);
+	ofPushStyle();
+	// Nodes can leave CENTER rectangle mode and a thicker outline active.
+	// The notice background uses the same top-left coordinates as its text.
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofSetLineWidth(1.0f);
+	ofEnableAlphaBlending();
+	ofFill();
+	ofSetColor(COL_BG_PANEL);
+	ofDrawRectangle(x, y, width, height);
+	ofNoFill();
+	ofSetColor(COL_ACCENT_RED);
+	ofDrawRectangle(x, y, width, height);
+	ofSetColor(COL_TEXT_PRIMARY);
+	for (size_t i = 0; i < lines.size(); ++i)
+		modalFont.drawString(lines[i], x + 12.0f, y + 12.0f + lineHeight * (i + 1));
+	ofPopStyle();
 }
 void ofApp::updateOSC() {
 	// hide old messages
@@ -8000,7 +7702,6 @@ void ofApp::updateOSC() {
 			string dirfinal = "savefiles/" + dir;
 			cout << "DIR FINNAL : " << dirfinal << endl;
 			loadSession(dirfinal);
-			savedirectory = dirfinal;
 		}
 	}
 
@@ -8056,154 +7757,11 @@ void ofApp::shutdownApp() {
 	closeAllLiveOutputWindows();
 }
 void ofApp::exit() {
+    recovery.finish(false);
 	shutdownApp();
 }
 
 // LISTENERS DE LAS VENTANAS:
-void ofApp::window_drawRender(ofEventArgs & args) {
-	const int index = findLiveOutputByWindow(ofGetWindowPtr());
-	if (index < 0 || !liveOutputs[index].window)
-	{
-		return;
-	}
-
-	const LiveOutputConfig &config = liveOutputs[index].config;
-	const float windowW = liveOutputs[index].window->getWidth();
-	const float windowH = liveOutputs[index].window->getHeight();
-	jp_gl::resetWindowDrawState(windowW, windowH);
-	ofClear(0, 0, 0, 255);
-	ofSetColor(255);
-
-	// Everything below draws into a WIDTH x HEIGHT frame that is then turned
-	// into the window. On a quarter turn the two swap, so a portrait window
-	// gets the whole landscape canvas rather than a cropped middle. The
-	// rotation wraps the mapping overlay and the test pattern too: a guide that
-	// did not turn with its image would be worse than none.
-	const int rotation = ((config.rotationDegrees / 90) % 4 + 4) % 4 * 90;
-	const bool quarterTurn = rotation == 90 || rotation == 270;
-	const float width = quarterTurn ? windowH : windowW;
-	const float height = quarterTurn ? windowW : windowH;
-	ofPushMatrix();
-	if (rotation != 0)
-	{
-		ofTranslate(windowW * 0.5f, windowH * 0.5f);
-		ofRotateDeg((float)rotation);
-		ofTranslate(-width * 0.5f, -height * 0.5f);
-	}
-	struct MatrixGuard { ~MatrixGuard() { ofPopMatrix(); } } matrixGuard;
-	if (config.testPattern)
-	{
-		// Alignment mode: the pattern replaces the content entirely, so what
-		// you measure is not confused by whatever the composition is doing.
-		drawLiveOutputTestPattern(ofRectangle(0.0f, 0.0f, width, height),
-			index);
-		return;
-	}
-	const bool followMain =
-		config.sourceMode == LIVE_OUTPUT_MAIN_ACTIVE;
-	const ofRectangle crop = config.cropEnabled ?
-		ofRectangle(config.cropX, config.cropY, config.cropW, config.cropH) :
-		ofRectangle(0.0f, 0.0f, 1.0f, 1.0f);
-	const float bezel = config.cropEnabled ? (float)config.bezelPx : 0.0f;
-	ofRectangle effective(0.0f, 0.0f, 1.0f, 1.0f);
-	const bool sourceAvailable = boxes.drawLiveOutputSource(
-		followMain, config.sourceUid, width, height, crop, bezel, &effective);
-	if (sourceAvailable)
-	{
-		// The overlay is authored across the whole canvas, so hand it a virtual
-		// rect big enough that the visible tile lands on this window. Derived
-		// from the effective rect, not the raw crop: otherwise the bezel inset
-		// shows up as a constant misalignment.
-		float overlayX = 0.0f, overlayY = 0.0f;
-		float overlayW = width, overlayH = height;
-		if (effective.width > 0.0f && effective.height > 0.0f)
-		{
-			overlayW = width / effective.width;
-			overlayH = height / effective.height;
-			overlayX = -effective.x / effective.width * width;
-			overlayY = -effective.y / effective.height * height;
-		}
-		boxes.drawMappingOverlayForSource(followMain, config.sourceUid,
-			overlayX, overlayY, overlayW, overlayH);
-	}
-	else
-	{
-		const string message = followMain ?
-			"No active source" : "Missing source";
-		ofSetColor(COL_TEXT_MUTED);
-		const float textWidth = font_p.stringWidth(message);
-		font_p.drawString(message,
-			(width - textWidth) * 0.5f, height * 0.5f);
-	}
-}
-void ofApp::exit(ofEventArgs & e) {
-	const int index = findLiveOutputByWindow(ofGetWindowPtr());
-	if (index < 0)
-	{
-		// Not one of the live outputs, so this is the main window closing:
-		// shut the whole app down, which also takes the output windows with it.
-		shutdownApp();
-		return;
-	}
-	LiveOutputRuntime &output = liveOutputs[index];
-	output.config.enabled = false;
-	output.closePending = false;
-	RetiredLiveOutputWindow retired;
-	retired.window = output.window;
-	retiredLiveOutputWindows.push_back(retired);
-	output.window.reset();
-	saveSettings();
-}
-void ofApp::window_mouseMove(ofMouseEventArgs & e) {
-	// Live outputs are display-only. Their pointer state is intentionally local.
-}
-void ofApp::window_resized(ofResizeEventArgs & args) {
-	const int index = findLiveOutputByWindow(ofGetWindowPtr());
-	if (index < 0 || liveOutputs[index].config.fullscreen ||
-		liveOutputs[index].recreatePending ||
-		!liveOutputs[index].window ||
-		liveOutputs[index].window->getWindowMode() != OF_WINDOW)
-	{
-		return;
-	}
-	liveOutputs[index].config.width = std::max(64, args.width);
-	liveOutputs[index].config.height = std::max(64, args.height);
-	// The split fields live outside the per output array, but
-	// initLiveOutputFields seeds them, so guard on both focus variables.
-	if (selectedLiveOutput == index && focusedLiveOutputField < 0 &&
-		focusedSplitField < 0)
-	{
-		initLiveOutputFields();
-	}
-}
-void ofApp::window_moved(ofWindowPosEventArgs &args) {
-	const int index = findLiveOutputByWindow(ofGetWindowPtr());
-	if (index < 0 || liveOutputs[index].config.fullscreen ||
-		liveOutputs[index].recreatePending ||
-		!liveOutputs[index].window ||
-		liveOutputs[index].window->getWindowMode() != OF_WINDOW)
-	{
-		return;
-	}
-	liveOutputs[index].config.x = (int)args.x;
-	liveOutputs[index].config.y = (int)args.y;
-	liveOutputs[index].config.hasPosition = true;
-}
-void ofApp::window_keyPressed(ofKeyEventArgs & e) {
-	if (e.key == 'f' || e.key == 'F')
-	{
-		const int index = findLiveOutputByWindow(ofGetWindowPtr());
-		if (index < 0)
-		{
-			return;
-		}
-		liveOutputs[index].config.fullscreen =
-			!liveOutputs[index].config.fullscreen;
-		requestLiveOutputRecreate(index);
-		updateLiveOutputs();
-		saveSettings();
-	}
-}
 
 #ifdef SPOUT
 // ESTA FUNCION CORRE EN EL SPOUT Y HACE TODO LO QUE TENGA QUE VER CON DIBUJAR EL SPOUT SENDER:
@@ -8427,8 +7985,8 @@ void ofApp::confirmSaveModal() {
 	}
 	string path = "savefiles/" + filename;
 	cout << "Save modal confirmed: " << path << endl;
+	if (!saveSession(path)) return;
 	savedirectory = path;
-	saveSession(path);
 	saveModalActive = false;
 	saveModalName = "";
 }

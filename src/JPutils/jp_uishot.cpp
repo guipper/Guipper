@@ -11,6 +11,21 @@
 
 namespace
 {
+    // Release-panel captures use a fake backend: never consult or install updates.
+    bool gReleaseOnly=false;
+    int gReleaseCase=0, gReleaseFrames=0;
+    struct ReleaseBackend : jp::UpdateBackend {
+        jp::UpdateStatus value;
+        jp::UpdateStatus status() override {return value;}
+        void check(const std::string&,bool) override {}
+        void download() override {}
+        void cancel() override {}
+        bool install() override {return false;}
+    };
+    ReleaseBackend* gReleaseBackend=nullptr;
+    const jp::UpdateState kReleaseStates[]={jp::UpdateState::Idle,jp::UpdateState::Available,
+        jp::UpdateState::Downloading,jp::UpdateState::Ready,jp::UpdateState::Error,
+        jp::UpdateState::Disabled,jp::UpdateState::Installing,jp::UpdateState::Error};
 	// Fixed window. windowResized() recomputes inspectorwindow_x, so the panel
 	// only lands in the same place if the window does.
 	struct Resolution { int width; int height; };
@@ -764,6 +779,15 @@ void jp_uishot::setup(ofApp &app)
 	if (tag == nullptr) return;
 	gActive = true;
 	gTag = tag;
+    if (gTag=="release") {
+        gReleaseOnly=true;
+        auto backend=std::make_unique<ReleaseBackend>();gReleaseBackend=backend.get();
+        app.updates=jp::UpdateService(std::move(backend));
+        app.updates.automatic=false;
+        ofDirectory::createDirectory(shotDir(),true,true);
+        jp_audio::setEnabled(false);
+        return;
+    }
 	gLayoutOnly = gTag == "layout";
 	gFirstState = gLayoutOnly ? kLayoutFirstState : 0;
 	gStateLimit = gLayoutOnly ? ARM_COUNT : kLayoutFirstState;
@@ -786,6 +810,20 @@ void jp_uishot::setup(ofApp &app)
 void jp_uishot::update(ofApp &app)
 {
 	if (!gActive || gDone) return;
+    if (gReleaseOnly) {
+        const int w=gReleaseCase<4?1080:400,h=gReleaseCase<4?780:430;
+        if (ofGetWidth()!=w || ofGetHeight()!=h) {ofSetWindowShape(w,h);return;}
+        app.releasePanelOpen=true; app.language=gReleaseCase<4?0:1;
+        app.sessionLoadErrorTime=-1; app.storageNotice.clear();
+        app.updates.channel="beta";
+        gReleaseBackend->value=jp::UpdateStatus(kReleaseStates[gReleaseCase],0.43,
+            gReleaseCase==4 || gReleaseCase==7?"GitHub API request failed: HTTP status 404. The requested update channel could not be found.":"");
+        if (gReleaseCase==1 || gReleaseCase==3) gReleaseBackend->value.version="Guipper-0.1.0-beta.4-linux-x64.AppImage";
+        if (gReleaseCase==1) gReleaseBackend->value.notesUrl="https://example.invalid/notes";
+        if (gReleaseFrames==0) app.releaseScroll=gReleaseCase==7?10000:0;
+        ++gReleaseFrames;
+        return;
+    }
 
 	// X11 applies the window shape asynchronously, and windowResized()
 	// recomputes inspectorwindow_x. Wait for it rather than capturing a panel
@@ -823,7 +861,7 @@ void jp_uishot::update(ofApp &app)
 
 void jp_uishot::poisonWindowStateForTest()
 {
-	if (!gActive || gDone || !isWindowLayoutState(kStates[gState].arm)) return;
+	if (gReleaseOnly || !gActive || gDone || !isWindowLayoutState(kStates[gState].arm)) return;
 	// Reproduce the render-sized state that originally escaped an offscreen
 	// pass. This runs after box updates, so the fixture FBO itself stays valid.
 	glViewport(0, 0, jp_constants::renderWidth, jp_constants::renderHeight);
@@ -835,6 +873,41 @@ void jp_uishot::poisonWindowStateForTest()
 void jp_uishot::draw(ofApp &app)
 {
 	if (!gActive || gDone) return;
+    if (gReleaseOnly) {
+        if (gReleaseFrames<8) return;
+        ofImage shot;shot.grabScreen(0,0,ofGetWidth(),ofGetHeight());
+        shot.save(shotDir()+"release_"+ofToString(gReleaseCase)+".png");
+        for (const auto& rect:app.releaseButtons) {
+            if (rect.x<app.releaseViewport.x || rect.getRight()>app.releaseViewport.getRight())
+                std::exit(EXIT_FAILURE);
+        }
+        // Exercise the real input handlers as well as rendering; all files stay
+        // inside the caller's disposable GUIPPER_USER_ROOT.
+        if (gReleaseCase==0) {
+            app.keyPressed('6');
+            if (app.updates.channel!="stable") std::exit(EXIT_FAILURE);
+            app.keyPressed('5');
+            if (!app.updates.automatic) std::exit(EXIT_FAILURE);
+            app.keyPressed('5');
+            app.mousePressed(app.releaseCloseButton.getCenter().x,app.releaseCloseButton.getCenter().y,OF_MOUSE_BUTTON_LEFT);
+            if (app.releasePanelOpen) std::exit(EXIT_FAILURE);
+        }
+        if (gReleaseCase==6) {
+            app.keyPressed(OF_KEY_ESC);
+            if (!app.releasePanelOpen || app.releaseActionEnabled(2)) std::exit(EXIT_FAILURE);
+        }
+        if (gReleaseCase==7) {
+            app.keyPressed(OF_KEY_HOME);
+            if (app.releaseScroll!=0) std::exit(EXIT_FAILURE);
+            app.keyPressed(OF_KEY_END);
+            if (app.releaseScroll!=app.releaseScrollMax) std::exit(EXIT_FAILURE);
+            app.keyPressed(OF_KEY_ESC);
+            if (app.releasePanelOpen) std::exit(EXIT_FAILURE);
+        }
+        gReleaseFrames=0;
+        if (++gReleaseCase==8) {gDone=true;ofExit();}
+        return;
+    }
 
 	const StateDef &def = kStates[gState];
 	// Async video discovery needs enough time for duration/frame metadata to

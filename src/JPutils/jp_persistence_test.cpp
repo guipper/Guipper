@@ -2,6 +2,8 @@
 
 #include "../ofApp.h"
 #include "jp_audio.h"
+#include "jp_parameter_xml.h"
+#include "../JPbox/jp_box_factory.h"
 #include "../JPbox/jp_box_image.h"
 #include "../JPbox/jp_box_video.h"
 #include "../JPbox/jp_media.h"
@@ -397,8 +399,401 @@ namespace
 	}
 }
 
+namespace
+{
+	bool checkUniformReload()
+	{
+		const string directory = ofToDataPath("uishots/persistence/uniform-parser/", true);
+		ofDirectory::createDirectory(directory, true, true);
+		const string path = directory + "reload.frag";
+		auto write = [&](const string &uniforms) {
+			const string source = "#version 150\n" + uniforms +
+				"\nout vec4 fragColor; void main(){fragColor=vec4(0.5);}";
+			return ofBufferToFile(path, ofBuffer(source.data(), source.size()));
+		};
+		if (!write("uniform float amount=0.2; // @color r tone\nuniform bool visible;\n"
+			"uniform sampler2D source;\nuniform float time;\nuniform float audio_trigger;")) return false;
+		JPbox_shader box;
+		box.setup(path, "parser-reload");
+		if (!box.shader.isLoaded() || box.parameters.getSize() != 3 ||
+			box.parameters.getName(2) != "time") return false;
+		box.parameters.setmovetype(JPParameter::AUDIO, 0);
+		box.parameters.setAudioBase(0.31f, 0);
+		box.parameters.setAudioAmount(0.62f, 0);
+		box.parameters.setAudioSource(jp_audio::SRC_SNARE, 0);
+		box.parameters.setAudioThreshold(0.23f, 0);
+		box.parameters.setAudioAttackMs(35.0f, 0);
+		box.parameters.setAudioReleaseMs(550.0f, 0);
+		box.parameters.setFloatValue(0.37f, 0);
+		box.parameters.setFloatLerpValue(0.37f, 0);
+		box.parameters.getJParameter(0)->randomLocked = true;
+		box.parameters.setBoolValue(true, 1);
+		ofFbo input;
+		input.allocate(4, 4, GL_RGBA);
+		string inputName = "input-source";
+		// Simulate names emitted by the legacy fixed-offset parser.
+		box.parameters.getJParameter(0)->name = "amount ";
+		box.fbohandlergroup.clear();
+		box.fbohandlergroup.addFbohandler("source ");
+		box.fbohandlergroup.setFboPointer(&input, &inputName, 0);
+		if (!write("uniform bool visible;\nuniform float fresh=0.8;\n"
+			"  uniform highp\n float amount=0.9; // @color b tone\n"
+			"uniform sampler2D spare, source;\nuniform float time;")) return false;
+		box.reload();
+		const int amount = box.parameters.indexOfName("amount");
+		const int source = box.fbohandlergroup.findIndexByName("source");
+		if (amount != 2 || source != 1 || !box.shader.isLoaded()) return false;
+		JPParameter *kept = box.parameters.getJParameter(amount);
+		bool passed = near(kept->floatValue, 0.37f) && near(kept->floatLerpValue, 0.37f) &&
+			kept->randomLocked && kept->colorChannel == JPParameter::COLOR_B &&
+			kept->colorGroup == "tone" && kept->movtype == JPParameter::AUDIO &&
+			near(kept->audioBase, 0.31f) && near(kept->audioAmount, 0.62f) &&
+			kept->audioSource == jp_audio::SRC_SNARE && near(kept->audioThreshold, 0.23f) &&
+			near(kept->audioAttackMs, 35.0f) && near(kept->audioReleaseMs, 550.0f) &&
+			box.parameters.getBoolValue(0) && near(box.parameters.getFloatValue(1), 0.8f) &&
+			box.fbohandlergroup.getFboPointerReference(source) == &input &&
+			!box.fbohandlergroup.getisPointerSet(0);
+		passed = passed && box.fbohandlergroup.findIndexByName("source ") == source;
+		JPParameterGroup legacy;
+		legacy.addBoolValue(false, "first");
+		legacy.addBoolValue(false, "second");
+		ofXml legacyXml;
+		legacyXml.parse("<parameters><param><name>second </name><value>1</value></param></parameters>");
+		jp_parameter_xml::load(legacyXml, legacy, jp_parameter_xml::LoadContext::Composition);
+		passed = passed && !legacy.getBoolValue(0) && legacy.getBoolValue(1);
+		const auto program = box.shader.getProgram();
+		auto retained = [&]() {
+			return !box.uniformDiagnostics.empty() &&
+				box.parameters.getSize() == 4 && box.parameters.getJParameter(amount) == kept &&
+				box.shader.getProgram() == program && box.shader.isLoaded() &&
+				box.fbohandlergroup.getFboPointerReference(source) == &input;
+		};
+		if (!write("uniform float broken = ;")) return false;
+		box.reload();
+		passed = retained() && passed;
+		if (!ofBufferToFile(path, ofBuffer())) return false;
+		box.reload();
+		passed = retained() && passed;
+		ofFile::removeFile(path, false);
+		box.reload();
+		passed = retained() && passed;
+        // Valid uniforms, invalid main: compilation must also be transactional.
+        if (!write("uniform float amount=0.1;\nvoid invalid(){ unknown_function(); }")) return false;
+        box.reload();
+        passed = retained() && passed;
+		// Same name with a new type must use the new default, never read an
+		// unrelated bool/float field from the previous parameter object.
+		if (!write("uniform bool amount=true;")) return false;
+		box.reload();
+		passed = passed && box.shader.isLoaded() && box.parameters.getSize() == 1 &&
+			box.parameters.getType(0) == JPParameter::BOOL && box.parameters.getBoolValue(0);
+		if (!write("")) return false;
+		box.reload();
+		passed = passed && box.shader.isLoaded() && box.parameters.getSize() == 0 &&
+			box.fbohandlergroup.getSize() == 0;
+		ofLogNotice("uniform-reload") << "passed=" << passed;
+		return passed;
+	}
+
+	bool writeUniformInventory()
+	{
+		vector<string> paths;
+		const string root = ofToDataPath("shaders", true);
+		for (const auto &entry : std::filesystem::recursive_directory_iterator(root))
+			if (entry.is_regular_file() && entry.path().extension() == ".frag")
+				paths.push_back(entry.path().string());
+		std::sort(paths.begin(), paths.end());
+		ofJson inventory = ofJson::object();
+		for (const string &path : paths)
+		{
+			JPbox_shader box;
+			ofSeedRandom(12345);
+			box.setUniforms(box.parameters, box.fbohandlergroup, path, "inventory");
+			ofJson row;
+			row["parameters"] = ofJson::array();
+			row["inputs"] = ofJson::array();
+			for (int i = 0; i < box.parameters.getSize(); ++i)
+			{
+				JPParameter *parameter = box.parameters.getJParameter(i);
+				ofJson param;
+				param["name"] = parameter->name;
+				param["type"] = parameter->variabletype;
+				param["value"] = parameter->variabletype == JPParameter::FLOAT ?
+					parameter->floatValue : float(parameter->boolValue);
+				param["colorChannel"] = parameter->colorChannel;
+				param["colorGroup"] = parameter->colorGroup;
+				row["parameters"].push_back(param);
+			}
+			for (int i = 0; i < box.fbohandlergroup.getSize(); ++i)
+				row["inputs"].push_back(box.fbohandlergroup.getName(i));
+			inventory[std::filesystem::relative(path, root).generic_string()] = row;
+		}
+		const string destination = ofToDataPath("uishots/persistence/uniform_inventory.json", true);
+		ofFilePath::createEnclosingDirectory(destination);
+		const string text = inventory.dump(2);
+		const bool saved = ofBufferToFile(destination, ofBuffer(text.data(), text.size()));
+		ofLogNotice("uniform-inventory") << "files=" << paths.size() << " saved=" << saved;
+		return saved;
+	}
+
+	bool checkPersistenceModules()
+	{
+		using Context = jp_parameter_xml::LoadContext;
+		ofXml fixture;
+		if (!fixture.parse(R"xml(<box><parameters>
+<param><name>first</name><min>0</min><max>1</max><value>0.7</value><movtype>0</movtype><speed>0.2</speed><audioamount>0.6</audioamount><randomlocked>1</randomlocked><defaultvalue>0.4</defaultvalue></param>
+<param><name>second</name><min>0</min><max>1</max><value>0.3</value><movtype>0</movtype><speed>0.1</speed></param>
+<param><name>enabled</name><value>1</value><defaultbool>1</defaultbool></param>
+</parameters></box>)xml")) return false;
+		bool passed = true;
+		for (Context context : {Context::Composition, Context::Preset, Context::Clipboard})
+		{
+			JPParameterGroup group;
+			group.addFloatValue(0.11f, "second");
+			group.addFloatValue(0.22f, "first");
+			group.addBoolValue(false, "enabled");
+			jp_parameter_xml::load(fixture.getChild("box"), group, context);
+			const int first = context == Context::Composition ? 1 : 0;
+			const int second = 1 - first;
+			JPParameter *a = group.getJParameter(first);
+			JPParameter *b = group.getJParameter(second);
+			passed = passed && near(a->floatLerpValue, 0.7f) &&
+				near(b->floatLerpValue, 0.3f) && near(a->audioAmount, 0.6f) &&
+				a->randomLocked && near(a->defaultFloatValue, 0.4f) &&
+				!b->randomLocked && group.getBoolValue(2) &&
+				group.getJParameter(2)->defaultBoolValue;
+			if (context == Context::Preset)
+				passed = passed && near(group.getFloatValue(0), 0.11f) &&
+					near(group.getFloatValue(1), 0.22f);
+			else
+				passed = passed && near(a->floatValue, 0.7f) && near(b->floatValue, 0.3f);
+
+			ofXml saved;
+			jp_parameter_xml::save(saved, group);
+			JPParameterGroup restored;
+			restored.addFloatValue(0.0f, "second");
+			restored.addFloatValue(0.0f, "first");
+			restored.addBoolValue(false, "enabled");
+			jp_parameter_xml::load(saved, restored, Context::Composition);
+			for (int i = 0; i < 2; ++i)
+			{
+				passed = passed && near(restored.getFloatValue(i), group.getFloatValue(i)) &&
+					near(restored.getAudioAmount(i), group.getAudioAmount(i)) &&
+					restored.getJParameter(i)->randomLocked == group.getJParameter(i)->randomLocked;
+			}
+			passed = passed && restored.getBoolValue(2) && restored.getJParameter(2)->defaultBoolValue;
+		}
+
+		using Kind = jp_box_factory::Kind;
+		using FactoryContext = jp_box_factory::Context;
+		const std::pair<const char *, Kind> kinds[] = {
+			{"effect.frag", Kind::Shader}, {"photo.png", Kind::Image},
+			{"clip.mp4", Kind::Video}, {"group.xml", Kind::Preset},
+			{"kinect2", Kind::Kinect2}, {"pointercloud", Kind::PointerCloud},
+			{"camdepth", Kind::CameraDepth}, {"cam", Kind::Camera},
+			{"framedifference", Kind::FrameDifference}, {"paint", Kind::Paint},
+			{"unrecognized", Kind::Unknown}};
+		for (const auto &entry : kinds)
+			for (FactoryContext context : {FactoryContext::Interactive, FactoryContext::Stored})
+				passed = passed && jp_box_factory::classify(entry.first, context) == entry.second;
+		// Precedence remains deliberately compatible, rather than fixing old
+		// filename interpretation as an incidental side effect of moving code.
+		passed = passed && jp_box_factory::classify("cam.xml", FactoryContext::Interactive) == Kind::Preset &&
+			jp_box_factory::classify("cam.xml", FactoryContext::Stored) == Kind::Camera;
+#ifdef NDI
+		passed = passed && jp_box_factory::classify("ndiReceiver", FactoryContext::Stored) == Kind::Ndi;
+#else
+		passed = passed && jp_box_factory::classify("ndiReceiver", FactoryContext::Stored) == Kind::Unknown;
+#endif
+#ifdef SPOUT
+		passed = passed && jp_box_factory::classify("spoutReceiver", FactoryContext::Stored) == Kind::Spout;
+#else
+		passed = passed && jp_box_factory::classify("spoutReceiver", FactoryContext::Stored) == Kind::Unknown;
+#endif
+		// Construction is separate from setup: these checks open no devices.
+		std::unique_ptr<JPbox> depth(jp_box_factory::create("camdepth", FactoryContext::Stored));
+		std::unique_ptr<JPbox> preset(jp_box_factory::create("group.xml", FactoryContext::Interactive));
+		std::unique_ptr<JPbox> unknown(jp_box_factory::create("unrecognized", FactoryContext::Stored));
+		passed = passed && dynamic_cast<JPbox_camdepth *>(depth.get()) &&
+			dynamic_cast<JPbox_preset *>(preset.get()) && !unknown;
+		ofLogNotice("persistence-modules") << "passed=" << passed;
+		return passed;
+	}
+
+    bool checkSaveShortcut(ofApp &app) {
+        const string directory=ofToDataPath("uishots/persistence/save-shortcut/",true);
+        ofDirectory::createDirectory(directory,true,true);
+        app.boxes.clear();
+        JPbox* original=app.boxes.addBox("shaders/imageprocessing/feedback_advance.frag",120,120);
+        if (!original) return false;
+        const string originalPath=directory+"original.xml";
+        app.savedirectory=originalPath;
+        app.boxes.save(originalPath);
+        bool passed=true;
+        // Exercise the actual event dispatch: legacy and detailed callbacks
+        // must not both save when Ctrl+Shift+S opens the in-app Save As modal.
+        app.registerSurfaces(); // normal setup registers these after the test hook
+        const auto savedBytes = ofBufferFromFile(originalPath).getText();
+        const int previousScreen = app.pantallaActiva;
+        app.pantallaActiva = app.NODOS;
+        original->parameters.setFloatValue(0, 0.81f);
+        auto& events = ofGetWindowPtr()->events();
+        events.notifyKeyPressed(OF_KEY_CONTROL);
+        events.notifyKeyPressed(OF_KEY_SHIFT);
+        ofKeyEventArgs saveEvent(ofKeyEventArgs::Pressed, 's', -1, -1, 0, OF_KEY_CONTROL | OF_KEY_SHIFT);
+        events.notifyKeyEvent(saveEvent);
+        events.notifyKeyReleased('s');
+        events.notifyKeyReleased(OF_KEY_SHIFT);
+        events.notifyKeyReleased(OF_KEY_CONTROL);
+        passed = app.saveModalActive &&
+            ofBufferFromFile(originalPath).getText() == savedBytes && passed;
+        events.notifyKeyPressed(OF_KEY_ESC);
+        events.notifyKeyReleased(OF_KEY_ESC);
+        passed = !app.saveModalActive &&
+            ofBufferFromFile(originalPath).getText() == savedBytes && passed;
+        original->parameters.setFloatValue(0, 0.37f);
+        app.pantallaActiva = previousScreen;
+        ofLogNotice("save-shortcut") << "passed=" << passed;
+        return passed;
+    }
+
+	bool checkLoadSafety(ofApp &app)
+	{
+		using Result = JPboxgroup::LoadResult;
+		const string directory = ofToDataPath("uishots/persistence/load-safety/", true);
+		ofDirectory::createDirectory(directory, true, true);
+		app.boxes.clear();
+		JPbox *original = app.boxes.addBox(
+			"shaders/imageprocessing/feedback_advance.frag", 120, 180);
+		if (!original || original->parameters.getSize() == 0) return false;
+		original->parameters.setFloatValue(0.37f, 0);
+		app.boxes.selectOpenBoxForCurrentView(0);
+		const string originalPath = directory + "original.xml";
+		app.savedirectory = originalPath;
+		app.boxes.save(originalPath);
+		const int active = app.activerender;
+        bool passed = true;
+		const auto controllers = app.boxes.controllers;
+		const int inspector = app.boxes.openguinumber;
+		auto reject = [&](const string &path, Result expected)
+		{
+			const bool loaded = app.loadSession(path);
+			const bool retained = !loaded && app.sessionLoadResult == expected &&
+				app.savedirectory == originalPath && app.activerender == active &&
+				app.boxes.openguinumber == inspector &&
+				app.boxes.controllers == controllers &&
+				app.boxes.boxes.size() == 1 && app.boxes.boxes.front() == original &&
+				near(original->parameters.getFloatValue(0), 0.37f);
+			if (!retained) ofLogError("load-safety") << "Failed preservation: " << path;
+			passed = passed && retained;
+		};
+		const string missing = directory + "missing.xml";
+		if (ofFile::doesFileExist(missing)) ofFile::removeFile(missing, false);
+		reject(missing, Result::ReadError);
+		const std::pair<string, string> invalid[] = {
+			{"truncated.xml", "<activerender>0</activerender><box><directory>broken"},
+			{"empty.xml", ""},
+			{"settings.xml", "<settings><renderwidth>600</renderwidth></settings>"},
+			{"missing-source.xml", "<activerender>0</activerender><box><nombre>broken</nombre></box>"}};
+		for (const auto &fixture : invalid)
+		{
+			const string path = directory + fixture.first;
+			if (!ofBufferToFile(path, ofBuffer(fixture.second.data(), fixture.second.size()))) return false;
+			reject(path, fixture.first == "truncated.xml" || fixture.first == "empty.xml" ?
+				Result::ReadError : Result::InvalidComposition);
+		}
+        const std::pair<string, string> rejectedAssets[] = {
+            {"future.xml", "<guipper_format>99</guipper_format><activerender>0</activerender>"},
+            {"asset.xml", "<activerender>0</activerender><box><directory>shaders/not-present.frag</directory></box>"},
+            {"cycle.xml", "<activerender>0</activerender><box><directory>" + directory + "cycle.xml</directory></box>"}};
+        for (const auto& fixture : rejectedAssets) {
+            const auto path = directory + fixture.first;
+            if (!ofBufferToFile(path, ofBuffer(fixture.second.data(),fixture.second.size()))) return false;
+            reject(path, fixture.first=="future.xml"?Result::UnsupportedVersion:
+                (fixture.first=="cycle.xml"?Result::InvalidComposition:Result::AssetError));
+        }
+        passed = !app.boxes.save(directory) && passed;
+		// Capture just the notice: the harness runs before normal screen setup.
+		if (std::getenv("GUIPPER_LOAD_ERROR_CAPTURE"))
+		{
+			const int language = app.language;
+			for (int value = 0; value < 2; ++value)
+			{
+				app.language = value;
+				ofFbo capture;
+				capture.allocate(ofGetWidth(), ofGetHeight(), GL_RGBA);
+				capture.begin();
+				ofClear(COL_BG_DARK);
+				app.drawSessionLoadError();
+				capture.end();
+				ofPixels pixels;
+				capture.readToPixels(pixels);
+				ofSaveImage(pixels, directory + (value == 0 ? "error-en.png" : "error-es.png"));
+			}
+            app.releasePanelOpen = true;
+            ofFbo panel; panel.allocate(ofGetWidth(), ofGetHeight(), GL_RGBA);
+            panel.begin(); ofClear(COL_BG_DARK);
+            ofPushStyle();
+            ofSetRectMode(OF_RECTMODE_CENTER);
+            app.drawReleasePanel();
+            passed = (ofGetStyle().rectMode == OF_RECTMODE_CENTER) && passed;
+            ofPopStyle(); panel.end();
+            ofPixels panelPixels; panel.readToPixels(panelPixels);
+            ofSaveImage(panelPixels, directory + "release-panel.png");
+            const int oldWidth = ofGetWidth(), oldHeight = ofGetHeight();
+            ofSetWindowShape(400, 360);
+            ofFbo narrow; narrow.allocate(ofGetWidth(), ofGetHeight(), GL_RGBA);
+            narrow.begin(); ofClear(COL_BG_DARK); app.drawReleasePanel(); narrow.end();
+            ofPixels narrowPixels; narrow.readToPixels(narrowPixels);
+            ofSaveImage(narrowPixels, directory + "release-panel-narrow.png");
+            ofSetWindowShape(oldWidth, oldHeight);
+            app.releasePanelOpen = false;
+			app.language = language;
+		}
+		// A legacy file without activerender still opens, and only success
+		// changes the save destination. Do not dereference original after this.
+		ofXml legacy;
+		if (!legacy.load(originalPath)) return false;
+		legacy.removeChild("activerender");
+		const string legacyPath = directory + "legacy.xml";
+		if (!legacy.save(legacyPath)) return false;
+		passed = app.loadSession(legacyPath) && passed;
+		passed = passed && app.savedirectory == legacyPath &&
+			app.sessionLoadErrorTime < 0.0f && app.boxes.boxes.size() == 1 &&
+			near(app.boxes.boxes.front()->parameters.getFloatValue(0), 0.37f);
+        {
+            const auto savedPaths = jp::AppPaths::current();
+            jp::AppPaths::current().state = directory + "profile-state";
+            jp::RecoveryService recovery;
+            recovery.tick(app.boxes, 121.0);
+            recovery.finish(false);
+            const auto snapshot = recovery.pending();
+            passed = !snapshot.empty() && app.loadSession(snapshot) && passed;
+            recovery.dismiss();
+            passed = recovery.pending().empty() && passed;
+            jp::AppPaths::current() = savedPaths;
+        }
+		// Saving/loading an intentionally empty composition is valid.
+		app.boxes.clear();
+		const string emptyPath = directory + "empty-project.xml";
+		app.boxes.save(emptyPath);
+		passed = app.loadSession(emptyPath) && passed;
+		passed = passed && app.boxes.boxes.empty() && app.activerender == 0 &&
+			app.savedirectory == emptyPath;
+		ofLogNotice("load-safety") << "passed=" << passed;
+		return passed;
+	}
+}
+
 bool jp_persistence_test::run(ofApp &app)
 {
+	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+	if (testMode && string(testMode) == "uniform_inventory") return writeUniformInventory();
+	if (!checkUniformReload()) return false;
+	if (testMode && string(testMode) == "uniform_parser") return true;
+	if (!checkLoadSafety(app) || !checkSaveShortcut(app) || !checkPersistenceModules()) return false;
+	if (testMode && (string(testMode) == "load_safety" ||
+		string(testMode) == "architecture")) return true;
 	// Several checks below probe the RENDERED output, which is drawn through
 	// the MAIN crossfader - so an in-flight transition blends the probe with
 	// whatever was on screen before and the colours come out wrong.
@@ -3470,6 +3865,122 @@ bool jp_persistence_test::run(ofApp &app)
 		}
 		app.boxes.clear();
 	}
+	// Every shader in the browsable library has to COMPILE. A .frag that fails
+	// only says so in the console, and the box then holds whatever was in its
+	// FBO - so a broken shader looks like a frozen box in the middle of a set,
+	// which is the worst possible moment to find out. Two people add shaders to
+	// this folder from two different machines; this is the check that neither
+	// of them ships a red one.
+	//
+	// Doubles as the compile check for the analogue boxes below.
+	bool shaderLibrary = true;
+	{
+		ofDirectory dir(ofToDataPath("shaders/imageprocessing", true));
+		dir.allowExt("frag");
+		dir.listDir();
+		dir.sort();
+		for (int i = 0; i < (int)dir.size(); ++i)
+		{
+			const string rel = "shaders/imageprocessing/" +
+				ofFilePath::getFileName(dir.getPath(i));
+			app.boxes.clear();
+			app.boxes.addBox(rel, 40, 40);
+			JPbox_shader *built = app.boxes.boxes.empty() ? nullptr :
+				dynamic_cast<JPbox_shader *>(app.boxes.boxes.front());
+			if (built == nullptr || !built->shader.isLoaded())
+			{
+				shaderLibrary = false;
+				ofLogNotice("shaderlibrary") << rel << " does not compile";
+			}
+		}
+		app.boxes.clear();
+	}
+	// The analogue chain - signalwarp, crttube, composite, signalfault - is
+	// built to be NEUTRAL with every knob at its default, so dropping one into
+	// a patch changes nothing until a knob is moved. That contract is easy to
+	// break by getting one mapr() range backwards, and impossible to notice by
+	// eye on a moving image, so it is asserted on a flat colour.
+	bool analogNeutral = true;
+	{
+		const char *shaders[] = {
+			"shaders/imageprocessing/signalwarp.frag",
+			"shaders/imageprocessing/crttube.frag",
+			"shaders/imageprocessing/composite.frag",
+			"shaders/imageprocessing/signalfault.frag"};
+		const ofColor flat(64, 150, 210, 255);
+		for (const char *shaderPath : shaders)
+		{
+			app.boxes.clear();
+			app.boxes.addBox("shaders/imageprocessing/transform.frag", 40, 40);
+			app.boxes.addBox(shaderPath, 200, 40);
+			if (app.boxes.boxes.size() < 2)
+			{
+				ofLogNotice("analogneutral")
+					<< shaderPath << " could not be built - skipped";
+				continue;
+			}
+			JPbox *source = app.boxes.boxes[0];
+			JPbox *effect = app.boxes.boxes[1];
+			source->setRenderThisFrame(true);
+			for (int i = 0; i < 4; ++i) source->update();
+			if (source->fbo.isAllocated())
+			{
+				source->fbo.begin();
+				ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+				ofClear(flat);
+				source->fbo.end();
+				ofEnableAlphaBlending();
+			}
+			source->setRenderThisFrame(false);
+			const int inlet =
+				effect->fbohandlergroup.findIndexByName("textura1");
+			if (inlet < 0)
+			{
+				analogNeutral = false;
+				ofLogNotice("analogneutral")
+					<< shaderPath << " has no textura1 inlet";
+				continue;
+			}
+			effect->fbohandlergroup.setFboPointer(&source->fbo,
+				&source->name, inlet);
+			effect->setonoff(true);
+			effect->setRenderThisFrame(true);
+			for (int i = 0; i < 3; ++i) effect->update();
+
+			ofPixels out;
+			if (!effect->fbo.isAllocated()) { effect->fbo.allocate(1, 1); }
+			effect->fbo.readToPixels(out);
+			if (!out.isAllocated())
+			{
+				analogNeutral = false;
+				ofLogNotice("analogneutral")
+					<< shaderPath << " produced an unreadable FBO";
+				continue;
+			}
+			const ofColor got = out.getColor((int)effect->fbo.getWidth() / 2,
+				(int)effect->fbo.getHeight() / 2);
+			// Loose on colour because composite.frag makes a real round trip
+			// through YIQ, and exact on alpha because passing the source's
+			// alpha through is the rule these were written to.
+			if (std::abs((int)got.r - (int)flat.r) > 3 ||
+				std::abs((int)got.g - (int)flat.g) > 3 ||
+				std::abs((int)got.b - (int)flat.b) > 3)
+			{
+				analogNeutral = false;
+				ofLogNotice("analogneutral") << shaderPath
+					<< " is not neutral at its defaults: expected "
+					<< ofToString(flat) << ", got " << ofToString(got);
+			}
+			if (got.a < 250)
+			{
+				analogNeutral = false;
+				ofLogNotice("analogneutral") << shaderPath
+					<< " dropped the source alpha: got "
+					<< ofToString((int)got.a);
+			}
+		}
+		app.boxes.clear();
+	}
 	bool selfLink = true;
 	{
 		auto fail = [&](const string &why)
@@ -5344,7 +5855,9 @@ bool jp_persistence_test::run(ofApp &app)
 		<< " overlayOrder=" << overlayOrder
 		<< " overlaySchedule=" << overlaySchedule
 		<< " overlayLifecycle=" << overlayLifecycle
-		<< " mappingAlpha=" << mappingAlpha;
+		<< " mappingAlpha=" << mappingAlpha
+		<< " shaderLibrary=" << shaderLibrary
+		<< " analogNeutral=" << analogNeutral;
 	return current && old && clamped && shaderReload && feedbackFrames &&
 		modeMemory && pressOrigin && speedDirections && cycleStepBack &&
 		rangeCapture && midiRange && midiAudioAmount && oscIndexed && cueState && lockDefault && mediaState &&
@@ -5357,6 +5870,6 @@ bool jp_persistence_test::run(ofApp &app)
 		renderSchedule && scheduleObeyed && tooltipLayout &&
 		tooltipTransform &&
 		spacePan && groupPathAfterClear && multiSelect && colorSwatch && debugReport && paintBox && mediaSmoke && quickImages && mediaFitReload && imageAsyncLoad &&
-		overlayChain && overlayOrder && overlaySchedule && overlayLifecycle && mappingAlpha &&
+		overlayChain && overlayOrder && overlaySchedule && overlayLifecycle && mappingAlpha && shaderLibrary && analogNeutral &&
 		graphUndo && transitionRectMode && exposeParams && midiUndo && groupNesting;
 }

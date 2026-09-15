@@ -1,3 +1,4 @@
+#include "../JPutils/jp_storage.h"
 #include "JPboxgroup.h"
 
 #include "../JPgui/jp_button.h"
@@ -3474,7 +3475,7 @@ void JPboxgroup::removePaintPaletteColor(int index)
 void JPboxgroup::loadPaintPalette()
 {
 	paintPalette.clear();
-	const string path = ofToDataPath("paint_palette.xml");
+	const string path = jp::preferencePath("paint_palette.xml");
 	if (!ofFile(path).exists()) return;
 	ofXml xml;
 	if (!xml.load(path)) return;
@@ -3503,7 +3504,7 @@ void JPboxgroup::savePaintPalette() const
 			ofToString(colour.r, 5) + " " + ofToString(colour.g, 5) + " " +
 			ofToString(colour.b, 5) + " " + ofToString(colour.a, 5));
 	}
-	xml.save(ofToDataPath("paint_palette.xml"));
+	jp::saveXml(xml, jp::preferencePath("paint_palette.xml"));
 }
 
 bool JPboxgroup::paintTextCaptureActive() const

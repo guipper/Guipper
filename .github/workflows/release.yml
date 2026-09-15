@@ -1,0 +1,90 @@
+name: Prepare release draft
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  # Dedicated release runners contain the reviewed OF SDK and packaging tools.
+  # No pull-request workflow may execute on these signing-capable runners.
+  linux:
+    runs-on: [self-hosted, Linux, X64, guipper-release]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated SDK workspace
+        working-directory: ${{ github.workspace }}
+        run: python3 scripts/release/prepare_workspace.py --sdk "$GUIPPER_OF_SDK" --output "$RUNNER_TEMP/guipper-sdk-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - name: Verify SDK and version
+        working-directory: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper
+        run: |
+          test "${GITHUB_REF_NAME}" = "v$(cat VERSION)"
+          python3 scripts/release/verify_dependencies.py --of-root ../../..
+      - run: make -C tests run && python3 -m unittest discover -s tests -p 'release_*_tests.py'
+        working-directory: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper
+      - name: Build pinned Linux updater
+        working-directory: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper
+        run: |
+          updater_sdk="$RUNNER_TEMP/guipper-update-sdk-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          python3 scripts/release/build-linux-update-sdk.py --work "$RUNNER_TEMP/guipper-update-build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --output "$updater_sdk"
+          echo "GUIPPER_UPDATE_SDK=$updater_sdk" >> "$GITHUB_ENV"
+      - name: Configure signed Linux channels
+        working-directory: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper
+        env:
+          GUIPPER_SIGNING_KEY: ${{ vars.GUIPPER_LINUX_SIGNING_FINGERPRINT }}
+        run: |
+          : "${GUIPPER_SIGNING_KEY:?Configure the public Linux signing fingerprint and provision its private key on this runner}"
+          stable="gh-releases-zsync|${GITHUB_REPOSITORY%/*}|${GITHUB_REPOSITORY#*/}|stable|Guipper-linux-x64.AppImage.zsync"
+          beta="gh-releases-zsync|${GITHUB_REPOSITORY%/*}|${GITHUB_REPOSITORY#*/}|beta|Guipper-linux-x64.AppImage.zsync"
+          python3 scripts/release/configure_updates.py --platform linux --stable "$stable" --beta "$beta" --signing-fingerprint "$GUIPPER_SIGNING_KEY"
+          channel="$stable"
+          case "$(cat VERSION)" in *-*) channel="$beta";; esac
+          echo "GUIPPER_SIGNING_KEY=$GUIPPER_SIGNING_KEY" >> "$GITHUB_ENV"
+          echo "GUIPPER_UPDATE_INFORMATION=$channel" >> "$GITHUB_ENV"
+          echo "GUIPPER_DOWNLOAD_URL=https://github.com/$GITHUB_REPOSITORY/releases/download/v$(cat VERSION)/Guipper-$(cat VERSION)-linux-x64.AppImage" >> "$GITHUB_ENV"
+      - run: make Release -j2
+        working-directory: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper
+      - name: Exercise real signatures and rollback with disposable keys
+        working-directory: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper
+        run: python3 scripts/release/test-linux-updates.py --sdk "$GUIPPER_UPDATE_SDK" --tool "$APPIMAGETOOL" --runtime "$APPIMAGE_RUNTIME"
+      - run: bash scripts/release/package-linux.sh
+        working-directory: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-package
+          path: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper/dist/*.AppImage*
+          if-no-files-found: error
+  windows:
+    runs-on: [self-hosted, Windows, X64, guipper-release]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated SDK workspace
+        working-directory: ${{ github.workspace }}
+        shell: pwsh
+        run: python scripts/release/prepare_workspace.py --sdk "$env:GUIPPER_OF_SDK" --output "$env:RUNNER_TEMP/guipper-sdk-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+      - shell: pwsh
+        working-directory: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper
+        run: |
+          if ($env:GITHUB_REF_NAME -ne "v$((Get-Content VERSION).Trim())") { throw 'Version/tag mismatch' }
+          ./scripts/release/build-windows.ps1
+          ./scripts/release/package-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-package
+          path: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper/dist/*.exe
+          if-no-files-found: error
+  draft:
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+      - name: Create draft only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" packages/* --draft --title "Guipper $GITHUB_REF_NAME" --notes "Candidate packages. Signing, runtime dependencies and hardware acceptance must pass before publication."

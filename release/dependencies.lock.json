@@ -1,0 +1,15 @@
+{
+  "openframeworks": "0.12.1",
+  "cpp": "17",
+  "addons": {
+    "ofxNDI": {
+      "sha256_tree": "a0247cf8611b5803e33264746895ff7477c9a0b34ed96a3a2b24caeb682be66d"
+    },
+    "ofxMidi": {
+      "sha256_tree": "b18b482d21541440a108015921b298452b20b1d461e839c460e046a72addeeb2"
+    },
+    "ofxOsc": {
+      "sha256_tree": "4591f96fb60cb428e07c0915bfa0410c77c3f8b0debe9fbdd59a5bfa92df9086"
+    }
+  }
+}

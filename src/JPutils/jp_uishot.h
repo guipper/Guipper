@@ -15,6 +15,10 @@ class ofApp;
 //
 //   GUIPPER_UISHOT=<tag> ./Guipper
 //
+// Use GUIPPER_UISHOT=release for eight update-panel states and input checks
+// at desktop and compact sizes. Its fake backend never accesses the network.
+// Always run against a disposable copy of the binary/data and user profile.
+//
 // walks a fixed list of inspector states and writes, per state,
 //   bin/data/uishots/<tag>/<state>.png   - a fixed-rect grab of the panel
 //   bin/data/uishots/<tag>/<state>.txt   - the geometry that PNG was painted from

@@ -1,6 +1,11 @@
 
 # Guipper Real-time Visual Software
 
+Documentation reviewed against the local source on 2026-09-12. See the
+[technical handbook](mds/SKILLS.md), [architecture boundaries](mds/ARQUITECTURA.md)
+and [current backlog](mds/FEATURE_BACKLOG.md).
+Release notes: [Changelog](CHANGELOG.md).
+
 
 <img src="https://github.com/guipper/Guipper/blob/main/muchosnodos.png" width="800" height="450">
 
@@ -56,8 +61,39 @@ The integrated PAINT box supports drawing, frame-by-frame animation, onion
 skin, layers and precise selection transforms. See the [PAINT guide](mds/PAINT.md)
 for its workflow, shortcuts, export options and file compatibility notes.
 
+## Release preparation
+
+User-data isolation, checked storage, recovery and the release pipeline are documented
+in [Publishing Guipper](mds/PUBLICACION.md). F10 opens version, update preferences
+and diagnostic export. Development builds have updates disabled until signed
+packages and platform validation are configured.
+
 ## Installation
-Provide step-by-step instructions on how to install and configure Guipper. Include information on how to download and compile the source code, as well as any additional required configurations.
+This checkout targets openFrameworks **0.12.1**, C++17 and OpenGL 3.2.
+Place it at `apps/myApps/Guipper` inside an openFrameworks installation:
+`config.make` resolves `OF_ROOT` as `../../..`. Install the platform dependencies
+required by that openFrameworks distribution and place `ofxNDI`, `ofxOsc` and
+`ofxMidi` in its `addons/` directory. NDI also requires the runtime/libraries
+expected by your installed `ofxNDI` addon.
+
+From the project directory on Linux:
+
+```bash
+make Release -j2
+./bin/launch-guipper.sh
+```
+
+The Makefile also contains a macOS post-build step to copy `bin/data` into the
+application bundle. Windows project files are `guipper.sln` and
+`guipper.vcxproj`; Spout is enabled only on Windows. These platform build paths
+are present in the repository; this documentation update did not validate a
+full application build on any platform.
+
+Core tests run independently of the graphics application:
+
+```bash
+make -C tests run
+```
 
 ### GPU selection on Linux
 
@@ -99,32 +135,34 @@ Kinect box. Add three boxes and select `COLOR`, `DEPTH`, and `IR` in their
 inspectors; all three share one device connection.
 
 ## User Guide
-Offer a detailed guide on effectively using Guipper. Include code examples, explanations of key functions, and screenshots or videos showcasing the visual results that can be achieved.
+1. Use **IMPORT** to search and preview shaders, then load one into the graph.
+2. Select a node to edit its parameters in the inspector. Connect an output to
+   another node's texture input to build an effect chain.
+3. Double-click a node to select the active render. Groups contain their own
+   graph and active render; cue staging lets you prepare changes and apply a crossfade.
+4. Open **EDITOR** through the shader's edit action. It supports multiple tabs,
+   GLSL highlighting, selection, scroll and zoom. Saving writes the shader file
+   and the graph's file watcher reloads it.
+5. Use **SETTINGS** for audio, OSC and live outputs; MIDI supports learn mode
+   and device profiles. **HELP** contains the keyboard reference and ES/EN help.
+
+For detailed workflows, see [audio](mds/AUDIO_REACTIVITY.md),
+[PAINT](mds/PAINT.md) and the [technical handbook](mds/SKILLS.md).
 
 ## Contributions
-(TO BE COMPLETED)
+Report reproducible bugs or propose focused changes using the repository issue templates. For code changes, describe the affected workflow and the checks performed; preserve compatibility with existing XML compositions.
 
 ## License
-This program is distributed under the MIT License. Be sure to include a copy of the license in your repository.
+This program is distributed under the [MIT License](LICENSE).
 
 ## Contact
 You can reach me at julian.d.puppo@gmail.com.
 
 ## Roadmap
-<ul>
-  <li>Internal IDE for live coding.</li>
-  <li>Patches system (parameter selection and tabs).</li>
-  <li>Internal shader loading system (in addition to drag and drop).</li>
-  <li>Server for uploading and downloading shaders created by the community.</li>
-  <li>Adaptation of Shadertoys.</li>
-  <li>Reviewing and cleaning up existing shaders and adding new ones.</li>
-  <li>Finalizing the multi-platform version for LINUX, MAC, and WINDOWS.</li>
-  <li>Adding Syphon support to the MAC version.</li>
-  <li>Adding a MIDI system for parameter control.</li>
-  <li>Implementing a system of uniforms for vec2, vec3, and vec4.</li>
-  <li>Cleaning up functions in the .common file.</li>
-  <li>Implementing a system of branches or versioning for the same shader within the interface (requires the internal IDE to be functional).</li>
-</ul>
+
+See the [current backlog](mds/FEATURE_BACKLOG.md), which separates implemented
+features from proposed work.
+
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #  Guipper.Software para Visuales en Tiempo Real
@@ -152,32 +190,41 @@ Diseño del software realizado por Lautaro Nuñez Muller.
 </ul>
 
 ## Instalación
-Proporciona instrucciones paso a paso sobre cómo instalar y configurar Guipper. Incluye información sobre cómo descargar y compilar el código fuente, así como cualquier configuración adicional requerida.
+Usá openFrameworks **0.12.1** con sus dependencias de plataforma y los addons
+`ofxNDI`, `ofxOsc` y `ofxMidi`. Este checkout espera estar en
+`apps/myApps/Guipper`, con openFrameworks tres directorios por encima.
+NDI requiere las bibliotecas que indique el addon instalado.
+
+En Linux, desde la raíz del proyecto:
+
+```bash
+make Release -j2
+./bin/launch-guipper.sh
+```
+
+Para las pruebas del núcleo: `make -C tests run`. Consultá la sección
+[Installation](#installation) para las rutas de compilación de las otras plataformas.
 
 ## Guía de uso
-Ofrece una guía detallada sobre cómo utilizar Guipper de manera efectiva. Incluye ejemplos de código, explicaciones de las funciones clave y capturas de pantalla o videos para mostrar los resultados visuales que se pueden lograr.
+Desde **IMPORT**, buscá y cargá un shader. Seleccioná el nodo para editar sus
+parámetros; conectá su salida a las entradas de textura de otros nodos para
+componer efectos. El doble clic elige el render activo. El editor GLSL permite
+abrir varias pestañas, editar y guardar para activar la recarga del shader.
+
+También hay grupos, cue/crossfade, mapeo MIDI con aprendizaje, audio reactivo,
+PAINT, mapping y múltiples salidas. **HELP** incluye ayuda ES/EN y atajos.
+Consultá las guías de [audio](mds/AUDIO_REACTIVITY.md), [PAINT](mds/PAINT.md)
+y el [mapa técnico](mds/SKILLS.md).
 
 ## Contribuciones
-(COMPLETAR)
+Para reportar errores, incluí pasos para reproducirlos. Para cambios de código, describí el flujo afectado y las pruebas realizadas; conservá la compatibilidad con composiciones XML existentes.
 
 ## Licencia
-Este programa se distribuye bajo la Licencia MIT. Asegúrate de incluir una copia de la licencia en tu repositorio.
+Este programa se distribuye bajo la [licencia MIT](LICENSE).
 
 ## Contacto
 Escribime al mail : julian.d.puppo@gmail.com
 ## Roadmap
-<ul>
-  <li>IDE interno para livecoding.</li>
-  <li>Sistema de patches (tema de selección de parámetros y pestañas).</li>
-  <li>Sistema de carga de shaders interno (además del arrastrar y soltar).</li>
-  <li>Servidor para subir y descargar shaders hechos por la comunidad.</li>
-  <li>Adaptación de shadertoys.</li>
-  <li>Revisión y limpieza de shaders existentes y agregar nuevos.</li>
-  <li>Finalizar la versión multiplataforma para LINUX, MAC y WINDOWS.</li>
-  <li>Agregar soporte Syphon a la versión de MAC.</li>
-  <li>Agregar sistema de MIDI para controlar los parámetros.</li>
-  <li>Implementar un sistema de uniforms para vec2, vec3 y vec4.</li>
-  <li>Limpiar las funciones que están en el archivo .common.</li>
-  <li>Implementar un sistema de branches o versionado del mismo shader dentro de la interfaz (requiere tener el IDE interno funcionando).</li>
-  <li>Interfaz de triggers similar a la de Resolume, con una grilla.</li>
-</ul>
+
+El [backlog actualizado](mds/FEATURE_BACKLOG.md) distingue lo implementado
+de las mejoras propuestas.

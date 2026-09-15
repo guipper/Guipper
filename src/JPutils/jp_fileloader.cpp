@@ -1,6 +1,7 @@
 #include "jp_fileloader.h"
 
 void DirectoryManager::loadDirectorys(){
+    directorys.clear();
 	cout << "Carga directorios" << endl;
 	cout << "-------------------------" << endl;
 	loadDirectory("shaders/generative");
@@ -10,7 +11,7 @@ void DirectoryManager::loadDirectorys(){
 	//loadDirectory("shaders/generative");
 
 	cout << "-------------------------" << endl;
-	cout << directorys[1][0] << endl;
+
 	cout << "-------------------------" << endl;
 
 	cout << "Termina directorios" << endl;
@@ -26,7 +27,7 @@ void DirectoryManager::loadDirectory(string _dir)
 {
 	string path2 = _dir;
 	ofDirectory dir2(path2);
-	dir2.listDir();
+	if (dir2.exists()) dir2.listDir();
 	vector<string> dir_shader_folder; //ARRAY DE STRINGS DE ESA CARPETA.
 
 

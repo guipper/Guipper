@@ -5,6 +5,15 @@
 #include <filesystem>
 
 
+namespace {
+bool linkedProgram(ofShader& shader) {
+    if (!shader.isLoaded() || !shader.getProgram()) return false;
+    GLint linked = GL_FALSE;
+    glGetProgramiv(shader.getProgram(), GL_LINK_STATUS, &linked);
+    return linked == GL_TRUE;
+}
+}
+
 JPbox_shader::JPbox_shader()
 {
 	advancedMappingMaskDirty.fill(true);
@@ -35,19 +44,22 @@ void JPbox_shader::reload()
 
 	cout << "param size A" << parameters.getSize() << endl;
 
-	// UF ESTO ESTA ATADO CON ALAMBRE MUY FUERTE. ACA HAY UN BUG QUE LO QUE HACE ES QUE NO RECARGUE BIEN EL SHADER.
-	// BASICAMENTE LO QUE SUCEDE ES QUE CUANDO VOLVES A CARGAR Y GUARDAR A VECES NO LEVANTA LOS PARAMETROS
-	// ENTONCES LE DIGO QUE LO REINICIE HASTA QUE LA CANTIDAD DE PARAMETROS SEA COMO LA CORRECTA DIGAMOS.
-	// OSEA TECNICAMENTE EXISTE LA POSIBILIDAD 0.00000000000000000001% DE QUE NUNCA CARGUE BIEN Y ENTRE EN UN LOOP INFINITO DE MUERTE Y DESTRUCCION.
-	// OSEA AHORA AL MENOS CARGA BIEN SIEMPRE. LO QUE NO PUEDO HACER ES QUE ME VUELVA A CARGAR LOS VALORES QUE TENIA CON LOS RENDER QUE TENIA.
-
-
-
-	do {
-		setUniforms(parameters, fbohandlergroup, dir, name);
-		cout << "CANTIDAD PARAMETROS :  " << parameters.getSize() << endl;
-	} while (parameters.getSize() == 0 && fbohandlergroup.getSize() == 0 && buffer.size() == 0);
-	// cout << "param size D " << parameters.getSize() << endl;
+	// One bounded attempt. Editors can briefly leave a source empty while
+	// saving; retrying until it has uniforms used to block the render thread.
+    const ofBuffer source = ofBufferFromFile(dir);
+    ofShaderSettings candidateSettings;
+    candidateSettings.shaderFiles[GL_VERTEX_SHADER] = ofToDataPath("shaders/default.vert", true);
+    candidateSettings.shaderSources[GL_FRAGMENT_SHADER] = source.getText();
+    candidateSettings.sourceDirectoryPath = ofFilePath::getEnclosingDirectory(ofToDataPath(dir, true));
+    ofShader candidateShader;
+    if (source.size() == 0 || !candidateShader.setup(candidateSettings) || !linkedProgram(candidateShader)) {
+        uniformDiagnostics = {{jp_uniform_parser::Severity::Error,
+            jp_uniform_parser::Code::ShaderCompileError, {1, 1}, "",
+            "Shader compilation failed; current program and controls kept. See compiler log."}};
+        ofLogError("shader-reload") << "Compilation failed; current shader and controls kept: " << dir;
+        return;
+    }
+	if (!setUniforms(parameters, fbohandlergroup, dir, name, &source)) return;
 
 	/*cout << "----------------------------------"; endl;
 	cout << "Variables anteriores" << endl;
@@ -87,7 +99,8 @@ void JPbox_shader::reload()
 	{
 		for (int k = 0; k < parameters.getSize(); k++)
 		{
-			if (parameters.getName(k) == auxparameters.getName(i))
+			if (ofTrim(parameters.getName(k)) == ofTrim(auxparameters.getName(i)) &&
+				parameters.getType(k) == auxparameters.getType(i))
 			{
 				if (parameters.getType(k) == parameters.BOOL)
 				{
@@ -117,6 +130,18 @@ void JPbox_shader::reload()
 				}
 				JPParameter *destination = parameters.getJParameter(k);
 				JPParameter *source = auxparameters.getJParameter(i);
+				destination->audioSource = source->audioSource;
+				destination->audioDiv = source->audioDiv;
+				destination->audioBase = source->audioBase;
+				destination->audioAmount = source->audioAmount;
+				destination->audioInvert = source->audioInvert;
+				destination->audioThreshold = source->audioThreshold;
+				destination->audioCurve = source->audioCurve;
+				destination->audioAttackMs = source->audioAttackMs;
+				destination->audioReleaseMs = source->audioReleaseMs;
+				destination->audioShapingOpen = source->audioShapingOpen;
+				destination->audioDrivesSpeed = source->audioDrivesSpeed;
+				destination->audioSpeedDirection = source->audioSpeedDirection;
 				destination->randomLocked = source->randomLocked;
 				destination->defaultFloatValue = source->defaultFloatValue;
 				destination->defaultBoolValue = source->defaultBoolValue;
@@ -137,7 +162,7 @@ void JPbox_shader::reload()
 	{
 		for (int k = 0; k < fbohandlergroup.getSize(); k++)
 		{
-			if (fbohandlergroup.getName(k) == auxfbohandler.getName(i) &&
+			if (ofTrim(fbohandlergroup.getName(k)) == ofTrim(auxfbohandler.getName(i)) &&
 				auxfbohandler.getisPointerSet(i))
 			{
 				fbohandlergroup.setFboPointer(auxfbohandler.getFboPointerReference(i),
@@ -148,7 +173,7 @@ void JPbox_shader::reload()
 			}
 		}
 	}
-	shader.load("shaders/default.vert", dir);
+	shader = candidateShader;
 	resetFeedbackFrame();
 
 	fbohandlergroup.setupdragobjects(x, y, outlet_size, outlet_size);
@@ -158,7 +183,9 @@ void JPbox_shader::reload()
 }
 void JPbox_shader::reloadShaderonly()
 {
-	shader.load("shaders/default.vert", dir);
+    ofShader candidate;
+    if (!candidate.load("shaders/default.vert", dir) || !linkedProgram(candidate)) return;
+    shader = candidate;
 	resetFeedbackFrame();
 	frameNum = 0;
 }
@@ -408,169 +435,63 @@ void JPbox_shader::updateFBO()
 		JPbox::updateFBO();
 	}
 }
-void JPbox_shader::setUniforms(JPParameterGroup &_parameters,
-							   JPFbohandlerGroup &_fbohandlergroup,
-							   string _dir,
-							   string _name)
+bool JPbox_shader::setUniforms(JPParameterGroup &_parameters,
+	JPFbohandlerGroup &_fbohandlergroup, string _dir, string _name, const ofBuffer* source)
 {
+	using namespace jp_uniform_parser;
+	const ofBuffer candidate = source ? *source : ofBufferFromFile(_dir);
+	if (candidate.size() == 0)
+	{
+		uniformDiagnostics = {{Severity::Error, Code::SourceReadError, {1, 1}, "",
+			"Shader source is empty or could not be read; existing controls were kept."}};
+		ofLogError("uniform-parser") << _dir << ":1:1: " << uniformDiagnostics.front().message;
+		return false;
+	}
+	const Result parsed = parse(candidate.getText());
+	uniformDiagnostics = parsed.diagnostics;
+	for (const Diagnostic &diagnostic : uniformDiagnostics)
+	{
+		// Unsupported globals are supplied by the renderer, not GUI controls.
+		if ((diagnostic.code == Code::UnsupportedType || diagnostic.code == Code::UnsupportedArray) &&
+			jp_shader_globals::isGlobalName(diagnostic.name)) continue;
+		const string message = _dir + ":" + ofToString(diagnostic.location.line) +
+			":" + ofToString(diagnostic.location.column) + ": " + diagnostic.message;
+		if (diagnostic.severity == Severity::Error) ofLogError("uniform-parser") << message;
+		else ofLogWarning("uniform-parser") << message;
+	}
+	if (parsed.hasErrors()) return false;
+
 	_parameters.clear();
 	_fbohandlergroup.clear();
-
-	JPFbohandlerGroup auxfbohandler = _fbohandlergroup;
-	// auxfbohandler.clear();
-
-	vector<string> linesOfTheFile;
-	 buffer = ofBufferFromFile(_dir);
-	for (auto line : buffer.getLines())
-	{
-		linesOfTheFile.push_back(line);
-	}
 	_parameters.setName(_name);
-	for (int l = 0; l < linesOfTheFile.size(); l++)
+	buffer = candidate;
+	for (const Declaration &declaration : parsed.declarations)
 	{
-		if (linesOfTheFile[l].rfind("uniform", 0) == 0)
+		if (declaration.internal || declaration.array) continue;
+		if (declaration.type == Type::Float)
 		{
-			if (linesOfTheFile[l].find("@internal") != std::string::npos)
+			// Preserve the legacy random draw even for explicit defaults and
+			// excluded audio globals: subsequent defaults/seeds depend on it.
+			const float fallback = ofRandom(1);
+			if (jp_shader_globals::isNewGlobalName(declaration.name)) continue;
+			_parameters.addFloatValue(declaration.floatDefault.value_or(fallback),
+				declaration.name, true);
+			JPParameter *added = _parameters.getJParameter(_parameters.getSize() - 1);
+			if (jp_media::isScaleRatioParameter(declaration.name))
 			{
-				continue;
+				added->nativeMin = added->min = 0.1f;
+				added->nativeMax = added->max = 4.0f;
+				added->defaultFloatValue = 1.0f;
 			}
-			if (linesOfTheFile[l].find("float") != std::string::npos)
-			{
-				// cout << "FLOAT NAME : " << name << endl;
-				// Esta es la frase de entrada digamos.
-				string fraseEntrada = linesOfTheFile[l];
-				// Cut any trailing comment BEFORE the tokenising below, because
-				// the default-value branch keys off the token COUNT. Without
-				// this, `uniform float mixr = 1.0; // @color r` counted two
-				// tokens too many, missed its own default and fell back to a
-				// random start value - so annotating a uniform silently changed
-				// how the box behaves. Annotations are read off the raw line, so
-				// nothing is lost by cutting here.
-				const size_t commentStart = fraseEntrada.find("//");
-				if (commentStart != string::npos)
-				{
-					fraseEntrada = fraseEntrada.substr(0, commentStart);
-				}
-				// cout << "Frase entrada " << fraseEntrada<< endl;
-				// ESTO ES PARA FORMATEAR BIEN LA COSA :
-				for (int i = 0; i < fraseEntrada.length(); i++)
-				{
-					// ESTO ES PARA PONER ESPACIOS ENTRE EL SIMBOLITO = EN CASO DE QUE NO LO TENGA.
-					if (fraseEntrada[i] == '=' &&
-						!(fraseEntrada[i - 1] == ' '))
-					{
-						fraseEntrada.insert(i++, " ");
-					}
-					if (fraseEntrada[i - 1] == '=' &&
-						!(fraseEntrada[i] == ' '))
-					{
-						fraseEntrada.insert(i++, " ");
-					}
-					if (fraseEntrada[i] == ';' &&
-						!(fraseEntrada[i - 1] == ' '))
-					{
-						fraseEntrada.insert(i++, " ");
-					}
-				}
-				// cout << "Frase salida :" << fraseEntrada << endl;
-				// Nos aseguramos de formatearla bien, para formatearla bien tiene que estar todo separado en palabras
-
-				// Metemos el coso en el objeto raro ese llamado istringstream para separarlo en palabras:
-				std::istringstream ss(fraseEntrada);
-				// Traverse through all words
-				// int counter = 0;
-				// int total=0;
-				float value = ofRandom(1);
-				vector<string> frase;
-				while (ss)
-				{
-					string word;
-					ss >> word;
-					// cout << "WORD " <<word << endl;
-					frase.push_back(word);
-				};
-				// cout << "Cant contadas" << frase.size() << endl;
-				if (frase.size() == 7)
-				{
-					// cout << "TIENE VALOR POR DEFECTO " << endl;
-					value = ofToFloat(frase[4]);
-					// cout << "Value : " << value << endl;
-				}
-				// ONLY the uniforms introduced with jp_shader_globals are skipped.
-				// This deliberately does NOT filter the older globals (time, bpm,
-				// ...): they already become parameters today, and saved
-				// compositions load their <param> blocks POSITIONALLY, so
-				// dropping one here would shift every later index and scramble
-				// the values of every existing save. Cleaning those up is a
-				// migration, not a side effect of adding audio.
-				if (!jp_shader_globals::isNewGlobalName(frase[2]))
-				{
-					_parameters.addFloatValue(value, frase[2], true);
-					// A uniform named `scaleratio` is the shader-side spelling
-					// of the uniform zoom the camera and media boxes carry (a
-					// GLSL identifier cannot contain a space). Give it the same
-					// 0.1x-4x range and 1.0 neutral so it reads and behaves
-					// identically wherever it appears, instead of being pinned
-					// to the default 0..1 and unable to zoom in at all.
-					if (jp_media::isScaleRatioParameter(frase[2]))
-					{
-						JPParameter *ratio = _parameters.getJParameter(
-							_parameters.getSize()-1);
-						if (ratio != nullptr)
-						{
-							ratio->nativeMin = ratio->min = 0.1f;
-							ratio->nativeMax = ratio->max = 4.0f;
-							ratio->defaultFloatValue = 1.0f;
-						}
-					}
-					// `// @color r` marks this uniform as one channel of a
-					// colour, so the inspector can show a swatch of what the
-					// three add up to. Same annotation mechanism as @internal
-					// above.
-					//
-					// Purely additive: the parameter is still registered
-					// normally, in the same position, because saved
-					// compositions read their <param> blocks positionally.
-					int channel = JPParameter::COLOR_NONE;
-					string group;
-					if (JPParameter::parseColorAnnotation(linesOfTheFile[l],
-						channel, group))
-					{
-						JPParameter *added = _parameters.getJParameter(
-							_parameters.getSize()-1);
-						if (added != nullptr)
-						{
-							added->colorChannel = channel;
-							added->colorGroup = group;
-						}
-					}
-				}
-			}
-			else if (linesOfTheFile[l].find("sampler2DRect") != std::string::npos)
-			{
-				// cout << " SAMPLER2DRect" << endl;
-				string name(linesOfTheFile[l], 22, linesOfTheFile[l].size());
-				name = name.substr(0, name.find(";"));
-				_fbohandlergroup.addFbohandler(name);
-				auxfbohandler.addFbohandler(name);
-			}
-			else if (linesOfTheFile[l].find("sampler2D") != std::string::npos)
-			{
-				// cout << " NORMAL SAMPLER SAMPLER" << endl;
-				string name(linesOfTheFile[l], 18, linesOfTheFile[l].size());
-				name = name.substr(0, name.find(";"));
-				// cout << "NAME " << name;
-				_fbohandlergroup.addFbohandler(name);
-			}
-			else if (linesOfTheFile[l].find("bool") != std::string::npos)
-			{
-				string name(linesOfTheFile[l], 13, linesOfTheFile[l].size());
-				name = name.substr(0, name.find(";"));
-				// cout << "BOOL NAME : " << name << endl;
-				_parameters.addBoolValue(false, name);
-			}
+			JPParameter::parseColorAnnotation(declaration.annotations,
+				added->colorChannel, added->colorGroup);
 		}
+		else if (declaration.type == Type::Bool)
+			_parameters.addBoolValue(declaration.boolDefault.value_or(false), declaration.name);
+		else if (declaration.type == Type::Sampler2D || declaration.type == Type::Sampler2DRect)
+			_fbohandlergroup.addFbohandler(declaration.name);
 	}
+	return true;
 }
 void JPbox_shader::setfbohandler_nodepos()
 {

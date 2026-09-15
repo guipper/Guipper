@@ -1,4 +1,9 @@
-﻿# Guipper Technical Handbook (Thesis + Whole Project Code)
+# Guipper Technical Handbook
+
+Reviewed against the local source on **2026-09-12**. This is the current
+implementation map; thesis material and archived plans provide historical
+context. Source files remain authoritative for exact persistence fields and
+platform behavior.
 
 Sources used:
 - Thesis: `Tesis V4/TesisV4.html`
@@ -33,8 +38,19 @@ Implementation reality:
 Primary runtime code:
 - `src/main.cpp`: app entry.
 - `src/defines.h`: compile flags.
-- `src/ofApp.h/.cpp`: top-level app orchestration.
+- `src/ofApp.h/.cpp`: top-level app orchestration, live outputs and settings.
+- `src/ofApp_audio.cpp`: audio screen and controls.
+- `src/ofApp_outputs.cpp`: output window lifecycle, source resolution and callbacks.
 - `src/JPbox/*`: graph engine + box classes.
+- `JPboxgroup_history.cpp`: reversible graph edits.
+- `JPboxgroup_persistence.cpp`: session XML preflight, graph reconstruction and saving.
+- `JPboxgroup_cue.cpp`: cue drafts, apply/cancel and nested preset synchronization.
+- `jp_box_factory.*`: shared node classification/construction; callers retain setup and ownership.
+- `src/JPutils/jp_parameter_xml.*`: shared parameter XML codec for compositions, presets and clipboard.
+- `src/JPutils/jp_uniform_parser.*`: source-only uniform lexer/parser shared by shader nodes and preview.
+- `JPboxgroup_paint.cpp`: PAINT interaction and UI.
+- `JPboxgroup_mapping_advanced.cpp`: advanced mapping.
+- `JPboxgroup_overlays.cpp` and `JPboxgroup_quick_images.cpp`: overlays and image stacks.
 - `src/JPutils/*`: parameters, constants, transitions, utility primitives.
 - `src/JPgui/*`: inspector UI control widgets.
 
@@ -60,6 +76,10 @@ Defined in `src/defines.h`:
 - `SPOUT`
 - `RELATIVEDIRS`
 
+`config.make` additionally enables `KINECT2` when `pkg-config` finds
+`freenect2`. The Makefile excludes bundled Spout SDK trees; Windows project
+files provide the separate Windows build path.
+
 Practical effects:
 - `NDI`: enables NDI sender in `ofApp` and NDI receiver box (`JPbox_ndi`).
 - `SPOUT`: enables Spout sender in `ofApp` and Spout receiver box (`JPbox_spout`).
@@ -82,7 +102,7 @@ Practical effects:
 
 Per frame (`ofApp::update()`):
 1. `jp_audio::update()` consumes queued blocks and publishes one analyzer snapshot.
-2. `boxes.update()` updates all box states and audio-driven parameters.
+2. Resolve required live-output sources, then `boxes.update()` updates the graph and audio-driven parameters. MIDI processing follows the graph update.
 3. If Spout enabled and active: `drawSpout()` sends active render texture.
 4. If NDI enabled: sends active render FBO image.
 5. `updateOSC()` handles inbound and outbound OSC.
@@ -108,7 +128,7 @@ Responsibilities:
 - OSC network I/O.
 - Settings I/O.
 - External output protocols (Spout sender / NDI sender).
-- External render window lifecycle.
+- Multiple live-output window lifecycles, monitor discovery, source bindings and wall crops.
 
 Key functions:
 - setup/update/draw cycle.
@@ -119,7 +139,12 @@ Key functions:
 
 ## 5.2 `JPboxgroup` (Graph + Inspector + Session Engine)
 
-This is the most important domain module.
+This is the most important domain module. The first structural extraction reduced
+`JPboxgroup.cpp` from 12,643 to 9,682 lines and `ofApp.cpp` from 8,626 to
+8,063. The parameter codec and factory have independent APIs; cue and output
+runtime methods remain on their original owning classes in dedicated translation
+units. This is an incremental separation, not a completed ownership migration.
+See [architecture boundaries](ARQUITECTURA.md).
 
 Responsibilities:
 - Own all boxes (`vector<JPbox*> boxes`).
@@ -127,6 +152,11 @@ Responsibilities:
 - Handle node connections via `JPFbohandlerGroup` links.
 - Manage active render selection and transition blending.
 - Handle box dragging, outlet linking, and inspector manipulation.
+- Manage nested group navigation, selection, copy/paste and grouping.
+- Route undo/redo to the active editing context.
+- Stage cue edits against draft graphs; additions remain permanent when a cue
+  is cancelled and deliberately do not create an undo entry.
+- Coordinate mapping, PAINT and FINAL/MAP image composition.
 - Save/load full session XML.
 - Route OSC commands to graph/params.
 
@@ -191,6 +221,13 @@ Shared features:
 - Loads a nested composition from XML into internal `vector<JPbox*>`.
 - Updates all nested boxes and outputs nested active render.
 
+### Additional source/editor boxes
+
+- `JPbox_paint`: drawing, layers, animation and selection state; see [PAINT](PAINT.md).
+- `JPbox_camdepth`, `JPbox_pointercloud`, `JPbox_kinect2`: specialized sources.
+  Kinect v2 capture is optional and shares one device across stream boxes.
+- Shader mapping state has a dedicated implementation in `jp_box_shader_mapping.cpp`.
+
 ### `JPbox_framedifference`
 
 - One-input effect using private shader (`shaders/private/framedifference.frag`).
@@ -225,7 +262,7 @@ values. Audio smoothing uses elapsed time rather than frame count.
 ## 6.2 `JPParameterGroup`
 
 Responsibilities:
-- Add and store parameters (currently as pointers).
+- Own parameters through raw pointers. Destructor/`clear()` delete them; copy construction and assignment deep-copy parameter objects.
 - Update automated params each frame.
 - Getter/setter API for all value kinds.
 - Movement mode and speed/range controls.
@@ -367,12 +404,17 @@ Read by `ofApp::loadSettings()`:
 - `spouton` (when compiled with Spout)
 
 Write behavior in `saveSettings()`:
-- Writes fixed `window_width=600`, `window_height=600`, `window_fullscreen=false` currently.
-- Persists render dimensions, osc endpoints, gallery duration, output modes, window open flag.
+- Persists live-output configurations, audio settings, language, panel geometry,
+  transition settings, render dimensions and OSC endpoints.
+- Legacy `window_*` fields mirror the first live-output configuration, including
+  its actual dimensions/fullscreen/enabled state; they are not fixed at 600×600.
+- Output sources use stable box UIDs, with legacy name fallback/migration.
+  Crops are normalized; bezel adjustments are expressed in canvas pixels.
+- See `ofApp::loadSettings` and `saveSettings` for the full field list.
 
 ## 10.2 Session XML (`savefiles/*.xml`)
 
-Saved by `JPboxgroup::save`.
+Saved by `JPboxgroup::save` in `JPboxgroup_persistence.cpp`; parameter fields are encoded by `jp_parameter_xml`.
 
 Top-level:
 - `activerender`
@@ -383,11 +425,11 @@ Per box fields:
 - `x`
 - `y`
 - `directory`
-- `onoff`
+- `onoff`, `bypass`, `uid`, `tooutput` and box-specific custom state
 
 Optional `parameters` subtree:
 - repeated `param`
-- float param: `name`, `min`, `max`, `value`, `movtype`, `speed`
+- float param: `name`, `min`, `max`, `value`, `movtype`, `lastmovtype`, `speed`, BPM rate, audio shaping and user parameter state
 - bool param: `name`, `value`
 
 Optional `fboslinks` subtree:
@@ -398,6 +440,16 @@ Load behavior notes:
 - Box type is inferred by directory extension/keyword.
 - Active render clamped to loaded box range.
 - FBO links restored by name matching.
+- FINAL image-stack state is persisted with the composition; custom box state
+  extends the format and legacy fields are migrated in selected paths.
+- `save()` writes the main XML and then child presets to their own files.
+  This is not an atomic multi-file transaction, and write results are not checked here.
+- `load()` parses the XML once and validates composition markers and box source
+  fields before `clear()`. It returns `LoadResult` (success, read error or invalid
+  composition). `ofApp::loadSession()` changes the save destination only after
+  success and displays a non-modal ES/EN notice on failure.
+- Reconstruction of nodes and nested assets still happens after `clear()`;
+  fully transactional graph construction remains pending.
 
 ---
 
@@ -436,17 +488,32 @@ Inspector model:
 
 ## 13) Shader Uniform Parsing Rules (Current Implementation)
 
-Implemented in `JPbox_shader::setUniforms`:
-- Only lines starting with `uniform` are considered.
-- `uniform float ...` creates float parameter.
-- `uniform bool ...` creates bool parameter.
-- `uniform sampler2D...` and `uniform sampler2DRect...` create texture input nodes.
+Implemented by `jp_uniform_parser::parse`, with application-specific controls
+created by `JPbox_shader::setUniforms`. The IMPORT preview uses the same parser.
 
-Float default value behavior:
-- Parser tries to detect inline assignment (formatted token pattern).
-- If no default is detected, random initial value in `[0,1]` is used.
+- Handles global declarations, whitespace, line/block comments, qualifiers,
+  multiple declarators and multiline declarations.
+- Exposes float/bool parameters and sampler2D/sampler2DRect inputs.
+- Parses finite decimal float literals (including signs/exponents/suffixes) and
+  boolean true/false defaults. Missing/unsupported scalar initializers use the
+  existing random float or false fallback; unsupported expressions are diagnosed.
+- Preserves declaration order and comment annotations (`@internal`, `@color`).
+- Returns locations and diagnostics for malformed declarations, duplicates,
+  unsupported types/arrays/blocks/initializers and conditional declarations.
+- Does not evaluate macros/includes/conditional branches or implement a full
+  GLSL compiler. See [parser contract and tests](PARSER_UNIFORMS.md).
+- Empty/unreadable files and structural parse errors preserve the previous
+  controls, connections and compiled shader on reload. Reload makes one attempt,
+  rather than looping on an empty file.
+- Successful reload matches names and types, retains audio settings and restores
+  connections. Legacy names with surrounding whitespace resolve before positional
+  parameter fallback. Shader compilation failures outside this parser's scope
+  are not yet transactional.
 
-Global uniforms are always injected at render time (not parsed from file).
+Global uniforms are applied at render time. The parser skips names recognized
+by `jp_shader_globals::isNewGlobalName`; some older global names intentionally
+still create parameters to preserve legacy positional XML loading. Do not remove
+those slots without a migration.
 `jp_shader_globals` is the single application point for shader boxes,
 sequencers, frame-difference effects, and previews. Audio globals are:
 
@@ -464,10 +531,10 @@ See [`AUDIO_REACTIVITY.md`](AUDIO_REACTIVITY.md) for the component contract.
 ## 14) Known Fragile/Legacy Areas
 
 - Pointer ownership uses many raw pointers (`JPbox*`, `JPcontroller*`, `JPParameter*`).
-- `JPParameterGroup::clear()` clears vector without explicit delete of allocated params.
+- `JPParameterGroup::clear()` deletes parameters; remaining raw ownership requires care around graph edits, history, reload and cue drafts.
 - Several code paths/comments indicate historic crash workarounds and defensive hacks.
-- Some settings save behavior is hardcoded instead of round-tripping current runtime values.
-- Uniform parsing is string-format sensitive and not a full GLSL parser.
+- XML preflight preserves the live graph on invalid input, but subsequent asset construction is not transactional; project and child-preset writes remain separate and unchecked.
+- Uniform inspection is bounded and tested, but does not evaluate preprocessing or arbitrary GLSL initializer expressions. Compiled-program replacement is not yet transactional for general compiler errors.
 - Spout SDK is duplicated in multiple directories.
 
 ---
@@ -482,7 +549,7 @@ Add a new source/effect box type:
 
 Add new global shader uniform:
 1. Add it in `jp_shader_globals::apply`.
-2. Mark it in `jp_shader_globals::isGlobalName` so parsing never creates a slider.
+2. Review both `isGlobalName` and `isNewGlobalName`; the latter controls the shader parser exclusion. Preserve legacy parameter positions.
 3. Keep naming and normalization consistent across every render path.
 
 Change inspector behavior:
@@ -495,7 +562,7 @@ Modify OSC API:
 3. Keep backward compatibility if existing controllers/presets depend on addresses.
 
 Change persistence schema:
-1. Update `JPboxgroup::save` and `JPboxgroup::load` together.
+1. Update the session orchestration in `JPboxgroup_persistence.cpp`; change shared parameter fields in `jp_parameter_xml` so presets and clipboard use the same field implementation.
 2. Consider migration strategy for old XML savefiles.
 
 ---
@@ -515,6 +582,11 @@ After non-trivial changes, validate:
 - sequence/gallery mode transitions
 - audio device/channel switching, calibration, clipping and silence recovery
 - audio mappings returning smoothly to their captured base value
+
+Verification baseline: all nine `make -C tests run` suites passed on
+2026-09-12. Full builds, ThreadSanitizer, graphical integration tests and device
+checks were not rerun during the documentation update. The following commands
+are available checks, not a claim that they all passed:
 
 Automated checks:
 
@@ -537,10 +609,14 @@ What is strongly implemented:
 - OSC + Spout + NDI interoperability.
 - Save/load and practical operation screens.
 
-What remains future-facing vs thesis/roadmap language:
-- Deeper integrated IDE/livecoding authoring workflow.
-- MIDI workflow in current production code path.
-- Further cleanup/refactor for memory safety and modularity.
+Implemented beyond the original roadmap:
+- Multi-tab GLSL editor with highlighting, selection, scroll/zoom and file saving.
+- MIDI learn mode and per-device profiles.
+- Copy/paste, multi-selection, group navigation and scoped undo/redo.
+- PAINT, mapping and multiple live outputs.
+
+Still proposed: richer editor diagnostics/linting, transactional persistence,
+recovery and incremental ownership/modularity improvements. See [backlog](FEATURE_BACKLOG.md).
 
 ---
 

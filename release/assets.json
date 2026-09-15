@@ -1,0 +1,179 @@
+{
+  "format": 1,
+  "assets": [
+    {
+      "path": "shaders/default.vert",
+      "sha256": "e3031a89b90e2847a4bf9c5b34d5ca63efd82abc009366f21c115d7154f2a34b",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "guipper.png",
+      "sha256": "020429a393dc02554dbf6b5626a502786bb4bb0f2651b3d7245240696e6a0cd1",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "font/Montserrat-Regular.ttf",
+      "sha256": "077cdab15161232a9ba7124d2ddd7a9425145750788e9a966c156cc66274f525",
+      "license": "OFL-1.1",
+      "source": "Montserrat"
+    },
+    {
+      "path": "font/Montserrat-Medium.ttf",
+      "sha256": "421f26b23e2be6b98373d32acd3cb2897b154d4bf0a77d26534ce476e4cbed53",
+      "license": "OFL-1.1",
+      "source": "Montserrat"
+    },
+    {
+      "path": "shaders/private/camdepth.frag",
+      "sha256": "72648e4925c8072ce5e3c28600b049083e70e408b74bf272a557a3f65036afbc",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "shaders/private/camdepth_motion.frag",
+      "sha256": "c677f32677feb66341d913cedb9788c0022bf13495acd0482a60ca4aec870722",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "shaders/private/camdepth_show.frag",
+      "sha256": "ba9d2d4e8e46162d141039a3b8c0bb454e6034d11e5892828d56639180f0c110",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "shaders/private/framedifference.frag",
+      "sha256": "d1fb663998c4b82d1109f31f8340d3f1cc090767c137eaca84d44e0021350c27",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "shaders/private/mix.frag",
+      "sha256": "daec2e372f7ae8d249aa98e574e7d05b4dee25a35b99c56a857e3f9526abeb80",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "shaders/private/pointercloud.frag",
+      "sha256": "abc9e769c05086e9412c34059ae1317e4c59108c3dd1bc2c141b85c7452bc802",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "shaders/private/pointercloud.vert",
+      "sha256": "587d12c3465cf3ec0bd7393f6b8ec16b72afd96675114cd23bf82d61d2680123",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "shaders/private/sequencer.frag",
+      "sha256": "181d5fb8a885c60113c1280d29bd05b51588cc9da309803627a19599b3f2535d",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "shaders/private/transition_dither.frag",
+      "sha256": "558a8aa5a9ae5812175de7a30ca094ba0751392e319a1226f0bdc118b0c0243c",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "shaders/private/transition_warp.frag",
+      "sha256": "61a51f92fb690cbe25a0ad3792d78620dcc385b8f6f69e64a7ddca8e60ca6fe8",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "shaders/common.frag",
+      "sha256": "16814bb5043cc116e2b9820af8cb596b5738b4e322ef9b8b4b91751f28b54d0c",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/actual.png",
+      "sha256": "d517aeab4ef6a5877d1b8d39047ea1535298619ddce50d3d4cc9e65863e37aa9",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/der.png",
+      "sha256": "409797fde7b4e2e8985e7c989a94a93e314f352e4045e03a9267f3d06cc54137",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/fondo.png",
+      "sha256": "921c8955e7288f6b36c345edaa63533cd80f113e99106df10235bcdee9420b82",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/fondo_parametro.png",
+      "sha256": "82244ffee0cafa311d940dd78ef0ef84b72721720a9acb9411801d7a9111bf9b",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/fondo_valor.png",
+      "sha256": "0b18f1ed5e4f4ebc05343f8bbd649965e2804ecc7d3a20e47d61d4e7012e411d",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/ida_y_vuelta.png",
+      "sha256": "f797b9d0bebb0dd776e815ecfc8f9874e62704705762c1fdf9f448b7f10d52cc",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/ida_y_vuelta_activo.png",
+      "sha256": "1194f375d74a797fd7b853e89cbe2af0e2017a79ab3619ec9424e83ace7a1a1d",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/izq.png",
+      "sha256": "309011a85e79a69bdf5c2dd1b208b41fe33921727c0cda193b168132e2f236e7",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/outlet.png",
+      "sha256": "a5717b98b5398710506d7ca2ad8cee199413a5fb99e9fc2403021de27052e4eb",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/ran.png",
+      "sha256": "782098c0ddf3da2e04bc4060c586d34e16fa0ef9dae1fdde0273514ae902fcd8",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/speed.png",
+      "sha256": "8d6095e016a157b03c7413d59e2f6bdb6bc1820abf0dd7331da1d16d12d4393f",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/speed_actual.png",
+      "sha256": "8f6d97b9bfaeb67f3394fb0bd877a3768c9fcd3a77704430e71c659fa3672d70",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/timeline.png",
+      "sha256": "b3d108010ba53b23e08dde5eea36d0048f9dabc76bf0b07e07b46dcb1c31fc0b",
+      "license": "MIT",
+      "source": "Guipper repository"
+    },
+    {
+      "path": "img/design/componentes/una_direccion.png",
+      "sha256": "7e4ff8070508130dbd2537ca4769e62ef252e54a2e73f0d6a08c64ad82eefd84",
+      "license": "MIT",
+      "source": "Guipper repository"
+    }
+  ]
+}

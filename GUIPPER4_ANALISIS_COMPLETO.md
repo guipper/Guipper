@@ -1,5 +1,9 @@
 # GUIPPER 4 - Análisis Completo de la Aplicación
 
+> **Referencia histórica — revisión 2026-09-12.** Este análisis se conserva como referencia histórica. Contiene descripciones de etapas anteriores y no es un inventario vigente. Para arquitectura, persistencia, memoria y funciones actuales, usá el mapa técnico y el backlog enlazados abajo.
+>
+> Documentación vigente: [mapa técnico](mds/SKILLS.md) y [backlog](mds/FEATURE_BACKLOG.md).
+
 ## 1. DESCRIPCIÓN GENERAL
 
 **Guipper 4** es una aplicación de **video mezcla / VJing en tiempo real** desarrollada en **C++ con openFrameworks**. Permite crear composiciones visuales en vivo combinando múltiples fuentes (shaders GLSL, imágenes, videos, cámara, Spout, NDI) en un editor de nodos visual, con control por OSC, MIDI y teclado.

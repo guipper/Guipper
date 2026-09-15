@@ -27,11 +27,23 @@ EDITOR_SHORTCUT_HEADERS := ../src/JPutils/jp_editor_shortcut.h
 MAPPING_BOOLEAN_TARGET := mapping_boolean_tests
 MAPPING_BOOLEAN_SOURCES := mapping_boolean_tests.cpp
 MAPPING_BOOLEAN_HEADERS := ../src/JPbox/jp_mapping_boolean.h
-TARGETS := $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
+UNIFORM_TARGET := uniform_parser_tests
+UNIFORM_SOURCES := uniform_parser_tests.cpp ../src/JPutils/jp_uniform_parser.cpp
+UNIFORM_HEADERS := ../src/JPutils/jp_uniform_parser.h
+TARGETS := appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM_TARGET) $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
 
 .PHONY: all run tsan clean
 
 all: $(TARGETS)
+
+appimage_backend_tests: appimage_backend_tests.cpp ../src/JPutils/jp_update_platform.cpp ../src/JPutils/jp_update_service.cpp ../src/JPutils/jp_app_paths.cpp
+	$(CXX) $(CXXFLAGS) -pthread -DGUIPPER_UPDATE_TEST -DGUIPPER_APPIMAGE_UPDATES -DGUIPPER_APPIMAGE_STABLE='"test-stable"' -DGUIPPER_APPIMAGE_BETA='"test-beta"' appimage_backend_tests.cpp ../src/JPutils/jp_update_platform.cpp ../src/JPutils/jp_update_service.cpp ../src/JPutils/jp_app_paths.cpp -o $@
+
+update_service_tests: update_service_tests.cpp ../src/JPutils/jp_update_service.cpp ../src/JPutils/jp_update_service.h
+	$(CXX) $(CXXFLAGS) update_service_tests.cpp ../src/JPutils/jp_update_service.cpp -o $@
+
+app_paths_tests: app_paths_tests.cpp ../src/JPutils/jp_app_paths.cpp ../src/JPutils/jp_app_paths.h
+	$(CXX) $(CXXFLAGS) app_paths_tests.cpp ../src/JPutils/jp_app_paths.cpp -o $@
 
 $(AUDIO_TARGET): $(AUDIO_SOURCES) $(AUDIO_HEADERS)
 	$(CXX) $(CXXFLAGS) -pthread $(AUDIO_SOURCES) -o $@
@@ -60,7 +72,14 @@ $(EDITOR_SHORTCUT_TARGET): $(EDITOR_SHORTCUT_SOURCES) $(EDITOR_SHORTCUT_HEADERS)
 $(MAPPING_BOOLEAN_TARGET): $(MAPPING_BOOLEAN_SOURCES) $(MAPPING_BOOLEAN_HEADERS)
 	$(CXX) $(CXXFLAGS) $(MAPPING_BOOLEAN_SOURCES) -o $@
 
+$(UNIFORM_TARGET): $(UNIFORM_SOURCES) $(UNIFORM_HEADERS)
+	$(CXX) $(CXXFLAGS) $(UNIFORM_SOURCES) -o $@
+
 run: $(TARGETS)
+	./appimage_backend_tests
+	./update_service_tests
+	./app_paths_tests
+	./$(UNIFORM_TARGET)
 	./$(AUDIO_TARGET)
 	./$(MEDIA_TARGET)
 	./$(PAINT_TARGET)

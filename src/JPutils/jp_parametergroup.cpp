@@ -964,6 +964,13 @@ int JPParameterGroup::resolveLoadIndex(const string &_name,
 {
 	const int byName = indexOfName(_name);
 	if (byName >= 0) return byName;
+	// The old fixed-offset bool parser retained whitespace before ';'. Match
+	// its stored spelling before positional fallback, which may now be wrong
+	// after a user reorders declarations. Exact matches still take priority.
+	const string normalized = ofTrim(_name);
+	if (!normalized.empty())
+		for (int i = 0; i < (int)parameters.size(); ++i)
+			if (ofTrim(parameters[i]->name) == normalized) return i;
 	if (_positionalIndex >= 0 && _positionalIndex < (int)parameters.size())
 		return _positionalIndex;
 	return -1;
