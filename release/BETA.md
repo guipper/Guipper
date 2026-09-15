@@ -30,3 +30,10 @@ Keep each published artifact immutable; release a new version to fix a defect.
 Local Linux functional run: [2026-09-14 report](../mds/PRUEBA_LOCAL_2026-09-14.md). Automated suites passed; manual-equivalent UI walkthrough failed on examples and Save As. This does not satisfy clean-machine or hardware acceptance.
 
 Follow-up: the same report now records fixes and successful local retests for the four functional failures, with a new artifact SHA256. Hardware/clean-machine acceptance remains pending.
+
+## User report — 2026-09-15
+
+The owner reports a successful test on their real Linux machine. Exact package
+hash, distribution, GPU, devices, scenarios and duration were not provided.
+Recorded as a positive user report; the detailed acceptance rows above remain
+pending until their coverage is confirmed.
