@@ -13,6 +13,10 @@
 #include <cmath>
 #include <cstdlib>
 
+#undef near
+#undef far
+#undef small
+
 namespace
 {
 	bool near(float a, float b) { return std::abs(a - b) < 0.002f; }

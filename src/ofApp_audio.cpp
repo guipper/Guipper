@@ -6,6 +6,10 @@
 #include "JPgui/jp_gl_state.h"
 #include "JPutils/jp_tooltip.h"
 
+#undef near
+#undef far
+#undef small
+
 // The AUDIO screen: tune the analyser, and see enough of its internals to work
 // out WHY it is doing what it is doing.
 //

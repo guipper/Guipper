@@ -97,13 +97,12 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);src;src\JPbox;src\JPgui;src\JPutils;..\..\..\addons\ofxMidi\src;..\..\..\addons\ofxMidi\libs\rtmidi;..\..\..\addons\ofxNDI\libs\NDI\include;..\..\..\addons\ofxNDI\src;..\..\..\addons\ofxOsc\libs;..\..\..\addons\ofxOsc\libs\oscpack;..\..\..\addons\ofxOsc\libs\oscpack\src;..\..\..\addons\ofxOsc\libs\oscpack\src\ip;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\posix;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32;..\..\..\addons\ofxOsc\libs\oscpack\src\osc;..\..\..\addons\ofxOsc\src</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
-      <PreprocessorDefinitions>OSC_HOST_LITTLE_ENDIAN</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);OSC_HOST_LITTLE_ENDIAN;FREEIMAGE_LIB</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -118,14 +117,13 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);src;src\JPbox;src\JPgui;src\JPutils;..\..\..\addons\ofxMidi\src;..\..\..\addons\ofxMidi\libs\rtmidi;..\..\..\addons\ofxNDI\libs\NDI\include;..\..\..\addons\ofxNDI\src;..\..\..\addons\ofxOsc\libs;..\..\..\addons\ofxOsc\libs\oscpack;..\..\..\addons\ofxOsc\libs\oscpack\src;..\..\..\addons\ofxOsc\libs\oscpack\src\ip;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\posix;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32;..\..\..\addons\ofxOsc\libs\oscpack\src\osc;..\..\..\addons\ofxOsc\src</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
-      <PreprocessorDefinitions>OSC_HOST_LITTLE_ENDIAN</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);OSC_HOST_LITTLE_ENDIAN;FREEIMAGE_LIB</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -139,14 +137,13 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <WholeProgramOptimization>false</WholeProgramOptimization>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);src;src\JPbox;src\JPgui;src\JPutils;..\..\..\addons\ofxMidi\src;..\..\..\addons\ofxMidi\libs\rtmidi;..\..\..\addons\ofxNDI\libs\NDI\include;..\..\..\addons\ofxNDI\src;..\..\..\addons\ofxOsc\libs;..\..\..\addons\ofxOsc\libs\oscpack;..\..\..\addons\ofxOsc\libs\oscpack\src;..\..\..\addons\ofxOsc\libs\oscpack\src\ip;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\posix;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32;..\..\..\addons\ofxOsc\libs\oscpack\src\osc;..\..\..\addons\ofxOsc\src</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
-      <PreprocessorDefinitions>OSC_HOST_LITTLE_ENDIAN</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);OSC_HOST_LITTLE_ENDIAN;FREEIMAGE_LIB</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
@@ -163,13 +160,12 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WholeProgramOptimization>false</WholeProgramOptimization>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);src;src\JPbox;src\JPgui;src\JPutils;..\..\..\addons\ofxMidi\src;..\..\..\addons\ofxMidi\libs\rtmidi;..\..\..\addons\ofxNDI\libs\NDI\include;..\..\..\addons\ofxNDI\src;..\..\..\addons\ofxOsc\libs;..\..\..\addons\ofxOsc\libs\oscpack;..\..\..\addons\ofxOsc\libs\oscpack\src;..\..\..\addons\ofxOsc\libs\oscpack\src\ip;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\posix;..\..\..\addons\ofxOsc\libs\oscpack\src\ip\win32;..\..\..\addons\ofxOsc\libs\oscpack\src\osc;..\..\..\addons\ofxOsc\src</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
-      <PreprocessorDefinitions>OSC_HOST_LITTLE_ENDIAN</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);OSC_HOST_LITTLE_ENDIAN;FREEIMAGE_LIB</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
@@ -188,6 +184,7 @@
     <ClCompile Include="src\JPutils\jp_midi_keymap.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\ofApp.cpp" />
+    <ClCompile Include="src\ofApp_audio.cpp" />
     <ClCompile Include="src\JPgui\jp_knob.cpp" />
     <ClCompile Include="src\JPgui\jp_controller.cpp" />
     <ClCompile Include="src\JPgui\jp_bang.cpp" />
@@ -204,6 +201,10 @@
     <ClCompile Include="src\fix_line.cpp" />
     <ClCompile Include="src\JPbox\jp_box_pointercloud.cpp" />
     <ClCompile Include="src\JPbox\JPboxgroup_mapping_advanced.cpp" />
+    <ClCompile Include="src\JPbox\JPboxgroup_history.cpp" />
+    <ClCompile Include="src\JPbox\JPboxgroup_paint.cpp" />
+    <ClCompile Include="src\JPbox\jp_box_camdepth.cpp" />
+    <ClCompile Include="src\JPbox\jp_box_paint.cpp" />
     <ClCompile Include="src\JPbox\jp_box_kinect2.cpp" />
     <ClCompile Include="src\JPbox\jp_box_sequencer.cpp" />
     <ClCompile Include="src\JPbox\jp_box_shader_mapping.cpp" />
@@ -227,6 +228,8 @@
     <ClCompile Include="src\JPutils\jp_fileloader.cpp" />
     <ClCompile Include="src\JPutils\jp_fbohandler.cpp" />
     <ClCompile Include="src\JPutils\jp_constants.cpp" />
+    <ClCompile Include="src\JPutils\jp_debug_report.cpp" />
+    <ClCompile Include="src\JPutils\jp_tooltip.cpp" />
     <ClCompile Include="..\..\..\addons\ofxMidi\src\ofxBaseMidi.cpp" />
     <ClCompile Include="..\..\..\addons\ofxMidi\src\ofxMidi.cpp" />
     <ClCompile Include="..\..\..\addons\ofxMidi\src\ofxMidiClock.cpp" />
@@ -286,6 +289,8 @@
     <ClInclude Include="src\JPgui\jp_shader_editor.h" />
     <ClInclude Include="src\JPgui\jp_controller.h" />
     <ClInclude Include="src\JPgui\jp_bang.h" />
+    <ClInclude Include="src\JPgui\jp_gl_state.h" />
+    <ClInclude Include="src\JPgui\jp_minislider.h" />
     <ClInclude Include="src\JPbox\jp_box_spout.h" />
     <ClInclude Include="src\JPbox\JPboxgroup.h" />
     <ClInclude Include="src\JPbox\jp_box_preset.h" />
@@ -294,6 +299,11 @@
     <ClInclude Include="src\JPbox\jp_mapping_boolean.h" />
 	<ClInclude Include="src\JPbox\jp_graph_walk.h" />
 	<ClInclude Include="src\JPbox\jp_quick_image.h" />
+    <ClInclude Include="src\JPbox\jp_box_camdepth.h" />
+    <ClInclude Include="src\JPbox\jp_box_paint.h" />
+    <ClInclude Include="src\JPbox\jp_media.h" />
+    <ClInclude Include="src\JPbox\jp_media_state.h" />
+    <ClInclude Include="src\JPbox\jp_paint_doc.h" />
     <ClInclude Include="src\JPbox\jp_box_ndi.h" />
     <ClInclude Include="src\JPbox\jp_box_framedifference.h" />
     <ClInclude Include="src\JPbox\jp_box_pointercloud.h" />
@@ -317,6 +327,15 @@
     <ClInclude Include="src\JPutils\jp_fbohandler.h" />
     <ClInclude Include="src\JPutils\jp_dragobject.h" />
     <ClInclude Include="src\JPutils\jp_parametergroup.h" />
+    <ClInclude Include="src\JPutils\jp_debug_report.h" />
+    <ClInclude Include="src\JPutils\jp_editor_shortcut.h" />
+    <ClInclude Include="src\JPutils\jp_font.h" />
+    <ClInclude Include="src\JPutils\jp_graph_history.h" />
+    <ClInclude Include="src\JPutils\jp_keymap.h" />
+    <ClInclude Include="src\JPutils\jp_media_stats.h" />
+    <ClInclude Include="src\JPutils\jp_osc_address.h" />
+    <ClInclude Include="src\JPutils\jp_textwrap.h" />
+    <ClInclude Include="src\JPutils\jp_viewtransform.h" />
     <ClInclude Include="..\..\..\addons\ofxMidi\src\ofxBaseMidi.h" />
     <ClInclude Include="..\..\..\addons\ofxMidi\src\ofxMidi.h" />
     <ClInclude Include="..\..\..\addons\ofxMidi\src\ofxMidiClock.h" />

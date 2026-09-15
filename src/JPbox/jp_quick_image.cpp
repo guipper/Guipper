@@ -1,5 +1,8 @@
 #include "jp_quick_image.h"
 #include "jp_media.h"
+#ifndef FREEIMAGE_LIB
+#define FREEIMAGE_LIB
+#endif
 #include <FreeImage.h>
 #include <chrono>
 #include <mutex>

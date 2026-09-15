@@ -4,6 +4,9 @@
     <ClCompile Include="src\ofApp.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ofApp_audio.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\JPutils\jp_midi_keymap.cpp">
       <Filter>src\JPutils</Filter>
     </ClCompile>
@@ -50,6 +53,18 @@
       <Filter>src\JPbox</Filter>
     </ClCompile>
     <ClCompile Include="src\JPbox\JPboxgroup_mapping_advanced.cpp">
+      <Filter>src\JPbox</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPbox\JPboxgroup_history.cpp">
+      <Filter>src\JPbox</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPbox\JPboxgroup_paint.cpp">
+      <Filter>src\JPbox</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPbox\jp_box_camdepth.cpp">
+      <Filter>src\JPbox</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPbox\jp_box_paint.cpp">
       <Filter>src\JPbox</Filter>
     </ClCompile>
     <ClCompile Include="src\JPbox\jp_box_kinect2.cpp">
@@ -119,6 +134,12 @@
       <Filter>src\JPutils</Filter>
     </ClCompile>
     <ClCompile Include="src\JPutils\jp_constants.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPutils\jp_debug_report.cpp">
+      <Filter>src\JPutils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\JPutils\jp_tooltip.cpp">
       <Filter>src\JPutils</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\addons\ofxNDI\src\ofxNDIreceive.cpp">
@@ -353,6 +374,12 @@
     <ClInclude Include="src\JPgui\jp_bang.h">
       <Filter>src\JPgui</Filter>
     </ClInclude>
+    <ClInclude Include="src\JPgui\jp_gl_state.h">
+      <Filter>src\JPgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPgui\jp_minislider.h">
+      <Filter>src\JPgui</Filter>
+    </ClInclude>
     <ClInclude Include="src\JPbox\jp_box_spout.h">
       <Filter>src\JPbox</Filter>
     </ClInclude>
@@ -377,6 +404,21 @@
 	<ClInclude Include="src\JPbox\jp_quick_image.h">
 	  <Filter>src\JPbox</Filter>
 	</ClInclude>
+    <ClInclude Include="src\JPbox\jp_box_camdepth.h">
+      <Filter>src\JPbox</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPbox\jp_box_paint.h">
+      <Filter>src\JPbox</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPbox\jp_media.h">
+      <Filter>src\JPbox</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPbox\jp_media_state.h">
+      <Filter>src\JPbox</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPbox\jp_paint_doc.h">
+      <Filter>src\JPbox</Filter>
+    </ClInclude>
     <ClInclude Include="src\JPbox\jp_box_ndi.h">
       <Filter>src\JPbox</Filter>
     </ClInclude>
@@ -447,6 +489,33 @@
       <Filter>src\JPutils</Filter>
     </ClInclude>
     <ClInclude Include="src\JPutils\jp_midi_keymap.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_debug_report.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_editor_shortcut.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_font.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_graph_history.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_keymap.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_media_stats.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_osc_address.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_textwrap.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_viewtransform.h">
       <Filter>src\JPutils</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\addons\ofxMidi\src\ofxBaseMidi.h">

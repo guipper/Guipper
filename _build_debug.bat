@@ -1,4 +1,5 @@
 @echo off
-call "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat" -arch=x86
-del /f /s /q "D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\obj\Win32\Debug\*.*" 2>nul
-msbuild "D:\Programacion\of_v0.11.2_vs2017_release\apps\myApps\guipper4\guipper.vcxproj" /p:Configuration=Debug /p:Platform=Win32 /p:BuildProjectReferences=false /m:1
+cd /d "%~dp0"
+if exist "obj\x64\Debug" rmdir /s /q "obj\x64\Debug"
+msbuild guipper.vcxproj /p:Configuration=Debug /p:Platform=x64 /t:Rebuild /m
+

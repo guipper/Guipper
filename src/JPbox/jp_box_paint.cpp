@@ -8,6 +8,9 @@
 #include <iomanip>
 #include <sstream>
 
+#ifndef FREEIMAGE_LIB
+#define FREEIMAGE_LIB
+#endif
 #include <FreeImage.h>
 
 namespace
