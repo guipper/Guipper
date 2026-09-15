@@ -181,6 +181,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\JPutils\jp_uniform_parser.cpp" />
+    <ClCompile Include="src\JPutils\jp_shader_audit.cpp" />
     <ClCompile Include="src\ofApp_release.cpp" />
     <ClCompile Include="src\JPutils\jp_update_platform.cpp" />
     <ClCompile Include="src\JPutils\jp_update_service.cpp" />
@@ -285,6 +286,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\JPutils\jp_uniform_parser.h" />
+    <ClInclude Include="src\JPutils\jp_shader_audit.h" />
     <ClInclude Include="src\JPutils\jp_shader_catalog.h" />
     <ClInclude Include="src\JPutils\jp_version.h" />
     <ClInclude Include="src\JPutils\jp_update_service.h" />

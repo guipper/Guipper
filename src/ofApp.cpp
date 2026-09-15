@@ -1,3 +1,4 @@
+#include "JPutils/jp_shader_audit.h"
 #include "JPutils/jp_version.h"
 #include <ctime>
 #include "JPutils/jp_storage.h"
@@ -129,6 +130,11 @@ void ofApp::setup() {
     if (!ofFile::doesFileExist("img/preview1.webp") || !previewImg2.load("img/preview1.webp")) {
         if (!ofFile::doesFileExist("image/demo-gradient.png") || !previewImg2.load("image/demo-gradient.png"))
             previewImg2.load("preview2.png");
+    }
+	if (const char* audit=std::getenv("GUIPPER_SHADER_AUDIT")) {
+        if (!std::getenv("GUIPPER_USER_ROOT")) std::exit(EXIT_FAILURE);
+        const bool passed=jp_shader_audit::run(*this,audit);
+        jp_audio::shutdown(); std::exit(passed?EXIT_SUCCESS:EXIT_FAILURE);
     }
 	if (std::getenv("GUIPPER_PERSISTENCE_TEST") != nullptr)
 	{
