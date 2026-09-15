@@ -430,9 +430,16 @@ void ofApp::enterScreen(int screen)
 }
 
 void ofApp::update() {
+    if (updates.exitRequested()) {ofExit();return;}
     const auto lastCheck = updates.lastCheck;
     updates.check(false, std::time(nullptr));
     if (lastCheck != updates.lastCheck) saveReleasePreferences();
+    const auto updateStatus=updates.status();
+    if (updateStatus.state==jp::UpdateState::Available && announcedUpdate!=updateStatus.version) {
+        announcedUpdate=updateStatus.version;
+        storageNotice=language==0?"An update is available. F10 to review it.":"Hay una actualización disponible. F10 para verla.";
+        sessionLoadErrorTime=ofGetElapsedTimef();
+    }
     if (!recoveryChecked) {
         recoveryChecked = true;
         recoveryCandidate = recovery.pending();
@@ -5876,10 +5883,10 @@ void ofApp::keyPressed(int key) {
     // here would overwrite the original before Save As is even confirmed.
     if (key == 19 || ((key == 's' || key == 'S') &&
         (ofGetKeyPressed(OF_KEY_CONTROL) || ofGetKeyPressed(OF_KEY_COMMAND)))) return;
-    if (key == OF_KEY_F10 && !anyFieldFocused() && !saveModalActive) { releasePanelOpen=!releasePanelOpen; return; }
+    if (key == OF_KEY_F10 && !anyFieldFocused() && !saveModalActive && updates.status().state!=jp::UpdateState::Installing) { releasePanelOpen=!releasePanelOpen; return; }
     if (releasePanelOpen) {
-        if (key == OF_KEY_ESC) releasePanelOpen=false;
-        else if (key >= '1' && key <= '7') releaseAction(key-'1');
+        if (key == OF_KEY_ESC && updates.status().state!=jp::UpdateState::Installing) releasePanelOpen=false;
+        else if (key >= '1' && key <= '9') releaseAction(key-'1');
         return;
     }
     if (!recoveryCandidate.empty() && (key == OF_KEY_F9 || key == OF_KEY_F8)) {
@@ -6482,7 +6489,7 @@ void ofApp::mouseDragged(int x, int y, int button) {
 void ofApp::mousePressed(int x, int y, int button) {
     if (releasePanelOpen) {
         if (button != OF_MOUSE_BUTTON_LEFT || !releaseViewport.inside(x,y)) return;
-        for (int i=0;i<7;++i) if (releaseButtons[i].inside(x,y)) { releaseAction(i); break; }
+        for (int i=0;i<9;++i) if (releaseButtons[i].inside(x,y)) { releaseAction(i); break; }
         return;
     }
 	// FIRST, before any early return below: the controls that actuate from

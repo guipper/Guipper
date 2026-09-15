@@ -303,11 +303,12 @@ public:
 	bool recoveryChecked = false;
     jp::UpdateService updates{jp::platformUpdateBackend()};
     bool releasePanelOpen = false;
+    std::string announcedUpdate;
     string releaseMessage;
     float releaseScroll = 0;
     ofRectangle releaseViewport;
     bool releaseActionEnabled(int action);
-    std::array<ofRectangle,7> releaseButtons;
+    std::array<ofRectangle,9> releaseButtons;
     void loadReleasePreferences();
     void saveReleasePreferences();
     void releaseAction(int action);

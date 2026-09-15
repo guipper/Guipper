@@ -10,6 +10,7 @@ void ofApp::loadReleasePreferences() {
         const auto file = jp::preferencePath("updates.json");
         if (!ofFile::doesFileExist(file)) return;
         const auto value = ofJson::parse(jp::readBytes(file));
+        updates.skippedVersion=value.value("skippedVersion",std::string());
         updates.automatic = value.value("automatic", false);
         updates.lastCheck = value.value("lastCheck", std::int64_t(0));
         updates.channel = value.value("channel", std::string("stable"));
@@ -18,12 +19,13 @@ void ofApp::loadReleasePreferences() {
 }
 void ofApp::saveReleasePreferences() {
     try {
-        ofJson value={{"automatic",updates.automatic},{"lastCheck",updates.lastCheck},{"channel",updates.channel}};
+        ofJson value={{"automatic",updates.automatic},{"lastCheck",updates.lastCheck},{"channel",updates.channel},{"skippedVersion",updates.skippedVersion}};
         jp::atomicWrite(jp::preferencePath("updates.json"), value.dump(2));
     } catch (const std::exception& error) { releaseMessage = error.what(); }
 }
 bool ofApp::releaseActionEnabled(int action) {
     const auto state=updates.status().state;
+    if (state==jp::UpdateState::Installing) return action==3;
     const bool busy=state==jp::UpdateState::Checking || state==jp::UpdateState::Downloading || state==jp::UpdateState::Ready;
     switch (action) {
     case 0: return !busy && state!=jp::UpdateState::Disabled;
@@ -33,6 +35,8 @@ bool ofApp::releaseActionEnabled(int action) {
     case 4: return true;
     case 5: return !busy;
     case 6: return true;
+    case 7: return state==jp::UpdateState::Available && !updates.status().version.empty();
+    case 8: return !updates.status().notesUrl.empty();
     default: return false;
     }
 }
@@ -51,13 +55,16 @@ void ofApp::releaseAction(int action) {
             releaseMessage = language == 0 ? "Save shader tabs before installing." : "Guardá las pestañas de shaders antes de instalar.";
             break;
         }
-        if (saveSession(savedirectory) && updates.install(true,true)) ofExit();
+        if (saveSession(savedirectory)) {
+            updates.install(true,true);
+            if (updates.exitRequested()) ofExit();
+        }
         break;
     case 3: updates.cancel(); break;
     case 4: updates.automatic=!updates.automatic; saveReleasePreferences(); break;
     case 5:
         if (updates.status().state == jp::UpdateState::Checking || updates.status().state == jp::UpdateState::Downloading || updates.status().state == jp::UpdateState::Ready) break;
-        updates.channel=updates.channel=="stable"?"beta":"stable"; saveReleasePreferences(); break;
+        updates.cancel(); updates.channel=updates.channel=="stable"?"beta":"stable"; saveReleasePreferences(); break;
     case 6: {
         auto destination=ofSystemSaveDialog("guipper-diagnostics.json", language==0?"Export diagnostics":"Exportar diagnóstico");
         if (!destination.bSuccess) break;
@@ -81,6 +88,8 @@ void ofApp::releaseAction(int action) {
         } catch (const std::exception& error) { releaseMessage=error.what(); }
         break;
     }
+    case 7: updates.skip(); saveReleasePreferences(); break;
+    case 8: ofLaunchBrowser(updates.status().notesUrl); break;
     default: break;
     }
 }
@@ -88,10 +97,10 @@ void ofApp::drawReleasePanel() {
     if (!releasePanelOpen) return;
     const float width=std::max(1.0f,std::min(600.0f,float(ofGetWidth())-24.0f));
     const float x=(ofGetWidth()-width)*0.5f;
-    const float height=std::max(1.0f,std::min(430.0f,float(ofGetHeight())-24.0f));
+    const float height=std::max(1.0f,std::min(520.0f,float(ofGetHeight())-24.0f));
     const float top=std::max(12.0f,(ofGetHeight()-height)*0.5f);
     releaseViewport=ofRectangle(x,top,width,height);
-    releaseScroll=ofClamp(releaseScroll,0.0f,430.0f-height);
+    releaseScroll=ofClamp(releaseScroll,0.0f,520.0f-height);
     const float y=top-releaseScroll;
     auto fit=[&](std::string text) {
         if (font_p.stringWidth(text)<=width-60) return text;
@@ -116,14 +125,20 @@ void ofApp::drawReleasePanel() {
     modalFont.drawString("Guipper " + std::string(jp::version),x+20,y+32);
     const auto status=updates.status();
     const bool es=language!=0;
-    const char* english[]={"Updates unavailable in this build", "No update selected", "Checking for updates...", "A new version is available", "Downloading...", "Verified update ready", "Update postponed", "Update could not complete"};
-    const char* spanish[]={"Actualizaciones no disponibles en esta compilación", "Sin actualización seleccionada", "Buscando actualizaciones...", "Hay una nueva versión", "Descargando...", "Actualización verificada y lista", "Actualización pospuesta", "No se pudo completar la actualización"};
-    font_p.drawString(fit((es?spanish:english)[int(status.state)]),x+20,y+61);
+    const char* english[]={"Updates unavailable in this build", "No update selected", "Checking for updates...", "A new version is available", "Downloading...", "Verified update ready", "Update postponed", "Update could not complete", "Preparing installation..."};
+    const char* spanish[]={"Actualizaciones no disponibles en esta compilación", "Sin actualización seleccionada", "Buscando actualizaciones...", "Hay una nueva versión", "Descargando...", "Actualización verificada y lista", "Actualización pospuesta", "No se pudo completar la actualización", "Preparando instalación..."};
+    std::string statusText=(es?spanish:english)[int(status.state)];
+    if (status.state==jp::UpdateState::Available && !status.version.empty()) statusText += ": " + status.version;
+    if (status.state==jp::UpdateState::Downloading) {
+        statusText += " " + ofToString(int(ofClamp(status.progress,0.0,1.0)*100)) + "%";
+        if (status.message=="Verifying signature...") statusText=es?"Verificando firma...":"Verifying signature...";
+    }
+    font_p.drawString(fit(statusText),x+20,y+61);
     font_p.drawString(fit((es?"Canal: ":"Channel: ")+updates.channel+(es?" | Consulta diaria: ":" | Daily checks: ")+(updates.automatic?(es?"sí":"on"):(es?"no":"off"))),x+20,y+86);
     const std::vector<std::string> labels=es?
-        std::vector<std::string>{"Buscar actualizaciones", "Descargar", "Guardar e instalar", "Posponer / cancelar", "Activar / desactivar consulta diaria", "Cambiar canal stable / beta", "Exportar diagnóstico"}:
-        std::vector<std::string>{"Check for updates", "Download", "Save and install", "Postpone / cancel", "Enable / disable daily checks", "Switch stable / beta channel", "Export diagnostics"};
-    for (int i=0;i<7;++i) {
+        std::vector<std::string>{"Buscar actualizaciones", "Descargar", "Guardar e instalar", "Posponer / cancelar", "Activar / desactivar consulta diaria", "Cambiar canal stable / beta", "Exportar diagnóstico", "Omitir esta versión", "Ver novedades"}:
+        std::vector<std::string>{"Check for updates", "Download", "Save and install", "Postpone / cancel", "Enable / disable daily checks", "Switch stable / beta channel", "Export diagnostics", "Skip this version", "View release notes"};
+    for (int i=0;i<9;++i) {
         releaseButtons[i]=ofRectangle(x+20,y+101+i*35,width-40,29);
         const bool enabled=releaseActionEnabled(i);
         ofSetColor(enabled?COL_TEXT_PRIMARY:COL_TEXT_SECONDARY);
@@ -135,13 +150,14 @@ void ofApp::drawReleasePanel() {
     if (status.state==jp::UpdateState::Error && !status.message.empty()) message=status.message;
     if (status.message=="Cancelling check...") message=es?"Cancelando consulta...":"Cancelling check...";
     if (status.message=="Stopping download...") message=es?"Deteniendo descarga...":"Stopping download...";
+    if (status.state==jp::UpdateState::Installing) message=es?"Verificando antes de instalar. Podés cancelar.":"Verifying before installation. You can cancel.";
     if (message.empty()) message=es?"Esc: cerrar. Nunca se instala ni reinicia automáticamente.":"Esc: close. Installation and restart are always your choice.";
     const auto lines=jp_textwrap::wrap([this](const string& text){return font_p.stringWidth(text);},message,width-40);
-    for (size_t i=0;i<std::min<size_t>(lines.size(),3);++i) font_p.drawString(lines[i],x+20,y+370+i*17);
-    if (height<430) {
+    for (size_t i=0;i<std::min<size_t>(lines.size(),3);++i) font_p.drawString(lines[i],x+20,y+445+i*17);
+    if (height<520) {
         ofSetColor(COL_TEXT_SECONDARY);
-        const float thumb=height*height/430.0f;
-        ofDrawRectangle(x+width-6,top+(height-thumb)*releaseScroll/(430.0f-height),3,thumb);
+        const float thumb=height*height/520.0f;
+        ofDrawRectangle(x+width-6,top+(height-thumb)*releaseScroll/(520.0f-height),3,thumb);
     }
     ofPopStyle();
 }

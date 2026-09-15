@@ -1,124 +1,172 @@
 #include "jp_update_service.h"
-#if __has_include("jp_update_config.h")
+#if !defined(GUIPPER_UPDATE_TEST) && __has_include("jp_update_config.h")
 #include "jp_update_config.h"
 #endif
 #include "jp_version.h"
 #include "jp_app_paths.h"
-#include <future>
+#include <cstring>
 #include <cstdlib>
+#include <thread>
 
 // Enable only in signed, packaged builds. Development checkouts intentionally
 // have no update trust root and must not install arbitrary remote binaries.
 #if defined(GUIPPER_APPIMAGE_UPDATES)
-#include <appimage/update.h>
 #include <filesystem>
 #include <unistd.h>
+#include <spawn.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <chrono>
+extern char** environ;
 namespace jp {
+#ifdef GUIPPER_UPDATE_TEST
+#define GUIPPER_APPIMAGE_SIGNING_FINGERPRINT "test-key"
+#endif
+static const volatile char updateBuildConfiguration[]="GUIPPER_LINUX_UPDATES_V1\n"
+    GUIPPER_APPIMAGE_STABLE "\n" GUIPPER_APPIMAGE_BETA "\n" GUIPPER_APPIMAGE_SIGNING_FINGERPRINT;
 class AppImageBackend final : public UpdateBackend {
-    std::unique_ptr<appimage::update::Updater> updater;
-    std::future<bool> checking;
     UpdateStatus current{UpdateState::Idle,0,""};
-    std::string original;
-    bool cancelRequested=false;
-public:
-    AppImageBackend() {
-        const char* image = std::getenv("APPIMAGE");
-        if (!image || !*image) { current={UpdateState::Disabled,0,"Run the signed AppImage to update."}; return; }
-        original=image;
-        updater=std::make_unique<appimage::update::Updater>(original, false);
-    }
-    ~AppImageBackend() override {
-        if (checking.valid()) checking.wait();
-        if (updater && updater->state()==appimage::update::Updater::RUNNING) updater->stop();
-    }
-    UpdateStatus status() override {
-        if (checking.valid() && checking.wait_for(std::chrono::seconds(0))==std::future_status::ready) {
-            try {
-                const bool available=checking.get();
-                current={cancelRequested?UpdateState::Cancelled:
-                    (available?UpdateState::Available:UpdateState::Idle),0,""};
-            } catch (const std::exception& e) {
-                current=cancelRequested?UpdateStatus{UpdateState::Cancelled,0,""}:
-                    UpdateStatus{UpdateState::Error,0,e.what()};
-            }
-            cancelRequested=false;
+    std::string original,buffer,downloadFolder;
+    bool keepDownload=false;
+    pid_t worker=-1;
+    int commands=-1,events=-1;
+    bool exitReady=false;
+    std::chrono::steady_clock::time_point started;
+    void stop() {
+        if (commands>=0) { ::close(commands); commands=-1; }
+        if (events>=0) { ::close(events); events=-1; }
+        if (worker>0) {
+            ::kill(-worker,SIGTERM);
+            const pid_t child=worker;
+            const auto cleanup=keepDownload?std::string():downloadFolder;
+            // Reaping never waits on the renderer. SDK work and GPG children
+            // belong to the worker's process group, not Guipper's.
+            std::thread([child,cleanup]{
+                int result; while (::waitpid(child,&result,0)<0 && errno==EINTR) {}
+                if (!cleanup.empty()) {std::error_code error;std::filesystem::remove_all(cleanup,error);}
+            }).detach();
+            worker=-1;
         }
-        if (current.state==UpdateState::Downloading) {
-            updater->progress(current.progress);
-            if (updater->isDone()) {
-                if (cancelRequested) {
-                    current={UpdateState::Cancelled,0,""};
-                    cancelRequested=false;
-                }
-                else if (updater->hasError()) current={UpdateState::Error,0,"Download failed; current version kept."};
-                else if (updater->validateSignature()!=appimage::update::Updater::VALIDATION_PASSED)
-                    current={UpdateState::Error,0,"Update signature rejected; current version kept."};
-                else current={UpdateState::Ready,1,"Verified update ready."};
-            }
-        }
-        return current;
+        buffer.clear();
     }
-    void check(const std::string& channel, bool) override {
-        // STOPPING is still active: replacing its owner can block the UI or
-        // race the SDK worker. Keep reporting Downloading until isDone().
-        if (current.state==UpdateState::Disabled || checking.valid() ||
-            current.state==UpdateState::Downloading || current.state==UpdateState::Ready) return;
-        cancelRequested=false;
-        updater=std::make_unique<appimage::update::Updater>(original,false);
-        updater->setUpdateInformation(channel=="beta" ? GUIPPER_APPIMAGE_BETA : GUIPPER_APPIMAGE_STABLE);
-        current={UpdateState::Checking,0,""};
-        checking=std::async(std::launch::async,[this]{
-            bool available=false;
-            if (!updater->checkForChanges(available)) throw std::runtime_error("Could not check updates.");
-            return available;
-        });
-    }
-    void download() override {
-        if (current.state!=UpdateState::Available || cancelRequested) return;
-        current=updater->start()?UpdateStatus{UpdateState::Downloading,0,""}:
-            UpdateStatus{UpdateState::Error,0,"Could not start download."};
-    }
-    void cancel() override {
-        if (checking.valid()) {
-            // The SDK exposes no check cancellation. Discard its eventual
-            // result, keeping Checking until the worker releases the updater.
-            cancelRequested=true;
-            current.message="Cancelling check...";
-            return;
+    void fail(const std::string& message) { stop(); current={UpdateState::Error,0,message}; }
+    bool send(const char* command) {
+        // A socket avoids SIGPIPE if the worker exits between polling and send.
+        if (commands<0 || ::send(commands,command,std::strlen(command),MSG_NOSIGNAL)<0) {
+            fail("Update worker stopped; current version kept."); return false;
         }
-        if (current.state==UpdateState::Downloading) {
-            if (!cancelRequested) {
-                cancelRequested=true;
-                if (updater->state()==appimage::update::Updater::RUNNING) updater->stop();
-            }
-            current.message="Stopping download...";
-            return;
-        }
-        if (current.state!=UpdateState::Disabled) current={UpdateState::Cancelled,0,""};
-    }
-    bool install() override {
-        if (current.state!=UpdateState::Ready || cancelRequested) return false;
-        std::string next;
-        if (!updater->pathToNewFile(next) || updater->validateSignature()!=appimage::update::Updater::VALIDATION_PASSED)
-            return false;
-        updater->copyPermissionsToNewFile();
-        const auto& paths = AppPaths::current();
-        const auto helper = paths.cache / "install-appimage.sh";
-        const auto health = paths.cache / ("health-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-        atomicWrite(helper, readBytes(paths.bundle.parent_path() / "install-appimage.sh"));
-        const auto parent = std::to_string(::getpid());
-        const pid_t child = ::fork();
-        if (child < 0) return false;
-        if (child == 0) {
-            ::setsid();
-            ::execl("/bin/sh", "sh", helper.c_str(), original.c_str(), next.c_str(),
-                parent.c_str(), health.c_str(), static_cast<char*>(nullptr));
-            ::_exit(127);
-        }
+        started=std::chrono::steady_clock::now();
         return true;
     }
+    void launchInstaller(const std::string& next) {
+        try {
+            const auto& paths=AppPaths::current();
+            const auto helper=paths.cache / "install-appimage.sh";
+            const auto health=paths.cache / ("health-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+            atomicWrite(helper,readBytes(paths.bundle.parent_path()/"install-appimage.sh"));
+            const auto parent=std::to_string(::getpid());
+            pid_t child;
+            std::string script=helper.string(),healthPath=health.string();
+            const char* argv[]={"sh",script.c_str(),original.c_str(),next.c_str(),parent.c_str(),healthPath.c_str(),nullptr};
+            posix_spawnattr_t attrs;posix_spawnattr_init(&attrs);
+            posix_spawnattr_setflags(&attrs,POSIX_SPAWN_SETPGROUP);posix_spawnattr_setpgroup(&attrs,0);
+            const int error=posix_spawn(&child,"/bin/sh",nullptr,&attrs,const_cast<char**>(argv),environ);
+            posix_spawnattr_destroy(&attrs);
+            if (error) throw std::runtime_error("Could not launch installer; current version kept.");
+            keepDownload=true;
+            exitReady=true;
+            stop();
+        } catch (const std::exception& e) { fail(e.what()); }
+    }
+    void receive(const std::string& line) {
+        const std::string prefix="GUIPPER_UPDATE ";
+        if (line.compare(0,prefix.size(),prefix)!=0) { fail("Invalid update worker response."); return; }
+        const auto value=line.substr(prefix.size());
+        if (value=="IDLE" && current.state==UpdateState::Checking) { stop();current={UpdateState::Idle,0,""}; }
+        else if (value.rfind("AVAILABLE ",0)==0 && current.state==UpdateState::Checking) {
+            current={UpdateState::Available,0,""}; current.version=value.substr(10);
+        }
+        else if (value.rfind("NOTES https://github.com/",0)==0 && current.state==UpdateState::Available)
+            current.notesUrl=value.substr(6);
+        else if (value.rfind("PROGRESS ",0)==0 && current.state==UpdateState::Downloading) {
+            try { current.progress=std::stod(value.substr(9)); } catch (...) { fail("Invalid download progress."); }
+        }
+        else if (value=="VERIFYING" && current.state==UpdateState::Downloading) current.message="Verifying signature...";
+        else if (value=="READY" && current.state==UpdateState::Downloading) {current.state=UpdateState::Ready;current.progress=1;current.message="Verified update ready.";}
+        else if (value.rfind("INSTALL ",0)==0 && current.state==UpdateState::Installing) launchInstaller(value.substr(8));
+        else if (value.rfind("ERROR ",0)==0) fail(value.substr(6));
+        else fail("Unexpected update worker response.");
+    }
+public:
+    AppImageBackend() {
+        (void)updateBuildConfiguration[0];
+        const char* image=std::getenv("APPIMAGE");
+        if (!image || !*image) {current={UpdateState::Disabled,0,"Run the signed AppImage to update."};return;}
+        original=std::filesystem::absolute(image).string();
+    }
+    ~AppImageBackend() override {stop();}
+    UpdateStatus status() override {
+        if (events>=0) {
+            char chunk[1024];
+            const auto count=::read(events,chunk,sizeof(chunk));
+            if (count>0) buffer.append(chunk,size_t(count));
+            else if (count==0) { fail("Update worker stopped; current version kept."); return current; }
+            if (buffer.size()>8192) {fail("Invalid update response size.");return current;}
+            size_t end;
+            while (events>=0 && (end=buffer.find('\n'))!=std::string::npos) {
+                const auto line=buffer.substr(0,end);buffer.erase(0,end+1);receive(line);
+            }
+        }
+        const auto elapsed=std::chrono::steady_clock::now()-started;
+        if ((current.state==UpdateState::Checking || current.state==UpdateState::Installing) && elapsed>std::chrono::seconds(60))
+            fail("Update operation timed out; current version kept.");
+        if (current.state==UpdateState::Downloading && elapsed>std::chrono::hours(2))
+            fail("Download timed out; current version kept.");
+        return current;
+    }
+    void check(const std::string& channel,bool) override {
+        if (current.state==UpdateState::Disabled || current.state==UpdateState::Checking ||
+            current.state==UpdateState::Downloading || current.state==UpdateState::Ready ||
+            current.state==UpdateState::Installing) return;
+        stop();
+        int input[2],output[2];
+        if (::socketpair(AF_UNIX,SOCK_STREAM|SOCK_CLOEXEC,0,input)<0) {fail("Could not start update worker.");return;}
+        if (::pipe2(output,O_CLOEXEC)<0) {::close(input[0]);::close(input[1]);fail("Could not start update worker.");return;}
+        const auto helper=(AppPaths::current().bundle.parent_path()/"guipper-update-worker").string();
+        const char* feed=channel=="beta"?GUIPPER_APPIMAGE_BETA:GUIPPER_APPIMAGE_STABLE;
+        std::string pattern=(std::filesystem::path(original).parent_path()/".guipper-update-XXXXXX").string();
+        if (!::mkdtemp(pattern.data())) {
+            ::close(input[0]);::close(input[1]);::close(output[0]);::close(output[1]);
+            fail("Move the AppImage to a writable folder before updating.");return;
+        }
+        downloadFolder=pattern;keepDownload=false;
+        const char* argv[]={helper.c_str(),original.c_str(),feed,downloadFolder.c_str(),nullptr};
+        posix_spawn_file_actions_t actions;posix_spawn_file_actions_init(&actions);
+        posix_spawn_file_actions_adddup2(&actions,input[1],0);
+        posix_spawn_file_actions_adddup2(&actions,output[1],3);
+        posix_spawn_file_actions_addopen(&actions,1,"/dev/null",O_WRONLY,0);
+        posix_spawn_file_actions_addopen(&actions,2,"/dev/null",O_WRONLY,0);
+        posix_spawnattr_t attrs;posix_spawnattr_init(&attrs);
+        posix_spawnattr_setflags(&attrs,POSIX_SPAWN_SETPGROUP);posix_spawnattr_setpgroup(&attrs,0);
+        const int error=posix_spawn(&worker,helper.c_str(),&actions,&attrs,const_cast<char**>(argv),environ);
+        posix_spawn_file_actions_destroy(&actions);posix_spawnattr_destroy(&attrs);
+        ::close(input[1]);::close(output[1]);
+        if (error) {std::filesystem::remove(downloadFolder);worker=-1;::close(input[0]);::close(output[0]);fail("Update worker unavailable in this package.");return;}
+        commands=input[0];events=output[0];fcntl(events,F_SETFL,O_NONBLOCK);
+        current={UpdateState::Checking,0,""};started=std::chrono::steady_clock::now();
+    }
+    void download() override {if (current.state==UpdateState::Available && send("DOWNLOAD\n")) current.state=UpdateState::Downloading;}
+    void cancel() override {stop();if (current.state!=UpdateState::Disabled) current={UpdateState::Cancelled,0,""};}
+    bool install() override {
+        if (current.state!=UpdateState::Ready || !send("INSTALL\n")) return false;
+        current.state=UpdateState::Installing;current.message="Verifying before installation...";
+        return true;
+    }
+    bool readyToExit() const override {return exitReady;}
 };
-std::unique_ptr<UpdateBackend> platformUpdateBackend() { return std::make_unique<AppImageBackend>(); }
+std::unique_ptr<UpdateBackend> platformUpdateBackend() {return std::make_unique<AppImageBackend>();}
 }
 #elif defined(_WIN32) && defined(GUIPPER_WINSPARKLE)
 #ifndef NOMINMAX

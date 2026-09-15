@@ -1,0 +1,7 @@
+{
+  "AppImageUpdate": {"url": "https://github.com/AppImageCommunity/AppImageUpdate.git", "commit": "a211784dfc746fdb6d8d32d6bb39add451c1ddeb", "license": "LICENSE.txt"},
+  "zsync2": {"url": "https://github.com/AppImageCommunity/zsync2.git", "commit": "fc62ae7851ef28dc390a57fbdbe90b0afc5e3102", "license": "COPYING"},
+  "cpr": {"url": "https://github.com/libcpr/cpr.git", "commit": "db351ffbbadc6c4e9239daaa26e9aefa9f0ec82d", "license": "LICENSE"},
+  "args": {"url": "https://github.com/Taywee/args.git", "commit": "114200a9ad5fe06c8dea76e15d92325695cf3e34", "license": "LICENSE"},
+  "libappimage": {"url": "https://github.com/AppImageCommunity/libappimage.git", "commit": "d326d15c8a9299d3f135be8282f6545b32805996", "license": "LICENSE"}
+}

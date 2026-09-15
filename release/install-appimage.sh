@@ -15,6 +15,16 @@ if [ -e "$backup" ]; then
 fi
 mv -- "$original" "$backup"
 if ! mv -- "$candidate" "$original"; then mv -- "$backup" "$original"; exit 1; fi
+# Only our private, same-directory download folder is eligible for cleanup.
+candidate_dir=$(dirname -- "$candidate")
+case "$(basename -- "$candidate_dir")" in
+    .guipper-update-*)
+        if [ "$(dirname -- "$candidate_dir")" = "$(dirname -- "$original")" ]; then
+            rm -f -- "$candidate_dir/installed.AppImage"
+            rmdir -- "$candidate_dir" 2>/dev/null || true
+        fi
+        ;;
+esac
 GUIPPER_UPDATE_HEALTH_FILE="$health" "$original" &
 child=$!
 count=0

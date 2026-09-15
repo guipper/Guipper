@@ -4,6 +4,8 @@
 struct Fake final : jp::UpdateBackend {
     jp::UpdateStatus value{jp::UpdateState::Idle,0,""};
     int checks=0, downloads=0, installs=0;
+    bool exitReady=true;
+    bool readyToExit() const override {return exitReady;}
     jp::UpdateStatus status() override { return value; }
     void check(const std::string& channel,bool) override { assert(channel=="stable" || channel=="beta"); ++checks; }
     void download() override { ++downloads; value.state=jp::UpdateState::Downloading; }
@@ -26,8 +28,17 @@ int main() {
     raw->value.state=jp::UpdateState::Ready;
     assert(!service.install(false,true)); assert(!service.install(true,false));
     assert(service.install(true,true) && raw->installs==1);
+    assert(service.exitRequested());
+    service.cancel();assert(service.status().state==jp::UpdateState::Ready); // installer already launched
+    raw->exitReady=false;
     service.cancel(); assert(service.status().state==jp::UpdateState::Cancelled);
     raw->value.state=jp::UpdateState::Disabled;
     service.check(true,100000); assert(raw->checks==2);
+    raw->value={jp::UpdateState::Available,0,""};raw->value.version="Guipper-0.2.0-linux-x64.AppImage";
+    service.skip();assert(service.skippedVersion=="stable:Guipper-0.2.0-linux-x64.AppImage");
+    service.check(false,200000);
+    raw->value.state=jp::UpdateState::Available;assert(service.status().state==jp::UpdateState::Cancelled);
+    service.check(true,200001);
+    raw->value.state=jp::UpdateState::Available;assert(service.status().state==jp::UpdateState::Available);
     std::cout << "update policy tests passed\n";
 }

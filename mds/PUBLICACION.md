@@ -71,17 +71,22 @@ configuración pública, ignorada por Git. No ejecutar esa configuración hasta 
 SDKs nativos, feeds correctos, firmas y paquetes probados.
 
 - Linux: adaptador para `libappimageupdate`, descarga sin sobrescribir y exige
-  `VALIDATION_PASSED` (incluye rechazo de firmas ausentes/cambiadas). El helper
+  `VALIDATION_PASSED` (incluye rechazo de firmas ausentes/cambiadas). El SDK corre
+  en un proceso separado, cancelable, con progreso y omisión por versión. El helper
   espera el cierre del proceso, conserva la versión anterior y arranca la nueva.
   Si termina antes de informar arranque completo, restaura la anterior. Si queda
   colgada, no mata el renderer: requiere recuperación manual.
 - Windows: adaptador condicional para WinSparkle, clave pública Ed25519, interfaz
   nativa de descarga y captura del instalador verificado. Solo la acción final de
   Guipper ejecuta el instalador. Inno Setup instala versiones lado a lado.
-- **Pendiente:** compilación/enlace y validación real de ambos SDKs en paquetes
-  firmados, progreso detallado/omisión por versión en Linux, interrupción inmediata
-  de la conexión durante una consulta y rollback automático equivalente en Windows. La configuración beta
-  de AppImage debe apuntar a un feed dedicado; no usar `latest` para ambos canales.
+- Linux: SDK y empaquetado firmado implementados y probados con claves descartables.
+  Ver [guía de actualizaciones Linux](../release/LINUX_UPDATES.md) para compilar,
+  firmar, probar y publicar los canales `stable`/`beta` después de los paquetes.
+- **Pendiente público:** clave permanente del mantenedor, publicación de los
+  canales y recorrido A → B con el AppImage completo en hardware real.
+- **Pendiente Windows:** enlace y validación de WinSparkle, paquetes firmados y
+  rollback equivalente. No usar `latest` para mezclar canales.
+
 
 El diagnóstico exportado contiene versión, plataforma, GPU, canal y un registro
 acotado de códigos de eventos. No incluye fuente GLSL, contenido de proyectos,

@@ -36,8 +36,8 @@ TARGETS := appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM
 
 all: $(TARGETS)
 
-appimage_backend_tests: appimage_backend_tests.cpp fakes/appimage/update.h ../src/JPutils/jp_update_platform.cpp ../src/JPutils/jp_update_service.cpp ../src/JPutils/jp_app_paths.cpp
-	$(CXX) $(CXXFLAGS) -pthread -Ifakes -DGUIPPER_APPIMAGE_UPDATES -DGUIPPER_APPIMAGE_STABLE='"test-stable"' -DGUIPPER_APPIMAGE_BETA='"test-beta"' appimage_backend_tests.cpp ../src/JPutils/jp_update_platform.cpp ../src/JPutils/jp_update_service.cpp ../src/JPutils/jp_app_paths.cpp -o $@
+appimage_backend_tests: appimage_backend_tests.cpp ../src/JPutils/jp_update_platform.cpp ../src/JPutils/jp_update_service.cpp ../src/JPutils/jp_app_paths.cpp
+	$(CXX) $(CXXFLAGS) -pthread -DGUIPPER_UPDATE_TEST -DGUIPPER_APPIMAGE_UPDATES -DGUIPPER_APPIMAGE_STABLE='"test-stable"' -DGUIPPER_APPIMAGE_BETA='"test-beta"' appimage_backend_tests.cpp ../src/JPutils/jp_update_platform.cpp ../src/JPutils/jp_update_service.cpp ../src/JPutils/jp_app_paths.cpp -o $@
 
 update_service_tests: update_service_tests.cpp ../src/JPutils/jp_update_service.cpp ../src/JPutils/jp_update_service.h
 	$(CXX) $(CXXFLAGS) update_service_tests.cpp ../src/JPutils/jp_update_service.cpp -o $@

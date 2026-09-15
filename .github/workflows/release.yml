@@ -22,12 +22,33 @@ jobs:
         run: |
           test "${GITHUB_REF_NAME}" = "v$(cat VERSION)"
           python3 scripts/release/verify_dependencies.py --of-root ../../..
-      - run: make -C tests run && make Release -j2
+      - run: make -C tests run && python3 -m unittest discover -s tests -p 'release_*_tests.py'
+      - name: Build pinned Linux updater
+        run: |
+          updater_sdk="$RUNNER_TEMP/guipper-update-sdk-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          python3 scripts/release/build-linux-update-sdk.py --work "$RUNNER_TEMP/guipper-update-build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --output "$updater_sdk"
+          echo "GUIPPER_UPDATE_SDK=$updater_sdk" >> "$GITHUB_ENV"
+      - name: Configure signed Linux channels
+        env:
+          GUIPPER_SIGNING_KEY: ${{ vars.GUIPPER_LINUX_SIGNING_FINGERPRINT }}
+        run: |
+          : "${GUIPPER_SIGNING_KEY:?Configure the public Linux signing fingerprint and provision its private key on this runner}"
+          stable="gh-releases-zsync|${GITHUB_REPOSITORY%/*}|${GITHUB_REPOSITORY#*/}|stable|Guipper-linux-x64.AppImage.zsync"
+          beta="gh-releases-zsync|${GITHUB_REPOSITORY%/*}|${GITHUB_REPOSITORY#*/}|beta|Guipper-linux-x64.AppImage.zsync"
+          python3 scripts/release/configure_updates.py --platform linux --stable "$stable" --beta "$beta" --signing-fingerprint "$GUIPPER_SIGNING_KEY"
+          channel="$stable"
+          case "$(cat VERSION)" in *-*) channel="$beta";; esac
+          echo "GUIPPER_SIGNING_KEY=$GUIPPER_SIGNING_KEY" >> "$GITHUB_ENV"
+          echo "GUIPPER_UPDATE_INFORMATION=$channel" >> "$GITHUB_ENV"
+          echo "GUIPPER_DOWNLOAD_URL=https://github.com/$GITHUB_REPOSITORY/releases/download/v$(cat VERSION)/Guipper-$(cat VERSION)-linux-x64.AppImage" >> "$GITHUB_ENV"
+      - run: make Release -j2
+      - name: Exercise real signatures and rollback with disposable keys
+        run: python3 scripts/release/test-linux-updates.py --sdk "$GUIPPER_UPDATE_SDK" --tool "$APPIMAGETOOL" --runtime "$APPIMAGE_RUNTIME"
       - run: bash scripts/release/package-linux.sh
       - uses: actions/upload-artifact@v4
         with:
           name: linux-package
-          path: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper/dist/*.AppImage
+          path: ${{ runner.temp }}/guipper-sdk-${{ github.run_id }}-${{ github.run_attempt }}/apps/myApps/Guipper/dist/*.AppImage*
           if-no-files-found: error
   windows:
     defaults:
