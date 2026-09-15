@@ -1,0 +1,6 @@
+{
+  "repository": "guipper/Guipper",
+  "signing_fingerprint": "EAE485030F022D467FCFD36E0F659D1854076536",
+  "stable": "gh-releases-zsync|guipper|Guipper|stable|Guipper-linux-x64.AppImage.zsync",
+  "beta": "gh-releases-zsync|guipper|Guipper|beta|Guipper-linux-x64.AppImage.zsync"
+}

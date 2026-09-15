@@ -113,7 +113,11 @@ Los tests usan su propio GNUPGHOME temporal y no acceden a esa clave.
 5. Comprobar desde A la actualización a B con un perfil de prueba.
 
 Una etiqueta o commit por sí solo no actualiza instalaciones existentes.
-No hay canales públicos ni clave de producción configurados por este cambio.
+La clave pública de publicación está en `keys/guipper-updates-public.asc`; su
+huella es `EAE485030F022D467FCFD36E0F659D1854076536`. Los canales previstos de
+`guipper/Guipper` están registrados en `linux-update-channels.json`. La clave
+privada permanece en el llavero GPG del mantenedor. Publicar los canales sigue
+siendo un paso separado.
 
 ## Validación
 
