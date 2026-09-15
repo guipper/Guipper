@@ -4873,7 +4873,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 		{
 			// reloadActiveshader();
 		}
-		if (inspectorrandom.mouseGrab())
+		if (mouseButton == OF_MOUSE_BUTTON_LEFT && inspectorrandom.mouseGrab())
 		{
 			bool randomized = false;
 			for (JPParameter *parameter : getInspectorActionParameters())
@@ -5038,24 +5038,6 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				inspectorBox->parameters.setFloatLerpValue(controllers[i]->value, i);
 				markCueDraftDirty(cueSelectedIndex());
 			}
-		}
-		if (mouseButton == 2 && isDoubleClick)
-		{
-			cout << "DOBLE CLICK " << endl;
-			for (JPParameter *parameter : getInspectorActionParameters())
-			{
-				if (parameter->variabletype == JPParameter::FLOAT &&
-					!parameter->randomLocked)
-				{
-					const float rdm = ofRandom(parameter->effectiveMin(),
-						parameter->effectiveMax());
-					parameter->floatLerpValue = rdm;
-					parameter->floatValue = rdm;
-					markCueDraftDirty(cueSelectedIndex());
-
-				}
-			}
-			setControllers();
 		}
 		// POR ACA VA LA COSA POR AHROA
 		for (int i = 0; i < controllers.size(); i++)
