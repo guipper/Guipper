@@ -4,6 +4,7 @@
 #include "JPutils/jp_textwrap.h"
 #include <ctime>
 #include "JPgui/jp_gl_state.h"
+#include "JPgui/jp_button.h"
 
 void ofApp::loadReleasePreferences() {
     try {
@@ -95,69 +96,125 @@ void ofApp::releaseAction(int action) {
 }
 void ofApp::drawReleasePanel() {
     if (!releasePanelOpen) return;
-    const float width=std::max(1.0f,std::min(600.0f,float(ofGetWidth())-24.0f));
-    const float x=(ofGetWidth()-width)*0.5f;
-    const float height=std::max(1.0f,std::min(520.0f,float(ofGetHeight())-24.0f));
-    const float top=std::max(12.0f,(ofGetHeight()-height)*0.5f);
-    releaseViewport=ofRectangle(x,top,width,height);
-    releaseScroll=ofClamp(releaseScroll,0.0f,520.0f-height);
-    const float y=top-releaseScroll;
-    auto fit=[&](std::string text) {
-        if (font_p.stringWidth(text)<=width-60) return text;
-        while (!text.empty() && font_p.stringWidth(text+"...")>width-60) {
-            // Remove a complete UTF-8 codepoint.
+    const auto status=updates.status();
+    const bool es=language!=0;
+    const float width=std::max(1.0f,std::min(640.0f,float(ofGetWidth())-24.0f));
+    const float inset=std::min(24.0f,width*0.08f), inner=width-inset*2;
+    const bool compact=inner<540;
+    const float gap=jp_button::kGap, buttonHeight=32;
+    auto wrap=[&](const std::string& text) {
+        std::vector<std::string> result;
+        for (const auto& line:jp_textwrap::wrap([this](const string& value){return font_p.stringWidth(value);},text,std::max(1.0f,inner))) {
+            std::string part;
+            for (size_t at=0;at<line.size();) {
+                size_t end=at+1;
+                while (end<line.size() && (static_cast<unsigned char>(line[end])&0xc0)==0x80) ++end;
+                const auto codepoint=line.substr(at,end-at);
+                if (!part.empty() && font_p.stringWidth(part+codepoint)>inner) {result.push_back(part);part.clear();}
+                part+=codepoint;at=end;
+            }
+            result.push_back(part);
+        }
+        return result;
+    };
+    auto fit=[&](std::string text,float limit) {
+        if (jp_constants::p_font.stringWidth(text)<=limit) return text;
+        while (!text.empty() && jp_constants::p_font.stringWidth(text+"...")>limit) {
             size_t at=text.size()-1;
             while (at>0 && (static_cast<unsigned char>(text[at])&0xc0)==0x80) --at;
             text.resize(at);
         }
         return text+"...";
     };
-    ofPushStyle();
-    // Canvas nodes may leave CENTER mode active. Panel geometry and hit targets
-    // are window-space top-left rectangles, regardless of the preceding view.
-    ofSetRectMode(OF_RECTMODE_CORNER);
-    ofEnableAlphaBlending();
-    ofSetLineWidth(1.0f);
-    ofFill(); ofSetColor(0,0,0,180); ofDrawRectangle(0,0,ofGetWidth(),ofGetHeight());
-    ofSetColor(COL_BG_PANEL); ofDrawRectangle(releaseViewport);
-    jp_gl::ScopedScissor clip(releaseViewport);
-    ofSetColor(COL_TEXT_PRIMARY);
-    modalFont.drawString("Guipper " + std::string(jp::version),x+20,y+32);
-    const auto status=updates.status();
-    const bool es=language!=0;
-    const char* english[]={"Updates unavailable in this build", "No update selected", "Checking for updates...", "A new version is available", "Downloading...", "Verified update ready", "Update postponed", "Update could not complete", "Preparing installation..."};
-    const char* spanish[]={"Actualizaciones no disponibles en esta compilación", "Sin actualización seleccionada", "Buscando actualizaciones...", "Hay una nueva versión", "Descargando...", "Actualización verificada y lista", "Actualización pospuesta", "No se pudo completar la actualización", "Preparando instalación..."};
+    const char* english[]={"Updates unavailable in this build", "Ready to check for updates", "Checking for updates...", "A new version is available", "Downloading...", "Verified update ready", "Update postponed", "Update could not complete", "Preparing installation..."};
+    const char* spanish[]={"Actualizaciones no disponibles en esta compilación", "Listo para buscar actualizaciones", "Buscando actualizaciones...", "Hay una nueva versión", "Descargando...", "Actualización verificada y lista", "Actualización pospuesta", "No se pudo completar la actualización", "Preparando instalación..."};
     std::string statusText=(es?spanish:english)[int(status.state)];
-    if (status.state==jp::UpdateState::Available && !status.version.empty()) statusText += ": " + status.version;
-    if (status.state==jp::UpdateState::Downloading) {
-        statusText += " " + ofToString(int(ofClamp(status.progress,0.0,1.0)*100)) + "%";
-        if (status.message=="Verifying signature...") statusText=es?"Verificando firma...":"Verifying signature...";
-    }
-    font_p.drawString(fit(statusText),x+20,y+61);
-    font_p.drawString(fit((es?"Canal: ":"Channel: ")+updates.channel+(es?" | Consulta diaria: ":" | Daily checks: ")+(updates.automatic?(es?"sí":"on"):(es?"no":"off"))),x+20,y+86);
-    const std::vector<std::string> labels=es?
-        std::vector<std::string>{"Buscar actualizaciones", "Descargar", "Guardar e instalar", "Posponer / cancelar", "Activar / desactivar consulta diaria", "Cambiar canal stable / beta", "Exportar diagnóstico", "Omitir esta versión", "Ver novedades"}:
-        std::vector<std::string>{"Check for updates", "Download", "Save and install", "Postpone / cancel", "Enable / disable daily checks", "Switch stable / beta channel", "Export diagnostics", "Skip this version", "View release notes"};
-    for (int i=0;i<9;++i) {
-        releaseButtons[i]=ofRectangle(x+20,y+101+i*35,width-40,29);
-        const bool enabled=releaseActionEnabled(i);
-        ofSetColor(enabled?COL_TEXT_PRIMARY:COL_TEXT_SECONDARY);
-        ofNoFill(); ofDrawRectangle(releaseButtons[i]); ofFill();
-        font_p.drawString(fit(ofToString(i+1)+". "+labels[i]),x+30,y+121+i*35);
-    }
-    ofSetColor(COL_TEXT_PRIMARY);
-    auto message=releaseMessage;
+    const bool downloading=status.state==jp::UpdateState::Downloading;
+    if (downloading) statusText=status.message=="Verifying signature..." ?
+        (es?"Verificando firma...":"Verifying signature...") : statusText+" "+ofToString(int(ofClamp(status.progress,0.0,1.0)*100))+"%";
+    std::string message=releaseMessage;
     if (status.state==jp::UpdateState::Error && !status.message.empty()) message=status.message;
+    if (status.state==jp::UpdateState::Disabled && message.empty())
+        message=es?"Abrí un AppImage firmado con actualizaciones habilitadas.":"Open a signed AppImage with updates enabled.";
     if (status.message=="Cancelling check...") message=es?"Cancelando consulta...":"Cancelling check...";
     if (status.message=="Stopping download...") message=es?"Deteniendo descarga...":"Stopping download...";
     if (status.state==jp::UpdateState::Installing) message=es?"Verificando antes de instalar. Podés cancelar.":"Verifying before installation. You can cancel.";
-    if (message.empty()) message=es?"Esc: cerrar. Nunca se instala ni reinicia automáticamente.":"Esc: close. Installation and restart are always your choice.";
-    const auto lines=jp_textwrap::wrap([this](const string& text){return font_p.stringWidth(text);},message,width-40);
-    for (size_t i=0;i<std::min<size_t>(lines.size(),3);++i) font_p.drawString(lines[i],x+20,y+445+i*17);
-    if (height<520) {
-        ofSetColor(COL_TEXT_SECONDARY);
-        const float thumb=height*height/520.0f;
-        ofDrawRectangle(x+width-6,top+(height-thumb)*releaseScroll/(520.0f-height),3,thumb);
+    const auto statusLines=wrap(statusText);
+    const auto versionLines=wrap(status.version);
+    const auto messageLines=message.empty()?std::vector<std::string>{}:wrap(message);
+    const auto footerLines=wrap(es?"Guardá tu trabajo antes de instalar. Nunca se reinicia automáticamente.":"Save your work before installing. Guipper never restarts automatically.");
+    const float rowBlock=compact?3*(buttonHeight+gap):buttonHeight+gap;
+    const float statusHeight=statusLines.size()*20+(status.version.empty()?0:versionLines.size()*18+8)+(downloading?16:0);
+    const float contentHeight=100+statusHeight+rowBlock*2+30+2*(buttonHeight+gap)+30+buttonHeight+24+messageLines.size()*18+(messageLines.empty()?0:12)+footerLines.size()*18+24;
+    const float height=std::max(1.0f,std::min(contentHeight,float(ofGetHeight())-24.0f));
+    const float x=(ofGetWidth()-width)*0.5f, top=(ofGetHeight()-height)*0.5f;
+    releaseViewport=ofRectangle(x,top,width,height);
+    releaseScrollMax=std::max(0.0f,contentHeight-height);
+    releaseScroll=ofClamp(releaseScroll,0.0f,releaseScrollMax);
+    float y=top-releaseScroll;
+    const float left=x+inset;
+    ofPushStyle();
+    ofSetRectMode(OF_RECTMODE_CORNER);
+    ofEnableAlphaBlending(); ofSetLineWidth(1); ofFill();
+    ofSetColor(0,0,0,180); ofDrawRectangle(0,0,ofGetWidth(),ofGetHeight());
+    ofSetColor(COL_BG_PANEL); ofDrawRectRounded(releaseViewport,4);
+    ofNoFill(); ofSetColor(COL_BORDER_DEFAULT); ofDrawRectRounded(releaseViewport,4); ofFill();
+    jp_gl::ScopedScissor clip(releaseViewport);
+    jp_pointer::Scope pointer(jp_pointer::kModal);
+    ofSetColor(COL_TEXT_PRIMARY);
+    modalFont.drawString(es?"Actualizaciones":"Updates",left,y+32);
+    releaseCloseButton=ofRectangle(x+width-inset-64,y+16,64,28);
+    jp_button::draw(releaseCloseButton,"Esc",false,status.state!=jp::UpdateState::Installing);
+    ofSetColor(COL_TEXT_SECONDARY);
+    font_p.drawString("Guipper "+std::string(jp::version),left,y+57);
+    ofSetColor(COL_BORDER_MUTED); ofDrawLine(left,y+72,left+inner,y+72);
+    y+=100;
+    ofSetColor(status.state==jp::UpdateState::Error?COL_ACCENT_RED_DIM:
+        (status.state==jp::UpdateState::Ready?COL_ACCENT_GREEN:COL_TEXT_PRIMARY));
+    for (const auto& line:statusLines) {font_p.drawString(line,left,y);y+=20;}
+    if (!status.version.empty()) {
+        y+=8; ofSetColor(COL_TEXT_SECONDARY);
+        for (const auto& line:versionLines) {font_p.drawString(line,left,y);y+=18;}
+    }
+    if (downloading) {
+        ofSetColor(COL_BG_INPUT); ofDrawRectangle(left,y-5,inner,4);
+        ofSetColor(COL_ACCENT_CYAN); ofDrawRectangle(left,y-5,inner*ofClamp(status.progress,0.0,1.0),4); y+=16;
+    }
+    if (!messageLines.empty()) {
+        ofSetColor(status.state==jp::UpdateState::Error?COL_ACCENT_RED_DIM:COL_TEXT_SECONDARY);
+        for (const auto& line:messageLines) {font_p.drawString(line,left,y);y+=18;}
+        y+=12;
+    }
+    const std::vector<std::string> labels=es?
+        std::vector<std::string>{"Buscar", "Descargar", "Guardar e instalar", "Posponer / cancelar", std::string("Consulta diaria: ")+(updates.automatic?"activada":"desactivada"), "Canal: "+updates.channel+" (cambiar)", "Exportar diagnóstico", "Omitir versión", "Ver novedades"}:
+        std::vector<std::string>{"Check for updates", "Download", "Save and install", "Postpone / cancel", std::string("Daily checks: ")+(updates.automatic?"on":"off"), "Channel: "+updates.channel+" (switch)", "Export diagnostics", "Skip version", "Release notes"};
+    const int primary=status.state==jp::UpdateState::Available?1:(status.state==jp::UpdateState::Ready?2:0);
+    auto button=[&](int action,float bx,float by,float bw) {
+        releaseButtons[action]=ofRectangle(bx,by,bw,buttonHeight);
+        jp_button::draw(releaseButtons[action],fit(ofToString(action+1)+"  "+labels[action],bw-16),
+            (action==primary && releaseActionEnabled(action)) || (action==4 && updates.automatic),releaseActionEnabled(action),
+            action==4?COL_ACCENT_GREEN:COL_ACCENT_CYAN);
+    };
+    auto row=[&](std::array<int,3> actions) {
+        const float bw=compact?inner:(inner-gap*2)/3;
+        for (int i=0;i<3;++i) button(actions[i],left+(compact?0:i*(bw+gap)),y+(compact?i*(buttonHeight+gap):0),bw);
+        y+=rowBlock;
+    };
+    row({0,1,2}); row({3,7,8});
+    auto section=[&](const std::string& title) {
+        y+=12; ofSetColor(COL_TEXT_DIM); font_p.drawString(title,left,y); y+=18;
+    };
+    section(es?"PREFERENCIAS":"PREFERENCES");
+    button(5,left,y,inner); y+=buttonHeight+gap;
+    button(4,left,y,inner); y+=buttonHeight+gap;
+    section(es?"SOPORTE":"SUPPORT");
+    button(6,left,y,inner); y+=buttonHeight+24;
+    ofSetColor(COL_TEXT_DIM);
+    for (const auto& line:footerLines) {font_p.drawString(line,left,y);y+=18;}
+    if (releaseScrollMax>0) {
+        ofSetColor(COL_BG_SCROLLBAR);
+        const float thumb=height*height/contentHeight;
+        ofDrawRectangle(x+width-6,top+(height-thumb)*releaseScroll/releaseScrollMax,3,thumb);
     }
     ofPopStyle();
 }

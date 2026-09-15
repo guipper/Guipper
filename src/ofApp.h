@@ -306,6 +306,8 @@ public:
     std::string announcedUpdate;
     string releaseMessage;
     float releaseScroll = 0;
+    float releaseScrollMax = 0;
+    ofRectangle releaseCloseButton;
     ofRectangle releaseViewport;
     bool releaseActionEnabled(int action);
     std::array<ofRectangle,9> releaseButtons;

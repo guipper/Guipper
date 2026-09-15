@@ -381,7 +381,7 @@ void ofApp::registerSurfaces()
 
 	// One pointer-owner rule for every control that opts into a layer.
 	jp_pointer::setOcclusionTest([this](float x, float y, int order) {
-		return releasePanelOpen || surfaces.blockedAt(x, y, order);
+		return (releasePanelOpen && order < jp_pointer::kModal) || surfaces.blockedAt(x, y, order);
 	});
 }
 // One way in to every screen.
@@ -5887,6 +5887,10 @@ void ofApp::keyPressed(int key) {
     if (releasePanelOpen) {
         if (key == OF_KEY_ESC && updates.status().state!=jp::UpdateState::Installing) releasePanelOpen=false;
         else if (key >= '1' && key <= '9') releaseAction(key-'1');
+        else if (key == OF_KEY_PAGE_DOWN) releaseScroll += releaseViewport.height*0.8f;
+        else if (key == OF_KEY_PAGE_UP) releaseScroll -= releaseViewport.height*0.8f;
+        else if (key == OF_KEY_HOME) releaseScroll=0;
+        else if (key == OF_KEY_END) releaseScroll=releaseScrollMax;
         return;
     }
     if (!recoveryCandidate.empty() && (key == OF_KEY_F9 || key == OF_KEY_F8)) {
@@ -6491,6 +6495,7 @@ void ofApp::mouseDragged(int x, int y, int button) {
 void ofApp::mousePressed(int x, int y, int button) {
     if (releasePanelOpen) {
         if (button != OF_MOUSE_BUTTON_LEFT || !releaseViewport.inside(x,y)) return;
+        if (releaseCloseButton.inside(x,y) && updates.status().state!=jp::UpdateState::Installing) { releasePanelOpen=false; return; }
         for (int i=0;i<9;++i) if (releaseButtons[i].inside(x,y)) { releaseAction(i); break; }
         return;
     }
