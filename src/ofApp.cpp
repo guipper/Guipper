@@ -6253,8 +6253,10 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	{
 		const bool ctrlOrCmd = e.hasModifier(OF_KEY_CONTROL) ||
 			e.hasModifier(OF_KEY_SUPER);
-		const bool debugChord = e.key == 4 ||
-			(ctrlOrCmd && (e.key == 'd' || e.key == 'D'));
+		// OF_KEY_ALT and the folded Ctrl+D character are both 4. Use the
+		// physical D key so modifier events cannot open the panel.
+		const bool debugChord = ctrlOrCmd && !e.hasModifier(OF_KEY_ALT) &&
+			e.keycode == GLFW_KEY_D;
 		if (debugChord)
 		{
 			if (shaderEditor.wantsKeyCapture()) return;
