@@ -7,7 +7,18 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 
 ## Sin publicar
 
-Sin cambios pendientes.
+### Correcciones
+- Los clics en IMPORT bloquean las cajas y controles que se ven detrás. El bloqueo se conserva hasta soltar los botones, incluso al cargar un shader o arrastrar fuera del panel.
+
+### Mejoras
+- IMPORT distingue biblioteca local de catálogo oficial y muestra la categoría derivada de la carpeta.
+- La segunda entrada de la vista previa usa `img/preview1.webp`; la primera conserva el logo. Si la foto no está disponible, se usa la referencia incluida en el paquete.
+- Navegador preparado para nombres, descripciones bilingües y etiquetas del catálogo oficial, conservando rutas y favoritos existentes.
+- Descripción, entradas requeridas y distinción entre biblioteca oficial y copias personales en la selección.
+- Vista previa enlazada a los nombres de las entradas declaradas y controles iniciales con valores definidos; navegador adaptado a ventanas pequeñas.
+- Ejemplos de Getting Started accesibles en el navegador.
+
+La colección de 24 shaders sigue pendiente de selección visual y revisión de procedencia. La preselección permanece local; estos cambios no incluyen archivos `.frag` ni `.xml` nuevos o modificados. El catálogo oficial continúa vacío.
 
 ## [0.1.0-beta.4](https://github.com/guipper/Guipper/releases/tag/v0.1.0-beta.4) — 2026-09-15
 
