@@ -377,6 +377,9 @@
     <ClInclude Include="src\JPutils\jp_uniform_parser.h">
       <Filter>src\JPutils</Filter>
     </ClInclude>
+    <ClInclude Include="src\JPutils\jp_shader_catalog.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
     <ClInclude Include="src\JPutils\jp_version.h">
       <Filter>src\JPutils</Filter>
     </ClInclude>

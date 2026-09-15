@@ -12,3 +12,7 @@ NDI runtime is not included by the asset staging script. Its installation and
 redistribution requirements must be validated separately for each platform.
 Contributed shader collections, Microsoft fonts, personal media and compositions
 are deliberately absent from the initial distribution allowlist.
+
+## Biblioteca de shaders en revisión
+
+`release/shader-candidates.json` es una preselección local sin aprobación de redistribución. No forma parte de los recursos empaquetados. La colección oficial seguirá vacía hasta documentar autoría y permisos por archivo; ver `mds/SHADER_LIBRARY.md`.

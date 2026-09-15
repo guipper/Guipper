@@ -18,6 +18,8 @@ def stage(output, binary):
     if not compiled_version or compiled_version.group(1) != version:
         raise ValueError('VERSION and compiled version header differ')
     manifest = json.loads((ROOT/'release/assets.json').read_text())
+    from shader_library import validate
+    catalog = validate(ROOT, manifest['assets'])
     # Validate everything before copying any payload.
     for item in manifest['assets']:
         path = Path(item['path'])
@@ -32,6 +34,8 @@ def stage(output, binary):
         target = output/'data'/item['path']
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT/'bin/data'/item['path'], target)
+    if catalog is not None:
+        (output/'data/shader-library.json').write_text(json.dumps(catalog,indent=2,ensure_ascii=False)+'\n')
     (output/'data/distribution.marker').write_text('1\n')
     shutil.copy2(output/'data/guipper.png',output/'data/preview2.png')
     for guide in ['START_HERE_ES.md','START_HERE_EN.md']:

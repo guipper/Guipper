@@ -285,6 +285,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\JPutils\jp_uniform_parser.h" />
+    <ClInclude Include="src\JPutils\jp_shader_catalog.h" />
     <ClInclude Include="src\JPutils\jp_version.h" />
     <ClInclude Include="src\JPutils\jp_update_service.h" />
     <ClInclude Include="src\JPutils\jp_recovery.h" />

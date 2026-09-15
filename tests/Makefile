@@ -30,11 +30,15 @@ MAPPING_BOOLEAN_HEADERS := ../src/JPbox/jp_mapping_boolean.h
 UNIFORM_TARGET := uniform_parser_tests
 UNIFORM_SOURCES := uniform_parser_tests.cpp ../src/JPutils/jp_uniform_parser.cpp
 UNIFORM_HEADERS := ../src/JPutils/jp_uniform_parser.h
-TARGETS := appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM_TARGET) $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
+TARGETS := shader_catalog_tests appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM_TARGET) $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
 
 .PHONY: all run tsan clean
 
 all: $(TARGETS)
+
+JSON_INCLUDE ?= ../../../../libs/json/include
+shader_catalog_tests: shader_catalog_tests.cpp ../src/JPutils/jp_shader_catalog.h
+	$(CXX) $(CXXFLAGS) -I$(JSON_INCLUDE) shader_catalog_tests.cpp -o $@
 
 appimage_backend_tests: appimage_backend_tests.cpp ../src/JPutils/jp_update_platform.cpp ../src/JPutils/jp_update_service.cpp ../src/JPutils/jp_app_paths.cpp
 	$(CXX) $(CXXFLAGS) -pthread -DGUIPPER_UPDATE_TEST -DGUIPPER_APPIMAGE_UPDATES -DGUIPPER_APPIMAGE_STABLE='"test-stable"' -DGUIPPER_APPIMAGE_BETA='"test-beta"' appimage_backend_tests.cpp ../src/JPutils/jp_update_platform.cpp ../src/JPutils/jp_update_service.cpp ../src/JPutils/jp_app_paths.cpp -o $@
@@ -76,6 +80,7 @@ $(UNIFORM_TARGET): $(UNIFORM_SOURCES) $(UNIFORM_HEADERS)
 	$(CXX) $(CXXFLAGS) $(UNIFORM_SOURCES) -o $@
 
 run: $(TARGETS)
+	./shader_catalog_tests
 	./appimage_backend_tests
 	./update_service_tests
 	./app_paths_tests

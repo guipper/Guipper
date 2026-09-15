@@ -7,5 +7,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y nlohmann-json3-dev
       - run: make -C tests run
       - run: python3 -m unittest discover -s tests -p 'release_*_tests.py'
