@@ -44,10 +44,7 @@ jobs:
         run: |
           if ($env:GITHUB_REF_NAME -ne "v$((Get-Content VERSION).Trim())") { throw 'Version/tag mismatch' }
           ./scripts/release/build-windows.ps1
-          python scripts/release/stage.py --output dist/windows --binary bin/Guipper.exe
-          if ($LASTEXITCODE -ne 0) { throw 'Staging failed' }
-          & $env:ISCC "/DStageDir=$pwd/dist/windows" "/DAppVersion=$((Get-Content VERSION).Trim())" /Odist release/guipper.iss
-          if ($LASTEXITCODE -ne 0) { throw 'Installer failed' }
+          ./scripts/release/package-windows.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: windows-package

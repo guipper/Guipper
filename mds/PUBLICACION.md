@@ -100,7 +100,9 @@ medios ni logs de compilador sin filtrar. Nada se envía automáticamente.
   El AppImage local es un candidato sin firma; no debe publicarse como estable.
 - Windows: `_build_release_x64.bat` invoca el script PowerShell sin rutas personales.
   `release/guipper.iss` recibe `StageDir` y `AppVersion`; requiere Inno Setup.
-  **Pendiente:** inventario explícito de DLLs/runtime y sus avisos para el paquete Windows.
+  **Implementado:** verificación de DLLs x64, hashes, avisos y dependencias antes de Inno.
+  **Pendiente:** poblar el manifiesto con el SDK Windows real y validar el instalador; ver
+  [preparación Windows](../release/WINDOWS.md).
 
 Los workflows de release usan runners dedicados con `GUIPPER_OF_SDK`; copian el
 SDK a un workspace aislado y construyen allí. Linux requiere las tres herramientas;
