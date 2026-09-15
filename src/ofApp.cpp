@@ -124,6 +124,12 @@ void ofApp::setup() {
 
 	// After loadSettings so the saved device, gain and enable state apply.
 	jp_audio::setup();
+    // Distinct reference images for single-input effects and two-input mixers.
+    previewImg1.load("guipper.png");
+    if (!ofFile::doesFileExist("img/preview1.webp") || !previewImg2.load("img/preview1.webp")) {
+        if (!ofFile::doesFileExist("image/demo-gradient.png") || !previewImg2.load("image/demo-gradient.png"))
+            previewImg2.load("preview2.png");
+    }
 	if (std::getenv("GUIPPER_PERSISTENCE_TEST") != nullptr)
 	{
 		const bool passed = jp_persistence_test::run(*this);
@@ -139,12 +145,6 @@ void ofApp::setup() {
 
 	loadAspreset = true; // Default: drag XML as boxgroup. Press 't' to toggle to full session load.
 
-	// Use the Guipper artwork as the primary shader-preview input. Keep the
-	// secondary image for blending shaders that need two distinct textures.
-	previewImg1.load("guipper.png");
-	previewImg2.load("preview2.png");
-	if (previewImg1.isAllocated()) cout << "guipper.png preview loaded OK" << endl;
-	if (previewImg2.isAllocated()) cout << "preview2.png loaded OK" << endl;
 
 	//.----------------------------------------------------------------/
 
@@ -5019,12 +5019,22 @@ static vector<std::pair<string, string>> listFragFiles(const string &directory)
 
 void ofApp::scanShaders() {
 	shaderFolders.clear();
+    std::map<string,jp_shader_catalog::Entry> catalog;
+    const auto catalogFile=jp::AppPaths::current().bundle/"shader-library.json";
+    try {
+        if (std::filesystem::is_regular_file(catalogFile)) {
+            if(std::filesystem::file_size(catalogFile)>1024*1024) throw std::runtime_error("Shader catalog is too large");
+            for(const auto& entry:jp_shader_catalog::parse(ofJson::parse(jp::readBytes(catalogFile))))catalog.emplace(entry.path,entry);
+        }
+    } catch(const std::exception& error) {ofLogWarning("shader-catalog")<<error.what();}
+    std::set<string> listed;
 
 	// Only scan these specific root folders (no sub-subdirectories)
-	vector<string> targetFolders = { "blending", "contrib", "generative", "imageprocessing" };
+	vector<string> targetFolders = { "blending", "contrib", "generative", "imageprocessing", "Getting Started" };
 	int helperFragmentsSkipped = 0;
 	auto appendStandaloneShader = [&](ShaderFolder &folder, const string &path,
 		const string &absolutePath) {
+        if(listed.count(path))return;
 		if (!shaderHasMain(absolutePath)) {
 			helperFragmentsSkipped++;
 			return;
@@ -5032,9 +5042,24 @@ void ofApp::scanShaders() {
 		ShaderEntry entry;
 		entry.name = ofFilePath::getBaseName(path);
 		entry.path = path;
+        const auto bundled=jp::AppPaths::current().bundle/path;
+        try {entry.personal=!std::filesystem::is_regular_file(bundled)||jp::readBytes(bundled)!=jp::readBytes(absolutePath);}
+        catch(const std::exception&) {entry.personal=true;}
+        auto metadata=catalog.find(path);
+        if(metadata!=catalog.end()) {entry.catalogued=true;entry.metadata=metadata->second;entry.official=!entry.personal;}
+        listed.insert(path);
 		folder.shaders.push_back(entry);
 	};
 
+    for(const string category:{"generative","effects","mixers"}) {
+        ShaderFolder folder;folder.name=jp_shader_catalog::categoryName(category,false);folder.category=category;
+        folder.path="catalog:"+category;folder.expanded=true;
+        for(const auto& pair:catalog) if(pair.second.category==category) {
+            const auto resolved=ofToDataPath(pair.first,true);
+            if(std::filesystem::is_regular_file(resolved))appendStandaloneShader(folder,pair.first,resolved);
+        }
+        if(!folder.shaders.empty())shaderFolders.push_back(folder);
+    }
 	// Root shaders/ folder (files directly in shaders/)
 	{
 		ShaderFolder rootFolder;
@@ -5219,16 +5244,17 @@ void ofApp::toggleFavoritesDisplayMode() {
 }
 ofApp::ShaderBrowserLayout ofApp::getShaderBrowserLayout() const {
 	ShaderBrowserLayout layout;
-	const float panelX = 30.0f;
+	const float panelX = std::min(30.0f,ofGetWidth()*0.04f);
 	const float panelY = 44.0f;
-	const float panelW = std::max(300.0f, ofGetWidth() * 0.5f - panelX - 4.0f);
-	const float panelH = std::max(420.0f, ofGetHeight() - panelY - 30.0f);
+	const float panelW = std::max(1.0f,std::min(float(ofGetWidth())-panelX*2,std::max(300.0f,ofGetWidth()*0.5f-panelX-4.0f)));
+	const float panelH = std::max(1.0f, ofGetHeight() - panelY - 16.0f);
 	const float inset = 15.0f;
 	const float contentX = panelX + inset;
 	const float contentW = panelW - inset * 2.0f;
 	const float footerH = 30.0f;
 	const float footerY = panelY + panelH - footerH - 10.0f;
-	const float previewH = 170.0f;
+	const float previewH = panelH<550?70.0f:140.0f;
+    const float detailsH=76.0f;
 	const float previewY = footerY - previewH - 10.0f;
 	const float searchY = panelY + jp_screen::kHeaderH;
 	const float searchH = 26.0f;
@@ -5242,7 +5268,8 @@ ofApp::ShaderBrowserLayout ofApp::getShaderBrowserLayout() const {
 	layout.search.set(contentX, searchY, contentW, searchH);
 	layout.searchClear.set(contentX + contentW - searchH, searchY, searchH, searchH);
 	layout.list.set(contentX, searchY + searchH + 9.0f,
-		contentW, std::max(0.0f, previewY - 8.0f - (searchY + searchH + 9.0f)));
+		contentW, std::max(0.0f, previewY - detailsH - 16.0f - (searchY + searchH + 9.0f)));
+    layout.details.set(contentX,previewY-detailsH-8,contentW,detailsH);
 	layout.preview.set(contentX, previewY, contentW, previewH);
 	layout.loadButton.set(contentX, footerY, footerW, footerH);
 	layout.bindButton.set(contentX + footerW + buttonGap, footerY, footerW, footerH);
@@ -5266,10 +5293,11 @@ vector<ofApp::ShaderBrowserRow> ofApp::buildShaderBrowserRows() const {
 		vector<int> visibleShaders;
 		if (searchActive) {
 			const bool folderMatch =
-				ofToLower(folder.name).find(searchLower) != string::npos;
+				ofToLower(folder.name+" "+jp_shader_catalog::categoryName(folder.category,true)).find(searchLower) != string::npos;
 			for (int shaderIndex : getOrderedShaderIndices(f)) {
 				if (folderMatch ||
-					ofToLower(folder.shaders[shaderIndex].name).find(searchLower) != string::npos) {
+					ofToLower(folder.shaders[shaderIndex].name+" "+folder.shaders[shaderIndex].path).find(searchLower) != string::npos ||
+                    (folder.shaders[shaderIndex].catalogued && jp_shader_catalog::matches(folder.shaders[shaderIndex].metadata,shaderSearchText))) {
 					visibleShaders.push_back(shaderIndex);
 				}
 			}
@@ -5406,6 +5434,10 @@ void ofApp::renderShaderPreview(bool useLiveMouse) {
 		previewShader.setUniform1i("textura2", 1);
 		previewShader.setUniform1i("tex1", 1);
 	}
+    for(size_t i=0;i<previewInputNames.size();++i) {
+        const auto& image=i%2==0?previewImg1:previewImg2;
+        if(image.isAllocated())previewShader.setUniformTexture(previewInputNames[i],image.getTexture(),i%2);
+    }
 	ofSetColor(COL_TEXT_PRIMARY);
 	ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
 	previewShader.end();
@@ -5428,6 +5460,7 @@ void ofApp::selectShaderForPreview(int f, int s) {
 	previewShaderLoaded = false;
 	lastPreviewRenderTime = -1.0f;
 	previewUniformNames.clear();
+    previewInputNames.clear();
 	previewUniformMins.clear();
 	previewUniformMaxs.clear();
 	previewRdmValues.clear();
@@ -5439,6 +5472,8 @@ void ofApp::selectShaderForPreview(int f, int s) {
 		const auto parsed = jp_uniform_parser::parse(ofBufferFromFile(shaderPath).getText());
 		if (!parsed.hasErrors()) for (const auto &uniform : parsed.declarations)
 		{
+            if ((uniform.type==jp_uniform_parser::Type::Sampler2D || uniform.type==jp_uniform_parser::Type::Sampler2DRect) &&
+                !uniform.internal && !uniform.array && !jp_shader_globals::isGlobalName(uniform.name))previewInputNames.push_back(uniform.name);
 			if (uniform.type != jp_uniform_parser::Type::Float ||
 				uniform.internal || uniform.array) continue;
 			const string &uname = uniform.name;
@@ -5449,8 +5484,9 @@ void ofApp::selectShaderForPreview(int f, int s) {
 			previewUniformNames.push_back(uname);
 			previewUniformMins.push_back(0.0f);
 			previewUniformMaxs.push_back(1.0f);
-			previewRdmValues.push_back(0.0f);
+			previewRdmValues.push_back(uniform.floatDefault.value_or(0.5f));
 		}
+        previewRdmActive=true;
 		renderShaderPreview(false);
 	}
 }
@@ -5561,9 +5597,10 @@ void ofApp::draw_shaderindex() {
 		"IMPORTAR  |  " + ofToString(totalShaders) + " shaders";
 	// Half width so the node canvas stays visible behind it, but otherwise the
 	// same frame, border, title and subtitle as every other screen.
-	jp_screen::drawFrame(layout.panel, title, language == 0 ?
-		"Up/Down navigate | double click/Enter to load" :
-		"Arriba/Abajo navegar | doble clic/Enter para cargar");
+	jp_screen::drawFrame(layout.panel, title, layout.panel.width < 480 ?
+        (language == 0 ? "Up/Down select | Enter load" : "Arriba/Abajo | Enter cargar") :
+        (language == 0 ? "Up/Down navigate | double click/Enter to load" :
+        "Arriba/Abajo navegar | doble clic/Enter para cargar"));
 
 	const bool modeHovered = layout.favoritesModeButton.inside(ofGetMouseX(), ofGetMouseY());
 	ofSetColor(ofColor(COL_BG_BUTTON, 235));
@@ -5727,7 +5764,7 @@ void ofApp::draw_shaderindex() {
 			}
 			const string countText = "(" + ofToString((int)folder.shaders.size()) + ")";
 			const float countWidth = font_p.stringWidth(countText);
-			const string folderName = fitText(folder.name,
+			const string folderName = fitText(folder.category.empty()?folder.name:jp_shader_catalog::categoryName(folder.category,language!=0),
 				row.bounds.width - (folderNameX - row.bounds.x) - countWidth - 16.0f);
 			ofSetColor(folder.isFavorites ? COL_ACCENT_GOLD :
 				(isHovered ? COL_TEXT_PRIMARY : ofColor(120, 200, 255)));
@@ -5777,7 +5814,7 @@ void ofApp::draw_shaderindex() {
 				nameRight = bindingX - 10.0f;
 			}
 			const string shaderName =
-				fitText(entry.name, std::max(20.0f, nameRight - nameX));
+				fitText(entry.displayName(language!=0), std::max(20.0f, nameRight - nameX));
 			ofSetColor(isSelected || isHovered ? COL_TEXT_PRIMARY : COL_TEXT_DIM);
 			font_p.drawString(shaderName, nameX, shaderBounds.y + shaderBounds.height - 4.0f);
 			if (!bindingLabel.empty()) {
@@ -5804,6 +5841,32 @@ void ofApp::draw_shaderindex() {
 	}
 
 	const bool hasSelection = !getSelectedShaderPath().empty();
+    if(hasSelection) {
+        const auto& entry=shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex];
+        // Text is width-fitted and limited to the detail area's four lines.
+        string origin=entry.official?(language==0?"Official library":"Biblioteca oficial"):
+            (entry.personal?(language==0?"Personal":"Personal"):(language==0?"Local library":"Biblioteca local"));
+        string category=entry.catalogued?entry.metadata.category:"";
+        if (category.empty()) {
+            if (entry.path.rfind("shaders/generative/",0)==0) category="generative";
+            else if (entry.path.rfind("shaders/imageprocessing/",0)==0) category="effects";
+            else if (entry.path.rfind("shaders/blending/",0)==0) category="mixers";
+        }
+        if (!category.empty()) origin+=" | "+jp_shader_catalog::categoryName(category,language!=0);
+        ofSetColor(entry.official?COL_ACCENT_CYAN:COL_TEXT_SECONDARY);
+        font_p.drawString(fitText(origin,layout.details.width),layout.details.x,layout.details.y+14);
+        const string description=entry.catalogued?entry.metadata.description.get(language!=0):entry.path;
+        auto lines=jp_textwrap::wrap([this](const string& text){return font_p.stringWidth(text);},description,layout.details.width);
+        ofSetColor(COL_TEXT_SECONDARY);
+        for(size_t i=0;i<std::min<size_t>(2,lines.size());++i)
+            font_p.drawString(fitText(lines[i]+(i==1&&lines.size()>2?"...":""),layout.details.width),layout.details.x,layout.details.y+31+i*16);
+        string inputs=language==0?"Inputs: ":"Entradas: ";
+        const auto& names=entry.catalogued?entry.metadata.inputs:previewInputNames;
+        if(names.empty())inputs+=language==0?"none":"ninguna";
+        for(size_t i=0;i<names.size();++i)inputs+=(i?", ":"")+names[i];
+        ofSetColor(COL_TEXT_DIM);font_p.drawString(fitText(inputs,layout.details.width),layout.details.x,layout.details.y+66);
+    }
+
 	auto drawFooterButton = [&](const ofRectangle &button, ofColor fill,
 		ofColor border, const string &label, bool enabled) {
 		jp_button::draw(button, label, false, enabled, border);
@@ -5847,7 +5910,7 @@ void ofApp::draw_shaderindex() {
 		const ShaderEntry &selected =
 			shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex];
 		const string previewTitle = fitText(
-			(language == 0 ? "PREVIEW: " : "PREVISTA: ") + selected.name,
+			(language == 0 ? "PREVIEW: " : "PREVISTA: ") + selected.displayName(language!=0),
 			layout.preview.width - previewPad * 2.0f);
 		ofSetColor(COL_ACCENT_CYAN);
 		font_p.drawString(previewTitle, layout.preview.x + previewPad,

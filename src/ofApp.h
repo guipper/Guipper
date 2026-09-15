@@ -1,3 +1,4 @@
+#include "JPutils/jp_shader_catalog.h"
 #include "JPutils/jp_update_service.h"
 #include "JPutils/jp_recovery.h"
 /*
@@ -339,12 +340,18 @@ public:
 		string name;
 		string path;
 		bool favorite = false;
+        bool catalogued = false;
+        bool official = false;
+        bool personal = false;
+        jp_shader_catalog::Entry metadata;
+        string displayName(bool es) const { return catalogued?metadata.name.get(es):name; }
 	};
 
 	struct ShaderFolder {
 		string name;
 		string path;
 		bool expanded = false;
+        string category;
 		bool isFavorites = false; // synthetic "favorites" folder pinned on top
 		vector<ShaderEntry> shaders;
 	};
@@ -361,6 +368,7 @@ public:
 		ofRectangle searchClear;
 		ofRectangle list;
 		ofRectangle preview;
+        ofRectangle details;
 		ofRectangle loadButton;
 		ofRectangle bindButton;
 		ofRectangle editButton;
@@ -536,6 +544,7 @@ public:
 	int shaderSearchCursor = 0;
 	// Preview random values for RDM button
 	vector<string> previewUniformNames;
+    vector<string> previewInputNames;
 	vector<float> previewUniformMins;
 	vector<float> previewUniformMaxs;
 	vector<float> previewRdmValues;
