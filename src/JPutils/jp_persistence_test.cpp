@@ -657,6 +657,38 @@ namespace
         return passed;
     }
 
+    bool checkImportPointer(ofApp& app) {
+        app.registerSurfaces();
+        const int before=app.pantallaActiva;
+        app.pantallaActiva=app.SHADER_INDEX;
+        const auto panel=app.getShaderBrowserLayout().panel;
+        const int x=panel.x+8, y=panel.y+panel.height/2;
+        bool passed=true;
+        {
+            jp_pointer::Scope canvas(jp_pointer::kCanvas);
+            passed=!jp_pointer::available(x,y);
+        }
+        for(int button:{OF_MOUSE_BUTTON_LEFT,OF_MOUSE_BUTTON_RIGHT})app.mousePressed(x,y,button);
+        // Switching screens mid-gesture must not hand the press to the nodes.
+        app.pantallaActiva=app.NODOS;
+        {
+            jp_pointer::Scope inspector(jp_pointer::kInspector);
+            passed=passed&&!jp_pointer::available(ofGetWidth()-2,ofGetHeight()-2);
+        }
+        app.mouseDragged(ofGetWidth()-2,ofGetHeight()-2,OF_MOUSE_BUTTON_LEFT);
+        app.mouseReleased(x,y,OF_MOUSE_BUTTON_LEFT);
+        passed=passed&&app.shaderBrowserPointerButtons.size()==1;
+        app.mouseReleased(x,y,OF_MOUSE_BUTTON_RIGHT);
+        passed=passed&&app.shaderBrowserPointerButtons.empty();
+        {
+            jp_pointer::Scope canvas(jp_pointer::kCanvas);
+            passed=passed&&jp_pointer::available(ofGetWidth()-2,ofGetHeight()-2);
+        }
+        app.pantallaActiva=before;
+        ofLogNotice("import-pointer")<<"passed="<<passed;
+        return passed;
+    }
+
 	bool checkLoadSafety(ofApp &app)
 	{
 		using Result = JPboxgroup::LoadResult;
@@ -791,7 +823,7 @@ bool jp_persistence_test::run(ofApp &app)
 	if (testMode && string(testMode) == "uniform_inventory") return writeUniformInventory();
 	if (!checkUniformReload()) return false;
 	if (testMode && string(testMode) == "uniform_parser") return true;
-	if (!checkLoadSafety(app) || !checkSaveShortcut(app) || !checkPersistenceModules()) return false;
+	if (!checkLoadSafety(app) || !checkSaveShortcut(app) || !checkImportPointer(app) || !checkPersistenceModules()) return false;
 	if (testMode && (string(testMode) == "load_safety" ||
 		string(testMode) == "architecture")) return true;
 	// Several checks below probe the RENDERED output, which is drawn through

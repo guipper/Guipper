@@ -417,6 +417,7 @@ public:
 		SURFACE_QUICK_IMAGES = jp_pointer::kQuickImages,
 		SURFACE_PAINT_HELP = jp_pointer::kPrompt,
 		SURFACE_SHADER_EDITOR = jp_pointer::kShaderEditor,
+		SURFACE_SHADER_BROWSER = jp_pointer::kShaderBrowser,
 		SURFACE_FIELD_EDIT = jp_pointer::kFieldEdit,
 		SURFACE_DROPDOWN = jp_pointer::kDropdown,
 		SURFACE_MIDI_CONFLICT = jp_pointer::kPrompt,
@@ -531,6 +532,7 @@ public:
 	// Shader index search
 	string shaderSearchText;
 	bool shaderSearchFocused = false;
+    std::set<int> shaderBrowserPointerButtons;
 	int shaderSearchCursor = 0;
 	// Preview random values for RDM button
 	vector<string> previewUniformNames;

@@ -316,6 +316,18 @@ void ofApp::registerSurfaces()
 	s.bounds = [this]() { return ofRectangle(); };
 	surfaces.add(s);
 
+    s = JPSurface();
+    s.id = s.order = SURFACE_SHADER_BROWSER;
+    s.isOpen = [this]() { return pantallaActiva == SHADER_INDEX || !shaderBrowserPointerButtons.empty(); };
+    s.close = [this]() { enterScreen(NODOS); };
+    s.bounds = [this]() {
+        // Own the whole gesture, even if LOAD changes the screen or the mouse
+        // leaves the panel. Draw-driven controls underneath must not inherit it.
+        return shaderBrowserPointerButtons.empty() ? getShaderBrowserLayout().panel :
+            ofRectangle(0, 0, ofGetWidth(), ofGetHeight());
+    };
+    surfaces.add(s);
+
 	// No bounds: an editing field stacks and answers to ESC, but it must not
 	// swallow clicks by position - clicking away from a field commits it.
 	s = JPSurface();
@@ -6402,6 +6414,7 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	prevKey = e.keycode;
 }
 void ofApp::mouseDragged(int x, int y, int button) {
+    if (shaderBrowserPointerButtons.count(button)) return;
     if (releasePanelOpen) return;
 	if (pantallaActiva == TUTORIAL && helpIndexScrollbarDragging)
 	{
@@ -6503,6 +6516,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 	// inside draw() ask where the press began, and a press swallowed by a modal
 	// or a panel still has to be recorded or the next one inherits a stale one.
 	JPdragobject::notePressOrigin((float)x, (float)y);
+    if (!saveModalActive && pantallaActiva == SHADER_INDEX &&
+        getShaderBrowserLayout().panel.inside(x, y))
+        shaderBrowserPointerButtons.insert(button);
 
 	// Save modal button clicks — consume before anything else when modal is active
 	if (saveModalActive) {
@@ -6932,6 +6948,7 @@ void ofApp::mouseMoved(int x, int y) {
 }
 void ofApp::mouseReleased(int x, int y, int button) {
 	JPdragobject::clearPressOrigin();
+    if (shaderBrowserPointerButtons.erase(button)) return;
 	if (audioDragRow >= 0) {
 		// Ungated on the screen on purpose: a drag that started here has to be
 		// let go even if something else switched screen mid-gesture.

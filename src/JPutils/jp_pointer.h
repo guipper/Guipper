@@ -35,6 +35,7 @@ namespace jp_pointer
 	// direct manipulation of its preview while it is open.
 	constexpr int kQuickImages = 38;
 	constexpr int kShaderEditor = 40;
+	constexpr int kShaderBrowser = 50;
 	constexpr int kFieldEdit = 60;
 	// The MIDI panel body sits just below its own dropdowns.
 	constexpr int kMidiBody = 65;
