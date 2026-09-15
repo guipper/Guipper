@@ -7651,6 +7651,11 @@ void ofApp::drawSessionLoadError()
 	const float x = (ofGetWidth() - width) * 0.5f;
 	const float y = std::max(0.0f, ofGetHeight() - height - 12.0f);
 	ofPushStyle();
+	// Nodes can leave CENTER rectangle mode and a thicker outline active.
+	// The notice background uses the same top-left coordinates as its text.
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofSetLineWidth(1.0f);
+	ofEnableAlphaBlending();
 	ofFill();
 	ofSetColor(COL_BG_PANEL);
 	ofDrawRectangle(x, y, width, height);
