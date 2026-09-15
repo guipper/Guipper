@@ -61,5 +61,27 @@ Evidencia: `dist/beta2-validation-20260915/update/`.
 
 El feed loopback se pasó directamente al worker de beta.1. Esta prueba no
 valida la consulta pública ni las acciones de descarga e instalación desde
-F10. No se publicó ninguna release ni se modificaron canales. Tampoco valida
-Windows, equipos limpios ni estabilidad durante una actuación.
+F10. Tampoco valida Windows, equipos limpios ni estabilidad durante una actuación.
+
+## Publicación y comprobación contra GitHub
+
+Se publicaron la pre-release [v0.1.0-beta.2](https://github.com/guipper/Guipper/releases/tag/v0.1.0-beta.2)
+y el [canal beta](https://github.com/guipper/Guipper/releases/tag/beta).
+Ambas etiquetas apuntan a `002ff801e6ace2f43a8639d5af35d3d7063cf0a5`.
+Primero se publicó el AppImage y se verificó el SHA256 de su descarga pública;
+después se publicó el feed del canal. El canal stable no se activó.
+
+El worker original de beta.1 consultó el feed de GitHub sin autenticación,
+descargó beta.2, verificó la firma y solicitó instalar. El instalador original
+reemplazó la copia temporal de beta.1, conservó `.previous` y arrancó beta.2
+con la marca de salud en la caché del perfil. Se conservaron los hashes de
+los dos archivos de prueba colocados en ese perfil.
+
+Resultado: **aprobado contra el canal público**. Evidencia local:
+`dist/beta2-validation-20260915/public-update/`. Esta ejecución no pulsó los
+botones de F10; queda pendiente la confirmación manual del usuario.
+
+Los tests Core de GitHub del commit de main pasaron. El workflow de empaquetado
+`release.yml` figura fallido sin logs disponibles; esta publicación se hizo con
+los artefactos locales firmados y comprobados, no con artefactos de Actions.
+La automatización de empaquetado necesita revisión antes de la siguiente release.
