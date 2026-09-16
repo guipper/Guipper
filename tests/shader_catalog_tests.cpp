@@ -21,5 +21,17 @@ int main(){
  j=fixture();j["entries"][0]["license"]["reviewed"]=false;assert(rejects(j));
  j=fixture();j["entries"][0]["name"]["es"]="";assert(rejects(j));
  j=fixture();j["approved"]=false;assert(jp_shader_catalog::parse(j).empty());
+ // Curation has no publication credentials and must fail closed on bad lists.
+ auto curated=fixture();curated.erase("approved");
+ for(auto& entry:curated["entries"]) {entry.erase("sha256");entry.erase("author");entry.erase("license");}
+ assert(jp_shader_catalog::parseCurated(curated).size()==1);
+ auto rejectsCurated=[](const json& value){try{jp_shader_catalog::parseCurated(value);return false;}catch(const std::exception&){return true;}};
+ auto invalid=curated;invalid["entries"].push_back(invalid["entries"][0]);assert(rejectsCurated(invalid));
+ invalid=curated;invalid["entries"][0]["path"]="shaders/../private.frag";assert(rejectsCurated(invalid));
+ invalid=curated;invalid["entries"][0]["category"]="unknown";assert(rejectsCurated(invalid));
+ invalid=curated;invalid["entries"][0]["name"]["es"]="";assert(rejectsCurated(invalid));
+ invalid=curated;invalid["entries"][0]["inputs"]=42;assert(rejectsCurated(invalid));
+ invalid=curated;invalid["format"]=2;assert(rejectsCurated(invalid));
+ curated["entries"]=json::array();assert(jp_shader_catalog::parseCurated(curated).empty());
  std::cout<<"shader catalog tests passed\n";
 }

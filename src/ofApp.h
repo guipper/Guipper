@@ -540,6 +540,8 @@ public:
 	// Shader index search
 	string shaderSearchText;
 	bool shaderSearchFocused = false;
+    bool shaderCuratedMode = false;
+    string shaderCuratedError;
     std::set<int> shaderBrowserPointerButtons;
 	int shaderSearchCursor = 0;
 	// Preview random values for RDM button

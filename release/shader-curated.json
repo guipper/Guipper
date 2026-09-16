@@ -1,0 +1,320 @@
+{
+  "format": 1,
+  "entries": [
+    {
+      "path": "shaders/generative/solidcolor.frag",
+      "category": "generative",
+      "name": {
+        "es": "Color sólido",
+        "en": "Solid color"
+      },
+      "description": {
+        "es": "Genera un color RGB uniforme. `mivariable` no interviene en la salida.",
+        "en": "Uniform RGB color."
+      },
+      "tags": [
+        "color"
+      ],
+      "inputs": []
+    },
+    {
+      "path": "shaders/generative/basic2.frag",
+      "category": "generative",
+      "name": {
+        "es": "Barrido senoidal",
+        "en": "Sine sweep"
+      },
+      "description": {
+        "es": "Bandas verticales animadas: oscila el canal rojo; verde y azul quedan fijos en 0.5 y 1. Sin controles propios.",
+        "en": "Animated vertical bands with a varying red channel."
+      },
+      "tags": [
+        "color",
+        "patrones"
+      ],
+      "inputs": []
+    },
+    {
+      "path": "shaders/generative/degrade.frag",
+      "category": "generative",
+      "name": {
+        "es": "Patrones de dos colores",
+        "en": "Two-color patterns"
+      },
+      "description": {
+        "es": "Interpola dos colores con patrones lineales, radiales o angulares; permite variar forma de onda, frecuencia y velocidad.",
+        "en": "Animated linear, radial or angular patterns between two colors."
+      },
+      "tags": [
+        "color",
+        "patrones"
+      ],
+      "inputs": []
+    },
+    {
+      "path": "shaders/generative/simplelines.frag",
+      "category": "generative",
+      "name": {
+        "es": "Franjas",
+        "en": "Stripes"
+      },
+      "description": {
+        "es": "Franjas monocromas horizontales o verticales, con frecuencia, velocidad y umbral de intensidad ajustables.",
+        "en": "Monochrome horizontal or vertical stripes."
+      },
+      "tags": [
+        "geometría",
+        "patrones"
+      ],
+      "inputs": []
+    },
+    {
+      "path": "shaders/generative/grid.frag",
+      "category": "generative",
+      "name": {
+        "es": "Grilla de polígonos",
+        "en": "Polygon grid"
+      },
+      "description": {
+        "es": "Repite polígonos con cantidad de lados, escala, desplazamiento y rotación ajustables; suma feedback según feedbackst.",
+        "en": "Repeated polygons with motion, rotation and feedback."
+      },
+      "tags": [
+        "geometría",
+        "patrones"
+      ],
+      "inputs": []
+    },
+    {
+      "path": "shaders/generative/quad.frag",
+      "category": "generative",
+      "name": {
+        "es": "Cuadrado pulsante",
+        "en": "Pulsing square"
+      },
+      "description": {
+        "es": "Polígono de cuatro lados con desplazamiento, escala por eje y pulsación de tamaño. Lee feedback pero no lo incorpora a la salida.",
+        "en": "Four-sided shape with position, scale and size oscillation."
+      },
+      "tags": [
+        "geometría"
+      ],
+      "inputs": []
+    },
+    {
+      "path": "shaders/generative/allpaterns.frag",
+      "category": "generative",
+      "name": {
+        "es": "Mezcla de ruidos",
+        "en": "Noise blend"
+      },
+      "description": {
+        "es": "Interpola siete campos procedurales, entre ellos ruido, Voronoi y fBm; permite escala y desplazamiento animado por eje.",
+        "en": "Interpolates procedural noise fields including Voronoi and fBm."
+      },
+      "tags": [
+        "ruido",
+        "patrones"
+      ],
+      "inputs": []
+    },
+    {
+      "path": "shaders/generative/simplelines_2.0.frag",
+      "category": "generative",
+      "name": {
+        "es": "Gradiente rojo-verde (experimental)",
+        "en": "Red-green gradient (experimental)"
+      },
+      "description": {
+        "es": "La salida actual es vec4(uv.x, param1, 0, 1). Los cálculos de franjas no llegan a la salida; no es una segunda versión funcional de Franjas.",
+        "en": "Experimental: red gradient with adjustable green; stripe calculations are not used."
+      },
+      "tags": [
+        "color"
+      ],
+      "inputs": []
+    },
+    {
+      "path": "shaders/generative/anillos3D.frag",
+      "category": "generative",
+      "name": {
+        "es": "Anillos 3D",
+        "en": "3D rings"
+      },
+      "description": {
+        "es": "Anillos repetidos en un espacio 3D animado, con orientación, tamaño, separación y grosor ajustables.",
+        "en": "Repeated animated 3D rings with orientation, size, spacing and thickness controls."
+      },
+      "tags": [
+        "geometría",
+        "3D",
+        "repetición"
+      ],
+      "inputs": []
+    },
+    {
+      "path": "shaders/generative/circuloresolution.frag",
+      "category": "generative",
+      "name": {
+        "es": "Círculo suave",
+        "en": "Soft circle"
+      },
+      "description": {
+        "es": "Disco monocromo con posición, radio y suavidad del borde ajustables.",
+        "en": "Monochrome disc with adjustable position, radius and edge softness."
+      },
+      "tags": [
+        "geometría"
+      ],
+      "inputs": []
+    },
+    {
+      "path": "shaders/generative/circuloresolution2.frag",
+      "category": "generative",
+      "name": {
+        "es": "Gradiente XY (experimental)",
+        "en": "XY gradient (experimental)"
+      },
+      "description": {
+        "es": "Gradiente rojo horizontal y verde vertical, con azul fijo. Sus controles actuales no afectan la salida.",
+        "en": "Horizontal red and vertical green gradient with constant blue. Current controls do not affect the output."
+      },
+      "tags": [
+        "color"
+      ],
+      "inputs": []
+    },
+    {
+      "path": "shaders/generative/tunel.frag",
+      "category": "generative",
+      "name": {
+        "es": "Túnel",
+        "en": "Tunnel"
+      },
+      "description": {
+        "es": "Recorrido animado por un túnel de formas repetidas, con velocidad, radio y dos colores de iluminación.",
+        "en": "Animated journey through repeating tunnel shapes, with speed, radius and two lighting colors."
+      },
+      "tags": [
+        "geometría",
+        "3D",
+        "repetición"
+      ],
+      "inputs": []
+    },
+    {
+      "path": "shaders/imageprocessing/mirrorquad.frag",
+      "category": "effects",
+      "name": {
+        "es": "Espejo",
+        "en": "Mirror"
+      },
+      "description": {
+        "es": "Refleja la imagen por eje, con selección de lado y suavizado.",
+        "en": "Mirrors the image on each axis with side selection and smoothing."
+      },
+      "tags": [
+        "simetría",
+        "transformación"
+      ],
+      "inputs": [
+        "textura1"
+      ]
+    },
+    {
+      "path": "shaders/imageprocessing/transform.frag",
+      "category": "effects",
+      "name": {
+        "es": "Transformar",
+        "en": "Transform"
+      },
+      "description": {
+        "es": "Desplaza, rota y escala la imagen, con zoom general.",
+        "en": "Offsets, rotates and scales the image, with overall zoom."
+      },
+      "tags": [
+        "transformación"
+      ],
+      "inputs": [
+        "textura1"
+      ]
+    },
+    {
+      "path": "shaders/imageprocessing/kaleidoscope.frag",
+      "category": "effects",
+      "name": {
+        "es": "Caleidoscopio",
+        "en": "Kaleidoscope"
+      },
+      "description": {
+        "es": "Pliega y repite la imagen con controles de cantidad, desplazamiento, escala y zoom.",
+        "en": "Folds and repeats the image with count, offset, scale and zoom controls."
+      },
+      "tags": [
+        "simetría",
+        "distorsión"
+      ],
+      "inputs": [
+        "textura1"
+      ]
+    },
+    {
+      "path": "shaders/imageprocessing/rotatecolor.frag",
+      "category": "effects",
+      "name": {
+        "es": "Rotación de color RGB",
+        "en": "RGB color rotation"
+      },
+      "description": {
+        "es": "Rota pares de canales RGB con tres controles independientes.",
+        "en": "Rotates pairs of RGB channels using three independent controls."
+      },
+      "tags": [
+        "color"
+      ],
+      "inputs": [
+        "tx"
+      ]
+    },
+    {
+      "path": "shaders/blending/chromadist.frag",
+      "category": "mixers",
+      "name": {
+        "es": "Mezcla por croma",
+        "en": "Chroma blend"
+      },
+      "description": {
+        "es": "Mezcla dos imágenes según la distancia a un color elegido, con umbral e intensidad.",
+        "en": "Blends two images according to distance from a selected color, with threshold and strength."
+      },
+      "tags": [
+        "color",
+        "máscaras",
+        "composición"
+      ],
+      "inputs": [
+        "textura1",
+        "textura2"
+      ]
+    },
+    {
+      "path": "shaders/blending/allblendingmodesinoneshader.frag",
+      "category": "mixers",
+      "name": {
+        "es": "Modos de mezcla",
+        "en": "Blend modes"
+      },
+      "description": {
+        "es": "Combina dos imágenes con un selector de modo de mezcla y opacidad.",
+        "en": "Combines two images with selectable blend mode and opacity."
+      },
+      "tags": [
+        "composición"
+      ],
+      "inputs": [
+        "textura1",
+        "textura2"
+      ]
+    }
+  ]
+}

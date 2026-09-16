@@ -206,9 +206,13 @@ void ofApp::setup() {
 	if (!defaultCompoPath.empty()) {
 		savedirectory = defaultCompoPath;
 	}
-	loadSession(savedirectory);
+	if (!std::getenv("GUIPPER_CURATED_LIST")) loadSession(savedirectory);
 	midiKeymap.load(jp::preferencePath("midi_keymap.xml"));
 	registerSurfaces();
+    if (std::getenv("GUIPPER_CURATED_LIST")) {
+        ofSetWindowTitle("Guipper - Curado");
+        enterScreen(SHADER_INDEX);
+    }
     jp::recordEvent("startup_complete");
     if (const char* health = std::getenv("GUIPPER_UPDATE_HEALTH_FILE")) {
         try {
@@ -437,7 +441,7 @@ void ofApp::enterScreen(int screen)
 		shaderSearchFocused = true;
 		shaderSearchCursor = ofClamp(shaderSearchCursor, 0,
 			(int)shaderSearchText.size());
-		if (shaderFolders.empty()) scanShaders();
+		if (shaderFolders.empty() || std::getenv("GUIPPER_CURATED_LIST")) scanShaders();
 		break;
 	case EDITOR:
 		shaderEditor.setVisible(true);
@@ -5026,13 +5030,28 @@ static vector<std::pair<string, string>> listFragFiles(const string &directory)
 void ofApp::scanShaders() {
 	shaderFolders.clear();
     std::map<string,jp_shader_catalog::Entry> catalog;
-    const auto catalogFile=jp::AppPaths::current().bundle/"shader-library.json";
+    const char* curatedList = std::getenv("GUIPPER_CURATED_LIST");
+    shaderCuratedMode = curatedList != nullptr;
+    shaderCuratedError.clear();
+    const auto catalogFile = shaderCuratedMode ? std::filesystem::path(curatedList) :
+        jp::AppPaths::current().bundle/"shader-library.json";
     try {
         if (std::filesystem::is_regular_file(catalogFile)) {
             if(std::filesystem::file_size(catalogFile)>1024*1024) throw std::runtime_error("Shader catalog is too large");
-            for(const auto& entry:jp_shader_catalog::parse(ofJson::parse(jp::readBytes(catalogFile))))catalog.emplace(entry.path,entry);
-        }
-    } catch(const std::exception& error) {ofLogWarning("shader-catalog")<<error.what();}
+            const auto json = ofJson::parse(jp::readBytes(catalogFile));
+            const auto entries = shaderCuratedMode ? jp_shader_catalog::parseCurated(json) : jp_shader_catalog::parse(json);
+            for (const auto& entry : entries) {
+                if (shaderCuratedMode && (!std::filesystem::is_regular_file(ofToDataPath(entry.path, true)) ||
+                    !shaderHasMain(ofToDataPath(entry.path, true))))
+                    throw std::runtime_error("Missing or non-standalone curated shader: " + entry.path);
+                catalog.emplace(entry.path, entry);
+            }
+        } else if (shaderCuratedMode) throw std::runtime_error("Curated list not found");
+    } catch(const std::exception& error) {
+        catalog.clear();
+        if (shaderCuratedMode) shaderCuratedError = error.what();
+        ofLogWarning("shader-catalog")<<error.what();
+    }
     std::set<string> listed;
 
 	// Only scan these specific root folders (no sub-subdirectories)
@@ -5040,7 +5059,7 @@ void ofApp::scanShaders() {
 	int helperFragmentsSkipped = 0;
 	auto appendStandaloneShader = [&](ShaderFolder &folder, const string &path,
 		const string &absolutePath) {
-        if(listed.count(path))return;
+        if(listed.count(path) || (shaderCuratedMode && !catalog.count(path)))return;
 		if (!shaderHasMain(absolutePath)) {
 			helperFragmentsSkipped++;
 			return;
@@ -5052,7 +5071,7 @@ void ofApp::scanShaders() {
         try {entry.personal=!std::filesystem::is_regular_file(bundled)||jp::readBytes(bundled)!=jp::readBytes(absolutePath);}
         catch(const std::exception&) {entry.personal=true;}
         auto metadata=catalog.find(path);
-        if(metadata!=catalog.end()) {entry.catalogued=true;entry.metadata=metadata->second;entry.official=!entry.personal;}
+        if(metadata!=catalog.end()) {entry.catalogued=true;entry.metadata=metadata->second;entry.official=!shaderCuratedMode && !entry.personal;}
         listed.insert(path);
 		folder.shaders.push_back(entry);
 	};
@@ -5066,6 +5085,7 @@ void ofApp::scanShaders() {
         }
         if(!folder.shaders.empty())shaderFolders.push_back(folder);
     }
+    if (!shaderCuratedMode) {
 	// Root shaders/ folder (files directly in shaders/)
 	{
 		ShaderFolder rootFolder;
@@ -5096,6 +5116,7 @@ void ofApp::scanShaders() {
 		}
 	}
 
+    } // Normal library scan; curated mode only uses the explicit list.
 	shaderScroll = 0;
 	selectedShaderFolder = -1;
 	selectedShaderIndex = -1;
@@ -5598,9 +5619,8 @@ void ofApp::draw_shaderindex() {
 	for (const ShaderFolder &folder : shaderFolders) {
 		if (!folder.isFavorites) totalShaders += (int)folder.shaders.size();
 	}
-	const string title = language == 0 ?
-		"IMPORT  |  " + ofToString(totalShaders) + " shaders" :
-		"IMPORTAR  |  " + ofToString(totalShaders) + " shaders";
+    const string title = (shaderCuratedMode ? (language == 0 ? "CURATED" : "CURADO") :
+        (language == 0 ? "IMPORT" : "IMPORTAR")) + string("  |  ") + ofToString(totalShaders) + " shaders";
 	// Half width so the node canvas stays visible behind it, but otherwise the
 	// same frame, border, title and subtitle as every other screen.
 	jp_screen::drawFrame(layout.panel, title, layout.panel.width < 480 ?
@@ -5841,7 +5861,9 @@ void ofApp::draw_shaderindex() {
 	if (allRows.empty()) {
 		ofSetColor(COL_TEXT_MUTED);
 		const string emptyText = shaderSearchText.empty() ?
-			(language == 0 ? "No shaders found" : "No se encontraron shaders") :
+			(shaderCuratedMode && !shaderCuratedError.empty() ?
+                (language == 0 ? "Cannot load curation list" : "No se pudo cargar la lista de curado") :
+                (language == 0 ? "No shaders found" : "No se encontraron shaders")) :
 			(language == 0 ? "No shaders match this search" : "Ningun shader coincide");
 		font_p.drawString(emptyText, layout.list.x + 8.0f, layout.list.y + 22.0f);
 	}
@@ -5850,7 +5872,7 @@ void ofApp::draw_shaderindex() {
     if(hasSelection) {
         const auto& entry=shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex];
         // Text is width-fitted and limited to the detail area's four lines.
-        string origin=entry.official?(language==0?"Official library":"Biblioteca oficial"):
+        string origin=shaderCuratedMode?(language==0?"Curation list":"Lista de curado"):entry.official?(language==0?"Official library":"Biblioteca oficial"):
             (entry.personal?(language==0?"Personal":"Personal"):(language==0?"Local library":"Biblioteca local"));
         string category=entry.catalogued?entry.metadata.category:"";
         if (category.empty()) {

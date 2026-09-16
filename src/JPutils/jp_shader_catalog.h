@@ -61,6 +61,33 @@ inline std::vector<Entry> parse(const nlohmann::json& root) {
     }
     return result;
 }
+// Local curation is deliberately separate from publication approval.
+inline std::vector<Entry> parseCurated(const nlohmann::json& root) {
+    if (!root.at("format").is_number_integer() || root.at("format") != 1 ||
+        !root.at("entries").is_array()) throw std::runtime_error("Invalid curated list");
+    std::vector<Entry> result;
+    std::set<std::string> paths;
+    for (const auto& value : root.at("entries")) {
+        Entry e;
+        e.path = value.at("path").get<std::string>();
+        if (!safePath(e.path) || !paths.insert(e.path).second)
+            throw std::runtime_error("Unsafe or duplicate curated path");
+        e.category = value.at("category").get<std::string>();
+        if (e.category != "generative" && e.category != "effects" && e.category != "mixers")
+            throw std::runtime_error("Unknown curated category");
+        auto text = [](const nlohmann::json& j) {
+            Text t{j.at("en").get<std::string>(), j.at("es").get<std::string>()};
+            if (t.en.empty() || t.es.empty()) throw std::runtime_error("Missing curated translation");
+            return t;
+        };
+        e.name = text(value.at("name"));
+        e.description = text(value.at("description"));
+        e.tags = value.at("tags").get<std::vector<std::string>>();
+        e.inputs = value.at("inputs").get<std::vector<std::string>>();
+        result.push_back(e);
+    }
+    return result;
+}
 inline bool matches(const Entry& e,const std::string& query) {
     auto lower=[](std::string s){std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return std::tolower(c);});return s;};
     return lower(e.searchable()).find(lower(query))!=std::string::npos;
