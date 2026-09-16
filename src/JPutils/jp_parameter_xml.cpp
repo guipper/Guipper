@@ -109,10 +109,10 @@ void jp_parameter_xml::load(const ofXml &boxNode, JPParameterGroup &group,
 			group.setRangeMin(param.getChild("min").getFloatValue(), destinationIndex);
 			group.setRangeMax(param.getChild("max").getFloatValue(), destinationIndex);
 			group.setFloatLerpValue(param.getChild("value").getFloatValue(), destinationIndex);
-			// Presets historically restore only the smoothed value here.
-			// Keep that contract until its migration is handled explicitly.
-			if (context != LoadContext::Preset)
-				group.setFloatValue(param.getChild("value").getFloatValue(), destinationIndex);
+			// Static parameters do not tick after loading. Restore the emitted
+			// value too, including inside presets, rather than leaving the
+			// shader's initial (possibly random) value visible and re-saveable.
+			group.setFloatValue(param.getChild("value").getFloatValue(), destinationIndex);
 			group.setmovetype(param.getChild("movtype").getIntValue(), destinationIndex);
 			auto lastMoveType = param.getChild("lastmovtype");
 			if (lastMoveType)

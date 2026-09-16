@@ -8,6 +8,7 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 ## Sin publicar
 
 ### Correcciones
+- Cargar una sesión con `L` restaura los valores de los parámetros dentro de grupos, incluidos grupos anidados, sin conservar los valores aleatorios de inicialización.
 - Los clics en IMPORT bloquean las cajas y controles que se ven detrás. El bloqueo se conserva hasta soltar los botones, incluso al cargar un shader o arrastrar fuera del panel.
 
 ### Mejoras

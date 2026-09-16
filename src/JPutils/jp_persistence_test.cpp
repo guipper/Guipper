@@ -562,11 +562,7 @@ namespace
 				a->randomLocked && near(a->defaultFloatValue, 0.4f) &&
 				!b->randomLocked && group.getBoolValue(2) &&
 				group.getJParameter(2)->defaultBoolValue;
-			if (context == Context::Preset)
-				passed = passed && near(group.getFloatValue(0), 0.11f) &&
-					near(group.getFloatValue(1), 0.22f);
-			else
-				passed = passed && near(a->floatValue, 0.7f) && near(b->floatValue, 0.3f);
+			passed = passed && near(a->floatValue, 0.7f) && near(b->floatValue, 0.3f);
 
 			ofXml saved;
 			jp_parameter_xml::save(saved, group);
@@ -619,6 +615,69 @@ namespace
 		ofLogNotice("persistence-modules") << "passed=" << passed;
 		return passed;
 	}
+
+    bool checkNestedParameterLoad(ofApp& app) {
+        const string directory = ofToDataPath("uishots/persistence/nested-parameters/", true);
+        ofDirectory::createDirectory(directory, true, true);
+        const string innerPath = directory + "inner.xml";
+        const string outerPath = directory + "outer.xml";
+        const string sessionPath = directory + "session.xml";
+        app.boxes.clear();
+        if (!app.boxes.addBox("shaders/generative/simplelines.frag", 100, 100) ||
+            !app.boxes.save(innerPath)) return false;
+        app.boxes.clear();
+        if (!app.boxes.addBox(innerPath, 100, 100) || !app.boxes.save(outerPath)) return false;
+        app.boxes.clear();
+        if (!app.boxes.addBox(outerPath, 100, 100)) return false;
+        auto leaf = [&]() -> JPbox* {
+            if (app.boxes.boxes.size() != 1) return nullptr;
+            auto* outer = dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]);
+            if (!outer || outer->boxes.size() != 1) return nullptr;
+            auto* inner = dynamic_cast<JPbox_preset*>(outer->boxes[0]);
+            return inner && inner->boxes.size() == 1 ? inner->boxes[0] : nullptr;
+        };
+        auto* node = leaf();
+        if (!node) return false;
+        for (int i = 0; i < node->parameters.getSize(); ++i) {
+            auto* parameter = node->parameters.getJParameter(i);
+            if (parameter->variabletype == JPParameter::FLOAT) {
+                parameter->floatValue = parameter->floatLerpValue = 0.13f + i * 0.17f;
+                parameter->movtype = JPParameter::STANDART;
+            } else parameter->boolValue = true;
+        }
+        app.savedirectory = sessionPath;
+        if (!app.saveSession(sessionPath)) return false;
+        app.pantallaActiva = app.NODOS;
+        app.clearFieldFocus();
+        bool passed = true;
+        for (int cycle = 0; cycle < 3; ++cycle) {
+            node = leaf();
+            if (!node) return false;
+            for (int i = 0; i < node->parameters.getSize(); ++i) {
+                auto* parameter = node->parameters.getJParameter(i);
+                if (parameter->variabletype == JPParameter::FLOAT)
+                    parameter->floatValue = parameter->floatLerpValue = 0.99f;
+                else parameter->boolValue = false;
+            }
+            app.keyPressed('l'); // Same session reload used by the user's shortcut.
+            node = leaf();
+            if (!node) return false;
+            for (int tick = 0; tick < 3; ++tick) {
+                for (int i = 0; i < node->parameters.getSize(); ++i) {
+                    auto* parameter = node->parameters.getJParameter(i);
+                    if (parameter->variabletype == JPParameter::FLOAT)
+                        passed = near(parameter->floatValue, 0.13f + i * 0.17f) &&
+                            near(parameter->floatLerpValue, 0.13f + i * 0.17f) && passed;
+                    else passed = parameter->boolValue && passed;
+                }
+                node->parameters.update();
+            }
+            if (!app.saveSession(sessionPath)) return false;
+        }
+        app.boxes.clear();
+        ofLogNotice("nested-parameters") << "passed=" << passed;
+        return passed;
+    }
 
     bool checkSaveShortcut(ofApp &app) {
         const string directory=ofToDataPath("uishots/persistence/save-shortcut/",true);
@@ -820,6 +879,8 @@ namespace
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+	if (testMode && string(testMode) == "nested_parameters")
+        return checkNestedParameterLoad(app) && checkPersistenceModules();
 	if (testMode && string(testMode) == "uniform_inventory") return writeUniformInventory();
 	if (!checkUniformReload()) return false;
 	if (testMode && string(testMode) == "uniform_parser") return true;
