@@ -13,6 +13,7 @@
 			<key>A0D200000000000000000001</key><dict><key>isa</key><string>PBXFileReference</string><key>lastKnownFileType</key><string>sourcecode.cpp.cpp</string><key>path</key><string>src/ofApp_text_input.cpp</string><key>sourceTree</key><string>SOURCE_ROOT</string></dict>
 			<key>A0D200000000000000000002</key><dict><key>isa</key><string>PBXFileReference</string><key>lastKnownFileType</key><string>sourcecode.cpp.h</string><key>path</key><string>src/JPutils/jp_text_edit.h</string><key>sourceTree</key><string>SOURCE_ROOT</string></dict>
 			<key>A0D200000000000000000003</key><dict><key>isa</key><string>PBXFileReference</string><key>lastKnownFileType</key><string>sourcecode.cpp.h</string><key>path</key><string>src/JPutils/jp_text_input.h</string><key>sourceTree</key><string>SOURCE_ROOT</string></dict>
+			<key>A0D200000000000000000004</key><dict><key>isa</key><string>PBXFileReference</string><key>lastKnownFileType</key><string>sourcecode.cpp.h</string><key>path</key><string>src/JPutils/jp_text_input_test.h</string><key>sourceTree</key><string>SOURCE_ROOT</string></dict>
 			<key>A0D200000000000000000005</key><dict><key>isa</key><string>PBXFileReference</string><key>lastKnownFileType</key><string>sourcecode.cpp.h</string><key>path</key><string>src/JPbox/jp_media_time.h</string><key>sourceTree</key><string>SOURCE_ROOT</string></dict>
 			<key>A0D200000000000000000010</key><dict><key>isa</key><string>PBXBuildFile</string><key>fileRef</key><string>A0D200000000000000000001</string></dict>
 			<key>A0D100000000000000000001</key>
@@ -3326,6 +3327,7 @@ fi
 					<string>A0D200000000000000000001</string>
 					<string>A0D200000000000000000002</string>
 					<string>A0D200000000000000000003</string>
+					<string>A0D200000000000000000004</string>
 					<string>A0D200000000000000000005</string>
 				</array>
 				<key>isa</key>

@@ -349,6 +349,7 @@
     <ClInclude Include="src\JPutils\jp_text_edit.h" />
     <ClInclude Include="src\JPbox\jp_media_time.h" />
     <ClInclude Include="src\JPutils\jp_text_input.h" />
+    <ClInclude Include="src\JPutils\jp_text_input_test.h" />
     <ClInclude Include="src\JPutils\jp_tooltip.h" />
     <ClInclude Include="src\JPbox\jp_box_cam.h" />
     <ClInclude Include="src\JPbox\jp_box_video.h" />

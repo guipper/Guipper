@@ -1,4 +1,5 @@
 #include "jp_persistence_test.h"
+#include "jp_text_input_test.h"
 
 #include "../ofApp.h"
 #include "jp_audio.h"
@@ -1414,6 +1415,7 @@ namespace
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if (testMode && string(testMode) == "text_input") return jp_text_input_test::run(app);
     if (testMode && string(testMode) == "shader_alpha_chain") return checkShaderAlphaChain(app);
     if (testMode && string(testMode) == "shared_review") return checkSharedReview(app);
     if (testMode && string(testMode) == "curation") return checkCuration(app);
