@@ -7,6 +7,12 @@
     <ClCompile Include="src\JPutils\jp_shader_audit.cpp">
       <Filter>src\JPutils</Filter>
     </ClCompile>
+    <ClCompile Include="src\ofApp_shader_review.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ofApp_shader_names.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\ofApp_release.cpp">
       <Filter>src\JPutils</Filter>
     </ClCompile>

@@ -182,6 +182,8 @@
   <ItemGroup>
     <ClCompile Include="src\JPutils\jp_uniform_parser.cpp" />
     <ClCompile Include="src\JPutils\jp_shader_audit.cpp" />
+    <ClCompile Include="src\ofApp_shader_review.cpp" />
+    <ClCompile Include="src\ofApp_shader_names.cpp" />
     <ClCompile Include="src\ofApp_release.cpp" />
     <ClCompile Include="src\JPutils\jp_update_platform.cpp" />
     <ClCompile Include="src\JPutils\jp_update_service.cpp" />

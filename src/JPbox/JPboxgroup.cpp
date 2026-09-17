@@ -589,7 +589,7 @@ void JPboxgroup::setup(ofTrueTypeFont &_font, int &_activerender)
 	setupDefaultCuePanelLayout();
 	setupDefaultMappingPanelLayout();
 }
-void JPboxgroup::draw()
+void JPboxgroup::draw(bool showInspector)
 {
 	// boxesdrawing.draw(0, 0, ofGetWidth(), ofGetHeight());
 	// boxesdrawing.draw(offsetx, offsety, ofGetWidth(), ofGetHeight());
@@ -874,7 +874,7 @@ void JPboxgroup::draw()
 	JPdragobject::clearMouseOverride();
 	ofPopMatrix();
 	drawTabs();
-	draw_paramswindow();
+	if (showInspector) draw_paramswindow();
 	drawGalleryDurationSlider();
 	// The cue panel is hit-tested before the canvas, so it has to be painted
 	// over the canvas too. It used to be drawn first, which meant boxes covered

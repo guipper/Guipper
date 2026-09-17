@@ -350,6 +350,7 @@ public:
         bool catalogued = false;
         bool official = false;
         bool personal = false;
+        bool standalone = true;
         jp_shader_catalog::Entry metadata;
         string displayName(bool es) const { return catalogued?metadata.name.get(es):name; }
 	};
@@ -373,6 +374,11 @@ public:
 		ofRectangle favoritesModeButton;
 		ofRectangle search;
 		ofRectangle searchClear;
+        std::array<ofRectangle,6> reviewFilters;
+        vector<ofRectangle> folderTabs;
+        vector<int> folderTabIndices;
+        ofRectangle folderPrev, folderNext;
+        int folderNextIndex=0;
 		ofRectangle list;
         ofRectangle scrollbar;
 		ofRectangle preview;
@@ -541,6 +547,7 @@ public:
 	string previewShaderPath;
 	float lastPreviewRenderTime = -1.0f;
 	ofImage previewImg1, previewImg2;
+    ofTexture previewEmptyFeedback;
 
 	// Shader index hover state
 	int hoveredShaderFolder = -1;
@@ -549,6 +556,30 @@ public:
 
 	// Shader index search
 	string shaderSearchText;
+    int shaderFolderTabPage=0;
+    string folderTabLabel(int index) const;
+    string shaderFolderTab; // empty: all folders
+    int shaderReviewFilter = 0; // all, user-visible, hidden, needs parameters, improve, ask Pupper
+    bool selectedShaderHasInputs() const;
+    bool matchesShaderReviewFilter(const ShaderEntry& entry) const;
+    ofJson curatedShaderNames = ofJson::object();
+    bool shaderUserLibrary = false;
+    string shaderReviewFile;
+    int curatedReviewRows() const;
+    int previewInspectorRows() const;
+    bool saveShaderReview(const string& path, const ofJson& changes);
+    bool assignShaderGroup(const string& path, const string& group);
+    void pressShaderReviewRow(int row, float x, const ofRectangle& bounds);
+    void drawShaderReviewRow(int row, const ofRectangle& bounds);
+    string selectedShaderLoadPath() const;
+    std::shared_ptr<JPbox_preset> previewPreset;
+    bool shaderNameFocused = false, shaderNameSelectAll = false;
+    string shaderNameText, shaderNamePath;
+    int shaderNameCursor = 0, shaderNameLanguage = 0, shaderOrderLanguage = -1;
+    void loadCuratedShaderNames();
+    bool commitShaderName();
+    void handleShaderNameKey(int key);
+    void drawShaderNameField(const ofRectangle& field);
 	bool shaderSearchFocused = false;
     bool shaderCuratedMode = false;
     string shaderCuratedError;
@@ -561,6 +592,25 @@ public:
 	vector<float> previewUniformMaxs;
 	vector<float> previewRdmValues;
 	bool previewRdmActive = false;
+    vector<float> previewDefaultValues;
+    vector<string> previewBoolNames;
+    vector<bool> previewBoolValues, previewBoolDefaults;
+    ofJson curatedPreviewSettings;
+    bool curatedPreviewSettingsLoaded = false;
+    string curatedPreviewNotice;
+    float previewInspectorScroll = 0.0f;
+    int previewInspectorDrag = -1;
+    bool previewInspectorScrollbarDrag = false;
+    float previewInspectorGrab = 0.0f;
+    struct PreviewInspectorLayout { ofRectangle panel, body, reset, random, saveDefault, track, name; };
+    PreviewInspectorLayout getPreviewInspectorLayout() const;
+    ofRectangle getPreviewInspectorThumb(const PreviewInspectorLayout& layout) const;
+    void drawPreviewInspector();
+    bool pressPreviewInspector(int x, int y);
+    void dragPreviewInspector(float x, float y);
+    void saveCuratedPreview(bool publishDefault=false);
+    void restoreCuratedPreview();
+
 
 	// LOAD distribution counter
 	int loadBoxCount = 0;
@@ -839,7 +889,6 @@ public:
 		ofRectangle panel;
 		vector<ofRectangle> tabs;
 		ofRectangle list;
-        ofRectangle scrollbar;
 		vector<ofRectangle> rows;
 		vector<int> rowIndices;
 		// Y of the divider that separates this output's own settings from the

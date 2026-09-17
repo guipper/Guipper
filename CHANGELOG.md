@@ -8,12 +8,22 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 ## Sin publicar
 
 ### Correcciones
+- La preview de IMPORT usa imágenes de prueba solo en entradas de textura declaradas. El feedback interno queda separado, evitando que generadores sin inputs muestren accidentalmente la imagen de prueba.
 - Cargar una sesión con `L` restaura los valores de los parámetros dentro de grupos, incluidos grupos anidados, sin conservar los valores aleatorios de inicialización.
 - Los clics en IMPORT bloquean las cajas y controles que se ven detrás. El bloqueo se conserva hasta soltar los botones, incluso al cargar un shader o arrastrar fuera del panel.
 
 ### Mejoras
-- IMPORT reúne detalles y vista previa en la zona inferior, mejora la legibilidad de la lista y agrega una barra de desplazamiento arrastrable, scroll de trackpad y navegación por páginas.
+- Los filtros de curado incluyen «Mejorar» y «Pupper», combinables con búsqueda y carpeta.
+- Curado permite marcar cada shader con «Mejorar shader» y «Preguntarle a Pupper», con marcas visibles en la lista y guardado inmediato.
+- IMPORT unifica el encabezado del inspector, ajusta su altura al contenido y muestra pestañas con nombres cortos y cantidades. El curador experimenta en un borrador local y publica sus valores con «Guardar como default».
+- LOAD importa los valores actuales de preview. Usuarios comunes pueden ajustar parámetros con RANDOM y RESET; RESET recupera los defaults guardados por el curador, sin sobrescribirlos.
+- El inspector curado incluye RANDOM junto a RESET para aleatorizar y guardar los parámetros de la preview respetando sus rangos.
+- IMPORT conserva la preview para todos los ítems, ajusta su recuadro a la imagen y agrega pestañas de carpetas. Curado permite filtrar por visibilidad para usuarios o por la marca de parámetros pendientes, combinado con la búsqueda.
+- Curado incluye toda la biblioteca y permite marcar ítems para usuarios, anotar parámetros pendientes y asociar grupos XML con preview y carga conjunta. `run-user.sh` prueba solo la selección habilitada.
+- IMPORT ordena por nombre visible en el idioma activo, también en Favoritos. En curado se puede editar el nombre desde el inspector; Enter o clic fuera guarda y Escape cancela.
 - Avisos reutilizables abajo al centro para recuperación, guardado de composición y ajustes, errores y actualizaciones: hasta tres, cierre con ×, pausa al pasar el cursor y acciones de recuperación sin perder el snapshot al guardar.
+- En curado, el shader seleccionado tiene un inspector de preview con sliders, booleanos, reset y ajustes guardados por shader en el perfil de prueba. Las filas de IMPORT son más compactas.
+- IMPORT reúne detalles y vista previa en la zona inferior, mejora la legibilidad de la lista y agrega una barra de desplazamiento arrastrable, scroll de trackpad y navegación por páginas.
 - IMPORT distingue biblioteca local de catálogo oficial y muestra la categoría derivada de la carpeta.
 - La segunda entrada de la vista previa usa `img/preview1.webp`; la primera conserva el logo. Si la foto no está disponible, se usa la referencia incluida en el paquete.
 - Navegador preparado para nombres, descripciones bilingües y etiquetas del catálogo oficial, conservando rutas y favoritos existentes.
@@ -30,8 +40,6 @@ La colección de 24 shaders sigue pendiente de selección visual y revisión de 
   evitando el error de validación de `runner.temp` en `defaults.run`.
 
 ### Mejoras
-- IMPORT reúne detalles y vista previa en la zona inferior, mejora la legibilidad de la lista y agrega una barra de desplazamiento arrastrable, scroll de trackpad y navegación por páginas.
-- Avisos reutilizables abajo al centro para recuperación, guardado de composición y ajustes, errores y actualizaciones: hasta tres, cierre con ×, pausa al pasar el cursor y acciones de recuperación sin perder el snapshot al guardar.
 - Panel F10 alineado con los botones, colores y tipografía compartidos de Guipper.
 - Acciones de actualización, preferencias y soporte agrupadas; se destaca la
   acción disponible y se muestra el estado actual del canal y la consulta diaria.

@@ -66,7 +66,7 @@ public:
 	string test;
 
 	void setup(ofTrueTypeFont &_font, int &_activerender);
-	void draw();
+	void draw(bool showInspector = true);
 	void draw_activerender(); // Dibuja el render activo. Esta es la <que corre en el ofApp.cpp
 	void draw_activerender(float _width, float _height);
 	// normCrop is the normalized sub-rectangle of the source to show, and
@@ -222,6 +222,7 @@ public:
 	// Success does not yet guarantee all referenced assets were available.
 	enum class LoadResult { Success, ReadError, InvalidComposition, UnsupportedVersion, AssetError };
 	LoadResult load(string _dirinput);
+    static bool validateGroupFile(const string& path);
 
 	// Returns the box it created (nullptr when the directory maps to no box
 	// type), so callers that need to keep a handle - the quick-image panel

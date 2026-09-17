@@ -616,8 +616,174 @@ namespace
 		return passed;
 	}
 
+    bool checkCuratedPreviewInspector(ofApp& app) {
+        ofSetWindowShape(1440, 840);
+        app.shaderCuratedMode = true;
+        app.pantallaActiva = app.SHADER_INDEX;
+        app.shaderFolders.clear();
+        ofApp::ShaderFolder folder; folder.name = "Preview test"; folder.expanded = true;
+        for (const string path : {"shaders/generative/solidcolor.frag", "shaders/generative/simplelines.frag", "shaders/imageprocessing/transform.frag"}) {
+            ofApp::ShaderEntry entry; entry.path = path; entry.name = ofFilePath::getBaseName(path);
+            folder.shaders.push_back(entry);
+        }
+        app.shaderFolders.push_back(folder);
+        app.rebuildShaderFolderOrder();
+        app.registerSurfaces();
+        const auto graphCount = app.boxes.boxes.size();
+        app.selectShaderForPreview(0, 0);
+        bool passed = app.previewShaderLoaded;
+        auto findFloat = [&](const string& name) {
+            for (int i = 0; i < (int)app.previewUniformNames.size(); ++i)
+                if (app.previewUniformNames[i] == name) return i;
+            return -1;
+        };
+        const int red = findFloat("r");
+        if (red < 0) return false;
+        auto layout = app.getPreviewInspectorLayout();
+        const float y = layout.body.y + (app.curatedReviewRows() + red) * 30 + 14;
+        app.mousePressed(layout.body.getCenter().x, y, OF_MOUSE_BUTTON_LEFT);
+        app.mouseDragged(layout.body.getRight() + 200, y + 100, OF_MOUSE_BUTTON_LEFT);
+        passed = near(app.previewRdmValues[red], 1.0f) && passed;
+        app.mouseReleased(layout.body.getRight() + 200, y + 100, OF_MOUSE_BUTTON_LEFT);
+        passed = app.previewInspectorDrag == -1 && app.shaderBrowserPointerButtons.empty() && passed;
+        app.renderShaderPreview(false);
+        ofPixels pixels; app.previewFbo.readToPixels(pixels);
+        passed = pixels.getColor(pixels.getWidth()/2, pixels.getHeight()/2).r > 245 && passed;
+        // The inspector must survive both selection changes and a fresh settings read.
+        app.selectShaderForPreview(0, 1);
+        if (app.previewBoolNames.empty()) return false;
+        layout = app.getPreviewInspectorLayout();
+        const float by = layout.body.y + (app.curatedReviewRows() + app.previewUniformNames.size()) * 30 + 14;
+        const bool before = app.previewBoolValues[0];
+        app.mousePressed(layout.body.getCenter().x, by, OF_MOUSE_BUTTON_LEFT);
+        app.mouseReleased(layout.body.getCenter().x, by, OF_MOUSE_BUTTON_LEFT);
+        passed = app.previewBoolValues[0] != before && passed;
+        app.curatedPreviewSettingsLoaded = false;
+        app.selectShaderForPreview(0, 0);
+        passed = near(app.previewRdmValues[findFloat("r")], 1.0f) && passed;
+        layout = app.getPreviewInspectorLayout();
+        app.mousePressed(layout.reset.getCenter().x, layout.reset.getCenter().y, OF_MOUSE_BUTTON_LEFT);
+        app.mouseReleased(layout.reset.getCenter().x, layout.reset.getCenter().y, OF_MOUSE_BUTTON_LEFT);
+        passed = near(app.previewRdmValues[findFloat("r")], app.previewDefaultValues[findFloat("r")]) && passed;
+        app.selectShaderForPreview(0, 1);
+        passed = app.previewBoolValues[0] != before && passed;
+        app.selectShaderForPreview(0, 2);
+        passed = app.selectedShaderHasInputs() && app.getShaderBrowserLayout().preview.width > 0 && passed;
+        const int scale = findFloat("scaleratio");
+        passed = scale >= 0 && near(app.previewUniformMins[scale], 0.1f) &&
+            near(app.previewUniformMaxs[scale], 4.0f) && near(app.previewRdmValues[scale], 1.0f) && passed;
+        ofSetWindowShape(400, 430);
+        layout = app.getPreviewInspectorLayout();
+        passed = layout.panel.width > 0 && layout.body.height > 0 && passed;
+        app.mouseScrolled(layout.body.x + 5, layout.body.y + 5, 0, -10);
+        passed = app.previewInspectorScroll > 0 && passed;
+        auto thumb = app.getPreviewInspectorThumb(layout);
+        app.mousePressed(thumb.getCenter().x, thumb.getCenter().y, OF_MOUSE_BUTTON_LEFT);
+        passed = app.previewInspectorScrollbarDrag && passed;
+        app.mouseDragged(thumb.x, layout.track.y - 100, OF_MOUSE_BUTTON_LEFT);
+        app.mouseReleased(thumb.x, layout.track.y - 100, OF_MOUSE_BUTTON_LEFT);
+        passed = near(app.previewInspectorScroll, 0) && !app.previewInspectorScrollbarDrag && passed;
+        passed = graphCount == app.boxes.boxes.size() && passed;
+        app.selectShaderForPreview(0,1);
+        app.previewBoolValues[0]=false;
+        app.loadSelectedShaderBox();
+        auto& imported=app.boxes.boxes.back()->parameters;
+        const int boolIndex=imported.indexOfName(app.previewBoolNames[0]);
+        passed=boolIndex>=0 && !imported.getBoolValue(boolIndex) && passed;
+        // Feedback-only generators must not sample demo images, while explicit inputs do.
+        const string fixture=ofToDataPath("preview-feedback-test.frag",true);
+        ofPixels demo;demo.allocate(2,2,OF_PIXELS_RGB);demo.setColor(ofColor(255,0,0));app.previewImg1.setFromPixels(demo);
+        auto probe=[&](bool external){
+            const string source="#version 150\nuniform sampler2D feedback;\n"+string(external?"uniform sampler2D source;\n":"")+
+                "out vec4 outputColor;void main(){outputColor=texture(feedback,vec2(0.5))"+string(external?"+texture(source,vec2(0.5))":"")+";}";
+            ofBufferToFile(fixture,ofBuffer(source.data(),source.size()));
+            ofApp::ShaderEntry entry;entry.path=fixture;entry.name="feedback probe";
+            app.shaderFolders[0].shaders.push_back(entry);app.previewShaderPath.clear();
+            app.selectShaderForPreview(0,app.shaderFolders[0].shaders.size()-1);app.renderShaderPreview(false);
+            ofPixels result;app.previewFbo.readToPixels(result);const auto color=result.getColor(result.getWidth()/2,result.getHeight()/2);
+            return external ? color.r>245 && color.g<5 : color.r<5 && color.g<5 && color.b<5;
+        };
+        passed=probe(false) && passed;
+        passed=probe(true) && passed;
+        passed=probe(false) && passed; // input -> generator cannot leak the prior texture.
+        ofFile::removeFile(fixture);
+        app.shaderCuratedMode = false;
+        passed = app.getPreviewInspectorLayout().panel.width > 0 && app.curatedReviewRows()==0 && passed;
+        ofLogNotice("curated-preview-inspector") << "passed=" << passed;
+        return passed;
+    }
 
 
+    bool checkImportScroll(ofApp& app) {
+        ofSetWindowShape(1440, 840);
+        app.pantallaActiva = app.SHADER_INDEX;
+        app.shaderFolders.clear();
+        ofApp::ShaderFolder folder;
+        folder.name = "Scroll regression";
+        folder.path = "test";
+        folder.expanded = true;
+        for (int i = 0; i < 80; ++i) {
+            ofApp::ShaderEntry entry;
+            entry.name = "Shader " + ofToString(i);
+            entry.path = "shaders/generative/solidcolor.frag";
+            folder.shaders.push_back(entry);
+        }
+        app.shaderFolders.push_back(folder);
+        app.rebuildShaderFolderOrder();
+        app.registerSurfaces();
+        app.shaderSearchText.clear();
+        app.shaderScroll = 0.0f;
+        auto layout = app.getShaderBrowserLayout();
+        const float maximum = app.getMaxShaderScroll(app.buildShaderBrowserRows(), layout.list.height);
+        bool passed = maximum > 0.0f;
+        // Fractional trackpad deltas must move the list; details must not.
+        app.mouseScrolled(layout.list.x + 30, layout.list.y + 30, 0, -0.25f);
+        passed = near(app.shaderScroll, 13.0f) && passed;
+        app.mouseScrolled(layout.details.x + 10, layout.details.y + 10, 0, -1);
+        passed = near(app.shaderScroll, 13.0f) && passed;
+        auto thumb = app.getShaderScrollbarThumb(layout);
+        const int tx = thumb.getCenter().x, ty = thumb.getCenter().y;
+        app.mousePressed(tx, ty, OF_MOUSE_BUTTON_LEFT);
+        passed = app.shaderScrollbarDragging && passed;
+        app.mouseDragged(tx + 200, layout.scrollbar.getBottom() + 200, OF_MOUSE_BUTTON_LEFT);
+        passed = near(app.shaderScroll, maximum) && passed;
+        app.mouseReleased(tx + 200, layout.scrollbar.getBottom() + 200, OF_MOUSE_BUTTON_LEFT);
+        passed = !app.shaderScrollbarDragging && app.shaderBrowserPointerButtons.empty() && passed;
+        const auto visible = app.getVisibleShaderBrowserRows(layout);
+        passed = !visible.empty() && visible.back().shaderIndex == app.getOrderedShaderIndices(0).back() &&
+            near(visible.back().bounds.getBottom(), layout.list.getBottom()) && passed;
+        app.mousePressed(layout.scrollbar.getCenter().x, layout.scrollbar.y + 1, OF_MOUSE_BUTTON_LEFT);
+        app.mouseReleased(layout.scrollbar.getCenter().x, layout.scrollbar.y + 1, OF_MOUSE_BUTTON_LEFT);
+        passed = near(app.shaderScroll, 0.0f) && passed;
+        app.shaderSearchFocused = false;
+        app.keyPressed(OF_KEY_END);
+        passed = near(app.shaderScroll, maximum) && passed;
+        app.keyPressed(OF_KEY_HOME);
+        app.keyPressed(OF_KEY_PAGE_DOWN);
+        passed = app.shaderScroll > 0 && app.shaderScroll < maximum && passed;
+        app.selectedShaderFolder = 0; app.selectedShaderIndex = app.getOrderedShaderIndices(0).back();
+        app.ensureShaderSelectionVisible();
+        layout = app.getShaderBrowserLayout();
+        passed = near(app.shaderScroll, app.getMaxShaderScroll(app.buildShaderBrowserRows(),layout.list.height)) && passed;
+        app.shaderSearchText = "no matching shader";
+        app.clampShaderScroll(layout);
+        passed = near(app.shaderScroll, 0) && app.getShaderScrollbarThumb(layout).height == 0 && passed;
+        app.shaderSearchText.clear();
+        app.shaderFolders[0].expanded = false;
+        app.shaderScroll = 400;
+        app.clampShaderScroll(layout);
+        passed = near(app.shaderScroll, 0) && passed;
+        // Geometry stays separated at both desktop and small-window sizes.
+        for (const auto& size : {ofVec2f(1440,840), ofVec2f(600,600), ofVec2f(400,430)}) {
+            ofSetWindowShape(size.x, size.y);
+            layout = app.getShaderBrowserLayout();
+            passed = layout.list.height > 0 && layout.details.height > 0 &&
+                layout.preview.height > 0 && layout.list.getBottom() < layout.details.y &&
+                layout.preview.getBottom() < layout.loadButton.y && passed;
+        }
+        ofLogNotice("import-scroll") << "passed=" << passed;
+        return passed;
+    }
 
     bool checkNestedParameterLoad(ofApp& app) {
         const string directory = ofToDataPath("uishots/persistence/nested-parameters/", true);
@@ -1013,86 +1179,147 @@ namespace
         return passed;
     }
 
-
-
-    bool checkImportScroll(ofApp& app) {
-        ofSetWindowShape(1440, 840);
-        app.pantallaActiva = app.SHADER_INDEX;
+    bool checkShaderNames(ofApp& app) {
+        bool passed=true;
+        auto check=[&](bool ok,const char* label){if(!ok)ofLogError("shader-names")<<label;passed=ok&&passed;};
+        const auto savedConfig=jp::AppPaths::current().config;
+        const auto directory=ofToDataPath("uishots/persistence/shader-names",true);
+        std::filesystem::create_directories(directory);
+        jp::AppPaths::current().config=directory;
+        app.shaderCuratedMode=true;app.language=0;app.pantallaActiva=app.SHADER_INDEX;
         app.shaderFolders.clear();
-        ofApp::ShaderFolder folder;
-        folder.name = "Scroll regression";
-        folder.path = "test";
-        folder.expanded = true;
-        for (int i = 0; i < 80; ++i) {
-            ofApp::ShaderEntry entry;
-            entry.name = "Shader " + ofToString(i);
-            entry.path = "shaders/generative/solidcolor.frag";
-            folder.shaders.push_back(entry);
+        ofApp::ShaderFolder folder;folder.name="Effects";folder.expanded=true;
+        for (const auto& row : std::vector<std::pair<string,string>>{{"z.frag","Apple"},{"a.frag","Zebra"},{"b.frag","Árbol"}}) {
+            ofApp::ShaderEntry entry;entry.path="shaders/imageprocessing/"+row.first;entry.name=row.first;
+            entry.catalogued=true;entry.metadata.name={row.second,row.second};folder.shaders.push_back(entry);
         }
-        app.shaderFolders.push_back(folder);
+        app.shaderFolders.push_back(folder);app.selectedShaderFolder=0;app.selectedShaderIndex=1;
         app.rebuildShaderFolderOrder();
-        app.registerSurfaces();
-        app.shaderSearchText.clear();
-        app.shaderScroll = 0.0f;
-        auto layout = app.getShaderBrowserLayout();
-        const float maximum = app.getMaxShaderScroll(app.buildShaderBrowserRows(), layout.list.height);
-        bool passed = maximum > 0.0f;
-        // Fractional trackpad deltas must move the list; details must not.
-        app.mouseScrolled(layout.list.x + 30, layout.list.y + 30, 0, -0.25f);
-        passed = near(app.shaderScroll, 13.0f) && passed;
-        app.mouseScrolled(layout.details.x + 10, layout.details.y + 10, 0, -1);
-        passed = near(app.shaderScroll, 13.0f) && passed;
-        auto thumb = app.getShaderScrollbarThumb(layout);
-        const int tx = thumb.getCenter().x, ty = thumb.getCenter().y;
-        app.mousePressed(tx, ty, OF_MOUSE_BUTTON_LEFT);
-        passed = app.shaderScrollbarDragging && passed;
-        app.mouseDragged(tx + 200, layout.scrollbar.getBottom() + 200, OF_MOUSE_BUTTON_LEFT);
-        passed = near(app.shaderScroll, maximum) && passed;
-        app.mouseReleased(tx + 200, layout.scrollbar.getBottom() + 200, OF_MOUSE_BUTTON_LEFT);
-        passed = !app.shaderScrollbarDragging && app.shaderBrowserPointerButtons.empty() && passed;
-        const auto visible = app.getVisibleShaderBrowserRows(layout);
-        passed = !visible.empty() && visible.back().shaderIndex == app.getOrderedShaderIndices(0).back() &&
-            near(visible.back().bounds.getBottom(), layout.list.getBottom()) && passed;
-        app.mousePressed(layout.scrollbar.getCenter().x, layout.scrollbar.y + 1, OF_MOUSE_BUTTON_LEFT);
-        app.mouseReleased(layout.scrollbar.getCenter().x, layout.scrollbar.y + 1, OF_MOUSE_BUTTON_LEFT);
-        passed = near(app.shaderScroll, 0.0f) && passed;
-        app.shaderSearchFocused = false;
-        app.keyPressed(OF_KEY_END);
-        passed = near(app.shaderScroll, maximum) && passed;
-        app.keyPressed(OF_KEY_HOME);
-        app.keyPressed(OF_KEY_PAGE_DOWN);
-        passed = app.shaderScroll > 0 && app.shaderScroll < maximum && passed;
-        app.selectedShaderFolder = 0; app.selectedShaderIndex = app.getOrderedShaderIndices(0).back();
-        app.ensureShaderSelectionVisible();
-        layout = app.getShaderBrowserLayout();
-        passed = near(app.shaderScroll, app.getMaxShaderScroll(app.buildShaderBrowserRows(),layout.list.height)) && passed;
-        app.shaderSearchText = "no matching shader";
-        app.clampShaderScroll(layout);
-        passed = near(app.shaderScroll, 0) && app.getShaderScrollbarThumb(layout).height == 0 && passed;
-        app.shaderSearchText.clear();
-        app.shaderFolders[0].expanded = false;
-        app.shaderScroll = 400;
-        app.clampShaderScroll(layout);
-        passed = near(app.shaderScroll, 0) && passed;
-        // Geometry stays separated at both desktop and small-window sizes.
-        for (const auto& size : {ofVec2f(1440,840), ofVec2f(600,600), ofVec2f(400,430)}) {
-            ofSetWindowShape(size.x, size.y);
-            layout = app.getShaderBrowserLayout();
-            passed = layout.list.height > 0 && layout.details.height > 0 &&
-                layout.preview.height > 0 && layout.list.getBottom() < layout.details.y &&
-                layout.preview.getBottom() < layout.loadButton.y && passed;
-        }
-        ofLogNotice("import-scroll") << "passed=" << passed;
-        return passed;
+        check(app.shaderFolderOrder[0]==std::vector<int>({0,2,1}),"sorts displayed labels, folds accents");
+        app.shaderNameFocused=true;app.shaderNamePath=folder.shaders[1].path;app.shaderNameLanguage=0;
+        app.shaderNameText="  Aardvark  ";app.shaderNameCursor=app.shaderNameText.size();
+        check(app.commitShaderName(),"saves rename");
+        check(app.shaderFolderOrder[0]==std::vector<int>({1,0,2}),"rename immediately reorders");
+        check(app.shaderFolders[0].shaders[1].name=="a.frag" && app.getSelectedShaderPath()==folder.shaders[1].path,"identity and selection unchanged");
+        check(app.shaderFolders[0].shaders[1].metadata.name.es=="Zebra","other language retained");
+        app.curatedShaderNames=ofJson::object();app.loadCuratedShaderNames();
+        check(app.curatedShaderNames[folder.shaders[1].path]["en"]=="Aardvark","reloads persisted name");
+        app.shaderNameFocused=true;app.shaderNameText="Árbol";app.shaderNameCursor=2;app.shaderNameSelectAll=false;
+        app.handleShaderNameKey(OF_KEY_BACKSPACE);check(app.shaderNameText=="rbol","backspace removes complete accented character");
+        app.handleShaderNameKey(OF_KEY_ESC);check(!app.shaderNameFocused,"escape cancels");
+        app.shaderNameFocused=true;app.shaderNameText="   ";
+        check(!app.commitShaderName() && app.shaderNameFocused,"empty name rejected");
+        app.shaderNameText="Failure";
+        jp::AppPaths::current().config=std::filesystem::path(directory)/"blocker";
+        ofBufferToFile(jp::AppPaths::current().config.string(),ofBuffer("x",1));
+        check(!app.commitShaderName() && app.shaderFolders[0].shaders[1].displayName(false)=="Aardvark","failed write leaves visible name unchanged");
+        app.shaderNameFocused=false;jp::AppPaths::current().config=savedConfig;
+        ofLogNotice("shader-names")<<"passed="<<passed;return passed;
     }
+
+    bool checkCuration(ofApp& app) {
+        bool passed=true;
+        auto check=[&](bool ok,const char* label){if(!ok)ofLogError("curation")<<label;passed=ok&&passed;};
+        const auto dir=std::filesystem::temp_directory_path()/ ("guipper-curation-"+ofToString(ofGetSystemTimeMicros()));
+        std::filesystem::create_directories(dir);
+        const auto file=(dir/"selection.json").string();
+        const string path="shaders/generative/solidcolor.frag";
+        ofJson entry={{"path",path},{"category","generative"},{"name",{{"en","Solid"},{"es","Color"}}},
+            {"description",{{"en","Test"},{"es","Prueba"}}},{"tags",ofJson::array()},{"inputs",ofJson::array()},
+            {"user_visible",true},{"needs_parameters",false},{"group_path",""}};
+        jp::atomicWrite(file,ofJson({{"format",1},{"entries",ofJson::array({entry})}}).dump());
+        setenv("GUIPPER_CURATED_LIST",file.c_str(),1);unsetenv("GUIPPER_USER_LIST");
+        app.scanShaders();
+        auto count=[&](){int n=0;for(const auto& f:app.shaderFolders)if(!f.isFavorites)n+=f.shaders.size();return n;};
+        check(count()>400,"full recursive library");
+        app.shaderFolderTab="catalog:generative";
+        const auto folderRows=app.buildShaderBrowserRows();
+        check(!folderRows.empty(),"folder tab has items");
+        for(const auto& row:folderRows)check(!row.folderHeader && app.shaderFolders[row.folderIndex].category=="generative","folder tab isolates category");
+        app.shaderFolderTab.clear();
+        auto filteredCount=[&](){int n=0;for(const auto& row:app.buildShaderBrowserRows())if(!row.folderHeader && !app.shaderFolders[row.folderIndex].isFavorites)++n;return n;};
+        app.shaderReviewFilter=1;check(filteredCount()==1,"visible filter");
+        app.shaderReviewFilter=2;check(filteredCount()==count()-1,"hidden filter");
+        app.shaderReviewFilter=3;check(filteredCount()==0,"parameter filter initially empty");
+        app.shaderReviewFilter=0;
+
+        check(app.saveShaderReview(path,{{"needs_parameters",true},{"user_visible",false}}),"persist flags");
+        auto saved=ofJson::parse(jp::readBytes(file));
+        check(saved["entries"][0]["needs_parameters"]==true && saved["entries"][0]["user_visible"]==false,"independent flags saved");
+        app.shaderReviewFilter=4;check(filteredCount()==0,"improve filter initially empty");
+        app.shaderReviewFilter=5;check(filteredCount()==0,"Pupper filter initially empty");
+        check(app.saveShaderReview(path,{{"needs_improvement",true},{"ask_pupper",true}}),"save new review marks");
+        app.shaderReviewFilter=4;check(filteredCount()==1,"improve filter follows mark");
+        app.shaderReviewFilter=5;check(filteredCount()==1,"Pupper filter follows mark");
+        app.shaderSearchText="does-not-exist";check(filteredCount()==0,"Pupper filter intersects search");app.shaderSearchText.clear();
+        app.shaderReviewFilter=3;check(filteredCount()==1,"parameter filter follows persisted mark");
+        app.shaderSearchText="does-not-exist";check(filteredCount()==0,"search intersects review filter");
+        app.shaderSearchText.clear();app.shaderReviewFilter=0;
+
+        unsetenv("GUIPPER_CURATED_LIST");setenv("GUIPPER_USER_LIST",file.c_str(),1);app.scanShaders();
+        check(count()==0,"excluded shaders do not leak into user library");
+        setenv("GUIPPER_CURATED_LIST",file.c_str(),1);app.scanShaders();
+        check(app.saveShaderReview(path,{{"user_visible",true},{"name",{{"en","A renamed shader"}}}}),"shared rename");
+        check(!app.assignShaderGroup(path,(dir/"missing.xml").string()),"invalid group rejected");
+        // Save two real nodes as a group recipe, then preview without touching the graph.
+        app.boxes.addBox(path,20,20);app.boxes.addBox("shaders/generative/basic2.frag",200,20);
+        const auto group=(dir/"group.xml").string();app.boxes.snapshotXml().save(group);
+        const auto before=app.boxes.boxes.size();
+        check(app.assignShaderGroup(path,group),"valid group associated");
+        for(int f=0;f<(int)app.shaderFolders.size();++f)for(int i=0;i<(int)app.shaderFolders[f].shaders.size();++i)
+            if(app.shaderFolders[f].shaders[i].path==path && !app.shaderFolders[f].isFavorites)app.selectShaderForPreview(f,i);
+        check(app.previewPreset && app.previewPreset->boxes.size()==before,"group preview contains nodes");
+        check(app.boxes.boxes.size()==before && app.selectedShaderLoadPath()==group,"preview preserves graph and LOAD resolves group");
+        app.renderShaderPreview(false);
+        check(app.previewFbo.isAllocated(),"group rendered");
+        app.loadSelectedShaderBox();
+        auto* loaded=dynamic_cast<JPbox_preset*>(app.boxes.boxes.back());
+        check(app.boxes.boxes.size()==before+1 && loaded && loaded->boxes.size()==before,"LOAD inserts complete group");
+        app.selectShaderForPreview(app.selectedShaderFolder,app.selectedShaderIndex);
+        check(app.assignShaderGroup(path,"" ) && !app.previewPreset && app.previewShaderLoaded,"removing group restores shader preview");
+        check(!app.selectedShaderHasInputs() && app.getShaderBrowserLayout().preview.width>0,"generator retains image preview");
+
+        const auto validFile=app.shaderReviewFile;app.shaderReviewFile=(dir/"missing"/"catalog.json").string();
+        check(!app.saveShaderReview(path,{{"user_visible",false}}),"write failure reported");app.shaderReviewFile=validFile;
+        for(size_t i=0;i<app.previewRdmValues.size();++i)app.previewRdmValues[i]=0.23f;
+        const auto beforeDraft=jp::readBytes(file);
+        app.saveCuratedPreview();
+        check(jp::readBytes(file)==beforeDraft,"draft does not publish defaults");
+        const auto saveLayout=app.getPreviewInspectorLayout();
+        app.pressPreviewInspector(saveLayout.saveDefault.getCenter().x,saveLayout.saveDefault.getCenter().y);
+        const auto sharedDefaults=ofJson::parse(jp::readBytes(file))["entries"][0]["preview_defaults"];
+        check(sharedDefaults["r"]==app.previewRdmValues[0],"curator preview saved into shared catalog");
+        unsetenv("GUIPPER_CURATED_LIST");app.scanShaders();
+        check(count()==1,"user library contains exactly chosen item");
+        for(const auto& f:app.shaderFolders)for(const auto& e:f.shaders)check(e.displayName(false)=="A renamed shader","shared display name available to user");
+        ofSetWindowShape(1440,840);app.pantallaActiva=app.SHADER_INDEX;app.registerSurfaces();
+        for(int f=0;f<(int)app.shaderFolders.size();++f)if(!app.shaderFolders[f].isFavorites)app.selectShaderForPreview(f,0);
+        check(!app.shaderCuratedMode && app.getPreviewInspectorLayout().panel.width>0 && app.curatedReviewRows()==0,"user inspector visible without curation controls");
+        for(float value:app.previewRdmValues)check(near(value,.23f),"user receives curator defaults");
+        auto inspector=app.getPreviewInspectorLayout();
+        app.pressPreviewInspector(inspector.random.getCenter().x,inspector.random.getCenter().y);
+        check(ofJson::parse(jp::readBytes(file))["entries"][0]["preview_defaults"]==sharedDefaults,"user random cannot overwrite curator defaults");
+        app.loadSelectedShaderBox();
+        auto& params=app.boxes.boxes.back()->parameters;
+        for(size_t i=0;i<app.previewUniformNames.size();++i)check(near(params.getFloatValue(params.indexOfName(app.previewUniformNames[i])),app.previewRdmValues[i]),"LOAD uses current preview values");
+        app.pressPreviewInspector(inspector.reset.getCenter().x,inspector.reset.getCenter().y);
+        for(float value:app.previewRdmValues)check(near(value,.23f),"user reset restores curator defaults");
+        check(ofJson::parse(jp::readBytes(file))["entries"][0]["preview_defaults"]==sharedDefaults,"user reset cannot overwrite defaults");
+        unsetenv("GUIPPER_USER_LIST");app.previewPreset.reset();std::filesystem::remove_all(dir);
+        ofLogNotice("curation")<<"passed="<<passed;return passed;
+    }
+
 
 }
 
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
-    if (testMode && string(testMode) == "import_scroll") return checkImportScroll(app);
+    if (testMode && string(testMode) == "curation") return checkCuration(app);
+    if (testMode && string(testMode) == "shader_names") return checkShaderNames(app);
     if (testMode && string(testMode) == "toasts") return checkToasts(app);
+	if (testMode && string(testMode) == "curated_preview") return checkCuratedPreviewInspector(app);
+	if (testMode && string(testMode) == "import_scroll") return checkImportScroll(app);
 	if (testMode && string(testMode) == "nested_parameters")
         return checkNestedParameterLoad(app) && checkPersistenceModules();
 	if (testMode && string(testMode) == "uniform_inventory") return writeUniformInventory();

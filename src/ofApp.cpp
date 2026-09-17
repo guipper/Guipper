@@ -230,11 +230,12 @@ bool ofApp::anyFieldFocused() const
 		// The paint panel's hex field and layer rename. Listing them here is what
 		// keeps Ctrl+C, Ctrl+V and the space-pan gesture from firing mid-word.
 		boxes.paintTextCaptureActive() ||
-		(pantallaActiva == SHADER_INDEX && shaderSearchFocused);
+		(pantallaActiva == SHADER_INDEX && (shaderSearchFocused || shaderNameFocused));
 }
 
 void ofApp::clearFieldFocus()
 {
+    shaderNameFocused = false; shaderNameSelectAll = false;
 	// Reverting, not just unfocusing: re-initialising a field group re-reads
 	// the committed values, so an abandoned edit is discarded. The settings
 	// screen already promised this on screen ("Click outside to cancel") while
@@ -333,8 +334,11 @@ void ofApp::registerSurfaces()
     s.bounds = [this]() {
         // Own the whole gesture, even if LOAD changes the screen or the mouse
         // leaves the panel. Draw-driven controls underneath must not inherit it.
-        return shaderBrowserPointerButtons.empty() ? getShaderBrowserLayout().panel :
-            ofRectangle(0, 0, ofGetWidth(), ofGetHeight());
+        if (!shaderBrowserPointerButtons.empty()) return ofRectangle(0, 0, ofGetWidth(), ofGetHeight());
+        auto bounds = getShaderBrowserLayout().panel;
+        const auto inspector = getPreviewInspectorLayout().panel;
+        if (inspector.width > 0) bounds.growToInclude(inspector);
+        return bounds;
     };
     surfaces.add(s);
 
@@ -420,6 +424,13 @@ void ofApp::registerSurfaces()
 void ofApp::enterScreen(int screen)
 {
 	const bool changed = pantallaActiva != screen;
+    if (screen != SHADER_INDEX) {
+        shaderNameFocused = false;
+        shaderScrollbarDragging = false;
+        if (previewInspectorDrag >= 0) saveCuratedPreview();
+        previewInspectorDrag = -1;
+        previewInspectorScrollbarDrag = false;
+    }
 	pantallaActiva = screen;
 	focusedOptionsField = -1;
 	clearLiveOutputInteractionState();
@@ -442,7 +453,7 @@ void ofApp::enterScreen(int screen)
 		shaderSearchFocused = true;
 		shaderSearchCursor = ofClamp(shaderSearchCursor, 0,
 			(int)shaderSearchText.size());
-		if (shaderFolders.empty() || std::getenv("GUIPPER_CURATED_LIST")) scanShaders();
+		if (shaderFolders.empty() || std::getenv("GUIPPER_CURATED_LIST") || shaderUserLibrary || std::getenv("GUIPPER_USER_LIST")) scanShaders();
 		break;
 	case EDITOR:
 		shaderEditor.setVisible(true);
@@ -453,6 +464,11 @@ void ofApp::enterScreen(int screen)
 }
 
 void ofApp::update() {
+    if (shaderOrderLanguage != language) {
+        shaderNameFocused = false;
+        rebuildShaderFolderOrder();
+        if (pantallaActiva == SHADER_INDEX) ensureShaderSelectionVisible();
+    }
     const double toastNow = ofGetElapsedTimef();
     toastView.layout(toasts, modalFont, ofGetWidth(), ofGetHeight());
     toasts.update(toastLastUpdate > 0 ? toastNow - toastLastUpdate : 0,
@@ -624,7 +640,7 @@ void ofApp::update() {
 
 	// Keep animated previews responsive without competing with the live graph
 	// for a full-resolution render on every application frame.
-	if (previewShaderLoaded && selectedShaderIndex >= 0 &&
+	if ((previewShaderLoaded || previewPreset) && selectedShaderIndex >= 0 &&
 		pantallaActiva == SHADER_INDEX) {
 		const float now = ofGetElapsedTimef();
 		if (lastPreviewRenderTime < 0.0f ||
@@ -675,7 +691,7 @@ void ofApp::draw() {
 		// Draw the live node canvas behind so the right (uncovered) half shows
 		// it; a LOADed box appears there for immediate visual feedback.
 		boxes.drawNodeEditorBackground(ofGetWidth(), ofGetHeight());
-		boxes.draw();
+		boxes.draw(getPreviewInspectorLayout().panel.width <= 0);
 		drawScreenTabs();
 		draw_shaderindex();
 	}
@@ -5030,25 +5046,51 @@ void ofApp::scanShaders() {
     const char* curatedList = std::getenv("GUIPPER_CURATED_LIST");
     shaderCuratedMode = curatedList != nullptr;
     shaderCuratedError.clear();
-    const auto catalogFile = shaderCuratedMode ? std::filesystem::path(curatedList) :
-        jp::AppPaths::current().bundle/"shader-library.json";
+    const char* userList = std::getenv("GUIPPER_USER_LIST");
+    const auto bundledSelection = jp::AppPaths::current().bundle / "shader-selection.json";
+    shaderUserLibrary = !shaderCuratedMode && (userList || std::filesystem::is_regular_file(bundledSelection));
+    const auto catalogFile = shaderCuratedMode ? std::filesystem::path(curatedList) : shaderUserLibrary ?
+        (userList ? std::filesystem::path(userList) : bundledSelection) : jp::AppPaths::current().bundle/"shader-library.json";
+    shaderReviewFile = (shaderCuratedMode || shaderUserLibrary) ? catalogFile.string() : string();
     try {
         if (std::filesystem::is_regular_file(catalogFile)) {
             if(std::filesystem::file_size(catalogFile)>1024*1024) throw std::runtime_error("Shader catalog is too large");
             const auto json = ofJson::parse(jp::readBytes(catalogFile));
-            const auto entries = shaderCuratedMode ? jp_shader_catalog::parseCurated(json) : jp_shader_catalog::parse(json);
+            const auto entries = (shaderCuratedMode || shaderUserLibrary) ? jp_shader_catalog::parseCurated(json) : jp_shader_catalog::parse(json);
             for (const auto& entry : entries) {
-                if (shaderCuratedMode && (!std::filesystem::is_regular_file(ofToDataPath(entry.path, true)) ||
-                    !shaderHasMain(ofToDataPath(entry.path, true))))
-                    throw std::runtime_error("Missing or non-standalone curated shader: " + entry.path);
+                if (shaderUserLibrary && !entry.userVisible) continue;
                 catalog.emplace(entry.path, entry);
             }
-        } else if (shaderCuratedMode) throw std::runtime_error("Curated list not found");
+        } else if (shaderCuratedMode || shaderUserLibrary) throw std::runtime_error("Shader selection list not found");
     } catch(const std::exception& error) {
         catalog.clear();
-        if (shaderCuratedMode) shaderCuratedError = error.what();
+        if (shaderCuratedMode || shaderUserLibrary) shaderCuratedError = error.what();
         ofLogWarning("shader-catalog")<<error.what();
     }
+    if (shaderCuratedMode) {
+        std::error_code error;
+        const std::filesystem::path root=ofToDataPath("shaders",true);
+        for (std::filesystem::recursive_directory_iterator it(root,error), end; it!=end && !error; it.increment(error)) {
+            if (!it->is_regular_file(error) || it->path().extension()!=".frag") continue;
+            const string path="shaders/"+it->path().lexically_relative(root).generic_string();
+            if (catalog.count(path)) continue;
+            jp_shader_catalog::Entry entry;entry.path=path;entry.userVisible=false;
+            entry.name={it->path().stem().string(),it->path().stem().string()};
+            entry.description={"Pending review.","Pendiente de revisión."};
+            entry.category=path.rfind("shaders/generative/",0)==0?"generative":path.rfind("shaders/imageprocessing/",0)==0?"effects":
+                path.rfind("shaders/blending/",0)==0?"mixers":path.rfind("shaders/contrib/",0)==0?"contrib":path.rfind("shaders/combo/",0)==0?"combo":"internal";
+            if (!shaderHasMain(it->path().string())) entry.category="internal";
+            catalog.emplace(path,std::move(entry));
+        }
+    }
+    loadCuratedShaderNames();
+    if (shaderCuratedMode) for (auto& item : catalog) {
+        const auto found = curatedShaderNames.find(item.first);
+        if (found == curatedShaderNames.end() || !found->is_object()) continue;
+        if (found->contains("en") && (*found)["en"].is_string()) item.second.name.en=(*found)["en"].get<string>();
+        if (found->contains("es") && (*found)["es"].is_string()) item.second.name.es=(*found)["es"].get<string>();
+    }
+    shaderNameFocused = false;
     std::set<string> listed;
 
 	// Only scan these specific root folders (no sub-subdirectories)
@@ -5056,33 +5098,34 @@ void ofApp::scanShaders() {
 	int helperFragmentsSkipped = 0;
 	auto appendStandaloneShader = [&](ShaderFolder &folder, const string &path,
 		const string &absolutePath) {
-        if(listed.count(path) || (shaderCuratedMode && !catalog.count(path)))return;
-		if (!shaderHasMain(absolutePath)) {
+        if(listed.count(path) || ((shaderCuratedMode || shaderUserLibrary) && !catalog.count(path)))return;
+		if (!shaderHasMain(absolutePath) && !shaderCuratedMode && (catalog.find(path)==catalog.end() || catalog.at(path).groupPath.empty())) {
 			helperFragmentsSkipped++;
 			return;
 		}
 		ShaderEntry entry;
 		entry.name = ofFilePath::getBaseName(path);
 		entry.path = path;
+        entry.standalone = shaderHasMain(absolutePath);
         const auto bundled=jp::AppPaths::current().bundle/path;
         try {entry.personal=!std::filesystem::is_regular_file(bundled)||jp::readBytes(bundled)!=jp::readBytes(absolutePath);}
         catch(const std::exception&) {entry.personal=true;}
         auto metadata=catalog.find(path);
-        if(metadata!=catalog.end()) {entry.catalogued=true;entry.metadata=metadata->second;entry.official=!shaderCuratedMode && !entry.personal;}
+        if(metadata!=catalog.end()) {entry.catalogued=true;entry.metadata=metadata->second;entry.official=!shaderCuratedMode && !shaderUserLibrary && !entry.personal;}
         listed.insert(path);
 		folder.shaders.push_back(entry);
 	};
 
-    for(const string category:{"generative","effects","mixers"}) {
+    for(const string category:{"generative","effects","mixers","contrib","combo","internal"}) {
         ShaderFolder folder;folder.name=jp_shader_catalog::categoryName(category,false);folder.category=category;
         folder.path="catalog:"+category;folder.expanded=true;
         for(const auto& pair:catalog) if(pair.second.category==category) {
             const auto resolved=ofToDataPath(pair.first,true);
-            if(std::filesystem::is_regular_file(resolved))appendStandaloneShader(folder,pair.first,resolved);
+            if(shaderCuratedMode || std::filesystem::is_regular_file(resolved) || !pair.second.groupPath.empty())appendStandaloneShader(folder,pair.first,resolved);
         }
         if(!folder.shaders.empty())shaderFolders.push_back(folder);
     }
-    if (!shaderCuratedMode) {
+    if (!shaderCuratedMode && !shaderUserLibrary) {
 	// Root shaders/ folder (files directly in shaders/)
 	{
 		ShaderFolder rootFolder;
@@ -5118,9 +5161,11 @@ void ofApp::scanShaders() {
 	selectedShaderFolder = -1;
 	selectedShaderIndex = -1;
 	previewShaderLoaded = false;
+    previewPreset.reset();
 	previewShaderPath.clear();
 	lastPreviewRenderTime = -1.0f;
 	loadFavorites();
+    shaderFolderTab.clear();
 	rebuildFavoritesFolder(); // pins a "favorites" folder on top when any exist
 	cout << "Shader index: found " << shaderFolders.size() << " folders" << endl;
 	int totalShaders = 0;
@@ -5184,6 +5229,7 @@ void ofApp::rebuildFavoritesFolder() {
 	// Re-mark real entries and collect the favorited ones (in file order).
 	ShaderFolder fav;
 	fav.name = "favorites";
+    fav.path = "favorites:";
 	fav.isFavorites = true;
 	fav.expanded = favoritesFolderExpanded;
 	for (auto &folder : shaderFolders) {
@@ -5237,11 +5283,13 @@ void ofApp::rebuildFavoritesFolder() {
 		previewShaderLoaded = false;
 		previewShaderPath.clear();
 		previewShader.unload();
+    previewPreset.reset();
 		lastPreviewRenderTime = -1.0f;
 	}
 	rebuildShaderFolderOrder();
 }
 void ofApp::rebuildShaderFolderOrder() {
+    shaderOrderLanguage = language;
 	shaderFolderOrder.clear();
 	shaderFolderOrder.resize(shaderFolders.size());
 	for (int f = 0; f < (int)shaderFolders.size(); f++) {
@@ -5251,6 +5299,11 @@ void ofApp::rebuildShaderFolderOrder() {
 		for (int i = 0; i < (int)folder.shaders.size(); i++) {
 			indices.push_back(i);
 		}
+        std::stable_sort(indices.begin(), indices.end(), [&](int a, int b) {
+            const auto ka=jp_shader_catalog::nameSortKey(folder.shaders[a].displayName(language!=0));
+            const auto kb=jp_shader_catalog::nameSortKey(folder.shaders[b].displayName(language!=0));
+            return ka==kb ? folder.shaders[a].path < folder.shaders[b].path : ka<kb;
+        });
 		if (favoritesDisplayMode == FAVORITES_IN_FOLDERS && !folder.isFavorites) {
 			std::stable_partition(indices.begin(), indices.end(), [&](int shaderIndex) {
 				return folder.shaders[shaderIndex].favorite;
@@ -5290,10 +5343,25 @@ ofApp::ShaderBrowserLayout ofApp::getShaderBrowserLayout() const {
 	layout.favoritesModeButton.set(panelX + panelW - inset - 52.0f, panelY + 10.0f, 52.0f, 24.0f);
 	layout.search.set(contentX, searchY, contentW, searchH);
 	layout.searchClear.set(contentX + contentW - searchH, searchY, searchH, searchH);
-    const float bodyTop=searchY+searchH+9.f;
+    if (shaderCuratedMode) for (int i=0;i<6;++i) {
+        const float width=(contentW-20.f)/6.f;
+        layout.reviewFilters[i].set(contentX+i*(width+4.f),searchY+searchH+8.f,width,25.f);
+    }
+    const float tabsY=searchY+searchH+8.f+(shaderCuratedMode?33.f:0.f);
+    const float tabsRight=contentX+contentW-60.f;
+    float tabX=contentX;
+    int tab=std::min(shaderFolderTabPage,int(shaderFolders.size()));
+    for(;tab<=int(shaderFolders.size());++tab) {
+        const float width=std::min(std::max(1.f,tabsRight-contentX),font_p.stringWidth(folderTabLabel(tab))+18.f);
+        if(tabX+width>tabsRight+0.1f)break;
+        layout.folderTabs.emplace_back(tabX,tabsY,width,25.f);layout.folderTabIndices.push_back(tab);tabX+=width+4.f;
+    }
+    layout.folderNextIndex=tab;
+    layout.folderPrev.set(tabsRight+4,tabsY,25,25);layout.folderNext.set(tabsRight+33,tabsY,25,25);
+    const float bodyTop=tabsY+33.f;
     const float bodyH = std::max(0.0f, footerY - 12.0f - bodyTop);
     const bool compact = panelH < 480.0f;
-    const bool editingCurated = false;
+    const bool editingCurated = !getSelectedShaderPath().empty() && ofGetWidth() < 900;
     const bool wide = contentW >= 480.0f || compact || editingCurated;
     float infoH = std::min(wide ? 208.0f : 240.0f,
         bodyH * (compact ? 0.50f : wide ? 0.40f : 0.48f));
@@ -5333,31 +5401,28 @@ vector<ofApp::ShaderBrowserRow> ofApp::buildShaderBrowserRows() const {
 
 	for (int f = 0; f < (int)shaderFolders.size(); f++) {
 		const ShaderFolder &folder = shaderFolders[f];
-		if (searchActive && folder.isFavorites) continue;
+		if (!shaderFolderTab.empty() && shaderFolderTab!=folder.path) continue;
+		if (searchActive && folder.isFavorites && shaderFolderTab.empty()) continue;
 
 		vector<int> visibleShaders;
-		if (searchActive) {
-			const bool folderMatch =
-				ofToLower(folder.name+" "+jp_shader_catalog::categoryName(folder.category,true)).find(searchLower) != string::npos;
-			for (int shaderIndex : getOrderedShaderIndices(f)) {
-				if (folderMatch ||
-					ofToLower(folder.shaders[shaderIndex].name+" "+folder.shaders[shaderIndex].path).find(searchLower) != string::npos ||
-                    (folder.shaders[shaderIndex].catalogued && jp_shader_catalog::matches(folder.shaders[shaderIndex].metadata,shaderSearchText))) {
-					visibleShaders.push_back(shaderIndex);
-				}
-			}
-			if (!folderMatch && visibleShaders.empty()) continue;
-		}
+        const bool folderMatch = ofToLower(folder.name+" "+jp_shader_catalog::categoryName(folder.category,true)).find(searchLower)!=string::npos;
+        for (int shaderIndex : getOrderedShaderIndices(f)) {
+            const auto& entry=folder.shaders[shaderIndex];
+            if (!matchesShaderReviewFilter(entry)) continue;
+            if (!searchActive || folderMatch || ofToLower(entry.name+" "+entry.path).find(searchLower)!=string::npos ||
+                (entry.catalogued && jp_shader_catalog::matches(entry.metadata,shaderSearchText))) visibleShaders.push_back(shaderIndex);
+        }
+        if (visibleShaders.empty()) continue;
 
 		ShaderBrowserRow folderRow;
 		folderRow.folderHeader = true;
 		folderRow.folderIndex = f;
 		folderRow.height = 25.0f;
-		rows.push_back(folderRow);
+		if (shaderFolderTab.empty()) rows.push_back(folderRow);
 
-		if (!searchActive && !folder.expanded) continue;
+		if (!searchActive && shaderFolderTab.empty() && !(shaderCuratedMode && shaderReviewFilter!=0) && !folder.expanded) continue;
 		const vector<int> &shaderIndices =
-			searchActive ? visibleShaders : getOrderedShaderIndices(f);
+			visibleShaders;
 		for (int shaderIndex : shaderIndices) {
 			ShaderBrowserRow shaderRow;
 			shaderRow.folderIndex = f;
@@ -5432,6 +5497,255 @@ string ofApp::getSelectedShaderPath() const {
 	if (selectedShaderIndex >= (int)shaderFolders[selectedShaderFolder].shaders.size()) return "";
 	return shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
 }
+ofApp::PreviewInspectorLayout ofApp::getPreviewInspectorLayout() const {
+    PreviewInspectorLayout result;
+    if (getSelectedShaderPath().empty()) return result;
+    const auto browser = getShaderBrowserLayout();
+    if (ofGetWidth() < 900) result.panel = browser.details;
+    else {
+        const float width = std::min(440.0f, ofGetWidth() - browser.panel.getRight() - 32.0f);
+        const float count = previewInspectorRows();
+        result.panel.set(ofGetWidth() - width - 16.0f, browser.panel.y, width,
+            std::min(browser.panel.height, std::max(100.0f, std::min(540.0f, (shaderCuratedMode ? 134.f : 88.f) + count * 30.0f))));
+    }
+    result.reset.set(result.panel.getRight() - 72, result.panel.y + 7, 64, 25);
+    result.random.set(result.reset.x - 80, result.reset.y, 74, 25);
+    const float nameY = shaderCuratedMode && result.panel.height>=180 ? 54.f : 32.f;
+    const float bodyY = nameY+32.f;
+    if(shaderCuratedMode)result.saveDefault.set(result.panel.x+8,result.panel.getBottom()-33,result.panel.width-16,25);
+    result.name.set(result.panel.x + 8, result.panel.y + nameY, std::max(1.0f, result.panel.width - 16), 26);
+    result.body.set(result.panel.x + 8, result.panel.y + bodyY,
+        std::max(0.0f, result.panel.width - 32), std::max(0.0f, result.panel.height - bodyY - (shaderCuratedMode ? 40.f : 24.f)));
+    result.track.set(result.body.getRight() + 5, result.body.y, 12, result.body.height);
+    return result;
+}
+ofRectangle ofApp::getPreviewInspectorThumb(const PreviewInspectorLayout& layout) const {
+    const float content = previewInspectorRows() * 30.0f;
+    if (content <= layout.body.height || layout.body.height <= 0.0f) return ofRectangle();
+    const float height = std::min(layout.body.height, std::max(20.0f, layout.body.height * layout.body.height / content));
+    return ofRectangle(layout.track.x, layout.track.y + (layout.track.height - height) *
+        ofClamp(previewInspectorScroll / (content - layout.body.height), 0.0f, 1.0f), layout.track.width, height);
+}
+void ofApp::restoreCuratedPreview() {
+    try {
+        if (shaderCuratedMode && !curatedPreviewSettingsLoaded) {
+            curatedPreviewSettings = ofJson::object();
+            const auto path = jp::preferencePath("curated-previews.json");
+            if (std::filesystem::is_regular_file(path)) {
+                if (std::filesystem::file_size(path) > 1024 * 1024) throw std::runtime_error("Preview settings too large");
+                auto loaded = ofJson::parse(jp::readBytes(path));
+                if (!loaded.is_object()) throw std::runtime_error("Invalid preview settings");
+                curatedPreviewSettings = std::move(loaded);
+            }
+            const auto drafts=jp::preferencePath("curated-preview-drafts.json");
+            if(std::filesystem::is_regular_file(drafts)) {
+                const auto loaded=ofJson::parse(jp::readBytes(drafts));
+                if(!loaded.is_object())throw std::runtime_error("Invalid preview drafts");
+                curatedPreviewSettings.update(loaded);
+            }
+            curatedPreviewSettingsLoaded = true;
+        }
+        ofJson values=ofJson::object();
+        const auto& entry=shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex];
+        if (!entry.metadata.previewDefaults.empty()) values=entry.metadata.previewDefaults;
+        if (shaderCuratedMode) {
+            const auto found=curatedPreviewSettings.find(previewShaderPath);
+            if(found!=curatedPreviewSettings.end() && found->is_object()) {
+                values=*found;
+
+            }
+        }
+        const auto* found=&values;
+        for (size_t i = 0; i < previewUniformNames.size(); ++i) {
+            auto value = found->find(previewUniformNames[i]);
+            if (value != found->end() && value->is_number()) {
+                const float number = value->get<float>();
+                if (std::isfinite(number)) previewRdmValues[i] = ofClamp(number, previewUniformMins[i], previewUniformMaxs[i]);
+            }
+        }
+        for (size_t i = 0; i < previewBoolNames.size(); ++i) {
+            auto value = found->find(previewBoolNames[i]);
+            if (value != found->end() && value->is_boolean()) previewBoolValues[i] = value->get<bool>();
+        }
+    } catch (const std::exception& error) {
+        curatedPreviewNotice = language == 0 ? "Could not read preview settings" : "No se pudieron leer los ajustes";
+        ofLogWarning("curated-preview") << error.what();
+    }
+}
+void ofApp::saveCuratedPreview(bool publishDefault) {
+    if (!shaderCuratedMode || !previewShaderLoaded || previewShaderPath.empty()) return;
+    try {
+        if (!curatedPreviewSettings.is_object()) curatedPreviewSettings = ofJson::object();
+        auto values = ofJson::object();
+        for (size_t i = 0; i < previewUniformNames.size(); ++i) values[previewUniformNames[i]] = previewRdmValues[i];
+        for (size_t i = 0; i < previewBoolNames.size(); ++i) values[previewBoolNames[i]] = bool(previewBoolValues[i]);
+        if (publishDefault && !shaderReviewFile.empty() && !saveShaderReview(previewShaderPath,{{"preview_defaults",values}})) {
+            curatedPreviewNotice=language==0?"Could not save shared defaults":"No se pudieron guardar los defaults compartidos";
+            return;
+        }
+        curatedPreviewSettings[previewShaderPath] = values;
+        jp::atomicWrite(jp::preferencePath(publishDefault ? "curated-previews.json" : "curated-preview-drafts.json"), curatedPreviewSettings.dump(2) + "\n");
+        curatedPreviewNotice.clear();
+        curatedPreviewSettingsLoaded = true;
+        if(publishDefault)publishToast("preview-default",jp::ToastState::Success,language==0?"Preview default saved":"Default de preview guardado");
+    } catch (const std::exception& error) {
+        curatedPreviewNotice = language == 0 ? "Could not save preview" : "No se pudo guardar la preview";
+        ofLogError("curated-preview") << error.what();
+    }
+}
+void ofApp::dragPreviewInspector(float x, float y) {
+    const auto layout = getPreviewInspectorLayout();
+    if (previewInspectorScrollbarDrag) {
+        const auto thumb = getPreviewInspectorThumb(layout);
+        const float travel = layout.track.height - thumb.height;
+        const float maximum = std::max(0.0f, previewInspectorRows() * 30.0f - layout.body.height);
+        previewInspectorScroll = travel > 0 ? ofClamp((y - previewInspectorGrab - layout.track.y) / travel, 0.0f, 1.0f) * maximum : 0.0f;
+    } else if (previewInspectorDrag >= 0 && previewInspectorDrag < (int)previewRdmValues.size()) {
+        const int i = previewInspectorDrag;
+        previewRdmValues[i] = ofLerp(previewUniformMins[i], previewUniformMaxs[i],
+            ofClamp((x - layout.body.x) / std::max(1.0f, layout.body.width), 0.0f, 1.0f));
+        lastPreviewRenderTime = -1.0f;
+    }
+}
+bool ofApp::pressPreviewInspector(int x, int y) {
+    const auto layout = getPreviewInspectorLayout();
+    if (layout.panel.width <= 0 || !layout.panel.inside(x, y)) return false;
+    shaderSearchFocused = false;
+    if (shaderCuratedMode && layout.name.inside(x, y)) {
+        if (!shaderNameFocused) {
+            shaderNamePath = getSelectedShaderPath(); shaderNameLanguage = language;
+            shaderNameText = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].displayName(language!=0);
+            shaderNameCursor = shaderNameText.size(); shaderNameSelectAll = true;
+        }
+        shaderNameFocused = true;
+        return true;
+    }
+    if (shaderNameFocused && !commitShaderName()) return true;
+    if (shaderCuratedMode && layout.saveDefault.inside(x,y)) { saveCuratedPreview(true);return true; }
+    if (layout.random.inside(x, y)) {
+        if (previewShaderLoaded && (!previewRdmValues.empty() || !previewBoolValues.empty())) {
+            for (size_t i=0;i<previewRdmValues.size();++i)
+                previewRdmValues[i]=ofRandom(previewUniformMins[i],previewUniformMaxs[i]);
+            for (size_t i=0;i<previewBoolValues.size();++i) previewBoolValues[i]=ofRandom(1.f)>=0.5f;
+            previewRdmActive=true;
+            saveCuratedPreview();
+            lastPreviewRenderTime=-1.f;
+        }
+        return true;
+    }
+    if (layout.reset.inside(x, y)) {
+        previewRdmValues = previewDefaultValues;
+        previewBoolValues = previewBoolDefaults;
+        saveCuratedPreview();
+        lastPreviewRenderTime = -1.0f;
+        return true;
+    }
+    const auto thumb = getPreviewInspectorThumb(layout);
+    if (thumb.height > 0 && layout.track.inside(x, y)) {
+        previewInspectorScrollbarDrag = true;
+        previewInspectorGrab = thumb.inside(x, y) ? y - thumb.y : thumb.height * 0.5f;
+        dragPreviewInspector(x, y);
+        return true;
+    }
+    if (layout.body.inside(x, y)) {
+        int row = (y - layout.body.y + previewInspectorScroll) / 30.0f;
+        if (row < curatedReviewRows()) {
+            pressShaderReviewRow(row,x,ofRectangle(layout.body.x,layout.body.y+row*30-previewInspectorScroll+2,layout.body.width,25));
+            return true;
+        }
+        row -= curatedReviewRows();
+        if (row >= 0 && row < (int)previewUniformNames.size()) {
+            previewInspectorDrag = row;
+            dragPreviewInspector(x, y);
+        } else if (row < (int)(previewUniformNames.size() + previewBoolNames.size())) {
+            const int index = row - previewUniformNames.size();
+            previewBoolValues[index] = !previewBoolValues[index];
+            saveCuratedPreview();
+            lastPreviewRenderTime = -1.0f;
+        }
+    }
+    return true;
+}
+void ofApp::drawPreviewInspector() {
+    const auto layout = getPreviewInspectorLayout();
+    if (layout.panel.width <= 0) return;
+    const int count = previewInspectorRows();
+    previewInspectorScroll = ofClamp(previewInspectorScroll, 0.0f, std::max(0.0f, count * 30.0f - layout.body.height));
+    auto fit = [&](string text, float width) {
+        if (font_p.stringWidth(text) <= width) return text;
+        while (!text.empty() && font_p.stringWidth(text + "...") > width) {
+            size_t end = text.size() - 1;
+            while (end > 0 && (static_cast<unsigned char>(text[end]) & 0xc0) == 0x80) --end;
+            text.erase(end);
+        }
+        return text.empty() ? string() : text + "...";
+    };
+    ofSetColor(ofColor(COL_BG_PANEL, 255));
+    ofDrawRectRounded(layout.panel, 4);
+    ofSetColor(COL_TEXT_PRIMARY);
+    font_p.drawString(fit(language == 0 ? "Preview parameters" : "Parámetros de preview", std::max(0.f,layout.random.x-layout.panel.x-16.f)),
+        layout.panel.x + 8, std::round(layout.panel.y + 24));
+    jp_button::draw(layout.reset, "RESET", false, true, COL_BORDER_MUTED);
+    jp_button::draw(layout.random, "RANDOM", false, previewShaderLoaded && (!previewRdmValues.empty() || !previewBoolValues.empty()), COL_BORDER_MUTED);
+    jp_tooltip::drawFor(language==0?"Randomize preview parameters":"Aleatorizar parámetros de preview",layout.random,
+        layout.random.inside(ofGetMouseX(),ofGetMouseY()),"preview-random");
+    ofSetColor(COL_TEXT_SECONDARY);
+    if (shaderCuratedMode && layout.panel.height >= 180) font_p.drawString(language==0 ? "Display name (EN)" : "Nombre visible (ES)", layout.name.x, layout.name.y - 5);
+    if (shaderCuratedMode) drawShaderNameField(layout.name);
+    else {
+        ofSetColor(COL_TEXT_PRIMARY);
+        font_p.drawString(fit(shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].displayName(language!=0),layout.name.width),layout.name.x,layout.name.y+19);
+    }
+    {
+        jp_gl::ScopedScissor clip(layout.body);
+        for (int i = 0; i < count; ++i) {
+            const float y = layout.body.y + i * 30.0f - previewInspectorScroll;
+            if (y + 30 <= layout.body.y || y >= layout.body.getBottom()) continue;
+            ofRectangle row(layout.body.x, y + 2, layout.body.width, 25);
+            if (i < curatedReviewRows()) { drawShaderReviewRow(i,row); continue; }
+            const int parameter = i - curatedReviewRows();
+            if (parameter >= (int)(previewUniformNames.size()+previewBoolNames.size())) {
+                ofSetColor(COL_TEXT_SECONDARY);
+                font_p.drawString(fit(previewPreset ? (language==0 ? "Edit parameters inside the group" : "Editá parámetros dentro del grupo") :
+                    (language==0 ? "No adjustable parameters" : "Sin parámetros ajustables"),row.width),row.x,row.y+18);
+                continue;
+            }
+            const bool numeric = parameter < (int)previewUniformNames.size();
+            const int boolean = parameter - previewUniformNames.size();
+            const string label = numeric ? previewUniformNames[parameter] : previewBoolNames[boolean];
+            const string value = numeric ? ofToString(previewRdmValues[parameter], 2) :
+                (previewBoolValues[boolean] ? "ON" : "OFF");
+            ofSetColor(COL_BG_INPUT);
+            ofDrawRectRounded(row, 3);
+            const float amount = numeric ? ofMap(previewRdmValues[parameter], previewUniformMins[parameter], previewUniformMaxs[parameter], 0, 1, true) :
+                (previewBoolValues[boolean] ? 1.0f : 0.0f);
+            ofSetColor(ofColor(COL_ACCENT_CYAN_DIM, 180));
+            ofDrawRectRounded(row.x, row.y, row.width * amount, row.height, 3);
+            ofSetColor(COL_TEXT_PRIMARY);
+            const float valueWidth = font_p.stringWidth(value);
+            font_p.drawString(fit(label, row.width - valueWidth - 24), row.x + 7, std::round(row.y + 17));
+            font_p.drawString(value, row.getRight() - valueWidth - 7, std::round(row.y + 17));
+        }
+
+    }
+    const auto thumb = getPreviewInspectorThumb(layout);
+    if (thumb.height > 0) {
+        ofSetColor(COL_BG_INPUT);
+        ofDrawRectRounded(layout.track.x + 3, layout.track.y, 6, layout.track.height, 3);
+        ofSetColor(previewInspectorScrollbarDrag ? COL_ACCENT_CYAN : COL_TEXT_MUTED);
+        ofDrawRectRounded(thumb.x + 2, thumb.y, 8, thumb.height, 4);
+    }
+    if(shaderCuratedMode) {
+        jp_button::draw(layout.saveDefault,language==0?"Save as default":"Guardar como default",false,previewShaderLoaded,COL_ACCENT_CYAN);
+        if(!curatedPreviewNotice.empty())jp_tooltip::drawFor(curatedPreviewNotice,layout.saveDefault,
+            layout.saveDefault.inside(ofGetMouseX(),ofGetMouseY()),"preview-save-error");
+    } else {
+        ofSetColor(curatedPreviewNotice.empty()?COL_TEXT_SECONDARY:COL_ACCENT_GOLD);
+        const string status=curatedPreviewNotice.empty() ? (language==0?"LOAD uses these values · RESET restores defaults":"LOAD usa estos valores · RESET restaura defaults") : curatedPreviewNotice;
+        font_p.drawString(fit(status,layout.panel.width-16),layout.panel.x+8,std::round(layout.panel.getBottom()-7));
+    }
+}
+
 void ofApp::ensurePreviewFbo() {
 	const int renderWidth = std::max(1, jp_constants::renderWidth);
 	const int renderHeight = std::max(1, jp_constants::renderHeight);
@@ -5449,6 +5763,13 @@ void ofApp::ensurePreviewFbo() {
 	}
 }
 void ofApp::renderShaderPreview(bool useLiveMouse) {
+    if (previewPreset) {
+        ensurePreviewFbo();
+        previewPreset->update(); previewPreset->updateFBO();
+        previewFbo.begin(); ofClear(0,0,0,255); ofPushStyle(); ofSetRectMode(OF_RECTMODE_CORNER); ofSetColor(255);
+        previewPreset->fbo.draw(0,0,previewFbo.getWidth(),previewFbo.getHeight());
+        ofPopStyle(); previewFbo.end(); lastPreviewRenderTime=ofGetElapsedTimef(); return;
+    }
 	if (!previewShaderLoaded) return;
 	ensurePreviewFbo();
 
@@ -5477,52 +5798,73 @@ void ofApp::renderShaderPreview(bool useLiveMouse) {
 			previewShader.setUniform1f(previewUniformNames[i], previewRdmValues[i]);
 		}
 	}
-	if (previewImg1.isAllocated()) {
-		previewImg1.getTexture().bind(0);
-		previewShader.setUniform1i("texture1", 0);
-		previewShader.setUniform1i("textura1", 0);
-		previewShader.setUniform1i("input_texture", 0);
-		previewShader.setUniform1i("tex0", 0);
-		previewShader.setUniform1i("textura", 0);
-		previewShader.setUniform1i("texture", 0);
-	}
-	if (previewImg2.isAllocated()) {
-		previewImg2.getTexture().bind(1);
-		previewShader.setUniform1i("texture2", 1);
-		previewShader.setUniform1i("textura2", 1);
-		previewShader.setUniform1i("tex1", 1);
-	}
+    for (size_t i = 0; i < previewBoolNames.size(); ++i)
+        previewShader.setUniform1i(previewBoolNames[i], previewBoolValues[i] ? 1 : 0);
+    // Only declared external inputs receive demo images. Unit zero belongs to
+    // feedback and must never alias a demo image (including after selection changes).
+    if (!previewEmptyFeedback.isAllocated()) {
+        ofPixels black; black.allocate(1,1,OF_PIXELS_RGBA); black.setColor(ofColor(0,0,0,255));
+        ofTextureData data; data.width=1;data.height=1;data.glInternalFormat=GL_RGBA;data.textureTarget=GL_TEXTURE_2D;
+        previewEmptyFeedback.allocate(data);previewEmptyFeedback.loadData(black);
+    }
+    previewShader.setUniformTexture("feedback",previewEmptyFeedback,0);
     for(size_t i=0;i<previewInputNames.size();++i) {
         const auto& image=i%2==0?previewImg1:previewImg2;
-        if(image.isAllocated())previewShader.setUniformTexture(previewInputNames[i],image.getTexture(),i%2);
+        const int unit=1+i%2;
+        previewShader.setUniformTexture(previewInputNames[i],image.isAllocated()?image.getTexture():previewEmptyFeedback,unit);
     }
 	ofSetColor(COL_TEXT_PRIMARY);
 	ofDrawRectangle(0, 0, previewFbo.getWidth(), previewFbo.getHeight());
 	previewShader.end();
-	if (previewImg1.isAllocated()) previewImg1.getTexture().unbind(0);
-	if (previewImg2.isAllocated()) previewImg2.getTexture().unbind(1);
+	previewEmptyFeedback.unbind(0);
+    if (!previewInputNames.empty() && previewImg1.isAllocated()) previewImg1.getTexture().unbind(1);
+    if (previewInputNames.size()>1 && previewImg2.isAllocated()) previewImg2.getTexture().unbind(2);
 	previewFbo.end();
 	lastPreviewRenderTime = ofGetElapsedTimef();
 }
 void ofApp::selectShaderForPreview(int f, int s) {
+    shaderNameFocused = false;
 	if (f < 0 || f >= (int)shaderFolders.size()) return;
 	if (s < 0 || s >= (int)shaderFolders[f].shaders.size()) return;
 	const string shaderPath = shaderFolders[f].shaders[s].path;
 	selectedShaderFolder = f;
 	selectedShaderIndex = s;
-	if (shaderPath == previewShaderPath && previewShaderLoaded) return;
+	if (shaderPath == previewShaderPath && (previewShaderLoaded || previewPreset)) return;
+    if (previewInspectorDrag >= 0) saveCuratedPreview();
 
 	// Load into preview shader (kept for RDM/EDIT + optional preview render).
 	previewShaderPath = shaderPath;
 	previewShader.unload();
 	previewShaderLoaded = false;
+    previewPreset.reset();
 	lastPreviewRenderTime = -1.0f;
 	previewUniformNames.clear();
     previewInputNames.clear();
 	previewUniformMins.clear();
 	previewUniformMaxs.clear();
 	previewRdmValues.clear();
+    previewDefaultValues.clear();
+    previewBoolNames.clear(); previewBoolValues.clear(); previewBoolDefaults.clear();
+    previewInspectorScroll = 0.0f;
+    previewInspectorDrag = -1;
+    previewInspectorScrollbarDrag = false;
+    curatedPreviewNotice.clear();
 	previewRdmActive = false;
+    const auto& selected=shaderFolders[f].shaders[s];
+    if (!selected.metadata.groupPath.empty()) {
+        const auto group=selected.metadata.groupPath;
+        if (!JPboxgroup::validateGroupFile(group)) {
+            curatedPreviewNotice=language==0 ? "Group unavailable or invalid" : "Grupo inválido o no disponible";
+            return;
+        }
+        previewPreset=std::shared_ptr<JPbox_preset>(new JPbox_preset(),[](JPbox_preset* p){p->clear();delete p;});
+        previewPreset->setup(group,"curated-group-preview");previewPreset->setonoff(true);
+        renderShaderPreview(false);return;
+    }
+    if (!selected.standalone) {
+        curatedPreviewNotice=language==0 ? "Helper file · no standalone preview" : "Archivo auxiliar · sin preview independiente";
+        return;
+    }
 	if (previewShader.load("shaders/default.vert", shaderPath)) {
 		previewShaderLoaded = true;
 		// The same lexer as shader boxes; preview only filters a broader set
@@ -5532,6 +5874,12 @@ void ofApp::selectShaderForPreview(int f, int s) {
 		{
             if ((uniform.type==jp_uniform_parser::Type::Sampler2D || uniform.type==jp_uniform_parser::Type::Sampler2DRect) &&
                 !uniform.internal && !uniform.array && !jp_shader_globals::isGlobalName(uniform.name))previewInputNames.push_back(uniform.name);
+            if (uniform.type == jp_uniform_parser::Type::Bool && !uniform.internal && !uniform.array &&
+                !jp_shader_globals::isGlobalName(uniform.name)) {
+                previewBoolNames.push_back(uniform.name);
+                previewBoolValues.push_back(uniform.boolDefault.value_or(false));
+                previewBoolDefaults.push_back(uniform.boolDefault.value_or(false));
+            }
 			if (uniform.type != jp_uniform_parser::Type::Float ||
 				uniform.internal || uniform.array) continue;
 			const string &uname = uniform.name;
@@ -5540,11 +5888,19 @@ void ofApp::selectShaderForPreview(int f, int s) {
 				uname == "textura" || uname == "textura1" || uname == "textura2" ||
 				uname == "tex0" || uname == "tex1" || uname == "input_texture" || uname == "texture") continue;
 			previewUniformNames.push_back(uname);
-			previewUniformMins.push_back(0.0f);
-			previewUniformMaxs.push_back(1.0f);
-			previewRdmValues.push_back(uniform.floatDefault.value_or(0.5f));
+			const bool scaleRatio = uname == "scaleratio" || uname == "scale_ratio";
+            previewUniformMins.push_back(scaleRatio ? 0.1f : 0.0f);
+            previewUniformMaxs.push_back(scaleRatio ? 4.0f : 1.0f);
+            previewRdmValues.push_back(ofClamp(uniform.floatDefault.value_or(scaleRatio ? 1.0f : 0.5f),
+                previewUniformMins.back(), previewUniformMaxs.back()));
+            previewDefaultValues.push_back(previewRdmValues.back());
 		}
         previewRdmActive=true;
+        restoreCuratedPreview();
+        if (!shaderCuratedMode) {
+            previewDefaultValues=previewRdmValues;
+            previewBoolDefaults=previewBoolValues;
+        }
 		renderShaderPreview(false);
 	}
 }
@@ -5552,7 +5908,11 @@ void ofApp::loadSelectedShaderBox() {
 	if (selectedShaderFolder < 0 || selectedShaderIndex < 0) return;
 	if (selectedShaderFolder >= (int)shaderFolders.size()) return;
 	if (selectedShaderIndex >= (int)shaderFolders[selectedShaderFolder].shaders.size()) return;
-	string selPath = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
+	string selPath = selectedShaderLoadPath();
+    if (selPath.empty()) return;
+    if (!shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].metadata.groupPath.empty() && !JPboxgroup::validateGroupFile(selPath)) {
+        publishToast("curation",jp::ToastState::Error,language==0 ? "Could not load the group. Check its files." : "No se pudo cargar el grupo. Revisá sus archivos.");return;
+    }
 	cout << "SHADER INDEX: Loading " << selPath << endl;
 	// Add near the centre of the right (visible) half so the box appears in the
 	// uncovered area; grid subsequent adds so they don't stack.
@@ -5563,7 +5923,22 @@ void ofApp::loadSelectedShaderBox() {
 	float rightHalfX = ofGetWidth() * 0.75f;
 	ofVec2f anchor = boxes.screenToCanvas(ofVec2f(rightHalfX, ofGetHeight() * 0.45f));
 	float startX = anchor.x - cols * sepx * 0.5f;
-	boxes.addBox(selPath, startX + col * sepx, anchor.y + row * sepy);
+	if (!boxes.addBox(selPath, startX + col * sepx, anchor.y + row * sepy)) return;
+    if (previewShaderLoaded && selPath==previewShaderPath && !boxes.boxes.empty()) {
+        auto& parameters=boxes.boxes.back()->parameters;
+        for(size_t i=0;i<previewUniformNames.size();++i) {
+            const int index=parameters.indexOfName(previewUniformNames[i]);
+            if(index>=0 && parameters.getJParameter(index)->variabletype==JPParameter::FLOAT) {
+                parameters.setFloatValue(previewRdmValues[i],index);
+                parameters.setFloatLerpValue(previewRdmValues[i],index);
+            }
+        }
+        for(size_t i=0;i<previewBoolNames.size();++i) {
+            const int index=parameters.indexOfName(previewBoolNames[i]);
+            if(index>=0 && parameters.getJParameter(index)->variabletype==JPParameter::BOOL)
+                parameters.setBoolValue(previewBoolValues[i],index);
+        }
+    }
 	loadBoxCount++;
 }
 void ofApp::moveShaderSelection(int dir) {
@@ -5758,6 +6133,25 @@ void ofApp::draw_shaderindex() {
 		ofSetLineWidth(1.0f);
 	}
 
+    if (shaderCuratedMode) {
+        const vector<string> labels = language==0 ? vector<string>{"All","Visible","Hidden","Parameters","Improve","Pupper"} :
+            vector<string>{"Todos","Visibles","Ocultos","Parámetros","Mejorar","Pupper"};
+        const vector<string> hints = language==0 ? vector<string>{"All shaders","Shown to users","Hidden from users","Marked as needing parameters","Marked for improvement","Marked to ask Pupper"} :
+            vector<string>{"Todos los shaders","Visibles para el usuario","Ocultos para el usuario","Marcados para agregar parámetros","Marcados para mejorar","Marcados para preguntarle a Pupper"};
+        for (int i=0;i<6;++i) {
+            jp_button::draw(layout.reviewFilters[i],fitText(labels[i],layout.reviewFilters[i].width-8),shaderReviewFilter==i,true,COL_ACCENT_CYAN);
+            jp_tooltip::drawFor(hints[i],layout.reviewFilters[i],layout.reviewFilters[i].inside(ofGetMouseX(),ofGetMouseY()),"curation-filter-"+ofToString(i));
+        }
+    }
+    for(size_t i=0;i<layout.folderTabs.size();++i) {
+        const int index=layout.folderTabIndices[i];
+        const string label=folderTabLabel(index);
+        const string key=index==0?string():shaderFolders[index-1].path;
+        jp_button::draw(layout.folderTabs[i],label,shaderFolderTab==key,true,COL_BORDER_MUTED);
+    }
+    jp_button::draw(layout.folderPrev,"<",false,shaderFolderTabPage>0,COL_BORDER_MUTED);
+    jp_button::draw(layout.folderNext,">",false,layout.folderNextIndex<=int(shaderFolders.size()),COL_BORDER_MUTED);
+
 	const vector<ShaderBrowserRow> allRows = buildShaderBrowserRows();
 	const vector<ShaderBrowserRow> visibleRows =
 		getVisibleShaderBrowserRows(layout, allRows);
@@ -5788,7 +6182,7 @@ void ofApp::draw_shaderindex() {
 				ofDrawRectRounded(row.bounds, 3.0f);
 			}
 
-			const bool expanded = !shaderSearchText.empty() || folder.expanded;
+			const bool expanded = !shaderSearchText.empty() || (shaderCuratedMode && shaderReviewFilter!=0) || folder.expanded;
 			const float arrowCx = row.bounds.x + 7.0f;
 			const float arrowCy = row.bounds.getCenter().y;
 			ofSetColor(folder.isFavorites ? COL_ACCENT_GOLD :
@@ -5808,7 +6202,8 @@ void ofApp::draw_shaderindex() {
 				drawStarGlyph(folderNameX + 4.0f, arrowCy, 5.0f, true);
 				folderNameX += 14.0f;
 			}
-			const string countText = "(" + ofToString((int)folder.shaders.size()) + ")";
+			const int matchingCount=std::count_if(folder.shaders.begin(),folder.shaders.end(),[this](const ShaderEntry& entry){return matchesShaderReviewFilter(entry);});
+			const string countText = "(" + ofToString(matchingCount) + ")";
 			const float countWidth = font_p.stringWidth(countText);
 			const string folderName = fitText(folder.category.empty()?folder.name:jp_shader_catalog::categoryName(folder.category,language!=0),
 				row.bounds.width - (folderNameX - row.bounds.x) - countWidth - 16.0f);
@@ -5859,6 +6254,15 @@ void ofApp::draw_shaderindex() {
 				bindingX = shaderBounds.getRight() - bindingWidth - 7.0f;
 				nameRight = bindingX - 10.0f;
 			}
+            if (shaderCuratedMode) {
+                const string badge=string(entry.metadata.userVisible?"U":"-") + (entry.metadata.needsParameters?" P":" -") + (entry.metadata.needsImprovement?" M":"") + (entry.metadata.askPupper?" ?":"") + (!entry.metadata.groupPath.empty()?" G":"");
+                const float badgeWidth=font_p.stringWidth(badge)+10;
+                ofSetColor((entry.metadata.needsParameters || entry.metadata.needsImprovement || entry.metadata.askPupper)?COL_ACCENT_GOLD:COL_ACCENT_CYAN);
+                font_p.drawString(badge,nameRight-badgeWidth+5,std::round(row.bounds.getCenter().y+4));
+                jp_tooltip::drawFor(language==0 ? "U: user library · P: parameters · M: improve · ?: Pupper · G: group" : "U: usuario · P: parámetros · M: mejorar · ?: Pupper · G: grupo",
+                    row.bounds,isHovered,"review-badge-"+entry.path);
+                nameRight-=badgeWidth;
+            }
 			const string shaderName =
 				fitText(entry.displayName(language!=0), std::max(20.0f, nameRight - nameX));
 			ofSetColor(isSelected || isHovered ? COL_TEXT_PRIMARY : COL_TEXT_DIM);
@@ -5882,7 +6286,7 @@ void ofApp::draw_shaderindex() {
 	if (allRows.empty()) {
 		ofSetColor(COL_TEXT_MUTED);
 		const string emptyText = shaderSearchText.empty() ?
-			(shaderCuratedMode && !shaderCuratedError.empty() ?
+			((shaderCuratedMode || shaderUserLibrary) && !shaderCuratedError.empty() ?
                 (language == 0 ? "Cannot load curation list" : "No se pudo cargar la lista de curado") :
                 (language == 0 ? "No shaders found" : "No se encontraron shaders")) :
 			(language == 0 ? "No shaders match this search" : "Ningun shader coincide");
@@ -5893,7 +6297,7 @@ void ofApp::draw_shaderindex() {
     ofSetColor(COL_BORDER_MUTED);
     ofDrawLine(layout.list.x, layout.details.y - 8.0f,
         layout.search.getRight(), layout.details.y - 8.0f);
-    {
+    if (!(hasSelection && ofGetWidth() < 900)) {
         jp_gl::ScopedScissor detailClip(layout.details);
         const float x = layout.details.x;
         float y = layout.details.y + 16.0f;
@@ -5960,13 +6364,13 @@ void ofApp::draw_shaderindex() {
 	};
 
 	drawFooterButton(layout.loadButton, COL_ACCENT_CYAN_DIM, COL_ACCENT_CYAN,
-		language == 0 ? "LOAD" : "CARGAR", hasSelection);
+		language == 0 ? "LOAD" : "CARGAR", !selectedShaderLoadPath().empty());
 	if (importBindWaiting) {
 		drawFooterButton(layout.bindButton, COL_ACCENT_GOLD_DIM, COL_ACCENT_GOLD,
 			language == 0 ? "MOVE MIDI" : "MUEVE MIDI", true);
 	} else {
 		drawFooterButton(layout.bindButton, COL_BG_BUTTON, COL_ACCENT_GOLD_DIM,
-			"BIND", hasSelection);
+			"BIND", hasSelection && !selectedShaderLoadPath().empty() && shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].metadata.groupPath.empty());
 	}
 	drawFooterButton(layout.editButton, COL_BG_BUTTON, COL_ACCENT_GOLD_DIM,
 		"EDIT", hasSelection);
@@ -5981,7 +6385,7 @@ void ofApp::draw_shaderindex() {
 
 	const float previewTitleH = 18.0f;
 	const float previewPad = 6.0f;
-	if (hasSelection && previewShaderLoaded && previewFbo.isAllocated()) {
+	if (hasSelection && (previewShaderLoaded || previewPreset) && previewFbo.isAllocated()) {
 		const ShaderEntry &selected =
 			shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex];
 		const string previewTitle = fitText(
@@ -6014,6 +6418,7 @@ void ofApp::draw_shaderindex() {
 			layout.preview.getCenter().y);
 	}
     } // Optional preview image
+    drawPreviewInspector();
 }
 // Esta es la que se dibuja en la otra ventana
 void ofApp::drawRender() {
@@ -6029,6 +6434,9 @@ void ofApp::closeShaderEditorToMain()
 }
 
 void ofApp::keyPressed(int key) {
+    if (pantallaActiva == SHADER_INDEX && shaderNameFocused && !toastBlocked()) {
+        handleShaderNameKey(key); return;
+    }
     // Modified save chords belong exclusively to keycodePressed. Both
     // callbacks receive the same event; treating its 's' as a bare shortcut
     // here would overwrite the original before Save As is even confirmed.
@@ -6363,6 +6771,7 @@ void ofApp::keyPressed(int key) {
 	prevKey = key;*/
 }
 void ofApp::keycodePressed(ofKeyEventArgs & e) {
+    if (shaderNameFocused && pantallaActiva==SHADER_INDEX) return;
     if (releasePanelOpen || saveModalActive) return;
 
 	// cout << "KEY : " << e.key << endl;
@@ -6551,8 +6960,11 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	prevKey = e.keycode;
 }
 void ofApp::mouseDragged(int x, int y, int button) {
-    if (shaderScrollbarDragging && button == OF_MOUSE_BUTTON_LEFT) { dragShaderScrollbar(y); return; }
     if (toastView.captures()) return;
+    if (button == OF_MOUSE_BUTTON_LEFT && (previewInspectorDrag >= 0 || previewInspectorScrollbarDrag)) {
+        dragPreviewInspector(x, y); return;
+    }
+    if (shaderScrollbarDragging && button == OF_MOUSE_BUTTON_LEFT) { dragShaderScrollbar(y); return; }
     if (shaderBrowserPointerButtons.count(button)) return;
     if (releasePanelOpen) return;
 	if (pantallaActiva == TUTORIAL && helpIndexScrollbarDragging)
@@ -6656,13 +7068,18 @@ void ofApp::mousePressed(int x, int y, int button) {
         for (int i=0;i<9;++i) if (releaseButtons[i].inside(x,y)) { releaseAction(i); break; }
         return;
     }
+    if (shaderNameFocused && !toastBlocked() && !getPreviewInspectorLayout().name.inside(x,y)) {
+        if (!commitShaderName()) return;
+    }
 	// FIRST, before any early return below: the controls that actuate from
 	// inside draw() ask where the press began, and a press swallowed by a modal
 	// or a panel still has to be recorded or the next one inherits a stale one.
 	JPdragobject::notePressOrigin((float)x, (float)y);
     if (!saveModalActive && pantallaActiva == SHADER_INDEX &&
-        getShaderBrowserLayout().panel.inside(x, y))
+        (getShaderBrowserLayout().panel.inside(x, y) || getPreviewInspectorLayout().panel.inside(x, y)))
         shaderBrowserPointerButtons.insert(button);
+    if (!saveModalActive && !releasePanelOpen && pantallaActiva == SHADER_INDEX &&
+        button == OF_MOUSE_BUTTON_LEFT && pressPreviewInspector(x, y)) return;
 
 	// Save modal button clicks — consume before anything else when modal is active
 	if (saveModalActive) {
@@ -6975,6 +7392,24 @@ void ofApp::mousePressed(int x, int y, int button) {
 		const ShaderBrowserLayout layout = getShaderBrowserLayout();
 		if (!layout.panel.inside(x, y)) return;
 		shaderSearchFocused = layout.search.inside(x, y);
+        if (shaderCuratedMode) for (int i=0;i<6;++i) if(layout.reviewFilters[i].inside(x,y)) {
+            shaderReviewFilter=i;shaderScroll=0;
+            if (!getSelectedShaderPath().empty() && !matchesShaderReviewFilter(shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex])) {
+                selectedShaderFolder=-1;selectedShaderIndex=-1;previewPreset.reset();previewShaderLoaded=false;previewShaderPath.clear();
+            }
+            return;
+        }
+
+        if(layout.folderPrev.inside(x,y)){shaderFolderTabPage=std::max(0,shaderFolderTabPage-3);return;}
+        if(layout.folderNext.inside(x,y)){if(layout.folderNextIndex<=int(shaderFolders.size()))shaderFolderTabPage=layout.folderNextIndex;return;}
+        for(size_t i=0;i<layout.folderTabs.size();++i) if(layout.folderTabs[i].inside(x,y)) {
+            const int index=layout.folderTabIndices[i];
+            shaderFolderTab=index==0?string():shaderFolders[index-1].path;shaderScroll=0;
+            if (!getSelectedShaderPath().empty() && !shaderFolderTab.empty() && shaderFolders[selectedShaderFolder].path!=shaderFolderTab) {
+                selectedShaderFolder=-1;selectedShaderIndex=-1;previewPreset.reset();previewShaderLoaded=false;previewShaderPath.clear();
+            }
+            return;
+        }
         const auto thumb = getShaderScrollbarThumb(layout);
         if (layout.scrollbar.inside(x, y) && thumb.height > 0.0f) {
             shaderScrollbarDragging = true;
@@ -6982,6 +7417,7 @@ void ofApp::mousePressed(int x, int y, int button) {
             dragShaderScrollbar(y);
             return;
         }
+
 
 		if (layout.favoritesModeButton.inside(x, y)) {
 			toggleFavoritesDisplayMode();
@@ -7016,6 +7452,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 				return;
 			}
 			if (layout.bindButton.inside(x, y)) {
+                if (selectedShaderLoadPath().empty() || !shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].metadata.groupPath.empty()) return;
 				if (importBindWaiting || midiKeymap.isLearning()) {
 					midiKeymap.cancelInlineLearn();
 					importBindWaiting = false;
@@ -7073,6 +7510,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 	}
 }
 void ofApp::windowResized(int w, int h) {
+    if (previewInspectorDrag >= 0) saveCuratedPreview();
+    previewInspectorDrag = -1;
+    previewInspectorScrollbarDrag = false;
     shaderScrollbarDragging = false;
     clampShaderScroll(getShaderBrowserLayout());
 
@@ -7103,12 +7543,17 @@ void ofApp::mouseMoved(int x, int y) {
 	}
 }
 void ofApp::mouseReleased(int x, int y, int button) {
-    if (button == OF_MOUSE_BUTTON_LEFT) shaderScrollbarDragging = false;
     if (toastView.release(x, y, button, toastBlocked(), toasts)) {
         JPdragobject::clearPressOrigin();
         dispatchToastActions();
         return;
     }
+    if (button == OF_MOUSE_BUTTON_LEFT) {
+        if (previewInspectorDrag >= 0) saveCuratedPreview();
+        previewInspectorDrag = -1;
+        previewInspectorScrollbarDrag = false;
+    }
+    if (button == OF_MOUSE_BUTTON_LEFT) shaderScrollbarDragging = false;
 	JPdragobject::clearPressOrigin();
     if (shaderBrowserPointerButtons.erase(button)) return;
 	if (audioDragRow >= 0) {
@@ -7222,6 +7667,12 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 		return;
 	}
 	if (pantallaActiva == SHADER_INDEX) {
+        const auto inspector = getPreviewInspectorLayout();
+        if (inspector.panel.width > 0 && inspector.panel.inside(x, y)) {
+            const float maximum = std::max(0.0f, previewInspectorRows() * 30.0f - inspector.body.height);
+            previewInspectorScroll = ofClamp(previewInspectorScroll - scrollY * 45.0f, 0.0f, maximum);
+            return;
+        }
 		const ShaderBrowserLayout layout = getShaderBrowserLayout();
 		if (layout.list.inside(x, y) || layout.scrollbar.inside(x, y)) {
 			shaderScroll -= scrollY * 52.0f;

@@ -32,6 +32,19 @@ int main(){
  invalid=curated;invalid["entries"][0]["name"]["es"]="";assert(rejectsCurated(invalid));
  invalid=curated;invalid["entries"][0]["inputs"]=42;assert(rejectsCurated(invalid));
  invalid=curated;invalid["format"]=2;assert(rejectsCurated(invalid));
+ auto defaults=curated;defaults["entries"][0]["preview_defaults"]={{"amount",0.23},{"enabled",true}};
+ assert(jp_shader_catalog::parseCurated(defaults).front().previewDefaults["enabled"]==true);
+ defaults["entries"][0]["preview_defaults"]["amount"]="invalid";assert(rejectsCurated(defaults));
+ auto review=curated;review["entries"][0]["user_visible"]=false;review["entries"][0]["needs_parameters"]=true;
+ review["entries"][0]["group_path"]="/tmp/group.xml";
+ review["entries"][0]["needs_improvement"]=true;review["entries"][0]["ask_pupper"]=true;
+ auto reviewed=jp_shader_catalog::parseCurated(review).front();
+ assert(reviewed.needsImprovement && reviewed.askPupper);
+ assert(!jp_shader_catalog::parseCurated(curated).front().needsImprovement && !jp_shader_catalog::parseCurated(curated).front().askPupper);
+ assert(!reviewed.userVisible && reviewed.needsParameters && reviewed.groupPath=="/tmp/group.xml");
+ review["entries"][0]["path"]="shaders/private/helper.frag";review["entries"][0]["category"]="internal";
+ assert(jp_shader_catalog::parseCurated(review).size()==1);
+ review["entries"][0]["group_path"]="/tmp/file.frag";assert(rejectsCurated(review));
  curated["entries"]=json::array();assert(jp_shader_catalog::parseCurated(curated).empty());
  std::cout<<"shader catalog tests passed\n";
 }

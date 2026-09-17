@@ -45,6 +45,20 @@ bool validBuiltTree(JPbox* box) {
 }
 }
 
+// Validate a curated group in isolation before assigning or inserting it.
+bool JPboxgroup::validateGroupFile(const string& path) {
+    ofXml xml;
+    if (!xml.load(path) || !xml.getChild("box")) return false;
+    std::set<std::string> stack{std::filesystem::absolute(ofToDataPath(path,true)).lexically_normal().string()};
+    if (validateStoredTree(xml,stack) != LoadResult::Success) return false;
+    JPbox_preset candidate;
+    try {
+        candidate.setup(path,"group-validation");
+        const bool valid=!candidate.boxes.empty() && validBuiltTree(&candidate);
+        candidate.clear(); return valid;
+    } catch (...) { candidate.clear(); return false; }
+}
+
 // Session orchestration: graph lifetime and link repair stay on JPboxgroup.
 // Parameter field encoding is shared with presets and clipboard via the codec.
 ofXml JPboxgroup::snapshotXml()
