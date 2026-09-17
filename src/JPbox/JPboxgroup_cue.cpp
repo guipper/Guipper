@@ -7,6 +7,13 @@
 // be detached before graph deletion. Ownership is unchanged by this extraction.
 namespace
 {
+    // These boxes can render staged parameters independently. Cameras acquire
+    // the existing shared capture; images reuse the asynchronous decode cache.
+    bool rendersCueDraft(int type)
+    {
+        return type == JPbox::SHADERBOX || type == JPbox::FRAMEDIFFERENCEBOX ||
+            type == JPbox::PAINTBOX || type == JPbox::IMAGEBOX || type == JPbox::CAMBOX;
+    }
 	void copyFboStraight(ofFbo &source, ofFbo &destination)
 	{
 		if (!source.isAllocated() || !destination.isAllocated()) return;
@@ -1051,13 +1058,7 @@ JPbox *JPboxgroup::cloneBoxForCueDraft(int index)
 	JPbox *source = getCueTargetBoxAt(index);
 	JPbox *draft = nullptr;
 	const int type = source->getTipo();
-	if (type == source->SHADERBOX ||
-		type == source->FRAMEDIFFERENCEBOX ||
-		// A plain JPbox stand-in has no document, so a staged edit to a drawing
-		// would be silently dropped. copyEditableBoxState carries the strokes
-		// across via copyCustomStateFrom.
-		type == source->PAINTBOX ||
-		type == source->PRESETBOX)
+	if (rendersCueDraft(type) || type == source->PRESETBOX)
 	{
 		string draftName = source->name + "_cue_draft";
 		draft = jp_box_factory::create(source->dir, jp_box_factory::Context::Interactive);
@@ -1073,6 +1074,10 @@ JPbox *JPboxgroup::cloneBoxForCueDraft(int index)
 		draft->setup(source->dir, source->name + "_cue_draft");
 	}
 	copyEditableBoxState(draft, source);
+    // Preserve the held frame when the source is paused or its pixels are
+    // still loading. Subsequent updates render the draft's own parameters.
+    if (type == JPbox::IMAGEBOX || type == JPbox::CAMBOX)
+        copyFboStraight(source->fbo, draft->fbo);
 	// A preset draft is reloaded from disk by the factory/setup, so seed
 	// its internal sub-box state from the LIVE preset. Without this the draft (and
 	// its exposed-param sliders) would show stale on-disk values, and the CUE
@@ -1353,6 +1358,8 @@ void JPboxgroup::copyPresetInternalState(JPbox_preset *destination, JPbox_preset
 		destination->boxes[i]->setBypass(source->boxes[i]->getBypass());
 		destination->boxes[i]->copyCustomStateFrom(
 			source->boxes[i]);
+        if (source->boxes[i]->getTipo() == JPbox::IMAGEBOX || source->boxes[i]->getTipo() == JPbox::CAMBOX)
+            copyFboStraight(source->boxes[i]->fbo, destination->boxes[i]->fbo);
 		copyBoxLinksByName(
 			destination->boxes[i],
 			source->boxes[i],
@@ -2107,9 +2114,8 @@ void JPboxgroup::updateCueDraftGraph()
 				if (isCueDraftDirty(realIndex))
 				{
 					// Staged edits: re-render the draft preset, re-rendering its
-					// shader sub-boxes but mirroring the live output for source
-					// boxes (so cameras/etc. are not re-opened and it does not
-					// break to an empty "one group").
+					// supported sub-boxes with their own parameters, sharing
+                    // camera capture and mirroring unsupported sources.
 					renderPresetDraftMirroringLive(dynamic_cast<JPbox_preset *>(cueState.draftBoxes[i]),
 												   dynamic_cast<JPbox_preset *>(target[realIndex]));
 				}
@@ -2121,17 +2127,16 @@ void JPboxgroup::updateCueDraftGraph()
 				}
 				continue;
 			}
-			if (type != target[realIndex]->SHADERBOX &&
-				type != target[realIndex]->FRAMEDIFFERENCEBOX)
+			if (!rendersCueDraft(type))
 			{
-				// Media/source box: mirror the live output.
+				// Sources without an independent draft renderer mirror live output.
 				cueState.draftBoxes[i]->update();
 				copyFboStraight(target[realIndex]->fbo,
 					cueState.draftBoxes[i]->fbo);
 				continue;
 			}
 		}
-		// Shader / frame-difference: re-render from the draft graph so staged edits preview.
+		// Re-render supported boxes with staged parameters and draft graph inputs.
 		if (cueState.draftBoxes[i] != nullptr)
 		{
 			cueState.draftBoxes[i]->update();
@@ -2159,11 +2164,7 @@ void JPboxgroup::renderPresetDraftMirroringLive(JPbox_preset *draftPreset, JPbox
 			continue;
 		}
 		int t = l->getTipo();
-		if (t == JPbox::SHADERBOX || t == JPbox::FRAMEDIFFERENCEBOX ||
-			// A paint box has no device to re-open: it rasterizes its own
-			// document, so re-rendering is both cheap and the only way a staged
-			// stroke shows up in the preview.
-			t == JPbox::PAINTBOX)
+		if (rendersCueDraft(t))
 		{
 			// Re-render with staged params, reading its (draft internal) inputs.
 			d->update();
@@ -2175,7 +2176,7 @@ void JPboxgroup::renderPresetDraftMirroringLive(JPbox_preset *draftPreset, JPbox
 		}
 		else if (d->fbo.isAllocated() && l->fbo.isAllocated())
 		{
-			// Source/media box (camera/video/spout/ndi/image): mirror the live
+			// Other sources (video/spout/ndi): mirror the live
 			// output instead of re-opening the device.
 			copyFboStraight(l->fbo, d->fbo);
 		}

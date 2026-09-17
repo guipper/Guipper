@@ -6,6 +6,7 @@
 #include "jp_parameter_xml.h"
 #include "../JPbox/jp_box_factory.h"
 #include "../JPbox/jp_box_image.h"
+#include "../JPbox/jp_box_cam.h"
 #include "../JPbox/jp_box_video.h"
 #include "../JPbox/jp_media.h"
 #include "../JPbox/jp_box_paint.h"
@@ -1410,11 +1411,100 @@ namespace
         ofLogNotice("shader-alpha-chain")<<"passed="<<passed;return passed;
     }
 
+
+    bool checkCueMedia(ofApp& app) {
+        bool passed=true;
+        auto check=[&](bool ok,const char* label){if(!ok)ofLogError("cue-media")<<label;passed=ok&&passed;};
+        app.clearFieldFocus();app.pantallaActiva=app.NODOS;app.boxes.clear();
+        const auto folder=ofToDataPath("uishots/cue-media/",true);
+        ofDirectory::createDirectory(folder,true,true);
+        const string imagePath=folder+"red.png",groupPath=folder+"image-group.xml";
+        ofPixels source;source.allocate(8,8,OF_PIXELS_RGBA);source.setColor(ofColor::red);
+        if(!ofSaveImage(source,imagePath))return false;
+        auto settle=[&](JPbox_image* image){
+            if(!image)return false;
+            for(int i=0;i<1000&&!image->mediaReady();++i){image->update();ofSleepMillis(1);}
+            image->update();return image->mediaReady();
+        };
+        auto redAt=[](JPbox* box,float x){
+            if(!box||!box->fbo.isAllocated())return false;
+            ofPixels pixels;box->fbo.readToPixels(pixels);
+            const auto c=pixels.getColor(int(pixels.getWidth()*x),pixels.getHeight()/2);
+            return c.r>200&&c.g<30&&c.b<30&&c.a>200;
+        };
+        auto setZoom=[&]{
+            auto* box=app.boxes.getInspectorBox();if(!box)return false;
+            const auto order=app.boxes.getBindableParameterOrder(box);
+            for(int slot=0;slot<int(order.size());++slot){
+                auto* p=box->parameters.getJParameter(order[slot]);
+                if(p->name=="scale ratio")return app.boxes.setOpenBoxParameterAtIndex(slot,(0.5f-p->effectiveMin())/(p->effectiveMax()-p->effectiveMin()));
+            }
+            return false;
+        };
+        if(!app.boxes.addBox(imagePath,100,100))return false;
+        auto* live=dynamic_cast<JPbox_image*>(app.boxes.boxes[0]);
+        if(live)live->media.fitMode=JPMediaFitMode::Stretch;
+        check(settle(live),"image fixture decodes");
+        check(app.boxes.save(groupPath),"save image group fixture");
+        app.boxes.selectOpenBoxByIndex(0);
+        check(app.boxes.setCueBoxByIndex(0),"start image cue");
+        auto* draft=dynamic_cast<JPbox_image*>(app.boxes.getInspectorBox());
+        check(draft&&draft!=live,"image cue has an independent image renderer");
+        if(draft){
+            check(settle(draft),"draft image decodes");
+            check(setZoom(),"edit image zoom through inspector");
+            app.boxes.update();
+            check(redAt(app.boxes.getCuePreviewBox(),0.5f)&&!redAt(app.boxes.getCuePreviewBox(),0.1f),"CUE pixels reflect staged image zoom");
+            check(redAt(live,0.1f)&&near(live->parameters.getFloatValue(5),1.f),"staging leaves live image unchanged");
+            app.boxes.clearCue();
+            check(near(live->parameters.getFloatValue(5),1.f),"cancel leaves live parameters unchanged");
+            app.boxes.setCueBoxByIndex(0);check(setZoom(),"edit image zoom through inspector");
+            check(app.boxes.applyCue(),"apply image cue");app.boxes.update();
+            ofLogNotice("cue-media")<<"applied zoom="<<live->parameters.getFloatValue(5)<<" edgeRed="<<redAt(live,0.1f)<<" render="<<live->shouldRenderThisFrame();
+            check(near(live->parameters.getFloatValue(5),0.5f)&&!redAt(live,0.1f),"apply transfers image zoom to live pixels");
+        }
+        app.boxes.clear();
+        if(!app.boxes.addBox(groupPath,100,100))return false;
+        auto* group=dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]);
+        if(!group||group->boxes.empty())return false;
+        check(settle(dynamic_cast<JPbox_image*>(group->boxes[0])),"group image decodes");group->update();
+        app.boxes.selectOpenBoxByIndex(0);app.boxes.setCueBoxByIndex(0);
+        auto* draftGroup=dynamic_cast<JPbox_preset*>(app.boxes.getInspectorBox());
+        check(draftGroup&&!draftGroup->boxes.empty(),"group cue has a draft tree");
+        if(draftGroup&&!draftGroup->boxes.empty()){
+            auto* child=dynamic_cast<JPbox_image*>(draftGroup->boxes[0]);check(settle(child),"group draft image decodes");
+            check(app.boxes.navigateToChildPreset(0),"enter group during cue");app.boxes.groupInspectorIndex=0;app.boxes.setControllers();
+            check(setZoom(),"edit group image through inspector");app.boxes.navigateToBreadcrumbLevel(0);app.boxes.update();
+            check(redAt(app.boxes.getCuePreviewBox(),0.5f)&&!redAt(app.boxes.getCuePreviewBox(),0.1f),"group CUE renders staged image transform");
+            check(redAt(group,0.1f),"group live output is unchanged");
+        }
+        app.boxes.clear();
+        if(!app.boxes.addBox("cam",100,100))return false;
+        auto* camera=dynamic_cast<JPbox_cam*>(app.boxes.boxes[0]);
+        if(!camera)return false;
+        camera->update();const auto liveSources=JPbox_cam::openCameraSources();
+        app.boxes.selectOpenBoxByIndex(0);app.boxes.setCueBoxByIndex(0);
+        auto* cameraDraft=dynamic_cast<JPbox_cam*>(app.boxes.getInspectorBox());
+        check(cameraDraft&&cameraDraft!=camera,"camera cue uses its own camera renderer");
+        if(cameraDraft){
+            check(setZoom(),"edit camera zoom through inspector");app.boxes.update();
+            check(near(cameraDraft->parameters.getFloatValue(cameraDraft->scaleRatioIndex),0.5f)&&near(camera->parameters.getFloatValue(camera->scaleRatioIndex),1.f),"camera zoom remains staged");
+            const auto draftSources=JPbox_cam::openCameraSources();
+            check(draftSources.size()==liveSources.size(),"camera draft does not open another capture source");
+            for(const auto& source:liveSources){
+                auto it=std::find_if(draftSources.begin(),draftSources.end(),[&](const auto& item){return item.first==source.first;});
+                check(it!=draftSources.end()&&it->second>source.second,"camera draft shares the live device");
+            }
+        }
+        app.boxes.clear();ofLogNotice("cue-media")<<"passed="<<passed;return passed;
+    }
+
 }
 
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if (testMode && string(testMode) == "cue_media") return checkCueMedia(app);
     if (testMode && string(testMode) == "text_input") return jp_text_input_test::run(app);
     if (testMode && string(testMode) == "shader_alpha_chain") return checkShaderAlphaChain(app);
     if (testMode && string(testMode) == "shared_review") return checkSharedReview(app);
