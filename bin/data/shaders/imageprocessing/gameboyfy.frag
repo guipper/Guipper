@@ -25,6 +25,7 @@ void main()
     cells = max(cells, vec2(1.0));
     vec2 pixelUV = floor(uv * cells) / cells;
     fragColor = texture(iChannel0, pixelUV);
+    float pixelAlpha = fragColor.a;
     float maxCol = max(max(fragColor.r, fragColor.g), fragColor.b);
     float minCol = min(min(fragColor.r, fragColor.g), fragColor.b);
     float lum = (minCol + maxCol)/2.0;
@@ -63,7 +64,9 @@ void main()
         hsv.y = clamp(hsv.y * palette_saturation * 2.0, 0.0, 1.0);
         fragColor.rgb = hsb2rgb(hsv);
     }
-    fragColor = vec4(mix(original.rgb, fragColor.rgb, effect_mix), 1.0);
+    // Pixelation applies to the silhouette too. At zero mix, restore the
+    // original RGBA so bypassing the effect never makes transparency opaque.
+    fragColor = mix(original, vec4(fragColor.rgb, pixelAlpha), effect_mix);
 }
                
                
