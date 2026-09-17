@@ -1352,11 +1352,69 @@ namespace
         ofLogNotice("shared-review")<<"passed="<<passed;return passed;
     }
 
+    bool checkShaderAlphaChain(ofApp& app) {
+        bool passed=true;
+        auto check=[&](bool ok,const string& label){if(!ok)ofLogError("shader-alpha-chain")<<label;passed=ok&&passed;};
+        const int oldW=jp_constants::renderWidth,oldH=jp_constants::renderHeight;
+        jp_constants::renderWidth=64;jp_constants::renderHeight=64;
+        const float oldTransition=app.boxes.getTransitionDurationMs();
+        app.boxes.setTransitionDurationMs(1.0f);app.boxes.clear();
+        for(const auto& path:{"shaders/imageprocessing/gameboyfy.frag","shaders/imageprocessing/transform.frag",
+                "shaders/imageprocessing/mirrorquad.frag","shaders/generative/solidcolor.frag"})app.boxes.addBox(path,100,100);
+        if(app.boxes.boxes.size()!=4){check(false,"fixture creation");app.boxes.clear();app.boxes.setTransitionDurationMs(oldTransition);jp_constants::renderWidth=oldW;jp_constants::renderHeight=oldH;return false;}
+        ofFbo input;input.allocate(64,64,GL_RGBA);string sourceName="alpha-fixture";
+        for(int i=0;i<3;++i) {
+            auto* box=app.boxes.boxes[i];box->setonoff(true);
+            auto* shader=dynamic_cast<JPbox_shader*>(box);
+            check(shader && shader->shader.isLoaded(),"shader compiles");
+            for(int j=0;j<box->parameters.getSize();++j) {
+                auto* parameter=box->parameters.getJParameter(j);
+                if(parameter->variabletype==JPParameter::FLOAT){parameter->floatValue=.5f;parameter->floatLerpValue=.5f;}
+                else if(parameter->variabletype==JPParameter::BOOL)parameter->boolValue=false;
+            }
+            const int scale=box->parameters.indexOfName("scaleratio");
+            if(scale>=0){box->parameters.setFloatValue(1,scale);box->parameters.setFloatLerpValue(1,scale);}
+            box->fbohandlergroup.setFboPointer(i?&app.boxes.boxes[i-1]->fbo:&input,
+                i?&app.boxes.boxes[i-1]->name:&sourceName,0);
+        }
+        app.activerender=3;auto* background=app.boxes.boxes[3];
+        background->setonoff(true);
+        for(const auto& value:std::vector<std::pair<string,float>>{{"r",20/255.f},{"g",40/255.f},{"b",200/255.f}}){
+            const int i=background->parameters.indexOfName(value.first);background->parameters.setFloatValue(value.second,i);background->parameters.setFloatLerpValue(value.second,i);
+        }
+        background->updateFBO();
+        app.boxes.addFinalLayerForBox(app.boxes.boxes[0]);
+        for(int alpha:{0,128,255})for(float mix:{0.f,.5f,1.f})for(float opacity:{.5f,1.f}) {
+            app.boxes.finalLayerForBox(app.boxes.boxes[0])->opacity=opacity;
+            input.begin();ofClear(200,80,20,alpha);input.end();
+            auto& params=app.boxes.boxes[0]->parameters;const int index=params.indexOfName("effect_mix");
+            check(index>=0,"effect_mix exists");if(index<0)continue;
+            params.setFloatValue(mix,index);params.setFloatLerpValue(mix,index);
+            for(int i=0;i<3;++i) {
+                app.boxes.boxes[i]->updateFBO();ofPixels pixels;app.boxes.boxes[i]->fbo.readToPixels(pixels);
+                check(pixels.isAllocated() && std::abs(int(pixels.getColor(32,32).a)-alpha)<=2,
+                    "node "+ofToString(i)+" alpha="+ofToString(alpha)+" mix="+ofToString(mix));
+            }
+            ofPixels foreground;app.boxes.boxes[2]->fbo.readToPixels(foreground);
+            app.boxes.collectFinalOverlays();ofSleepMillis(2);app.boxes.update();
+            auto* composite=app.boxes.getActiverender();check(composite!=nullptr,"FINAL composite exists");
+            if(composite) {
+                ofPixels pixels;composite->readToPixels(pixels);auto result=pixels.getColor(32,32),fg=foreground.getColor(32,32);
+                const float a=alpha/255.f*opacity;const ofColor bg(20,40,200);
+                for(int c=0;c<3;++c)check(std::abs(result[c]-(fg[c]*a+bg[c]*(1-a)))<=3,"FINAL color channel "+ofToString(c));
+                check(result.a>=253,"FINAL opaque background alpha");
+            }
+        }
+        app.boxes.clear();app.boxes.setTransitionDurationMs(oldTransition);jp_constants::renderWidth=oldW;jp_constants::renderHeight=oldH;
+        ofLogNotice("shader-alpha-chain")<<"passed="<<passed;return passed;
+    }
+
 }
 
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if (testMode && string(testMode) == "shader_alpha_chain") return checkShaderAlphaChain(app);
     if (testMode && string(testMode) == "shared_review") return checkSharedReview(app);
     if (testMode && string(testMode) == "curation") return checkCuration(app);
     if (testMode && string(testMode) == "shader_names") return checkShaderNames(app);

@@ -10,6 +10,7 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 ### Correcciones
 - Linux excluye correctamente el backend Core Audio de macOS durante la compilación.
 - Gameboy Palette conserva la transparencia de entrada y la mezcla al ajustar la intensidad del efecto.
+- FINAL conserva el alpha del fondo al superponer capas semitransparentes; el renderer ya no invalida los factores de mezcla separados.
 - La preview de IMPORT usa imágenes de prueba solo en entradas de textura declaradas. El feedback interno queda separado, evitando que generadores sin inputs muestren accidentalmente la imagen de prueba.
 - Cargar una sesión con `L` restaura los valores de los parámetros dentro de grupos, incluidos grupos anidados, sin conservar los valores aleatorios de inicialización.
 - Los clics en IMPORT bloquean las cajas y controles que se ven detrás. El bloqueo se conserva hasta soltar los botones, incluso al cargar un shader o arrastrar fuera del panel.

@@ -400,6 +400,10 @@ void JPQuickImageRenderer::draw(JPQuickImageStackState &stack,
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
 	ofEnableAlphaBlending();
+	// Keep straight-alpha coverage when drawing into transparent render targets.
+	// Set this after OF enables blending: that call resets the GL blend factors.
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+		GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	for (auto &layer : stack.layers)
 	{
 		if (!layer.visible || layer.opacity <= 0.0f) continue;
