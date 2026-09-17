@@ -374,6 +374,7 @@ public:
 		ofRectangle search;
 		ofRectangle searchClear;
 		ofRectangle list;
+        ofRectangle scrollbar;
 		ofRectangle preview;
         ofRectangle details;
 		ofRectangle loadButton;
@@ -526,7 +527,9 @@ public:
 	DirectoryManager dirmanager;
 
 	// Shader index data
-	int shaderScroll = 0;
+	float shaderScroll = 0.0f;
+    bool shaderScrollbarDragging = false;
+    float shaderScrollbarGrab = 0.0f;
 	vector<ShaderFolder> shaderFolders;
 	int selectedShaderFolder = -1;
 	int selectedShaderIndex = -1;
@@ -583,7 +586,9 @@ public:
 	vector<ShaderBrowserRow> getVisibleShaderBrowserRows(
 		const ShaderBrowserLayout &layout,
 		const vector<ShaderBrowserRow> &rows) const;
-	int getMaxShaderScroll(const vector<ShaderBrowserRow> &rows, float viewportHeight) const;
+	ofRectangle getShaderScrollbarThumb(const ShaderBrowserLayout &layout) const;
+    void dragShaderScrollbar(float y);
+    float getMaxShaderScroll(const vector<ShaderBrowserRow> &rows, float viewportHeight) const;
 	void clampShaderScroll(const ShaderBrowserLayout &layout);
 	void clearShaderSearch();
 	string getSelectedShaderPath() const;
@@ -834,6 +839,7 @@ public:
 		ofRectangle panel;
 		vector<ofRectangle> tabs;
 		ofRectangle list;
+        ofRectangle scrollbar;
 		vector<ofRectangle> rows;
 		vector<int> rowIndices;
 		// Y of the divider that separates this output's own settings from the

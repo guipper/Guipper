@@ -5270,17 +5270,16 @@ ofApp::ShaderBrowserLayout ofApp::getShaderBrowserLayout() const {
 	ShaderBrowserLayout layout;
 	const float panelX = std::min(30.0f,ofGetWidth()*0.04f);
 	const float panelY = 44.0f;
-	const float panelW = std::max(1.0f,std::min(float(ofGetWidth())-panelX*2,std::max(300.0f,ofGetWidth()*0.5f-panelX-4.0f)));
+	const float preferredW = ofGetWidth() < 900 ? ofGetWidth() - panelX * 2.0f :
+        std::max(300.0f, ofGetWidth() * 0.5f - panelX - 4.0f);
+    const float panelW = std::max(1.0f, std::min(float(ofGetWidth()) - panelX * 2.0f, preferredW));
 	const float panelH = std::max(1.0f, ofGetHeight() - panelY - 16.0f);
 	const float inset = 15.0f;
 	const float contentX = panelX + inset;
 	const float contentW = panelW - inset * 2.0f;
 	const float footerH = 30.0f;
 	const float footerY = panelY + panelH - footerH - 10.0f;
-	const float previewH = panelH<550?70.0f:140.0f;
-    const float detailsH=76.0f;
-	const float previewY = footerY - previewH - 10.0f;
-	const float searchY = panelY + jp_screen::kHeaderH;
+	const float searchY = panelY + (panelH < 480.f ? 44.f : jp_screen::kHeaderH);
 	const float searchH = 26.0f;
 	const float buttonGap = 8.0f;
 	const float footerW = (contentW - buttonGap * 2.0f) / 3.0f;
@@ -5291,10 +5290,32 @@ ofApp::ShaderBrowserLayout ofApp::getShaderBrowserLayout() const {
 	layout.favoritesModeButton.set(panelX + panelW - inset - 52.0f, panelY + 10.0f, 52.0f, 24.0f);
 	layout.search.set(contentX, searchY, contentW, searchH);
 	layout.searchClear.set(contentX + contentW - searchH, searchY, searchH, searchH);
-	layout.list.set(contentX, searchY + searchH + 9.0f,
-		contentW, std::max(0.0f, previewY - detailsH - 16.0f - (searchY + searchH + 9.0f)));
-    layout.details.set(contentX,previewY-detailsH-8,contentW,detailsH);
-	layout.preview.set(contentX, previewY, contentW, previewH);
+    const float bodyTop=searchY+searchH+9.f;
+    const float bodyH = std::max(0.0f, footerY - 12.0f - bodyTop);
+    const bool compact = panelH < 480.0f;
+    const bool editingCurated = false;
+    const bool wide = contentW >= 480.0f || compact || editingCurated;
+    float infoH = std::min(wide ? 208.0f : 240.0f,
+        bodyH * (compact ? 0.50f : wide ? 0.40f : 0.48f));
+    if (editingCurated) infoH = std::max(infoH, std::min(156.0f, std::max(shaderCuratedMode?128.f:112.f,bodyH * 0.65f)));
+    const float imageAspect=previewFbo.isAllocated() ? float(previewFbo.getHeight())/previewFbo.getWidth() : 9.f/16.f;
+    const float desiredPreviewW=std::min(240.f,contentW*(compact?0.34f:0.40f));
+    const float fittedPreviewH=30.f+std::max(0.f,desiredPreviewW-12.f)*imageAspect;
+    if (wide && !editingCurated) infoH=std::min(infoH,fittedPreviewH);
+    const float infoY = footerY - 12.0f - infoH;
+    const float listH = std::max(0.0f, infoY - bodyTop - 16.0f);
+    layout.list.set(contentX, bodyTop, std::max(0.0f, contentW - 20.0f), listH);
+    layout.scrollbar.set(contentX + contentW - 14.0f, bodyTop, 14.0f, listH);
+    if (wide) {
+        const float previewW = std::min(240.0f, contentW * (compact ? 0.34f : 0.40f));
+        layout.preview.set(contentX, infoY, previewW, std::min(infoH,fittedPreviewH));
+        layout.details.set(contentX + previewW + 16.0f, infoY,
+            contentW - previewW - 16.0f, infoH);
+    } else {
+        const float previewH = std::min(104.0f, infoH * 0.48f);
+        layout.details.set(contentX, infoY, contentW, std::max(0.0f, infoH - previewH - 8.0f));
+        layout.preview.set(contentX, infoY + infoH - previewH, contentW, previewH);
+    }
 	layout.loadButton.set(contentX, footerY, footerW, footerH);
 	layout.bindButton.set(contentX + footerW + buttonGap, footerY, footerW, footerH);
 	layout.editButton.set(contentX + (footerW + buttonGap) * 2.0f, footerY, footerW, footerH);
@@ -5331,7 +5352,7 @@ vector<ofApp::ShaderBrowserRow> ofApp::buildShaderBrowserRows() const {
 		ShaderBrowserRow folderRow;
 		folderRow.folderHeader = true;
 		folderRow.folderIndex = f;
-		folderRow.height = 19.0f;
+		folderRow.height = 25.0f;
 		rows.push_back(folderRow);
 
 		if (!searchActive && !folder.expanded) continue;
@@ -5341,26 +5362,37 @@ vector<ofApp::ShaderBrowserRow> ofApp::buildShaderBrowserRows() const {
 			ShaderBrowserRow shaderRow;
 			shaderRow.folderIndex = f;
 			shaderRow.shaderIndex = shaderIndex;
-			shaderRow.height = 18.0f;
+			shaderRow.height = 21.0f;
 			rows.push_back(shaderRow);
 		}
 	}
 	return rows;
 }
-int ofApp::getMaxShaderScroll(const vector<ShaderBrowserRow> &rows, float viewportHeight) const {
-	if (rows.empty()) return 0;
-	float usedHeight = 0.0f;
-	int firstVisible = (int)rows.size() - 1;
-	for (int i = (int)rows.size() - 1; i >= 0; i--) {
-		if (usedHeight + rows[i].height > viewportHeight && i < (int)rows.size() - 1) break;
-		usedHeight += rows[i].height;
-		firstVisible = i;
-	}
-	return std::max(0, firstVisible);
+float ofApp::getMaxShaderScroll(const vector<ShaderBrowserRow> &rows, float viewportHeight) const {
+    float contentHeight = 0.0f;
+    for (const auto& row : rows) contentHeight += row.height;
+    return std::max(0.0f, contentHeight - viewportHeight);
+}
+ofRectangle ofApp::getShaderScrollbarThumb(const ShaderBrowserLayout& layout) const {
+    const float maximum = getMaxShaderScroll(buildShaderBrowserRows(), layout.list.height);
+    if (maximum <= 0.0f || layout.scrollbar.height <= 0.0f) return ofRectangle();
+    const float height = std::min(layout.scrollbar.height,
+        std::max(28.0f, layout.scrollbar.height * layout.list.height / (layout.list.height + maximum)));
+    const float y = layout.scrollbar.y + (layout.scrollbar.height - height) *
+        ofClamp(shaderScroll / maximum, 0.0f, 1.0f);
+    return ofRectangle(layout.scrollbar.x, y, layout.scrollbar.width, height);
+}
+void ofApp::dragShaderScrollbar(float y) {
+    const auto layout = getShaderBrowserLayout();
+    const auto thumb = getShaderScrollbarThumb(layout);
+    const float travel = layout.scrollbar.height - thumb.height;
+    const float maximum = getMaxShaderScroll(buildShaderBrowserRows(), layout.list.height);
+    shaderScroll = travel > 0.0f ? ofClamp((y - shaderScrollbarGrab - layout.scrollbar.y) / travel,
+        0.0f, 1.0f) * maximum : 0.0f;
 }
 void ofApp::clampShaderScroll(const ShaderBrowserLayout &layout) {
 	const vector<ShaderBrowserRow> rows = buildShaderBrowserRows();
-	shaderScroll = ofClamp(shaderScroll, 0, getMaxShaderScroll(rows, layout.list.height));
+	shaderScroll = ofClamp(shaderScroll, 0.0f, getMaxShaderScroll(rows, layout.list.height));
 }
 vector<ofApp::ShaderBrowserRow> ofApp::getVisibleShaderBrowserRows(const ShaderBrowserLayout &layout) const {
 	const vector<ShaderBrowserRow> rows = buildShaderBrowserRows();
@@ -5370,15 +5402,17 @@ vector<ofApp::ShaderBrowserRow> ofApp::getVisibleShaderBrowserRows(
 	const ShaderBrowserLayout &layout,
 	const vector<ShaderBrowserRow> &rows) const {
 	vector<ShaderBrowserRow> visibleRows;
-	const int start = ofClamp(shaderScroll, 0, getMaxShaderScroll(rows, layout.list.height));
-	float rowY = layout.list.y;
-	for (int i = start; i < (int)rows.size(); i++) {
-		if (rowY + rows[i].height > layout.list.getBottom() + 0.01f) break;
-		ShaderBrowserRow row = rows[i];
-		row.bounds.set(layout.list.x, rowY, layout.list.width, row.height);
-		visibleRows.push_back(row);
-		rowY += row.height;
-	}
+    float rowY = layout.list.y - ofClamp(shaderScroll, 0.0f,
+        getMaxShaderScroll(rows, layout.list.height));
+    for (const auto& source : rows) {
+        if (rowY >= layout.list.getBottom()) break;
+        if (rowY + source.height > layout.list.y) {
+            ShaderBrowserRow row = source;
+            row.bounds.set(layout.list.x, rowY, layout.list.width, row.height);
+            visibleRows.push_back(row);
+        }
+        rowY += source.height;
+    }
 	return visibleRows;
 }
 void ofApp::clearShaderSearch() {
@@ -5560,22 +5594,11 @@ void ofApp::ensureShaderSelectionVisible() {
 		}
 	}
 	if (target < 0) return;
-	if (target < shaderScroll) {
-		shaderScroll = target;
-	} else {
-		float usedHeight = 0.0f;
-		for (int i = shaderScroll; i <= target; i++) usedHeight += rows[i].height;
-		if (usedHeight > layout.list.height) {
-			usedHeight = 0.0f;
-			int firstVisible = target;
-			for (int i = target; i >= 0; i--) {
-				if (usedHeight + rows[i].height > layout.list.height && i < target) break;
-				usedHeight += rows[i].height;
-				firstVisible = i;
-			}
-			shaderScroll = firstVisible;
-		}
-	}
+    float top = 0.0f;
+    for (int i = 0; i < target; ++i) top += rows[i].height;
+    const float bottom = top + rows[target].height;
+    if (top < shaderScroll) shaderScroll = top;
+    else if (bottom > shaderScroll + layout.list.height) shaderScroll = bottom - layout.list.height;
 	clampShaderScroll(layout);
 }
 // Draw a small 5-pointed star (filled or outline) at (cx,cy) with radius r.
@@ -5607,7 +5630,9 @@ void ofApp::draw_shaderindex() {
 		string result = text;
 		const string suffix = "...";
 		while (!result.empty() && font_p.stringWidth(result + suffix) > maxWidth) {
-			result.pop_back();
+            size_t end = result.size() - 1;
+            while (end > 0 && (static_cast<unsigned char>(result[end]) & 0xc0) == 0x80) --end;
+            result.erase(end);
 		}
 		return result.empty() ? suffix : result + suffix;
 	};
@@ -5618,9 +5643,11 @@ void ofApp::draw_shaderindex() {
 	}
     const string title = (shaderCuratedMode ? (language == 0 ? "CURATED" : "CURADO") :
         (language == 0 ? "IMPORT" : "IMPORTAR")) + string("  |  ") + ofToString(totalShaders) + " shaders";
+	ofSetColor(ofColor(COL_BG_PANEL, 255));
+    ofDrawRectRounded(layout.panel, 6.0f);
 	// Half width so the node canvas stays visible behind it, but otherwise the
 	// same frame, border, title and subtitle as every other screen.
-	jp_screen::drawFrame(layout.panel, title, layout.panel.width < 480 ?
+	jp_screen::drawFrame(layout.panel, title, layout.panel.height < 480 ? "" : layout.panel.width < 480 ?
         (language == 0 ? "Up/Down select | Enter load" : "Arriba/Abajo | Enter cargar") :
         (language == 0 ? "Up/Down navigate | double click/Enter to load" :
         "Arriba/Abajo navegar | doble clic/Enter para cargar"));
@@ -5734,26 +5761,22 @@ void ofApp::draw_shaderindex() {
 	const vector<ShaderBrowserRow> allRows = buildShaderBrowserRows();
 	const vector<ShaderBrowserRow> visibleRows =
 		getVisibleShaderBrowserRows(layout, allRows);
-	const int maxScroll = getMaxShaderScroll(allRows, layout.list.height);
-
-	if (shaderScroll > 0) {
-		const float cx = layout.list.getRight() - 8.0f;
-		const float cy = layout.list.y + 5.0f;
-		ofSetColor(ofColor(COL_ACCENT_CYAN, 140));
-		ofDrawTriangle(cx - 4.0f, cy + 3.0f, cx + 4.0f, cy + 3.0f, cx, cy - 2.0f);
-	}
-	if (shaderScroll < maxScroll) {
-		const float cx = layout.list.getRight() - 8.0f;
-		const float cy = layout.list.getBottom() - 5.0f;
-		ofSetColor(ofColor(COL_ACCENT_CYAN, 140));
-		ofDrawTriangle(cx - 4.0f, cy - 3.0f, cx + 4.0f, cy - 3.0f, cx, cy + 2.0f);
-	}
-
+    const auto thumb = getShaderScrollbarThumb(layout);
+    if (thumb.height > 0.0f) {
+        ofSetColor(COL_BG_INPUT);
+        ofDrawRectRounded(layout.scrollbar.x + 4.0f, layout.scrollbar.y,
+            6.0f, layout.scrollbar.height, 3.0f);
+        ofSetColor(shaderScrollbarDragging || layout.scrollbar.inside(ofGetMouseX(), ofGetMouseY()) ?
+            COL_ACCENT_CYAN : COL_TEXT_MUTED);
+        ofDrawRectRounded(thumb.x + 3.0f, thumb.y, 8.0f, thumb.height, 4.0f);
+    }
+    { // Partially visible rows must neither draw nor receive clicks outside the list.
+    jp_gl::ScopedScissor listClip(layout.list);
 	for (const ShaderBrowserRow &row : visibleRows) {
 		const bool isSelected = row.folderIndex == selectedShaderFolder &&
 			row.shaderIndex == selectedShaderIndex;
-		const bool isHovered = row.folderIndex == hoveredShaderFolder &&
-			row.shaderIndex == hoveredShaderIndex;
+		const bool isHovered = layout.list.inside(ofGetMouseX(), ofGetMouseY()) &&
+            row.bounds.inside(ofGetMouseX(), ofGetMouseY());
 
 		if (row.folderHeader) {
 			const ShaderFolder &folder = shaderFolders[row.folderIndex];
@@ -5791,10 +5814,10 @@ void ofApp::draw_shaderindex() {
 				row.bounds.width - (folderNameX - row.bounds.x) - countWidth - 16.0f);
 			ofSetColor(folder.isFavorites ? COL_ACCENT_GOLD :
 				(isHovered ? COL_TEXT_PRIMARY : ofColor(120, 200, 255)));
-			font_p.drawString(folderName, folderNameX, row.bounds.y + row.bounds.height - 4.0f);
+			font_p.drawString(folderName, folderNameX, std::round(row.bounds.getCenter().y + 4.0f));
 			ofSetColor(COL_TEXT_MUTED);
 			font_p.drawString(countText, row.bounds.getRight() - countWidth - 7.0f,
-				row.bounds.y + row.bounds.height - 4.0f);
+				std::round(row.bounds.getCenter().y + 4.0f));
 		} else {
 			const ShaderEntry &entry =
 				shaderFolders[row.folderIndex].shaders[row.shaderIndex];
@@ -5839,11 +5862,11 @@ void ofApp::draw_shaderindex() {
 			const string shaderName =
 				fitText(entry.displayName(language!=0), std::max(20.0f, nameRight - nameX));
 			ofSetColor(isSelected || isHovered ? COL_TEXT_PRIMARY : COL_TEXT_DIM);
-			font_p.drawString(shaderName, nameX, shaderBounds.y + shaderBounds.height - 4.0f);
+			font_p.drawString(shaderName, nameX, std::round(shaderBounds.getCenter().y + 4.0f));
 			if (!bindingLabel.empty()) {
 				ofSetColor(isSelected || isHovered ? COL_ACCENT_CYAN : COL_MAPPED_ON);
 				font_p.drawString(bindingLabel, bindingX,
-					shaderBounds.y + shaderBounds.height - 4.0f);
+					std::round(shaderBounds.getCenter().y + 4.0f));
 			}
 		}
 
@@ -5855,6 +5878,7 @@ void ofApp::draw_shaderindex() {
 		}
 	}
 
+    } // listClip
 	if (allRows.empty()) {
 		ofSetColor(COL_TEXT_MUTED);
 		const string emptyText = shaderSearchText.empty() ?
@@ -5866,30 +5890,55 @@ void ofApp::draw_shaderindex() {
 	}
 
 	const bool hasSelection = !getSelectedShaderPath().empty();
-    if(hasSelection) {
-        const auto& entry=shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex];
-        // Text is width-fitted and limited to the detail area's four lines.
-        string origin=shaderCuratedMode?(language==0?"Curation list":"Lista de curado"):entry.official?(language==0?"Official library":"Biblioteca oficial"):
-            (entry.personal?(language==0?"Personal":"Personal"):(language==0?"Local library":"Biblioteca local"));
-        string category=entry.catalogued?entry.metadata.category:"";
-        if (category.empty()) {
-            if (entry.path.rfind("shaders/generative/",0)==0) category="generative";
-            else if (entry.path.rfind("shaders/imageprocessing/",0)==0) category="effects";
-            else if (entry.path.rfind("shaders/blending/",0)==0) category="mixers";
+    ofSetColor(COL_BORDER_MUTED);
+    ofDrawLine(layout.list.x, layout.details.y - 8.0f,
+        layout.search.getRight(), layout.details.y - 8.0f);
+    {
+        jp_gl::ScopedScissor detailClip(layout.details);
+        const float x = layout.details.x;
+        float y = layout.details.y + 16.0f;
+        if (hasSelection) {
+            const auto& entry = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex];
+            ofSetColor(COL_TEXT_PRIMARY);
+            font_p.drawString(fitText(entry.displayName(language != 0), layout.details.width), x, y);
+            y += 22.0f;
+            string origin = shaderCuratedMode ? (language == 0 ? "Curation list" : "Lista de curado") :
+                entry.official ? (language == 0 ? "Official library" : "Biblioteca oficial") :
+                entry.personal ? "Personal" : (language == 0 ? "Local library" : "Biblioteca local");
+            if (entry.catalogued) origin += " / " + jp_shader_catalog::categoryName(entry.metadata.category, language != 0);
+            ofSetColor(COL_ACCENT_CYAN);
+            if (layout.details.height >= 64.0f)
+                font_p.drawString(fitText(origin, layout.details.width), x, y);
+            y += 24.0f;
+            const string description = entry.catalogued ? entry.metadata.description.get(language != 0) : entry.path;
+            auto lines = jp_textwrap::wrap([this](const string& text) { return font_p.stringWidth(text); },
+                description, layout.details.width);
+            const int count = std::min<int>(lines.size(), std::max(0, (int)((layout.details.getBottom() - y - 24.0f) / 18.0f)));
+            ofSetColor(COL_TEXT_SECONDARY);
+            for (int i = 0; i < count; ++i) {
+                font_p.drawString(fitText(lines[i] + (i + 1 == count && count < (int)lines.size() ? "..." : ""),
+                    layout.details.width), x, y);
+                y += 18.0f;
+            }
+            string inputs = language == 0 ? "Inputs: " : "Entradas: ";
+            const auto& names = entry.catalogued ? entry.metadata.inputs : previewInputNames;
+            if (names.empty()) inputs += language == 0 ? "none" : "ninguna";
+            for (size_t i = 0; i < names.size(); ++i) inputs += (i ? ", " : "") + names[i];
+            ofSetColor(COL_TEXT_DIM);
+            font_p.drawString(fitText(inputs, layout.details.width), x, layout.details.getBottom() - 6.0f);
+        } else {
+            ofSetColor(COL_TEXT_PRIMARY);
+            font_p.drawString(fitText(language == 0 ? "Shader details" : "Detalles del shader", layout.details.width), x, y);
+            auto lines = jp_textwrap::wrap([this](const string& text) { return font_p.stringWidth(text); },
+                language == 0 ? "Select a shader to see its description, inputs and preview." :
+                    "Seleccioná un shader para ver su descripción, entradas y vista previa.", layout.details.width);
+            ofSetColor(COL_TEXT_SECONDARY);
+            for (const auto& line : lines) {
+                y += 18.0f;
+                if (y > layout.details.getBottom() - 4.0f) break;
+                font_p.drawString(line, x, y);
+            }
         }
-        if (!category.empty()) origin+=" | "+jp_shader_catalog::categoryName(category,language!=0);
-        ofSetColor(entry.official?COL_ACCENT_CYAN:COL_TEXT_SECONDARY);
-        font_p.drawString(fitText(origin,layout.details.width),layout.details.x,layout.details.y+14);
-        const string description=entry.catalogued?entry.metadata.description.get(language!=0):entry.path;
-        auto lines=jp_textwrap::wrap([this](const string& text){return font_p.stringWidth(text);},description,layout.details.width);
-        ofSetColor(COL_TEXT_SECONDARY);
-        for(size_t i=0;i<std::min<size_t>(2,lines.size());++i)
-            font_p.drawString(fitText(lines[i]+(i==1&&lines.size()>2?"...":""),layout.details.width),layout.details.x,layout.details.y+31+i*16);
-        string inputs=language==0?"Inputs: ":"Entradas: ";
-        const auto& names=entry.catalogued?entry.metadata.inputs:previewInputNames;
-        if(names.empty())inputs+=language==0?"none":"ninguna";
-        for(size_t i=0;i<names.size();++i)inputs+=(i?", ":"")+names[i];
-        ofSetColor(COL_TEXT_DIM);font_p.drawString(fitText(inputs,layout.details.width),layout.details.x,layout.details.y+66);
     }
 
 	auto drawFooterButton = [&](const ofRectangle &button, ofColor fill,
@@ -5922,6 +5971,7 @@ void ofApp::draw_shaderindex() {
 	drawFooterButton(layout.editButton, COL_BG_BUTTON, COL_ACCENT_GOLD_DIM,
 		"EDIT", hasSelection);
 
+    if (layout.preview.width > 0 && layout.preview.height > 0) {
 	ofSetColor(COL_BG_INPUT);
 	ofDrawRectRounded(layout.preview, 6.0f);
 	ofNoFill();
@@ -5960,9 +6010,10 @@ void ofApp::draw_shaderindex() {
 		const string previewState = hasSelection ?
 			(language == 0 ? "preview unavailable" : "vista previa no disponible") :
 			(language == 0 ? "select a shader to preview" : "selecciona un shader");
-		font_p.drawString(previewState, layout.preview.x + 8.0f,
+		font_p.drawString(fitText(previewState, layout.preview.width - 16.0f), layout.preview.x + 8.0f,
 			layout.preview.getCenter().y);
 	}
+    } // Optional preview image
 }
 // Esta es la que se dibuja en la otra ventana
 void ofApp::drawRender() {
@@ -6124,6 +6175,15 @@ void ofApp::keyPressed(int key) {
 	// only wins while the search field actually has focus; ESC releases it and
 	// the global keymap comes back.
 	if (pantallaActiva == SHADER_INDEX) {
+        if (key == OF_KEY_PAGE_UP || key == OF_KEY_PAGE_DOWN ||
+            (!shaderSearchFocused && (key == OF_KEY_HOME || key == OF_KEY_END))) {
+            const auto layout = getShaderBrowserLayout();
+            if (key == OF_KEY_HOME) shaderScroll = 0.0f;
+            else if (key == OF_KEY_END) shaderScroll = getMaxShaderScroll(buildShaderBrowserRows(), layout.list.height);
+            else shaderScroll += (key == OF_KEY_PAGE_DOWN ? 1.0f : -1.0f) * layout.list.height * 0.85f;
+            clampShaderScroll(layout);
+            return;
+        }
 		if (key == OF_KEY_UP || key == OF_KEY_DOWN) {
 			moveShaderSelection(key == OF_KEY_DOWN ? 1 : -1);
 			return;
@@ -6491,6 +6551,7 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	prevKey = e.keycode;
 }
 void ofApp::mouseDragged(int x, int y, int button) {
+    if (shaderScrollbarDragging && button == OF_MOUSE_BUTTON_LEFT) { dragShaderScrollbar(y); return; }
     if (toastView.captures()) return;
     if (shaderBrowserPointerButtons.count(button)) return;
     if (releasePanelOpen) return;
@@ -6914,6 +6975,13 @@ void ofApp::mousePressed(int x, int y, int button) {
 		const ShaderBrowserLayout layout = getShaderBrowserLayout();
 		if (!layout.panel.inside(x, y)) return;
 		shaderSearchFocused = layout.search.inside(x, y);
+        const auto thumb = getShaderScrollbarThumb(layout);
+        if (layout.scrollbar.inside(x, y) && thumb.height > 0.0f) {
+            shaderScrollbarDragging = true;
+            shaderScrollbarGrab = thumb.inside(x, y) ? y - thumb.y : thumb.height * 0.5f;
+            dragShaderScrollbar(y);
+            return;
+        }
 
 		if (layout.favoritesModeButton.inside(x, y)) {
 			toggleFavoritesDisplayMode();
@@ -6964,7 +7032,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 		}
 
 		for (const ShaderBrowserRow &row : getVisibleShaderBrowserRows(layout)) {
-			if (!row.bounds.inside(x, y)) continue;
+			if (!layout.list.inside(x, y) || !row.bounds.inside(x, y)) continue;
 			if (row.folderHeader) {
 				selectedShaderFolder = row.folderIndex;
 				selectedShaderIndex = -1;
@@ -7005,6 +7073,8 @@ void ofApp::mousePressed(int x, int y, int button) {
 	}
 }
 void ofApp::windowResized(int w, int h) {
+    shaderScrollbarDragging = false;
+    clampShaderScroll(getShaderBrowserLayout());
 
 	// El resize lo hace solo para mover la interfaz. Los tamaos de render se mantienen igual
 	boxes.update_resized(ofGetWidth(), ofGetHeight());
@@ -7033,6 +7103,7 @@ void ofApp::mouseMoved(int x, int y) {
 	}
 }
 void ofApp::mouseReleased(int x, int y, int button) {
+    if (button == OF_MOUSE_BUTTON_LEFT) shaderScrollbarDragging = false;
     if (toastView.release(x, y, button, toastBlocked(), toasts)) {
         JPdragobject::clearPressOrigin();
         dispatchToastActions();
@@ -7152,8 +7223,8 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 	}
 	if (pantallaActiva == SHADER_INDEX) {
 		const ShaderBrowserLayout layout = getShaderBrowserLayout();
-		if (layout.panel.inside(x, y)) {
-			shaderScroll -= (int)scrollY * 3;
+		if (layout.list.inside(x, y) || layout.scrollbar.inside(x, y)) {
+			shaderScroll -= scrollY * 52.0f;
 			clampShaderScroll(layout);
 		}
 		return;

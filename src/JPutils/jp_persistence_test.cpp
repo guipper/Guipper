@@ -1015,12 +1015,83 @@ namespace
 
 
 
+    bool checkImportScroll(ofApp& app) {
+        ofSetWindowShape(1440, 840);
+        app.pantallaActiva = app.SHADER_INDEX;
+        app.shaderFolders.clear();
+        ofApp::ShaderFolder folder;
+        folder.name = "Scroll regression";
+        folder.path = "test";
+        folder.expanded = true;
+        for (int i = 0; i < 80; ++i) {
+            ofApp::ShaderEntry entry;
+            entry.name = "Shader " + ofToString(i);
+            entry.path = "shaders/generative/solidcolor.frag";
+            folder.shaders.push_back(entry);
+        }
+        app.shaderFolders.push_back(folder);
+        app.rebuildShaderFolderOrder();
+        app.registerSurfaces();
+        app.shaderSearchText.clear();
+        app.shaderScroll = 0.0f;
+        auto layout = app.getShaderBrowserLayout();
+        const float maximum = app.getMaxShaderScroll(app.buildShaderBrowserRows(), layout.list.height);
+        bool passed = maximum > 0.0f;
+        // Fractional trackpad deltas must move the list; details must not.
+        app.mouseScrolled(layout.list.x + 30, layout.list.y + 30, 0, -0.25f);
+        passed = near(app.shaderScroll, 13.0f) && passed;
+        app.mouseScrolled(layout.details.x + 10, layout.details.y + 10, 0, -1);
+        passed = near(app.shaderScroll, 13.0f) && passed;
+        auto thumb = app.getShaderScrollbarThumb(layout);
+        const int tx = thumb.getCenter().x, ty = thumb.getCenter().y;
+        app.mousePressed(tx, ty, OF_MOUSE_BUTTON_LEFT);
+        passed = app.shaderScrollbarDragging && passed;
+        app.mouseDragged(tx + 200, layout.scrollbar.getBottom() + 200, OF_MOUSE_BUTTON_LEFT);
+        passed = near(app.shaderScroll, maximum) && passed;
+        app.mouseReleased(tx + 200, layout.scrollbar.getBottom() + 200, OF_MOUSE_BUTTON_LEFT);
+        passed = !app.shaderScrollbarDragging && app.shaderBrowserPointerButtons.empty() && passed;
+        const auto visible = app.getVisibleShaderBrowserRows(layout);
+        passed = !visible.empty() && visible.back().shaderIndex == app.getOrderedShaderIndices(0).back() &&
+            near(visible.back().bounds.getBottom(), layout.list.getBottom()) && passed;
+        app.mousePressed(layout.scrollbar.getCenter().x, layout.scrollbar.y + 1, OF_MOUSE_BUTTON_LEFT);
+        app.mouseReleased(layout.scrollbar.getCenter().x, layout.scrollbar.y + 1, OF_MOUSE_BUTTON_LEFT);
+        passed = near(app.shaderScroll, 0.0f) && passed;
+        app.shaderSearchFocused = false;
+        app.keyPressed(OF_KEY_END);
+        passed = near(app.shaderScroll, maximum) && passed;
+        app.keyPressed(OF_KEY_HOME);
+        app.keyPressed(OF_KEY_PAGE_DOWN);
+        passed = app.shaderScroll > 0 && app.shaderScroll < maximum && passed;
+        app.selectedShaderFolder = 0; app.selectedShaderIndex = app.getOrderedShaderIndices(0).back();
+        app.ensureShaderSelectionVisible();
+        layout = app.getShaderBrowserLayout();
+        passed = near(app.shaderScroll, app.getMaxShaderScroll(app.buildShaderBrowserRows(),layout.list.height)) && passed;
+        app.shaderSearchText = "no matching shader";
+        app.clampShaderScroll(layout);
+        passed = near(app.shaderScroll, 0) && app.getShaderScrollbarThumb(layout).height == 0 && passed;
+        app.shaderSearchText.clear();
+        app.shaderFolders[0].expanded = false;
+        app.shaderScroll = 400;
+        app.clampShaderScroll(layout);
+        passed = near(app.shaderScroll, 0) && passed;
+        // Geometry stays separated at both desktop and small-window sizes.
+        for (const auto& size : {ofVec2f(1440,840), ofVec2f(600,600), ofVec2f(400,430)}) {
+            ofSetWindowShape(size.x, size.y);
+            layout = app.getShaderBrowserLayout();
+            passed = layout.list.height > 0 && layout.details.height > 0 &&
+                layout.preview.height > 0 && layout.list.getBottom() < layout.details.y &&
+                layout.preview.getBottom() < layout.loadButton.y && passed;
+        }
+        ofLogNotice("import-scroll") << "passed=" << passed;
+        return passed;
+    }
 
 }
 
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if (testMode && string(testMode) == "import_scroll") return checkImportScroll(app);
     if (testMode && string(testMode) == "toasts") return checkToasts(app);
 	if (testMode && string(testMode) == "nested_parameters")
         return checkNestedParameterLoad(app) && checkPersistenceModules();
