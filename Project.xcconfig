@@ -14,5 +14,5 @@ ICON_FILE_PATH = $(OF_PATH)/libs/openFrameworksCompiled/project/osx/
 //ICON_FILE_PATH = bin/data/
 
 OTHER_CFLAGS = $(OF_CORE_CFLAGS)
-OTHER_LDFLAGS = $(OF_CORE_LIBS) $(OF_CORE_FRAMEWORKS)
+OTHER_LDFLAGS = $(OF_CORE_LIBS) $(OF_CORE_FRAMEWORKS) -framework CoreAudio -framework Foundation
 HEADER_SEARCH_PATHS = $(OF_CORE_HEADERS)

@@ -1,5 +1,5 @@
 #pragma once
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 #include <atomic>
 #include <functional>
 #include <string>
@@ -14,6 +14,7 @@ public:
     using Sink = std::function<void(const float*, size_t, size_t)>;
     ~LoopbackCapture() { stop(); }
     static std::vector<LoopbackDevice> devices();
+    static bool supported();
     bool start(const std::string& id, Sink sink);
     void stop();
     bool running() const { return live.load(); }

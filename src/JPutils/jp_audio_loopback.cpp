@@ -16,6 +16,7 @@
 #pragma comment(lib, "uuid.lib")
 
 namespace jp_audio_internal {
+bool LoopbackCapture::supported() { return true; }
 namespace {
 using Microsoft::WRL::ComPtr;
 void check(HRESULT hr) {

@@ -34,7 +34,7 @@ namespace
 	ofSoundStream gStream;
 	std::vector<std::string> gDeviceNames;
 	std::vector<std::string> gDeviceIds;
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 	jp_audio_internal::LoopbackCapture gLoopback;
 #endif
 	std::vector<ofSoundDevice> gDevices;
@@ -181,8 +181,9 @@ void jp_audio::refreshDevices()
 		ofLogError("jp_audio") << gStatus;
 	}
 	catch (...) { gStatus = "device scan failed"; }
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 	try {
+		if (!jp_audio_internal::LoopbackCapture::supported()) return;
 		gDeviceNames.push_back("Salida predeterminada (loopback)");
 		gDeviceIds.push_back(jp_audio_internal::loopbackId(""));
 		for (const auto& device : jp_audio_internal::LoopbackCapture::devices()) {
@@ -202,7 +203,7 @@ void jp_audio::startStream()
 	stopStream();
 	if (gTestMode > 0) { gRunning = true; return; }
 	if (!gEnabled) { gStatus = "audio off"; return; }
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 	if (jp_audio_internal::isLoopbackId(gDeviceName)) {
 		gQueue.reset();
 		gInputPeak = 0; gClippingAtomic = false;
@@ -268,7 +269,7 @@ void jp_audio::startStream()
 void jp_audio::stopStream()
 {
 	gAccept.store(false, std::memory_order_release);
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 	gLoopback.stop();
 #endif
 	if (!gRunning) return;
@@ -307,7 +308,7 @@ bool jp_audio::runSelfTest(std::string *report)
 
 void jp_audio::update()
 {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 	if (gRunning && gTestMode == 0 && jp_audio_internal::isLoopbackId(gDeviceName) && !gLoopback.running()) {
 		gStatus = "Loopback: " + gLoopback.error();
 		stopStream();

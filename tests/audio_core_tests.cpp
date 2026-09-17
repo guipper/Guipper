@@ -2,6 +2,7 @@
 #include "../src/JPutils/jp_audio_queue.h"
 #include "../src/JPutils/jp_audio_pcm.h"
 #include "../src/JPutils/jp_audio_device_id.h"
+#include "../src/JPutils/jp_audio_planes.h"
 
 #include <algorithm>
 #include <array>
@@ -532,6 +533,18 @@ namespace
 int main()
 {
 	using namespace jp_audio_internal;
+	const float left[] = {0.1f, 0.2f, 0.3f}, right[] = {-0.1f, -0.2f, -0.3f};
+	AudioPlane planes[] = {{left, 1}, {right, 1}};
+	float stereo[4] = {};
+	interleaveAudioPlanes(planes, 2, 2, 1, 2, stereo);
+	expect(stereo[0] == left[1] && stereo[1] == right[1] && stereo[2] == left[2] && stereo[3] == right[2], "planar audio preserves channel order and frame offsets");
+	AudioPlane packed[] = {{stereo, 2}};
+	float copied[4] = {};
+	interleaveAudioPlanes(packed, 1, 2, 0, 2, copied);
+	expect(std::equal(stereo, stereo + 4, copied), "interleaved audio passes through unchanged");
+	planes[1].data = nullptr;
+	interleaveAudioPlanes(planes, 2, 2, 0, 2, copied);
+	expect(copied[0] == left[0] && copied[1] == 0 && copied[2] == left[1] && copied[3] == 0, "silent audio planes are zero-filled");
 	for (unsigned bits : {8u, 16u, 24u, 32u}) {
 		unsigned char minimum[4] = {}, maximum[4] = {255, 255, 255, 255}, zero[4] = {};
 		if (bits == 8) zero[0] = 128;
@@ -549,6 +562,11 @@ int main()
 	expect(loopbackEndpoint(loopbackId(endpoint)) == endpoint, "output ID survives persistence without display name");
 	expect(loopbackEndpoint(loopbackId("")).empty(), "default output selection survives persistence");
 	expect(!isLoopbackId("Microphone Array (Realtek(R) Audio)") && !isLoopbackId(""), "legacy input selections preserved");
+	expect(isLoopbackId("coreaudio-loopback:BuiltInSpeakerDevice") &&
+		loopbackEndpoint("coreaudio-loopback:BuiltInSpeakerDevice") == "BuiltInSpeakerDevice", "macOS output UID round trip");
+	expect(loopbackEndpoint("coreaudio-loopback:default").empty(), "macOS default output ID");
+	expect(isLoopbackId("wasapi-loopback:" + endpoint) &&
+		loopbackEndpoint("wasapi-loopback:" + endpoint) == endpoint, "Windows output ID stays compatible");
 	testSilenceAndBounds();
 	testTuningDefaultsAreIdentity();
 	testTuningKnobsDoWhatTheySay();

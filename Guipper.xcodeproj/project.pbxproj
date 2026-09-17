@@ -9,6 +9,18 @@
 		<string>46</string>
 		<key>objects</key>
 		<dict>
+			<key>A0D100000000000000000001</key>
+			<dict>
+				<key>isa</key><string>PBXFileReference</string>
+				<key>lastKnownFileType</key><string>sourcecode.cpp.objcpp</string>
+				<key>path</key><string>src/JPutils/jp_audio_loopback_macos.mm</string>
+				<key>sourceTree</key><string>SOURCE_ROOT</string>
+			</dict>
+			<key>A0D100000000000000000002</key>
+			<dict>
+				<key>isa</key><string>PBXBuildFile</string>
+				<key>fileRef</key><string>A0D100000000000000000001</string>
+			</dict>
 			<key>6948EE371B920CB800B5AC1A</key>
 			<dict>
 				<key>children</key>
@@ -236,6 +248,8 @@ fi
 					<array>
 						<string>$(OF_CORE_LIBS)</string>
 						<string>$(OF_CORE_FRAMEWORKS)</string>
+						<string>-framework</string><string>CoreAudio</string>
+						<string>-framework</string><string>Foundation</string>
 						<string>$(LIB_OF)</string>
 					</array>
 					<key>PRODUCT_NAME</key>
@@ -3106,6 +3120,7 @@ fi
 				<array>
 					<string>E4B69E200A3A1BDC003C02F2</string>
 					<string>E4B69E210A3A1BDC003C02F2</string>
+					<string>A0D100000000000000000002</string>
 				</array>
 				<key>isa</key>
 				<string>PBXSourcesBuildPhase</string>
@@ -3223,6 +3238,8 @@ fi
 					<array>
 						<string>$(OF_CORE_LIBS)</string>
 						<string>$(OF_CORE_FRAMEWORKS)</string>
+						<string>-framework</string><string>CoreAudio</string>
+						<string>-framework</string><string>Foundation</string>
 						<string>$(LIB_OF_DEBUG)</string>
 					</array>
 					<key>PRODUCT_NAME</key>
@@ -3275,6 +3292,8 @@ fi
 					<array>
 						<string>$(OF_CORE_LIBS)</string>
 						<string>$(OF_CORE_FRAMEWORKS)</string>
+						<string>-framework</string><string>CoreAudio</string>
+						<string>-framework</string><string>Foundation</string>
 						<string>$(LIB_OF)</string>
 					</array>
 					<key>PRODUCT_NAME</key>
@@ -3296,6 +3315,7 @@ fi
 					<string>E4B69E1D0A3A1BDC003C02F2</string>
 					<string>E4B69E1E0A3A1BDC003C02F2</string>
 					<string>E4B69E1F0A3A1BDC003C02F2</string>
+					<string>A0D100000000000000000001</string>
 				</array>
 				<key>isa</key>
 				<string>PBXGroup</string>

@@ -22,6 +22,8 @@
 	<string>This app needs to access the camera</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs to access the microphone</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Guipper captures the selected audio output to drive audio-reactive visuals.</string>
 	<key>NSHighResolutionCapable</key>
 	<false/>
 </dict>

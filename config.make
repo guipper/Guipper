@@ -67,6 +67,13 @@ OF_ROOT = ../../..
 # Makefile build does not try to compile Windows-only source on these platforms.
 PROJECT_EXCLUSIONS = $(PROJECT_ROOT)/src/SpoutSDK%
 PROJECT_EXCLUSIONS += $(PROJECT_ROOT)/vendor%
+ifneq ($(shell uname -s),Darwin)
+PROJECT_EXCLUSIONS += $(PROJECT_ROOT)/src/JPutils/jp_audio_loopback_macos.mm
+endif
+
+ifeq ($(shell uname -s),Darwin)
+PROJECT_LDFLAGS += -framework CoreAudio -framework Foundation
+endif
 
 ################################################################################
 # PROJECT LINKER FLAGS

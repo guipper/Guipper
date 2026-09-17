@@ -3,6 +3,11 @@ on: [push, pull_request]
 permissions:
   contents: read
 jobs:
+  macos-audio:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash tests/run_audio_macos.sh
   test:
     runs-on: ubuntu-24.04
     steps:

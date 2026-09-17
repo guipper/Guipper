@@ -2,7 +2,7 @@ CXX ?= c++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -Werror
 AUDIO_TARGET := audio_core_tests
 AUDIO_SOURCES := audio_core_tests.cpp ../src/JPutils/jp_audio_analyzer.cpp
-AUDIO_HEADERS := ../src/JPutils/jp_audio_analyzer.h
+AUDIO_HEADERS := ../src/JPutils/jp_audio_analyzer.h ../src/JPutils/jp_audio_queue.h ../src/JPutils/jp_audio_pcm.h ../src/JPutils/jp_audio_device_id.h ../src/JPutils/jp_audio_planes.h
 MEDIA_TARGET := media_core_tests
 MEDIA_SOURCES := media_core_tests.cpp
 MEDIA_HEADERS := ../src/JPbox/jp_media_state.h
