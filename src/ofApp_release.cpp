@@ -102,9 +102,10 @@ void ofApp::drawReleasePanel() {
     const float inset=std::min(24.0f,width*0.08f), inner=width-inset*2;
     const bool compact=inner<540;
     const float gap=jp_button::kGap, buttonHeight=32;
+    auto measure=[this](const string& value){return font_p.stringWidth(value);};
     auto wrap=[&](const std::string& text) {
         std::vector<std::string> result;
-        for (const auto& line:jp_textwrap::wrap([this](const string& value){return font_p.stringWidth(value);},text,std::max(1.0f,inner))) {
+        for (const auto& line:jp_textwrap::wrap(measure,text,std::max(1.0f,inner))) {
             std::string part;
             for (size_t at=0;at<line.size();) {
                 size_t end=at+1;
