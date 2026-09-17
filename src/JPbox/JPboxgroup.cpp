@@ -11,6 +11,7 @@
 #include "../JPgui/jp_shader_editor.h"
 #include "../JPutils/jp_textfield.h"
 #include "../JPutils/jp_tooltip.h"
+#include "../JPutils/jp_help_content.h"
 #include <filesystem>
 #include <algorithm>
 #include <cctype>
@@ -3801,6 +3802,21 @@ void JPboxgroup::draw_paramswindow()
 				ofColor(COL_TEXT_MUTED, 210));
 			ofDrawRectRounded(inspectorScrollbarThumb, 2.0f);
 		}
+        if (rangeDragSlider != nullptr && rangeDragSlider->parameters != nullptr &&
+            rangeDragSlider->parameters->rangeEnabled && rangeDragHandle != 0)
+        {
+            const bool start = rangeDragHandle == 1;
+            const auto& handle = start ? rangeDragSlider->handler1 : rangeDragSlider->handler2;
+            const float value = start ? rangeDragSlider->parameters->min : rangeDragSlider->parameters->max;
+            const string label = jp_help::language() == 0 ? (start ? "Start: " : "End: ") :
+                (start ? "Inicio: " : "Fin: ");
+            // Drag feedback must be immediate and follow the handle even when
+            // the pointer leaves it. The deferred tooltip stays above the UI
+            // and clamps to the window instead of the inspector's scroll clip.
+            jp_tooltip::request(label + ofToString(value, 4),
+                ofRectangle(handle.x - handle.width * 0.5f, handle.y - handle.height * 0.5f,
+                    handle.width, handle.height));
+        }
 }
 }
 void JPboxgroup::draw_conections()
