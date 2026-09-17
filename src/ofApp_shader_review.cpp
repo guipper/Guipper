@@ -2,7 +2,7 @@
 #include "JPutils/jp_storage.h"
 #include "JPgui/jp_button.h"
 
-int ofApp::curatedReviewRows() const { return shaderCuratedMode ? 5 : 0; }
+int ofApp::curatedReviewRows() const { return shaderCuratedMode ? 6 : 0; }
 int ofApp::previewInspectorRows() const {
     return curatedReviewRows() + std::max(1,int(previewUniformNames.size()+previewBoolNames.size()));
 }
@@ -15,6 +15,17 @@ string ofApp::selectedShaderLoadPath() const {
 bool ofApp::saveShaderReview(const string& path, const ofJson& changes) {
     if (!shaderCuratedMode || shaderReviewFile.empty()) return false;
     try {
+        if(reviewEnabled) {
+            if(reviewTask.valid() || reviewPendingApply)return false;
+            auto shared=changes;shared.erase("group_path");
+            if(changes.contains("group_path")) {
+                auto local=ofJson::parse(jp::readBytes(shaderReviewFile));
+                for(auto& entry:local["entries"])if(entry["path"]==path)entry["group_path"]=changes["group_path"];
+                jp::atomicWrite(shaderReviewFile,local.dump(2)+"\n");
+                for(auto& folder:shaderFolders)for(auto& entry:folder.shaders)if(entry.path==path)entry.metadata.groupPath=changes["group_path"].get<string>();
+            }
+            return shared.empty() || submitReviewChanges(path,shared);
+        }
         auto root=ofJson::parse(jp::readBytes(shaderReviewFile));
         jp_shader_catalog::parseCurated(root); // Never replace a corrupt catalog.
         ofJson* target=nullptr;
@@ -57,6 +68,7 @@ bool ofApp::assignShaderGroup(const string& path, const string& group) {
 }
 void ofApp::pressShaderReviewRow(int row, float x, const ofRectangle& bounds) {
     if(getSelectedShaderPath().empty())return;
+    if(row==5){reviewPanelOpen=true;reviewHistory=false;reviewScroll=0;shaderNameFocused=false;return;}
     // Copy before changing metadata or opening a system dialog.
     const auto entry=shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex];
     if(row==0) {
@@ -74,6 +86,7 @@ void ofApp::pressShaderReviewRow(int row, float x, const ofRectangle& bounds) {
 }
 void ofApp::drawShaderReviewRow(int row, const ofRectangle& bounds) {
     const auto& entry=shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex];
+    if(row==5){const auto text=reviewSummary(entry.path);jp_button::draw(bounds,text,false,true,COL_ACCENT_CYAN);return;}
     auto fit=[&](const string& text,float width){return jp_tooltip::fit(text,width,[&](const string& v){return font_p.stringWidth(v);});};
     if(row<4) {
         const bool on=row==0?entry.metadata.userVisible:row==1?entry.metadata.needsParameters:row==2?entry.metadata.needsImprovement:entry.metadata.askPupper;

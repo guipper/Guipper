@@ -1309,12 +1309,51 @@ namespace
         ofLogNotice("curation")<<"passed="<<passed;return passed;
     }
 
+    bool checkSharedReview(ofApp& app) {
+        bool passed=true;
+        auto check=[&](bool ok,const char* label){if(!ok)ofLogError("shared-review")<<label;passed=ok&&passed;};
+        const auto dir=std::filesystem::temp_directory_path()/("guipper-shared-ui-"+jp_review::uuid());
+        const auto oldConfig=jp::AppPaths::current().config;jp::AppPaths::current().config=dir/"preferences";
+        const string path="shaders/generative/solidcolor.frag",file=(dir/"catalog.json").string();
+        ofJson entry={{"path",path},{"category","generative"},{"name",{{"en","Solid"},{"es","Color"}}},
+            {"description",{{"en","Test"},{"es","Prueba"}}},{"tags",ofJson::array()},{"inputs",ofJson::array()},{"user_visible",true}};
+        ofJson catalog={{"format",1},{"entries",ofJson::array({entry})}};
+        jp::atomicWrite(file,catalog.dump());std::filesystem::create_directories(dir/"shared");jp_review::create(dir/"shared",catalog);
+        app.reviewConfig={dir/"shared",dir/"nico",file,"Nico"};jp_review::open(app.reviewConfig);
+        jp_review::Config peer{dir/"shared",dir/"pupper",dir/"peer.json","JPupper"};jp_review::open(peer);
+        app.reviewInitialized=true;app.reviewEnabled=true;app.reviewSnapshot=jp_review::synchronize(app.reviewConfig);
+        setenv("GUIPPER_CURATED_LIST",file.c_str(),1);unsetenv("GUIPPER_USER_LIST");app.scanShaders();
+        for(int f=0;f<int(app.shaderFolders.size());++f)if(!app.shaderFolders[f].isFavorites)for(int i=0;i<int(app.shaderFolders[f].shaders.size());++i)if(app.shaderFolders[f].shaders[i].path==path)app.selectShaderForPreview(f,i);
+        check(app.previewShaderLoaded,"preview loaded");
+        auto settle=[&]{app.reviewForceRefresh=true;for(int i=0;i<500;++i){app.updateReview();if(!app.reviewTask.valid() && !app.reviewPendingApply && !app.reviewForceRefresh)return;ofSleepMillis(10);}check(false,"worker completed");};
+        const auto original=app.reviewSnapshot;
+        jp_review::enqueue(peer,jp_review::change(original,path,"name.en","Pupper name","JPupper","different"));jp_review::synchronize(peer);
+        check(app.saveShaderReview(path,{{"name",{{"en","Nico name"}}}}),"local name queued");settle();
+        check(app.reviewSnapshot.fields[path]["name.en"].conflict,"simultaneous names conflict");
+        check(app.reviewSnapshot.fields[path]["name.en"].value=="Solid","common name retained");
+        app.reviewPanelOpen=true;app.reviewCommentPath=path;app.reviewCommentText="Primera línea\nProponer modificar, sin borrar.";app.reviewCommentKind=2;
+        app.publishReviewComment();settle();auto received=jp_review::synchronize(peer);bool found=false;
+        for(const auto& e:received.events)if(e.second.at("type")=="comment")found=e.second.at("kind")=="modify" && e.second.at("text").get<string>().find('\n')!=string::npos && e.second.at("source_hash")!="missing";
+        check(found && app.reviewCommentText.empty(),"multiline comment delivered and draft cleared");
+        app.reviewHistory=true;ofFbo target;target.allocate(ofGetWidth(),ofGetHeight(),GL_RGBA);target.begin();app.drawReviewPanel();target.end();
+        check(!app.reviewChoices.empty(),"conflict choices rendered");
+        if(!app.reviewChoices.empty()){const auto button=app.reviewChoices.front().first;app.pressReviewPanel(button.getCenter().x,button.getCenter().y);settle();}
+        check(!app.reviewSnapshot.fields[path]["name.en"].conflict,"button resolves conflict");
+        for(auto& value:app.previewRdmValues)value=.27f;
+        app.saveCuratedPreview(false);check(jp_review::synchronize(peer).fields[path]["preview_defaults"].value.empty(),"draft stays local");
+        app.saveCuratedPreview(true);settle();received=jp_review::synchronize(peer);
+        check(!received.fields[path]["preview_defaults"].value.empty(),"explicit defaults published");
+        check(ofJson::parse(jp::readBytes(file))["entries"][0]["preview_defaults"]==received.fields[path]["preview_defaults"].value,"resolved defaults materialized for users");
+        app.reviewEnabled=false;app.reviewPanelOpen=false;app.previewPreset.reset();unsetenv("GUIPPER_CURATED_LIST");jp::AppPaths::current().config=oldConfig;std::filesystem::remove_all(dir);
+        ofLogNotice("shared-review")<<"passed="<<passed;return passed;
+    }
 
 }
 
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if (testMode && string(testMode) == "shared_review") return checkSharedReview(app);
     if (testMode && string(testMode) == "curation") return checkCuration(app);
     if (testMode && string(testMode) == "shader_names") return checkShaderNames(app);
     if (testMode && string(testMode) == "toasts") return checkToasts(app);

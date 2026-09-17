@@ -1,3 +1,5 @@
+#include "JPutils/jp_review.h"
+#include <future>
 #include "JPutils/jp_shader_catalog.h"
 #include "JPutils/jp_update_service.h"
 #include "JPutils/jp_recovery.h"
@@ -573,6 +575,33 @@ public:
     void drawShaderReviewRow(int row, const ofRectangle& bounds);
     string selectedShaderLoadPath() const;
     std::shared_ptr<JPbox_preset> previewPreset;
+    struct ReviewResult { jp_review::Config config; jp_review::Snapshot snapshot; string error; bool connected=false; };
+    jp_review::Config reviewConfig;
+    jp_review::Snapshot reviewSnapshot;
+    std::future<ReviewResult> reviewTask;
+    bool reviewInitialized=false, reviewEnabled=false, reviewPanelOpen=false, reviewHistory=false;
+    bool reviewCommentFocused=false, reviewCommentSelectAll=false, reviewScrollbarDragging=false;
+    bool reviewForceRefresh=false, reviewPendingApply=false;
+    string reviewStatus, reviewCommentText, reviewCommentPath, reviewSourcePath, reviewSourceHash;
+    int reviewCommentCursor=0, reviewCommentKind=0;
+    float reviewLastPoll=-10, reviewScroll=0, reviewContentHeight=0, reviewScrollGrab=0;
+    ofJson reviewRead=ofJson::object(), reviewDrafts=ofJson::object();
+    bool reviewLocalDirty=false;
+    struct ReviewLayout { ofRectangle panel, close, reviewer, create, open, disconnect, refresh, comments, history, body, track, thumb, editor, publish; std::array<ofRectangle,4> kinds; };
+    vector<std::pair<ofRectangle,ofJson>> reviewChoices;
+    void updateReview();
+    void connectReview(bool create);
+    void persistReviewPreferences();
+    bool submitReviewChanges(const string& path,const ofJson& changes);
+    bool queueReviewEvent(const ofJson& event);
+    void publishReviewComment();
+    void applyReviewSnapshot();
+    string reviewSummary(const string& path) const;
+    ReviewLayout getReviewLayout() const;
+    void drawReviewPanel();
+    bool pressReviewPanel(int x,int y);
+    void reviewKeyPressed(int key);
+    void dragReviewScrollbar(float y);
     bool shaderNameFocused = false, shaderNameSelectAll = false;
     string shaderNameText, shaderNamePath;
     int shaderNameCursor = 0, shaderNameLanguage = 0, shaderOrderLanguage = -1;

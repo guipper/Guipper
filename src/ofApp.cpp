@@ -230,12 +230,13 @@ bool ofApp::anyFieldFocused() const
 		// The paint panel's hex field and layer rename. Listing them here is what
 		// keeps Ctrl+C, Ctrl+V and the space-pan gesture from firing mid-word.
 		boxes.paintTextCaptureActive() ||
-		(pantallaActiva == SHADER_INDEX && (shaderSearchFocused || shaderNameFocused));
+		(pantallaActiva == SHADER_INDEX && (shaderSearchFocused || shaderNameFocused || reviewCommentFocused));
 }
 
 void ofApp::clearFieldFocus()
 {
     shaderNameFocused = false; shaderNameSelectAll = false;
+    reviewCommentFocused=false;
 	// Reverting, not just unfocusing: re-initialising a field group re-reads
 	// the committed values, so an abandoned edit is discarded. The settings
 	// screen already promised this on screen ("Click outside to cancel") while
@@ -464,6 +465,7 @@ void ofApp::enterScreen(int screen)
 }
 
 void ofApp::update() {
+    updateReview();
     if (shaderOrderLanguage != language) {
         shaderNameFocused = false;
         rebuildShaderFolderOrder();
@@ -5501,13 +5503,14 @@ ofApp::PreviewInspectorLayout ofApp::getPreviewInspectorLayout() const {
     PreviewInspectorLayout result;
     if (getSelectedShaderPath().empty()) return result;
     const auto browser = getShaderBrowserLayout();
-    if (ofGetWidth() < 900) result.panel = browser.details;
+    if (ofGetWidth() < 900) result.panel = reviewPanelOpen && shaderCuratedMode ? browser.panel : browser.details;
     else {
         const float width = std::min(440.0f, ofGetWidth() - browser.panel.getRight() - 32.0f);
         const float count = previewInspectorRows();
         result.panel.set(ofGetWidth() - width - 16.0f, browser.panel.y, width,
             std::min(browser.panel.height, std::max(100.0f, std::min(540.0f, (shaderCuratedMode ? 134.f : 88.f) + count * 30.0f))));
     }
+    if(reviewPanelOpen && shaderCuratedMode && ofGetWidth()>=900)result.panel.height=browser.panel.height;
     result.reset.set(result.panel.getRight() - 72, result.panel.y + 7, 64, 25);
     result.random.set(result.reset.x - 80, result.reset.y, 74, 25);
     const float nameY = shaderCuratedMode && result.panel.height>=180 ? 54.f : 32.f;
@@ -5608,6 +5611,7 @@ void ofApp::dragPreviewInspector(float x, float y) {
     }
 }
 bool ofApp::pressPreviewInspector(int x, int y) {
+    if(reviewPanelOpen && shaderCuratedMode)return pressReviewPanel(x,y);
     const auto layout = getPreviewInspectorLayout();
     if (layout.panel.width <= 0 || !layout.panel.inside(x, y)) return false;
     shaderSearchFocused = false;
@@ -5667,6 +5671,7 @@ bool ofApp::pressPreviewInspector(int x, int y) {
     return true;
 }
 void ofApp::drawPreviewInspector() {
+    if(reviewPanelOpen && shaderCuratedMode && !getSelectedShaderPath().empty()){drawReviewPanel();return;}
     const auto layout = getPreviewInspectorLayout();
     if (layout.panel.width <= 0) return;
     const int count = previewInspectorRows();
@@ -6255,11 +6260,13 @@ void ofApp::draw_shaderindex() {
 				nameRight = bindingX - 10.0f;
 			}
             if (shaderCuratedMode) {
-                const string badge=string(entry.metadata.userVisible?"U":"-") + (entry.metadata.needsParameters?" P":" -") + (entry.metadata.needsImprovement?" M":"") + (entry.metadata.askPupper?" ?":"") + (!entry.metadata.groupPath.empty()?" G":"");
+                const string reviewExtra=reviewSummary(entry.path);
+                const bool reviewActivity=reviewExtra.find(" · ")!=string::npos;
+                const string badge=(reviewActivity?string("! "):string())+string(entry.metadata.userVisible?"U":"-") + (entry.metadata.needsParameters?" P":" -") + (entry.metadata.needsImprovement?" M":"") + (entry.metadata.askPupper?" ?":"") + (!entry.metadata.groupPath.empty()?" G":"");
                 const float badgeWidth=font_p.stringWidth(badge)+10;
                 ofSetColor((entry.metadata.needsParameters || entry.metadata.needsImprovement || entry.metadata.askPupper)?COL_ACCENT_GOLD:COL_ACCENT_CYAN);
                 font_p.drawString(badge,nameRight-badgeWidth+5,std::round(row.bounds.getCenter().y+4));
-                jp_tooltip::drawFor(language==0 ? "U: user library · P: parameters · M: improve · ?: Pupper · G: group" : "U: usuario · P: parámetros · M: mejorar · ?: Pupper · G: grupo",
+                jp_tooltip::drawFor(language==0 ? "U: user library · P: parameters · M: improve · ?: Pupper · G: group · "+reviewExtra : "U: usuario · P: parámetros · M: mejorar · ?: Pupper · G: grupo · "+reviewExtra,
                     row.bounds,isHovered,"review-badge-"+entry.path);
                 nameRight-=badgeWidth;
             }
@@ -6434,6 +6441,7 @@ void ofApp::closeShaderEditorToMain()
 }
 
 void ofApp::keyPressed(int key) {
+    if(pantallaActiva==SHADER_INDEX && reviewPanelOpen && shaderCuratedMode && !toastBlocked()){reviewKeyPressed(key);return;}
     if (pantallaActiva == SHADER_INDEX && shaderNameFocused && !toastBlocked()) {
         handleShaderNameKey(key); return;
     }
@@ -6771,6 +6779,7 @@ void ofApp::keyPressed(int key) {
 	prevKey = key;*/
 }
 void ofApp::keycodePressed(ofKeyEventArgs & e) {
+    if(pantallaActiva==SHADER_INDEX && reviewPanelOpen && shaderCuratedMode)return;
     if (shaderNameFocused && pantallaActiva==SHADER_INDEX) return;
     if (releasePanelOpen || saveModalActive) return;
 
@@ -6960,6 +6969,7 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	prevKey = e.keycode;
 }
 void ofApp::mouseDragged(int x, int y, int button) {
+    if(reviewScrollbarDragging){dragReviewScrollbar(y);return;}
     if (toastView.captures()) return;
     if (button == OF_MOUSE_BUTTON_LEFT && (previewInspectorDrag >= 0 || previewInspectorScrollbarDrag)) {
         dragPreviewInspector(x, y); return;
@@ -7543,6 +7553,7 @@ void ofApp::mouseMoved(int x, int y) {
 	}
 }
 void ofApp::mouseReleased(int x, int y, int button) {
+    reviewScrollbarDragging=false;
     if (toastView.release(x, y, button, toastBlocked(), toasts)) {
         JPdragobject::clearPressOrigin();
         dispatchToastActions();
@@ -7637,6 +7648,7 @@ void ofApp::touchUp(ofTouchEventArgs &touch) {
 }
 
 void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
+    if(reviewPanelOpen && shaderCuratedMode && pantallaActiva==SHADER_INDEX && !toastBlocked() && getReviewLayout().panel.inside(x,y)){reviewScroll=std::max(0.f,reviewScroll-scrollY*40);return;}
     if (toastView.captures() || !toastView.hovered(x, y).empty()) return;
     if (releasePanelOpen) { releaseScroll -= scrollY*28.0f; return; }
 	if (midiKeymap.mouseScrolled(x, y, scrollX, scrollY)) {

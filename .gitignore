@@ -51,3 +51,5 @@ tests/appimage_backend_tests
 /tests/shader_catalog_tests
 
 /tests/toast_tests
+
+/tests/review_tests

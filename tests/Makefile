@@ -30,7 +30,7 @@ MAPPING_BOOLEAN_HEADERS := ../src/JPbox/jp_mapping_boolean.h
 UNIFORM_TARGET := uniform_parser_tests
 UNIFORM_SOURCES := uniform_parser_tests.cpp ../src/JPutils/jp_uniform_parser.cpp
 UNIFORM_HEADERS := ../src/JPutils/jp_uniform_parser.h
-TARGETS := toast_tests shader_catalog_tests appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM_TARGET) $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
+TARGETS := review_tests toast_tests shader_catalog_tests appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM_TARGET) $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
 
 .PHONY: all run tsan clean
 
@@ -40,6 +40,9 @@ toast_tests: toast_tests.cpp ../src/JPutils/jp_toast.h
 	$(CXX) $(CXXFLAGS) toast_tests.cpp -o $@
 
 JSON_INCLUDE ?= ../../../../libs/json/include
+review_tests: review_tests.cpp ../src/JPutils/jp_review.cpp ../src/JPutils/jp_review.h ../src/JPutils/jp_app_paths.cpp
+	$(CXX) $(CXXFLAGS) -I$(JSON_INCLUDE) review_tests.cpp ../src/JPutils/jp_review.cpp ../src/JPutils/jp_app_paths.cpp -o $@
+
 shader_catalog_tests: shader_catalog_tests.cpp ../src/JPutils/jp_shader_catalog.h
 	$(CXX) $(CXXFLAGS) -I$(JSON_INCLUDE) shader_catalog_tests.cpp -o $@
 
@@ -83,6 +86,7 @@ $(UNIFORM_TARGET): $(UNIFORM_SOURCES) $(UNIFORM_HEADERS)
 	$(CXX) $(CXXFLAGS) $(UNIFORM_SOURCES) -o $@
 
 run: $(TARGETS)
+	./review_tests
 	./toast_tests
 	./shader_catalog_tests
 	./appimage_backend_tests
