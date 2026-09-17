@@ -12,6 +12,7 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 - Los clics en IMPORT bloquean las cajas y controles que se ven detrás. El bloqueo se conserva hasta soltar los botones, incluso al cargar un shader o arrastrar fuera del panel.
 
 ### Mejoras
+- Avisos reutilizables abajo al centro para recuperación, guardado de composición y ajustes, errores y actualizaciones: hasta tres, cierre con ×, pausa al pasar el cursor y acciones de recuperación sin perder el snapshot al guardar.
 - IMPORT distingue biblioteca local de catálogo oficial y muestra la categoría derivada de la carpeta.
 - La segunda entrada de la vista previa usa `img/preview1.webp`; la primera conserva el logo. Si la foto no está disponible, se usa la referencia incluida en el paquete.
 - Navegador preparado para nombres, descripciones bilingües y etiquetas del catálogo oficial, conservando rutas y favoritos existentes.
@@ -28,6 +29,7 @@ La colección de 24 shaders sigue pendiente de selección visual y revisión de 
   evitando el error de validación de `runner.temp` en `defaults.run`.
 
 ### Mejoras
+- Avisos reutilizables abajo al centro para recuperación, guardado de composición y ajustes, errores y actualizaciones: hasta tres, cierre con ×, pausa al pasar el cursor y acciones de recuperación sin perder el snapshot al guardar.
 - Panel F10 alineado con los botones, colores y tipografía compartidos de Guipper.
 - Acciones de actualización, preferencias y soporte agrupadas; se destaca la
   acción disponible y se muestra el estado actual del canal y la consulta diaria.

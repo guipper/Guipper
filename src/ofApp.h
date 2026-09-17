@@ -1,6 +1,7 @@
 #include "JPutils/jp_shader_catalog.h"
 #include "JPutils/jp_update_service.h"
 #include "JPutils/jp_recovery.h"
+#include "JPgui/jp_toast_view.h"
 /*
 	Made by JPUPPER vieja
 	Ultima modificaci�n : 7/5/2021
@@ -296,9 +297,16 @@ public:
 	string getLiveOutputDisplayName(int index) const;
 
 	void loadSettings();
-	void saveSettings();
-	bool saveSession(string path);
-	string storageNotice;
+	bool saveSettings();
+	bool saveSession(string path, bool manual = false);
+	jp::ToastManager toasts;
+	jp::ToastView toastView;
+	double toastLastUpdate = 0;
+	bool toastBlocked() const;
+	void publishToast(const string& id, jp::ToastState state, const string& message);
+	void offerRecovery();
+	void handleToastAction(const string& action);
+	void dispatchToastActions();
 	jp::RecoveryService recovery;
 	string recoveryCandidate;
 	bool recoveryChecked = false;
@@ -318,8 +326,7 @@ public:
     void drawReleasePanel();
 	bool loadSession(string path);
 	JPboxgroup::LoadResult sessionLoadResult = JPboxgroup::LoadResult::Success;
-	float sessionLoadErrorTime = -1.0f;
-	void drawSessionLoadError();
+	void notifySessionLoadError();
 
 	// OSC MANAGMENT
 	ofxOscSender sender;
@@ -953,8 +960,7 @@ public:
 	void autoTap();
 
 	// Save feedback
-	string saveFeedbackText;
-	float saveFeedbackTime = 0.0f;
+
 
 	// Track if options fields have been initialized to avoid reset on tab switch
 	bool optionsFieldsInitialized = false;

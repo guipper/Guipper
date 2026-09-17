@@ -185,6 +185,7 @@
     <ClCompile Include="src\ofApp_release.cpp" />
     <ClCompile Include="src\JPutils\jp_update_platform.cpp" />
     <ClCompile Include="src\JPutils\jp_update_service.cpp" />
+    <ClCompile Include="src\JPgui\jp_toast_view.cpp" />
     <ClCompile Include="src\JPutils\jp_recovery.cpp" />
     <ClCompile Include="src\JPutils\jp_app_paths.cpp" />
     <ClCompile Include="src\JPbox\JPboxgroup_cue.cpp" />
@@ -290,6 +291,8 @@
     <ClInclude Include="src\JPutils\jp_shader_catalog.h" />
     <ClInclude Include="src\JPutils\jp_version.h" />
     <ClInclude Include="src\JPutils\jp_update_service.h" />
+    <ClInclude Include="src\JPgui\jp_toast_view.h" />
+    <ClInclude Include="src\JPutils\jp_toast.h" />
     <ClInclude Include="src\JPutils\jp_recovery.h" />
     <ClInclude Include="src\JPutils\jp_storage.h" />
     <ClInclude Include="src\JPutils\jp_app_paths.h" />

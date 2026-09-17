@@ -814,7 +814,7 @@ void jp_uishot::update(ofApp &app)
         const int w=gReleaseCase<4?1080:400,h=gReleaseCase<4?780:430;
         if (ofGetWidth()!=w || ofGetHeight()!=h) {ofSetWindowShape(w,h);return;}
         app.releasePanelOpen=true; app.language=gReleaseCase<4?0:1;
-        app.sessionLoadErrorTime=-1; app.storageNotice.clear();
+        app.toasts = jp::ToastManager{};
         app.updates.channel="beta";
         gReleaseBackend->value=jp::UpdateStatus(kReleaseStates[gReleaseCase],0.43,
             gReleaseCase==4 || gReleaseCase==7?"GitHub API request failed: HTTP status 404. The requested update channel could not be found.":"");

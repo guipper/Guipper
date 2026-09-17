@@ -49,3 +49,5 @@ tests/mapping_boolean_tests
 tests/appimage_backend_tests
 
 /tests/shader_catalog_tests
+
+/tests/toast_tests

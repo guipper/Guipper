@@ -616,6 +616,9 @@ namespace
 		return passed;
 	}
 
+
+
+
     bool checkNestedParameterLoad(ofApp& app) {
         const string directory = ofToDataPath("uishots/persistence/nested-parameters/", true);
         ofDirectory::createDirectory(directory, true, true);
@@ -815,7 +818,10 @@ namespace
 				capture.allocate(ofGetWidth(), ofGetHeight(), GL_RGBA);
 				capture.begin();
 				ofClear(COL_BG_DARK);
-				app.drawSessionLoadError();
+				app.notifySessionLoadError();
+                app.toasts.update(.2);
+                app.toastView.layout(app.toasts, app.modalFont, ofGetWidth(), ofGetHeight());
+                app.toastView.draw(app.toasts, app.modalFont, false, value != 0);
 				capture.end();
 				ofPixels pixels;
 				capture.readToPixels(pixels);
@@ -850,7 +856,7 @@ namespace
 		if (!legacy.save(legacyPath)) return false;
 		passed = app.loadSession(legacyPath) && passed;
 		passed = passed && app.savedirectory == legacyPath &&
-			app.sessionLoadErrorTime < 0.0f && app.boxes.boxes.size() == 1 &&
+			app.sessionLoadResult == JPboxgroup::LoadResult::Success && app.boxes.boxes.size() == 1 &&
 			near(app.boxes.boxes.front()->parameters.getFloatValue(0), 0.37f);
         {
             const auto savedPaths = jp::AppPaths::current();
@@ -874,11 +880,148 @@ namespace
 		ofLogNotice("load-safety") << "passed=" << passed;
 		return passed;
 	}
+    bool checkToasts(ofApp& app) {
+        using jp::ToastState;
+        namespace fs = std::filesystem;
+        bool passed = true;
+        auto check = [&](bool ok, const char* label) {
+            if (!ok) ofLogError("toast-integration") << label;
+            passed = ok && passed;
+        };
+        app.registerSurfaces();
+        app.clearFieldFocus(); app.saveModalActive = false; app.releasePanelOpen = false;
+        app.toasts = jp::ToastManager{};
+        app.boxes.clear();
+        auto* box = app.boxes.addBox("shaders/imageprocessing/feedback_advance.frag", 120, 180);
+        if (!box) return false;
+        const string directory = ofToDataPath("uishots/persistence/toasts/", true);
+        fs::create_directories(directory);
+        jp::AppPaths::current().state = directory + "profile-state";
+        app.savedirectory = directory + "manual.xml";
+        app.recovery.tick(app.boxes, 121);
+        app.recovery.finish(false);
+        app.recoveryCandidate = app.recovery.pending();
+        check(!app.recoveryCandidate.empty(), "recovery snapshot created");
+        const string snapshot = app.recoveryCandidate;
+        app.offerRecovery();
+        check(app.saveSession(app.savedirectory, true), "manual save succeeds");
+        check(app.recovery.pending() == snapshot && app.recoveryCandidate == snapshot &&
+            app.toasts.find("recovery"), "manual save retains recovery marker and notice");
+        check(app.toasts.find("composition-saved"), "manual save confirmation");
+        app.pantallaActiva=app.NODOS;
+        app.keyPressed('s');
+        check(app.toasts.items().size() == 2 && app.recovery.pending()==snapshot, "S deduplicates and retains recovery");
+        app.toasts = jp::ToastManager{};
+        check(app.saveSession(app.savedirectory) && app.toasts.items().empty(), "internal save silent");
+        app.offerRecovery();
+        const string backup = ofToDataPath("savefiles/before-recovery.xml", true);
+        fs::remove_all(backup); fs::create_directories(backup);
+        app.handleToastAction("recover");
+        check(app.recoveryCandidate == snapshot && app.toasts.find("save-error") &&
+            !app.toasts.find("recovered"), "failed backup preserves pending recovery");
+        fs::remove_all(backup);
+        app.recoveryCandidate = directory + "missing.xml";
+        app.handleToastAction("recover");
+        check(!app.recoveryCandidate.empty() && app.toasts.find("load-error") &&
+            app.toasts.find("recovery") && app.recovery.pending() == snapshot,
+            "failed recovery load preserves notice and marker");
+        app.recoveryCandidate = snapshot;
+        app.keyPressed(OF_KEY_F9);
+        check(app.recoveryCandidate.empty() && app.recovery.pending().empty() &&
+            app.toasts.find("recovered") && fs::is_regular_file(backup), "F9 recovers with backup");
+        check(app.savedirectory == "savefiles/recovered.xml", "recovered target separate from snapshot");
+        for (int method=0; method<3; ++method) {
+            app.recoveryCandidate = snapshot; app.offerRecovery();
+            if (method==0) app.keyPressed(OF_KEY_F8);
+            else { app.toasts.activate("recovery", method==1 ? "discard-recovery" : "close"); app.dispatchToastActions(); }
+            check(app.recoveryCandidate.empty() && app.toasts.find("recovery")->closing,
+                "F8, discard action and close action equivalent");
+        }
+        app.recoveryCandidate=snapshot; app.offerRecovery();
+        app.toasts.activate("recovery", "recover"); app.dispatchToastActions();
+        check(app.recoveryCandidate.empty() && app.toasts.find("recovered"), "recover button matches F9");
+        app.toasts = jp::ToastManager{};
+        check(!app.saveSession(directory, true) && app.toasts.find("save-error") &&
+            !app.toasts.find("composition-saved"), "write failure never reports success");
+        app.saveModalActive=true; app.saveModalName="still-open"; app.savedirectory=directory;
+        app.updateSaveModal(); check(app.saveModalActive, "failed update leaves save modal open");
+        app.saveModalActive=false;
+        auto oldConfig=jp::AppPaths::current().config;
+        jp::AppPaths::current().config=directory + "not-a-directory";
+        ofBufferToFile(jp::AppPaths::current().config.string(), ofBuffer("blocked", 7));
+        check(!app.saveSettings(), "settings write result reports failure");
+        jp::AppPaths::current().config=oldConfig;
+        check(app.saveSettings(), "settings write succeeds");
+        app.toasts = jp::ToastManager{};
+        app.recoveryCandidate=snapshot; app.offerRecovery(); app.toasts.update(.2);
+        app.toastView.layout(app.toasts, app.modalFont, ofGetWidth(), ofGetHeight());
+        // Find the card through its public hit test; test real pointer routing.
+        ofRectangle card;
+        for (int y=0;y<ofGetHeight();++y) for (int x=0;x<ofGetWidth();++x)
+            if (app.toastView.hovered(x,y)=="recovery") {
+                if (card.width==0) card={float(x),float(y),1,1};
+                else {card.width=std::max(card.width,float(x)-card.x+1);card.height=std::max(card.height,float(y)-card.y+1);}
+            }
+        check(card.width>0,"toast has hit region");
+        const int closeX=card.getRight()-19, closeY=card.y+19;
+        for (int screen : {app.NODOS, app.SHADER_INDEX}) {
+            app.pantallaActiva=screen;
+            const auto count=app.boxes.boxes.size();
+            app.mousePressed(closeX, closeY, OF_MOUSE_BUTTON_LEFT);
+            { jp_pointer::Scope scope(jp_pointer::kCanvas);
+              check(!jp_pointer::available(10,10), "captured gesture blocks underlying canvas everywhere"); }
+            app.mouseDragged(10,10,OF_MOUSE_BUTTON_LEFT);
+            app.mouseReleased(10,10,OF_MOUSE_BUTTON_LEFT);
+            check(!app.recoveryCandidate.empty() && !app.toastView.captures() && app.boxes.boxes.size()==count,
+                "drag off toast cancels action and consumes gesture");
+        }
+        app.mousePressed(closeX,closeY,OF_MOUSE_BUTTON_LEFT);
+        app.mousePressed(10,10,OF_MOUSE_BUTTON_RIGHT);
+        app.mouseReleased(10,10,OF_MOUSE_BUTTON_LEFT);
+        check(app.toastView.captures(), "secondary button remains captured outside toast");
+        app.mouseReleased(10,10,OF_MOUSE_BUTTON_RIGHT);
+        check(!app.toastView.captures() && !app.recoveryCandidate.empty(), "complete multi-button gesture consumed");
+        app.saveModalActive=true;
+        app.keyPressed(OF_KEY_F8); app.keyPressed(OF_KEY_F9);
+        app.mousePressed(closeX,closeY,OF_MOUSE_BUTTON_LEFT);
+        app.mouseReleased(closeX,closeY,OF_MOUSE_BUTTON_LEFT);
+        check(!app.recoveryCandidate.empty(),"modal disables recovery shortcuts and toast close");
+        app.saveModalActive=false;
+        app.mousePressed(closeX,closeY,OF_MOUSE_BUTTON_LEFT);
+        app.mouseReleased(closeX,closeY,OF_MOUSE_BUTTON_LEFT);
+        check(app.recoveryCandidate.empty(),"click close discards recovery");
+        const char* captureRoot=std::getenv("GUIPPER_TOAST_CAPTURE");
+        if (captureRoot) {
+            fs::create_directories(captureRoot);
+            for (int lang=0;lang<2;++lang) for (int narrow=0;narrow<2;++narrow) {
+                app.language=lang; app.toasts=jp::ToastManager{}; app.offerRecovery();
+                app.publishToast("composition-saved",ToastState::Success,
+                    (lang==0 ? "Composition saved: " : "Composición guardada: ") + string("composicion_con_un_nombre_muy_largo_para_comprobar_el_ajuste_de_lineas.xml"));
+                app.publishToast("load-error",ToastState::Error,lang==0 ?
+                    "Could not open composition. Check the file and try again. Current composition kept." :
+                    "No se pudo abrir la composición. Revisá el archivo e intentá de nuevo. Se conservó la composición actual.");
+                app.toasts.update(.2);
+                int width=narrow?400:1440,height=narrow?430:840;
+                ofFbo fbo; fbo.allocate(width,height,GL_RGBA); fbo.begin(); ofClear(COL_BG_DARK);
+                app.toastView.layout(app.toasts,app.modalFont,width,height);
+                app.toastView.draw(app.toasts,app.modalFont,false,lang!=0);
+                fbo.end(); ofPixels pixels;fbo.readToPixels(pixels);
+                ofSaveImage(pixels,string(captureRoot)+"/toast-"+std::to_string(lang)+"-"+std::to_string(narrow)+".png");
+            }
+        }
+        ofLogNotice("toast-integration") << "passed=" << passed;
+        return passed;
+    }
+
+
+
+
 }
 
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if (testMode && string(testMode) == "toasts") return checkToasts(app);
 	if (testMode && string(testMode) == "nested_parameters")
         return checkNestedParameterLoad(app) && checkPersistenceModules();
 	if (testMode && string(testMode) == "uniform_inventory") return writeUniformInventory();

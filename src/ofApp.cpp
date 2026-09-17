@@ -403,7 +403,8 @@ void ofApp::registerSurfaces()
 
 	// One pointer-owner rule for every control that opts into a layer.
 	jp_pointer::setOcclusionTest([this](float x, float y, int order) {
-		return (releasePanelOpen && order < jp_pointer::kModal) || surfaces.blockedAt(x, y, order);
+		return toastView.captures() || !toastView.hovered(x, y).empty() ||
+            (releasePanelOpen && order < jp_pointer::kModal) || surfaces.blockedAt(x, y, order);
 	});
 }
 // One way in to every screen.
@@ -452,6 +453,12 @@ void ofApp::enterScreen(int screen)
 }
 
 void ofApp::update() {
+    const double toastNow = ofGetElapsedTimef();
+    toastView.layout(toasts, modalFont, ofGetWidth(), ofGetHeight());
+    toasts.update(toastLastUpdate > 0 ? toastNow - toastLastUpdate : 0,
+        toastView.hovered(ofGetMouseX(), ofGetMouseY()), toastBlocked());
+    toastLastUpdate = toastNow;
+    dispatchToastActions();
     if (updates.exitRequested()) {ofExit();return;}
     const auto lastCheck = updates.lastCheck;
     updates.check(false, std::time(nullptr));
@@ -459,16 +466,16 @@ void ofApp::update() {
     const auto updateStatus=updates.status();
     if (updateStatus.state==jp::UpdateState::Available && announcedUpdate!=updateStatus.version) {
         announcedUpdate=updateStatus.version;
-        storageNotice=language==0?"An update is available. F10 to review it.":"Hay una actualización disponible. F10 para verla.";
-        sessionLoadErrorTime=ofGetElapsedTimef();
+        jp::Toast notice;
+        notice.id = "update"; notice.message = language == 0 ? "An update is available." : "Hay una actualización disponible.";
+        notice.actions = {{"update", language == 0 ? "View update" : "Ver actualización"}};
+        toasts.publish(std::move(notice));
     }
     if (!recoveryChecked) {
         recoveryChecked = true;
         recoveryCandidate = recovery.pending();
         if (!recoveryCandidate.empty()) {
-            storageNotice = language == 0 ? "Recovery available. Press F9 to open it, or F8 to dismiss." :
-                "Hay una recuperación disponible. F9 para abrirla; F8 para descartarla.";
-            sessionLoadErrorTime = ofGetElapsedTimef();
+            offerRecovery();
         }
     }
     // Keep the offered snapshot intact until the user resolves it.
@@ -584,9 +591,7 @@ void ofApp::update() {
 	smoothProfileValue(frameProfile.oscMs, elapsedProfileMs(stageStart));
 
 	if (saveas_saver.activeflag) {
-		savedirectory = saveas_saver.path;
-		cout << "Save session to " << savedirectory << endl;
-		saveSession(savedirectory);
+        if (saveSession(saveas_saver.path, true)) savedirectory = saveas_saver.path;
 		saveas_saver.activeflag = false;
 	}
 
@@ -701,8 +706,9 @@ void ofApp::draw() {
 	drawScreenTabs();
 
 	drawSaveModal();
-	drawSessionLoadError();
     drawReleasePanel();
+    toastView.layout(toasts, modalFont, ofGetWidth(), ofGetHeight());
+    toastView.draw(toasts, modalFont, toastBlocked(), language != 0);
 
 	// Above every panel and modal: a tooltip that a later panel paints over is
 	// the bug this deferral exists to fix.
@@ -2691,16 +2697,7 @@ void ofApp::draw_opciones() {
 			ofRectangle(saveX, rowY, saveW, rowH),
 			"SAVE SETTINGS", COL_ACCENT_CYAN, true);
 
-		// Save feedback text
-		if (saveFeedbackTime > 0 && ofGetElapsedTimef() - saveFeedbackTime < 3.0f) {
-			ofSetColor(COL_MAPPED_ON);
-			float fw = font_p.stringWidth(saveFeedbackText);
-			font_p.drawString(saveFeedbackText,
-				saveX + saveW / 2 - fw / 2,
-				rowY + rowH + 20);
-		} else {
-			saveFeedbackTime = 0;
-		}
+
 	}
 
 	drawTransitionSettings(L);
@@ -5996,19 +5993,8 @@ void ofApp::keyPressed(int key) {
         else if (key == OF_KEY_END) releaseScroll=releaseScrollMax;
         return;
     }
-    if (!recoveryCandidate.empty() && (key == OF_KEY_F9 || key == OF_KEY_F8)) {
-        if (key == OF_KEY_F9) {
-            // Preserve the current composition before replacing it, including
-            // its nested groups, through the normal checked save path.
-            if (!saveSession("savefiles/before-recovery.xml")) return;
-            if (!loadSession(recoveryCandidate)) return;
-            // Save As after recovery: never overwrite the recovery files.
-            savedirectory = "savefiles/recovered.xml";
-        }
-        recovery.dismiss();
-        recoveryCandidate.clear();
-        storageNotice.clear();
-        sessionLoadErrorTime = -1.0f;
+    if (!toastBlocked() && !recoveryCandidate.empty() && (key == OF_KEY_F9 || key == OF_KEY_F8)) {
+        handleToastAction(key == OF_KEY_F9 ? "recover" : "discard-recovery");
         return;
     }
 
@@ -6256,7 +6242,7 @@ void ofApp::keyPressed(int key) {
 
 		if (key == 's') {
 			cout << "Save session to " << savedirectory << endl;
-			saveSession(savedirectory);
+			saveSession(savedirectory, true);
 		}
 		if (key == 'l') {
 			cout << "Load session from " << savedirectory << endl;
@@ -6505,6 +6491,7 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	prevKey = e.keycode;
 }
 void ofApp::mouseDragged(int x, int y, int button) {
+    if (toastView.captures()) return;
     if (shaderBrowserPointerButtons.count(button)) return;
     if (releasePanelOpen) return;
 	if (pantallaActiva == TUTORIAL && helpIndexScrollbarDragging)
@@ -6597,6 +6584,11 @@ void ofApp::mouseDragged(int x, int y, int button) {
 	}
 }
 void ofApp::mousePressed(int x, int y, int button) {
+    toastView.layout(toasts, modalFont, ofGetWidth(), ofGetHeight());
+    if (toastView.press(x, y, button, toastBlocked())) {
+        JPdragobject::notePressOrigin((float)x, (float)y);
+        return;
+    }
     if (releasePanelOpen) {
         if (button != OF_MOUSE_BUTTON_LEFT || !releaseViewport.inside(x,y)) return;
         if (releaseCloseButton.inside(x,y) && updates.status().state!=jp::UpdateState::Installing) { releasePanelOpen=false; return; }
@@ -6888,6 +6880,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 				y >= rowY && y <= rowY + rowH) {
 				// Launch system file dialog to select the XML
 				ofFileDialogResult result = ofSystemLoadDialog("Select default composition XML", false);
+                toastLastUpdate = ofGetElapsedTimef();
 				if (result.bSuccess) {
 					string path = result.getPath();
 					optionsFieldText[FIELD_DEFAULT_COMPO] = path;
@@ -6908,9 +6901,11 @@ void ofApp::mousePressed(int x, int y, int button) {
 			float saveX = fieldX;
 			if (x >= saveX && x <= saveX + fieldW &&
 				y >= rowY && y <= rowY + rowH) {
-				saveSettings();
-				saveFeedbackText = "Saved!";
-				saveFeedbackTime = ofGetElapsedTimef();
+                const bool saved = saveSettings();
+                publishToast("settings", saved ? jp::ToastState::Success : jp::ToastState::Error,
+                    saved ? (language == 0 ? "Settings saved." : "Ajustes guardados.") :
+                    (language == 0 ? "Could not save settings. Check folder permissions and free space." :
+                    "No se pudieron guardar los ajustes. Revisá los permisos y el espacio disponible."));
 				return;
 			}
 		}
@@ -7038,6 +7033,11 @@ void ofApp::mouseMoved(int x, int y) {
 	}
 }
 void ofApp::mouseReleased(int x, int y, int button) {
+    if (toastView.release(x, y, button, toastBlocked(), toasts)) {
+        JPdragobject::clearPressOrigin();
+        dispatchToastActions();
+        return;
+    }
 	JPdragobject::clearPressOrigin();
     if (shaderBrowserPointerButtons.erase(button)) return;
 	if (audioDragRow >= 0) {
@@ -7121,6 +7121,7 @@ void ofApp::touchUp(ofTouchEventArgs &touch) {
 }
 
 void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
+    if (toastView.captures() || !toastView.hovered(x, y).empty()) return;
     if (releasePanelOpen) { releaseScroll -= scrollY*28.0f; return; }
 	if (midiKeymap.mouseScrolled(x, y, scrollX, scrollY)) {
 		return;
@@ -7563,7 +7564,7 @@ void ofApp::loadSettings() {
 std::string toXmlString(const bool value) {
 	return value ? "true" : "false";
 }
-void ofApp::saveSettings() {
+bool ofApp::saveSettings() {
 	const auto settingsPath = jp::preferencePath("settings.xml");
 
 	ofXml xml;
@@ -7717,40 +7718,40 @@ void ofApp::saveSettings() {
 			toXmlString(config.virtualMonitor));
 	}
 
-	jp::saveXml(xml, settingsPath);
+	return jp::saveXml(xml, settingsPath);
 }
-bool ofApp::saveSession(string path) {
+bool ofApp::saveSession(string path, bool manual) {
     jp::recordEvent("session_save_requested");
     if (!boxes.save(jp_normalizePath(path))) {
         jp::recordEvent("session_save_failed");
-        storageNotice = language == 0 ?
+        toasts.close("composition-saved");
+        publishToast("save-error", jp::ToastState::Error, language == 0 ?
             "Could not save. Check free space and folder permissions, then try again." :
-            "No se pudo guardar. Revisá el espacio y los permisos de la carpeta e intentá de nuevo.";
-        sessionLoadErrorTime = ofGetElapsedTimef();
+            "No se pudo guardar. Revisá el espacio y los permisos de la carpeta e intentá de nuevo.");
         return false;
     }
-    recovery.markSaved(boxes);
+    recovery.markSaved(boxes, recoveryCandidate.empty());
+    toasts.close("save-error");
+    if (manual) publishToast("composition-saved", jp::ToastState::Success,
+        (language == 0 ? "Composition saved: " : "Composición guardada: ") + ofFilePath::getFileName(path));
     return true;
 }
 bool ofApp::loadSession(string path) {
-	storageNotice.clear();
 	sessionLoadResult = boxes.load(jp_normalizePath(path));
 	if (sessionLoadResult != JPboxgroup::LoadResult::Success)
 	{
-		sessionLoadErrorTime = ofGetElapsedTimef();
+		notifySessionLoadError();
         jp::recordEvent("session_load_failed");
 		return false;
 	}
 	savedirectory = path;
-	sessionLoadErrorTime = -1.0f;
+	toasts.close("load-error");
     recovery.markSaved(boxes, false);
 	return true;
 }
 
-void ofApp::drawSessionLoadError()
+void ofApp::notifySessionLoadError()
 {
-	if (sessionLoadErrorTime < 0.0f ||
-		(recoveryCandidate.empty() && ofGetElapsedTimef() - sessionLoadErrorTime > 12.0f)) return;
 	const bool readError = sessionLoadResult == JPboxgroup::LoadResult::ReadError;
 	string message = language == 0 ?
 		(readError ? "Could not open composition. Check the file and try again. Current composition kept." :
@@ -7763,32 +7764,48 @@ void ofApp::drawSessionLoadError()
     if (sessionLoadResult == JPboxgroup::LoadResult::AssetError)
         message = language == 0 ? "A shader or group could not load. Check the source files. Current composition kept." :
             "No se pudo cargar un shader o grupo. Revisá sus archivos. Se conservó la composición actual.";
-    if (!storageNotice.empty()) message = storageNotice;
-	const float width = std::min(640.0f, std::max(1.0f, float(ofGetWidth()) - 24.0f));
-	const auto lines = jp_textwrap::wrap(
-		[this](const string &text) { return modalFont.stringWidth(text); },
-		message, std::max(1.0f, width - 24.0f));
-	const float lineHeight = std::max(18.0f, modalFont.getLineHeight());
-	const float height = 24.0f + lineHeight * lines.size();
-	const float x = (ofGetWidth() - width) * 0.5f;
-	const float y = std::max(0.0f, ofGetHeight() - height - 12.0f);
-	ofPushStyle();
-	// Nodes can leave CENTER rectangle mode and a thicker outline active.
-	// The notice background uses the same top-left coordinates as its text.
-	ofSetRectMode(OF_RECTMODE_CORNER);
-	ofSetLineWidth(1.0f);
-	ofEnableAlphaBlending();
-	ofFill();
-	ofSetColor(COL_BG_PANEL);
-	ofDrawRectangle(x, y, width, height);
-	ofNoFill();
-	ofSetColor(COL_ACCENT_RED);
-	ofDrawRectangle(x, y, width, height);
-	ofSetColor(COL_TEXT_PRIMARY);
-	for (size_t i = 0; i < lines.size(); ++i)
-		modalFont.drawString(lines[i], x + 12.0f, y + 12.0f + lineHeight * (i + 1));
-	ofPopStyle();
+    publishToast("load-error", jp::ToastState::Error, message);
 }
+
+bool ofApp::toastBlocked() const {
+    return releasePanelOpen || saveModalActive || surfaces.modalOpen();
+}
+void ofApp::publishToast(const string& id, jp::ToastState state, const string& message) {
+    // Disk operations/native dialogs can block the UI. A new result must not
+    // inherit that elapsed time and disappear before its first rendered frame.
+    toastLastUpdate = ofGetElapsedTimef();
+    jp::Toast toast; toast.id = id; toast.state = state; toast.message = message;
+    toasts.publish(std::move(toast));
+}
+void ofApp::offerRecovery() {
+    jp::Toast toast;
+    toast.id = "recovery"; toast.state = jp::ToastState::Warning; toast.duration = 0;
+    toast.message = language == 0 ? "Recovery available." : "Recuperación disponible.";
+    toast.actions = {{"recover", language == 0 ? "Recover · F9" : "Recuperar · F9"},
+                     {"discard-recovery", language == 0 ? "Discard · F8" : "Descartar · F8"}};
+    toast.dismissAction = "discard-recovery";
+    toast.dismissTooltip = language == 0 ? "Discard recovery" : "Descartar recuperación";
+    toasts.publish(std::move(toast));
+}
+void ofApp::handleToastAction(const string& action) {
+    if (toastBlocked()) return;
+    if (action == "update") { releasePanelOpen = true; return; }
+    if (recoveryCandidate.empty()) return;
+    if (action == "recover") {
+        if (!saveSession("savefiles/before-recovery.xml")) return;
+        if (!loadSession(recoveryCandidate)) return;
+        savedirectory = "savefiles/recovered.xml";
+    } else if (action != "discard-recovery") return;
+    recovery.dismiss();
+    recoveryCandidate.clear();
+    toasts.close("recovery");
+    if (action == "recover") publishToast("recovered", jp::ToastState::Success,
+        language == 0 ? "Session recovered." : "Sesión recuperada.");
+}
+void ofApp::dispatchToastActions() {
+    for (const auto& event : toasts.takeEvents()) handleToastAction(event.action);
+}
+
 void ofApp::updateOSC() {
 	// hide old messages
 
@@ -8044,6 +8061,7 @@ void ofApp::saveSessionAs() {
 
 	ofFileDialogResult result =
 		ofSystemSaveDialog(suggested, "Save composition");
+    toastLastUpdate = ofGetElapsedTimef();
 	// Cancel reports failure with an empty path, and is not an error.
 	if (!result.bSuccess || result.getPath().empty()) {
 		cout << "Save cancelled" << endl;
@@ -8056,7 +8074,7 @@ void ofApp::saveSessionAs() {
 	if (ofFilePath::getFileExt(path).empty()) path += ".xml";
 
 	cout << "Save as: " << path << endl;
-	saveSession(path);
+	if (!saveSession(path, true)) return;
 	// The ACTIVE session follows the file just written, so a subsequent
 	// Ctrl+Shift+S -> UPDATE overwrites the right thing.
 	savedirectory = path;
@@ -8093,7 +8111,7 @@ void ofApp::confirmSaveModal() {
 	}
 	string path = "savefiles/" + filename;
 	cout << "Save modal confirmed: " << path << endl;
-	if (!saveSession(path)) return;
+	if (!saveSession(path, true)) return;
 	savedirectory = path;
 	saveModalActive = false;
 	saveModalName = "";
@@ -8107,7 +8125,7 @@ void ofApp::cancelSaveModal() {
 
 void ofApp::updateSaveModal() {
 	cout << "Update save: " << savedirectory << endl;
-	saveSession(savedirectory);
+	if (!saveSession(savedirectory, true)) return;
 	saveModalActive = false;
 	saveModalName = "";
 }

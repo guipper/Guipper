@@ -16,6 +16,9 @@
     <ClCompile Include="src\JPutils\jp_update_service.cpp">
       <Filter>src\JPutils</Filter>
     </ClCompile>
+    <ClCompile Include="src\JPgui\jp_toast_view.cpp">
+      <Filter>src\JPgui</Filter>
+    </ClCompile>
     <ClCompile Include="src\JPutils\jp_recovery.cpp">
       <Filter>src\JPutils</Filter>
     </ClCompile>
@@ -390,6 +393,12 @@
       <Filter>src\JPutils</Filter>
     </ClInclude>
     <ClInclude Include="src\JPutils\jp_update_service.h">
+      <Filter>src\JPutils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPgui\jp_toast_view.h">
+      <Filter>src\JPgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPutils\jp_toast.h">
       <Filter>src\JPutils</Filter>
     </ClInclude>
     <ClInclude Include="src\JPutils\jp_recovery.h">
