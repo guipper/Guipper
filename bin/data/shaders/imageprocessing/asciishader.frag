@@ -28,7 +28,11 @@ float character(int n, vec2 p)
 void main()
 {
 	vec2 pix = gl_FragCoord.xy;
-	vec3 col = texture(iChannel0, floor(pix/8.0)*8.0/iResolution.xy).rgb;	
+	// Sampled ONCE, alpha included, and at the same blocky coordinate the
+	// colour uses: reading the alpha at the exact pixel instead would give a
+	// smooth silhouette edge inside a chunky 8px mosaic.
+	vec4 src = texture(iChannel0, floor(pix/8.0)*8.0/iResolution.xy);
+	vec3 col = src.rgb;
 	
 	float gray = 0.3 * col.r + 0.59 * col.g + 0.11 * col.b;
 	
@@ -44,7 +48,14 @@ void main()
 	vec2 p = mod(pix/int(tile*800.0), 2.0) - vec2(1.0);
     
 
-    col = col*character(n, p);
+	float ch = character(n, p);
+    col = col*ch;
 	
-	fragColor = vec4(col, 1.0);
+	// Alpha carries the glyph, not just the source. The gaps between characters
+	// were already painted black by the multiply above; writing 1.0 there made
+	// that black opaque, so as an overlay this shader dropped a black rectangle
+	// over the output instead of letting the characters float on top of it.
+	// Drawn as the active render - over a cleared black frame - the result is
+	// the same picture it always was.
+	fragColor = vec4(col, src.a*ch);
 }

@@ -51,5 +51,8 @@ void main()
 	
 	vec3 fin = t1.rgb;
 	
-	fragColor = vec4(fin,1.0); 
+	// Alpha from the source, not a hardcoded 1.0: mirroring a PNG or a GIF used
+	// to fill its transparent background with opaque black, and the box FBO is
+	// written with blending disabled so nothing downstream can undo it.
+	fragColor = vec4(fin,t1.a);
 }

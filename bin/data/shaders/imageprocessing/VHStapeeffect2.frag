@@ -25,7 +25,10 @@ float verticalBar(float pos, float uvY, float offset)
 
 void main()
 {
-	vec2 uv = gl_FragCoord.xy / iResolution.xy;
+	// Kept before any displacement: the alpha is read from HERE, so the effect
+	// can never make the image bigger than it is. See the note further down.
+	vec2 baseUv = gl_FragCoord.xy / iResolution.xy;
+	vec2 uv = baseUv;
     
     for (float i = 0.0; i < 0.71; i += 0.1313)
     {
@@ -46,12 +49,24 @@ void main()
     vec2 offsetR = vec2(0.006 * sin(iTime), 0.0) * colorOffsetIntensity;
     vec2 offsetG = vec2(0.0073 * (cos(iTime * 0.97)), 0.0) * colorOffsetIntensity;
     
-    float r = texture(iChannel0, uv + offsetR).r;
-    float g = texture(iChannel0, uv + offsetG).g;
-    float b = texture(iChannel0, uv).b;
+    vec4 sampleR = texture(iChannel0, uv + offsetR);
+    vec4 sampleG = texture(iChannel0, uv + offsetG);
+    vec4 sampleB = texture(iChannel0, uv);
 
-    vec4 tex = vec4(r, g, b, 1.0);
-    fragColor = tex;
+    // Alpha from the source instead of a hardcoded 1.0, or a PNG or GIF loses
+    // its transparent background the moment it goes through this shader - the
+    // box FBO is written with blending disabled, so this alpha IS the result.
+    //
+    // Read at baseUv - the UNDISPLACED position - so the silhouette is exactly
+    // the source's. Every displacement above moves colour around INSIDE the
+    // shape and none of it can spill past the edge: neither the chromatic
+    // split, which lands a red and a green fringe a few pixels off to the
+    // sides, nor the vertical bars, which shift whole rows far enough to draw
+    // a second copy of the image out in the margin. On opaque input alpha is 1
+    // everywhere and nothing about the effect changes.
+    float alpha = texture(iChannel0, baseUv).a;
+
+    fragColor = vec4(sampleR.r, sampleG.g, sampleB.b, alpha);
 }
 
 

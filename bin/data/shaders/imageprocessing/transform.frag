@@ -34,5 +34,10 @@ void main()
 	vec4 t1 =  texture(textura1, uv);	
 	vec3 fin = t1.rgb;
 	
-	fragColor = vec4(fin,1.0); 
+	// Alpha comes from the source, not from a hardcoded 1.0. Writing 1.0 here
+	// made every transparent pixel of a PNG or GIF opaque the moment it went
+	// through this shader, so a logo patched into a chain lost its background.
+	// The box FBO is drawn with blending DISABLED, so whatever this line says
+	// IS the alpha of the result - nothing downstream can recover it.
+	fragColor = vec4(fin,t1.a);
 }
