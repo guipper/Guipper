@@ -3,7 +3,6 @@
 #include "ofMain.h"
 #include "ofxMidi.h"
 #include "../JPbox/JPboxgroup.h"
-#include "jp_textfield.h"
 #include <functional>
 #include <map>
 #include <mutex>
@@ -115,6 +114,7 @@ public:
 	void setChromeRightEdge(float x) { chromeRightEdge = x; }
 	bool mousePressed(int x, int y, int button);
 	bool keyPressed(int key);
+    bool textFocused() const { return panelOpen && focusedAddShaderRow >= 0; }
 	bool captureFunctionClick(int x, int y, int button);
 	bool mouseScrolled(int x, int y, float scrollX, float scrollY);
 	void mouseDragged(int x, int y, int button);

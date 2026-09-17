@@ -1208,7 +1208,7 @@ namespace
         check(app.shaderFolders[0].shaders[1].metadata.name.es=="Zebra","other language retained");
         app.curatedShaderNames=ofJson::object();app.loadCuratedShaderNames();
         check(app.curatedShaderNames[folder.shaders[1].path]["en"]=="Aardvark","reloads persisted name");
-        app.shaderNameFocused=true;app.shaderNameText="Árbol";app.shaderNameCursor=2;app.shaderNameSelectAll=false;
+        app.shaderNameFocused=true;app.shaderNameText="Árbol";app.shaderNameCursor=2;jp_text_input::controller().beginFrame(); app.drawShaderNameField(ofRectangle(10,10,300,30)); jp_text_input::controller().model.select(2);
         app.handleShaderNameKey(OF_KEY_BACKSPACE);check(app.shaderNameText=="rbol","backspace removes complete accented character");
         app.handleShaderNameKey(OF_KEY_ESC);check(!app.shaderNameFocused,"escape cancels");
         app.shaderNameFocused=true;app.shaderNameText="   ";

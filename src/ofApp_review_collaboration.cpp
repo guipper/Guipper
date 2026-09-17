@@ -1,4 +1,5 @@
 #include "ofApp.h"
+#include "JPutils/jp_text_input.h"
 #include "JPutils/jp_storage.h"
 #include "JPutils/jp_textwrap.h"
 #include "JPgui/jp_button.h"
@@ -230,13 +231,14 @@ void ofApp::drawReviewPanel() {
         const vector<string> labels=language==0?vector<string>{"Comment","Keep","Modify","Remove"}:vector<string>{"Comentar","Conservar","Modificar","Eliminar"};
         for(int i=0;i<4;++i)button(l.kinds[i],labels[i],i==reviewCommentKind);
         ofSetColor(COL_BG_INPUT);ofDrawRectRounded(l.editor,3);ofNoFill();ofSetColor(reviewCommentFocused?COL_ACCENT_CYAN:COL_BORDER_MUTED);ofDrawRectRounded(l.editor,3);ofFill();
-        {jp_gl::ScopedScissor clip(l.editor);ofSetColor(COL_TEXT_PRIMARY);
-            string shown=reviewCommentText;if(reviewCommentFocused)shown.insert(std::min(size_t(reviewCommentCursor),shown.size()),"|");
-            if(shown.empty())shown=language==0?"Write a comment… Enter: new line":"Escribí un comentario… Enter: nueva línea";
-            const auto lines=reviewLines(font_p,shown,l.editor.width-12);const auto before=reviewLines(font_p,reviewCommentText.substr(0,reviewCommentCursor),l.editor.width-12);
-            size_t start=reviewCommentFocused && before.size()>3?before.size()-3:0;
-            for(size_t i=start;i<lines.size() && i<start+3;++i)font_p.drawString(lines[i],l.editor.x+6,l.editor.y+17+(i-start)*18);
-        }
+        auto input=jp_text_input::field("review-comment","curator",l.editor,font_p,reviewCommentText,reviewCommentFocused);
+        input.multiline=true;input.limit=16384;
+        input.focus=[this]{reviewCommentFocused=true;};
+        input.cancel=[this]{reviewCommentFocused=false;};
+        input.commit=[this]{reviewCommentFocused=false;return true;};
+        input.change=[this]{reviewDrafts[reviewCommentPath]=reviewCommentText;reviewLocalDirty=true;};
+        input.special=[this](int key){if(key==OF_KEY_RETURN && (jp_text_input::controller().currentModifiers & (OF_KEY_CONTROL|OF_KEY_COMMAND))){publishReviewComment();if(reviewCommentText.empty())jp_text_input::controller().model.begin("");return true;}return false;};
+        jp_text_input::controller().add(std::move(input));
         button(l.publish,language==0?"Publish comment · Ctrl+Enter":"Publicar comentario · Ctrl+Enter",false,reviewEnabled && !busy && !ofTrim(reviewCommentText).empty());
     }
     ofPopStyle();
@@ -264,30 +266,14 @@ bool ofApp::pressReviewPanel(int x,int y) {
     if(!reviewHistory) {
         for(int i=0;i<4;++i)if(l.kinds[i].inside(x,y)){reviewCommentKind=i;return true;}
         if(l.publish.inside(x,y)){publishReviewComment();return true;}
-        reviewCommentFocused=l.editor.inside(x,y);if(reviewCommentFocused){reviewCommentCursor=reviewCommentText.size();reviewCommentSelectAll=false;}
+        reviewCommentFocused=l.editor.inside(x,y);if(reviewCommentFocused){reviewCommentCursor=reviewCommentText.size();}
     }
     return true;
 }
 void ofApp::dragReviewScrollbar(float y) {const auto l=getReviewLayout();const float travel=l.track.height-l.thumb.height;if(travel>0)reviewScroll=ofClamp((y-reviewScrollGrab-l.track.y)/travel,0.f,1.f)*std::max(0.f,reviewContentHeight-l.body.height);}
 void ofApp::reviewKeyPressed(int key) {
-    if(key==OF_KEY_ESC){if(reviewCommentFocused)reviewCommentFocused=false;else reviewPanelOpen=false;return;}
-    if(!reviewCommentFocused){if(key==OF_KEY_DOWN)reviewScroll+=40;if(key==OF_KEY_UP)reviewScroll=std::max(0.f,reviewScroll-40);return;}
-    const bool modifier=ofGetKeyPressed(OF_KEY_CONTROL)||ofGetKeyPressed(OF_KEY_COMMAND);
-    if(modifier && (key==OF_KEY_RETURN)){publishReviewComment();return;}
-    auto prev=[&](int p){if(p>0)--p;while(p>0 && (static_cast<unsigned char>(reviewCommentText[p])&0xc0)==0x80)--p;return p;};
-    auto next=[&](int p){if(p<int(reviewCommentText.size()))++p;while(p<int(reviewCommentText.size()) && (static_cast<unsigned char>(reviewCommentText[p])&0xc0)==0x80)++p;return p;};
-    if(key==1 || (modifier && (key=='a'||key=='A'))){reviewCommentSelectAll=true;return;}
-    if(key==3 || (modifier && (key=='c'||key=='C'))){if(reviewCommentSelectAll)ofGetWindowPtr()->setClipboardString(reviewCommentText);return;}
-    if(key==OF_KEY_LEFT || key==OF_KEY_RIGHT){reviewCommentCursor=key==OF_KEY_LEFT?prev(reviewCommentCursor):next(reviewCommentCursor);reviewCommentSelectAll=false;return;}
-    if(key==OF_KEY_HOME || key==OF_KEY_END){reviewCommentCursor=key==OF_KEY_HOME?0:reviewCommentText.size();reviewCommentSelectAll=false;return;}
-    auto erase=[&]{if(reviewCommentSelectAll){reviewCommentText.clear();reviewCommentCursor=0;reviewCommentSelectAll=false;}};
-    if(key==OF_KEY_BACKSPACE || key==OF_KEY_DEL){if(reviewCommentSelectAll)erase();else if(key==OF_KEY_BACKSPACE){const int start=prev(reviewCommentCursor);reviewCommentText.erase(start,reviewCommentCursor-start);reviewCommentCursor=start;}else reviewCommentText.erase(reviewCommentCursor,next(reviewCommentCursor)-reviewCommentCursor);}
-    else {
-        string inserted;if(key==22 || (modifier && (key=='v'||key=='V')))inserted=ofGetWindowPtr()->getClipboardString();
-        else if(key==OF_KEY_RETURN)inserted="\n";
-        else if(!modifier && ((key>=32 && key<=126)||(key>=160 && key<=0x24f)))ofUTF8Append(inserted,key);
-        if(inserted.empty() || (reviewCommentSelectAll?0:reviewCommentText.size())+inserted.size()>16384)return;
-        erase();reviewCommentText.insert(reviewCommentCursor,inserted);reviewCommentCursor+=inserted.size();
-    }
-    reviewDrafts[reviewCommentPath]=reviewCommentText;reviewLocalDirty=true;
+    if(reviewCommentFocused){jp_text_input::controller().key(key);return;}
+    if(key==OF_KEY_ESC)reviewPanelOpen=false;
+    if(key==OF_KEY_DOWN)reviewScroll+=40;
+    if(key==OF_KEY_UP)reviewScroll=std::max(0.f,reviewScroll-40);
 }

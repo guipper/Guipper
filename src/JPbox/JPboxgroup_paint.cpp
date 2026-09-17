@@ -2283,10 +2283,10 @@ void JPboxgroup::drawPaintTimeline(JPbox_paint *box)
 				ofDrawRectangle(field);
 				ofFill();
 				ofSetColor(COL_TEXT_PRIMARY);
-				jp_constants::p2_font.drawString(paintRenameBuffer, field.x + 3.0f,
-					field.getCenter().y + 3.5f);
-				jp_textfield::drawCaret(jp_constants::p2_font, paintRenameBuffer,
-					paintRenameCursor, field.x + 3.0f, field.getCenter().y, 11.0f);
+                auto input=jp_text_input::field("paint-layer","paint",field,jp_constants::p2_font,paintRenameBuffer,true);
+                input.cancel=[this]{cancelPaintLayerRename();};
+                input.commit=[this]{commitPaintLayerRename();return true;};
+                jp_text_input::controller().add(std::move(input));
 			}
 			else
 			{
@@ -2720,21 +2720,15 @@ void JPboxgroup::drawPaintPicker()
 		(hexOver ? COL_BORDER_HOVER : COL_BORDER_MUTED));
 	ofDrawRectRounded(hex, 3.0f);
 	ofFill();
-	{
-		// While focused it shows what is being typed; otherwise the live colour,
-		// so the field doubles as a readout.
-		const string shown = paintHexFocus ? paintHexBuffer :
-			jp_paint::formatHexColor(paintColor.r, paintColor.g, paintColor.b,
-				paintColor.a);
-		ofSetColor(paintHexFocus ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
-		jp_constants::p2_font.drawString(shown, hex.x + 6.0f,
-			hex.getCenter().y + 3.5f);
-		if (paintHexFocus)
-		{
-			jp_textfield::drawCaret(jp_constants::p2_font, paintHexBuffer,
-				paintHexCursor, hex.x + 6.0f, hex.getCenter().y, 12.0f);
-		}
-	}
+    {
+        auto input=jp_text_input::field("paint-hex","paint",hex,jp_constants::p2_font,paintHexBuffer,paintHexFocus);
+        input.read=[this]{return paintHexFocus?paintHexBuffer:jp_paint::formatHexColor(paintColor.r,paintColor.g,paintColor.b,paintColor.a);};
+        input.focus=[this]{paintHexBuffer=jp_paint::formatHexColor(paintColor.r,paintColor.g,paintColor.b,paintColor.a);paintHexFocus=true;};
+        input.cancel=[this]{cancelPaintHex();};
+        input.commit=[this]{commitPaintHex();return true;};
+        input.validate=[](const string& value)->string {float r,g,b,a;return jp_paint::parseHexColor(value,r,g,b,a)?"":jp_text_input::message("Use RGB / RGBA hex","Usá RGB / RGBA hexadecimal");};
+        jp_text_input::controller().add(std::move(input));
+    }
 
 	const ofRectangle add = getPaintPaletteAddBounds();
 	const bool addFull = (int)paintPalette.size() >= kPaletteSize;
@@ -3529,7 +3523,7 @@ void JPboxgroup::cancelPaintHex()
 	paintHexFocus = false;
 	paintHexBuffer.clear();
 	paintHexCursor = 0;
-	paintHexSelectAll = false;
+
 }
 
 bool JPboxgroup::handlePaintDocPropsPressed(const ofVec2f &mouse)
@@ -3569,7 +3563,7 @@ void JPboxgroup::beginPaintLayerRename(int layerIndex)
 	paintRenameCursor = (int)paintRenameBuffer.size();
 	// Selected on entry, so typing replaces rather than appends - what every
 	// rename in every file manager does.
-	paintRenameSelectAll = true;
+
 }
 
 void JPboxgroup::commitPaintLayerRename()
@@ -3595,7 +3589,7 @@ void JPboxgroup::cancelPaintLayerRename()
 	paintRenamingLayer = -1;
 	paintRenameBuffer.clear();
 	paintRenameCursor = 0;
-	paintRenameSelectAll = false;
+
 }
 
 // Returns true when a focused field consumed the key.
@@ -3605,8 +3599,7 @@ bool JPboxgroup::paintHandleTextKey(int key)
 	{
 		if (key == OF_KEY_RETURN || key == '\r') { commitPaintHex(); return true; }
 		if (key == OF_KEY_ESC) { cancelPaintHex(); return true; }
-		jp_textfield::handleKey(paintHexBuffer, paintHexCursor, key, false, false,
-			&paintHexSelectAll);
+        jp_text_input::controller().key(key);
 		return true;
 	}
 	if (paintRenamingLayer >= 0)
@@ -3617,8 +3610,7 @@ bool JPboxgroup::paintHandleTextKey(int key)
 			return true;
 		}
 		if (key == OF_KEY_ESC) { cancelPaintLayerRename(); return true; }
-		jp_textfield::handleKey(paintRenameBuffer, paintRenameCursor, key, false,
-			false, &paintRenameSelectAll);
+        jp_text_input::controller().key(key);
 		return true;
 	}
 	return false;
@@ -3765,7 +3757,7 @@ bool JPboxgroup::update_paintMousePressed(int mouseButton)
 					paintHexBuffer = jp_paint::formatHexColor(paintColor.r,
 						paintColor.g, paintColor.b, paintColor.a);
 					paintHexCursor = (int)paintHexBuffer.size();
-					paintHexSelectAll = true;
+
 				}
 				return true;
 			}

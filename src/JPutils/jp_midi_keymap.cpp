@@ -1,3 +1,4 @@
+#include "jp_textfield.h"
 #include "jp_storage.h"
 #include "jp_midi_keymap.h"
 #include "../JPgui/jp_gl_state.h"
@@ -1040,7 +1041,7 @@ void JPMidiKeymap::ensureAddShaderDraftRow()
 	{
 		addShaderCursors.pop_back();
 	}
-	while (addShaderRows.size() > 1 &&
+	while (addShaderRows.size() > 1 && focusedAddShaderRow != (int)addShaderRows.size()-1 &&
 		   addShaderRows[addShaderRows.size() - 1].empty() &&
 		   addShaderRows[addShaderRows.size() - 2].empty())
 	{
@@ -2274,35 +2275,18 @@ void JPMidiKeymap::drawAddShaderSelector(float x, float y, float w)
 			ofFill();
 		}
 
-		// Same windowing and caret as the IMPORT search box: the visible slice
-		// follows the cursor instead of the text being truncated at the end.
-		if (query.empty())
-		{
-			ofSetColor(COL_TEXT_DIM);
-			jp_constants::p_font.drawString("type shader name",
-				R.labelX, rowY + ROW_H - 7);
-		}
-		else
-		{
-			const int cursor = i < (int)addShaderCursors.size() ?
-				addShaderCursors[i] : (int)query.size();
-			const jp_textfield::Window win = jp_textfield::visibleWindow(
-				jp_constants::p_font, query, cursor, R.labelMaxW);
-			const string shown = query.substr(win.start, win.end - win.start);
-			ofSetColor(COL_TEXT_PRIMARY);
-			jp_constants::p_font.drawString(shown, R.labelX, rowY + ROW_H - 7);
-			if (focused)
-			{
-				jp_textfield::drawCaret(jp_constants::p_font, shown,
-					cursor - win.start, R.labelX,
-					rowY + ROW_H * 0.5f, ROW_H - 8.0f);
-			}
-		}
-		if (focused && query.empty())
-		{
-			jp_textfield::drawCaret(jp_constants::p_font, "", 0, R.labelX,
-				rowY + ROW_H * 0.5f, ROW_H - 8.0f);
-		}
+        jp_text_input::Field input;
+        input.id="midi-query-"+ofToString(i);input.panel="midi";input.layer=jp_pointer::kMidiBody;
+        input.bounds=ofRectangle(R.labelX-6,rowY,R.labelMaxW+12,ROW_H);
+        input.font=&jp_constants::p_font;input.focused=focused;
+        input.read=[this,i]{return i<(int)addShaderRows.size()?addShaderRows[i]:string();};
+        input.write=[this,i](const string& value){if(i<(int)addShaderRows.size())addShaderRows[i]=value;};
+        input.focus=[this,i]{focusedAddShaderRow=i;};
+        input.cancel=[this]{focusedAddShaderRow=-1;};
+        input.commit=[this]{focusedAddShaderRow=-1;return true;};
+        input.change=[this,i]{addShaderQuery=addShaderRows[i];addShaderResolvedPaths[i]="";addShaderSearched[i]=false;ensureAddShaderDraftRow();};
+        input.special=[this](int key){if(key==OF_KEY_RETURN){keyPressed(key);return true;}return false;};
+        jp_text_input::controller().add(std::move(input));
 
 		string keyLabel = mapped ? getCompactKeyLabel(bindings[bindingIndex].key) :
 						  (!query.empty() && searched && !resolved ? "Not found" :
@@ -3139,29 +3123,8 @@ bool JPMidiKeymap::keyPressed(int key)
 		return true;
 	}
 
-	// Full editing - arrows, HOME/END, DEL, insert at the cursor. This used to
-	// be append-plus-backspace-at-end with no cursor at all.
-	if (focusedAddShaderRow >= (int)addShaderCursors.size())
-	{
-		ensureAddShaderDraftRow();
-	}
-	int &cursor = addShaderCursors[focusedAddShaderRow];
-	string &text = addShaderRows[focusedAddShaderRow];
-	const string before = text;
-	if (jp_textfield::handleKey(text, cursor, key))
-	{
-		if (text != before)
-		{
-			addShaderQuery = text;
-			addShaderResolvedPaths[focusedAddShaderRow] = "";
-			addShaderSearched[focusedAddShaderRow] = false;
-			ensureAddShaderDraftRow();
-		}
-		return true;
-	}
-	// Anything the field did not consume falls through, so the global
-	// shortcuts keep working while a row is focused.
-	return false;
+    jp_text_input::controller().key(key);
+    return true;
 }
 
 bool JPMidiKeymap::mouseScrolled(int x, int y, float scrollX, float scrollY)

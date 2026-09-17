@@ -499,6 +499,9 @@ public:
 	void enterScreen(int screen);
 	void clearFieldFocus();
 	bool anyFieldFocused() const;
+    void drawOptionsTextInput(int index, const ofRectangle& bounds);
+    void drawOutputTextInput(int index, const ofRectangle& bounds, bool split = false);
+    bool saveModalTextFocused = true;
 
 	// Top bar buttons. Most switch screen and carry their MENUACTIVO id;
 	// kMidiPanelBarItem toggles the MIDI panel instead, so it is negative and
@@ -580,7 +583,7 @@ public:
     jp_review::Snapshot reviewSnapshot;
     std::future<ReviewResult> reviewTask;
     bool reviewInitialized=false, reviewEnabled=false, reviewPanelOpen=false, reviewHistory=false;
-    bool reviewCommentFocused=false, reviewCommentSelectAll=false, reviewScrollbarDragging=false;
+    bool reviewCommentFocused=false, reviewScrollbarDragging=false;
     bool reviewForceRefresh=false, reviewPendingApply=false;
     string reviewStatus, reviewCommentText, reviewCommentPath, reviewSourcePath, reviewSourceHash;
     int reviewCommentCursor=0, reviewCommentKind=0;
@@ -602,7 +605,7 @@ public:
     bool pressReviewPanel(int x,int y);
     void reviewKeyPressed(int key);
     void dragReviewScrollbar(float y);
-    bool shaderNameFocused = false, shaderNameSelectAll = false;
+    bool shaderNameFocused = false;
     string shaderNameText, shaderNamePath;
     int shaderNameCursor = 0, shaderNameLanguage = 0, shaderOrderLanguage = -1;
     void loadCuratedShaderNames();
@@ -959,16 +962,15 @@ public:
 	int focusedLiveOutputField = -1;
 	string liveOutputFieldText[LO_FIELD_COUNT];
 	int liveOutputFieldCursor = 0;
-	bool liveOutputFieldSelectAll = false;
+
 	// The split cols/rows live outside the per output array on purpose:
 	// initLiveOutputFields runs on every selection change and on every output
 	// window resize, so anything in that array is wiped mid edit.
 	string splitFieldText[2];
 	int focusedSplitField = -1;
 	int splitFieldCursor = 0;
-	bool splitFieldSelectAll = false;
-	int lastLiveOutputInputClick = -1;
-	uint64_t lastLiveOutputInputClickMs = 0;
+
+
 
 	// Dragging tiles in the wall preview. Snapshot based like the mapping MOVE
 	// tool: the crop is written as snapshot + delta so a dropped mouse frame

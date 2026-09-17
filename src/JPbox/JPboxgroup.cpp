@@ -1,3 +1,5 @@
+#include "../JPutils/jp_text_input.h"
+#include "jp_media_time.h"
 #include "JPboxgroup.h"
 #include "../JPgui/jp_gl_state.h"
 #include "jp_media.h"
@@ -40,25 +42,10 @@ namespace
 			std::setw(6) << std::setprecision(3) << secs;
 		return label.str();
 	}
-	bool parseMediaTime(const string &text, double duration, int frames, float &normalized)
-	{
-		try
-		{
-			double seconds = 0.0;
-			if (!text.empty() && (text.back()=='f' || text.back()=='F'))
-			{
-				const int frame = std::stoi(text.substr(0,text.size()-1));
-				normalized = frames > 1 ? frame/(float)(frames-1) : 0.0f; return true;
-			}
-			vector<string> parts = ofSplitString(text, ":", true, true);
-			if(parts.size()==1) seconds=std::stod(parts[0]);
-			else if(parts.size()==2) seconds=std::stod(parts[0])*60.0+std::stod(parts[1]);
-			else if(parts.size()==3) seconds=std::stod(parts[0])*3600.0+std::stod(parts[1])*60.0+std::stod(parts[2]);
-			else return false;
-			normalized = duration > 0 ? (float)(seconds/duration) : 0.0f; return true;
-		}
-		catch (...) { return false; }
-	}
+    bool parseMediaTime(const string& text,double duration,int frames,float& normalized) {
+        return jp_media_time::parse(text,duration,frames,normalized);
+    }
+
 	// Was constexpr false, so nobody could ever switch it on without a rebuild.
 	// Now shares the one GUIPPER_HITBOX switch with the box buttons.
 	inline bool kShowInspectorClickBoundsEnabled()
@@ -284,7 +271,15 @@ void JPboxgroup::drawMediaInspector(JPMediaInspectable *target)
 	ofSetColor(COL_TEXT_PRIMARY);ofDrawLine(posX,t.y-2,posX,t.getBottom()+2);
 	auto field=[&](const ofRectangle&r,const string&prefix,float n,int focus)
 	{
-		button(r,prefix+((mediaTimeFieldFocus==focus)?mediaTimeFieldBuffer:mediaTimeLabel(n*target->mediaDurationSeconds())),mediaTimeFieldFocus==focus);
+        button(r,"",mediaTimeFieldFocus==focus);
+        auto f=jp_text_input::field("media-time-"+ofToString(focus),"media",r,jp_constants::inspector_media_font,mediaTimeFieldBuffer,mediaTimeFieldFocus==focus);
+        f.read=[this,target,focus]{return mediaTimeFieldFocus==focus?mediaTimeFieldBuffer:mediaTimeLabel((focus==1?target->mediaState().rangeIn:target->mediaState().rangeOut)*target->mediaDurationSeconds());};
+        f.focus=[this,target,focus]{mediaTimeFieldFocus=focus;mediaTimeFieldBuffer=mediaTimeLabel((focus==1?target->mediaState().rangeIn:target->mediaState().rangeOut)*target->mediaDurationSeconds());};
+        f.cancel=[this]{mediaTimeFieldFocus=0;};
+        f.validate=[target](const string& value)->string{float n=0;return parseMediaTime(value,target->mediaDurationSeconds(),target->mediaFrameCount(),n)?"":jp_text_input::message("Use time or frames","Usá tiempo o frames");};
+        f.commit=[this]{keyPressed(OF_KEY_RETURN);return mediaTimeFieldFocus==0;};
+        f.special=[this](int key){if(key==OF_KEY_UP||key==OF_KEY_DOWN){keyPressed(key);return true;}return false;};
+        jp_text_input::controller().add(std::move(f));
 	};
 	button(mediaInspector.inButton,"IN");button(mediaInspector.outButton,"OUT");
 	field(mediaInspector.inField,"",s.rangeIn,1);field(mediaInspector.outField,"",s.rangeOut,2);
@@ -4598,7 +4593,7 @@ bool JPboxgroup::handleMediaInspectorClick(int mouseButton)
 	{
 		mediaTimeFieldFocus=mediaInspector.inField.inside(m)?1:2;
 		mediaTimeFieldBuffer=mediaTimeLabel((mediaTimeFieldFocus==1?s.rangeIn:s.rangeOut)*target->mediaDurationSeconds());
-		mediaTimeFieldReplaceOnType=true;
+
 	}
 	else if(mediaInspector.timeline.inside(m))
 	{
@@ -8921,23 +8916,14 @@ void JPboxgroup::drawTabs()
 				// Draw text input field overlay on this breadcrumb tab
 				float inputPad = 4;
 				ofSetRectMode(OF_RECTMODE_CORNER);
-				ofSetColor(240, 240, 245);
+				ofSetColor(COL_BG_INPUT);
 				ofDrawRectRounded(x + inputPad, y + inputPad, tabW - inputPad * 2, tabH - inputPad * 2, 2);
 				ofSetColor(COL_TEXT_DARK);
-				float txtW = jp_constants::p_font.stringWidth(tabRenameBuffer.empty() ? " " : tabRenameBuffer);
-				float txtX = x + (tabW - txtW) * 0.5f;
-				float txtY = y + tabH * 0.5f + 5;
-				float maxTextX = x + tabW - inputPad - 4;
-				if (txtX + txtW > maxTextX) txtX = maxTextX - txtW;
-				if (txtX < x + inputPad + 2) txtX = x + inputPad + 2;
-				jp_constants::p_font.drawString(tabRenameBuffer, txtX, txtY);
-				if ((ofGetFrameNum() / 20) % 2 == 0)
-				{
-					int cc = std::max(0, std::min(tabRenameCursor, (int)tabRenameBuffer.size()));
-					float caretX = txtX + jp_constants::p_font.stringWidth(tabRenameBuffer.substr(0, cc));
-					ofSetColor(COL_TEXT_DARK);
-					ofDrawRectRounded(caretX, y + inputPad + 3, 2, tabH - inputPad * 2 - 6, 1);
-				}
+                auto f=jp_text_input::field("tab-name","tabs",ofRectangle(x+inputPad,y+inputPad,tabW-inputPad*2,tabH-inputPad*2),jp_constants::p_font,tabRenameBuffer,true);
+                f.limit=64;f.cancel=[this]{cancelTabRename();};
+                f.commit=[this]{commitTabRename();return !tabRenaming;};
+                f.validate=[](const string& v)->string{return v.empty()?jp_text_input::message("Enter a name","Ingresá un nombre"):"";};
+                jp_text_input::controller().add(std::move(f));
 			}
 			else
 			{
@@ -8986,27 +8972,14 @@ void JPboxgroup::drawTabs()
 			// Draw text input field overlay on this tab
 			float inputPad = 4;
 			ofSetRectMode(OF_RECTMODE_CORNER);
-			ofSetColor(240, 240, 245);
+			ofSetColor(COL_BG_INPUT);
 			ofDrawRectRounded(x + inputPad, y + inputPad, tabW - inputPad * 2, tabH - inputPad * 2, 2);
 			ofSetColor(COL_TEXT_DARK);
-			string displayText = tabRenameBuffer;
-			if (displayText.empty()) displayText = " ";
-			float textWidth = jp_constants::p_font.stringWidth(displayText);
-			float textX = x + (tabW - textWidth) * 0.5f;
-			float textY = y + tabH * 0.5f + 5;
-			// Clamp textX so cursor is always visible
-			float maxTextX = x + tabW - inputPad - 4;
-			if (textX + textWidth > maxTextX) textX = maxTextX - textWidth;
-			if (textX < x + inputPad + 2) textX = x + inputPad + 2;
-			jp_constants::p_font.drawString(tabRenameBuffer, textX, textY);
-			// Blinking insertion caret at cursor
-			if ((ofGetFrameNum() / 20) % 2 == 0)
-			{
-				int cc = std::max(0, std::min(tabRenameCursor, (int)tabRenameBuffer.size()));
-				float caretX = textX + jp_constants::p_font.stringWidth(tabRenameBuffer.substr(0, cc));
-				ofSetColor(COL_TEXT_DARK);
-				ofDrawRectRounded(caretX, y + inputPad + 3, 2, tabH - inputPad * 2 - 6, 1);
-			}
+                auto f=jp_text_input::field("tab-name","tabs",ofRectangle(x+inputPad,y+inputPad,tabW-inputPad*2,tabH-inputPad*2),jp_constants::p_font,tabRenameBuffer,true);
+                f.limit=64;f.cancel=[this]{cancelTabRename();};
+                f.commit=[this]{commitTabRename();return !tabRenaming;};
+                f.validate=[](const string& v)->string{return v.empty()?jp_text_input::message("Enter a name","Ingresá un nombre"):"";};
+                jp_text_input::controller().add(std::move(f));
 		}
 		else
 		{
@@ -9454,13 +9427,13 @@ void JPboxgroup::keyPressed(int key)
 		if(key==OF_KEY_ESC){mediaTimeFieldFocus=0;mediaTimeFieldBuffer.clear();return;}
 		if(key==OF_KEY_UP||key==OF_KEY_DOWN)
 		{
-			float &v=mediaTimeFieldFocus==1?s.rangeIn:s.rangeOut;
-			v=target->mediaSteppedPosition(v,key==OF_KEY_UP?1:-1);
-			v=ofClamp(v,0.0f,1.0f);
-			if(mediaTimeFieldFocus==1&&v>s.rangeOut)s.rangeOut=v;
-			else if(mediaTimeFieldFocus==2&&v<s.rangeIn)s.rangeIn=v;
-			mediaTimeFieldBuffer=mediaTimeLabel(v*target->mediaDurationSeconds());
-			mediaTimeFieldReplaceOnType=false;return;
+            if(jp_media_time::stepFrames(mediaTimeFieldBuffer,target->mediaDurationSeconds(),target->mediaFrameCount(),key==OF_KEY_UP?1:-1))return;
+            float v=0;
+            if(!parseMediaTime(mediaTimeFieldBuffer,target->mediaDurationSeconds(),target->mediaFrameCount(),v))return;
+            const float step=target->mediaFrameCount()>1?1.f/(target->mediaFrameCount()-1):1.f/30.f/std::max(.001f,(float)target->mediaDurationSeconds());
+            v=ofClamp(v+(key==OF_KEY_UP?step:-step),0.f,1.f);
+            mediaTimeFieldBuffer=mediaTimeLabel(v*target->mediaDurationSeconds());
+            return;
 		}
 		if(key==OF_KEY_RETURN||key=='\r')
 		{
@@ -9473,18 +9446,7 @@ void JPboxgroup::keyPressed(int key)
 			}
 			mediaTimeFieldFocus=0;return;
 		}
-		if(key==OF_KEY_BACKSPACE)
-		{
-			if(mediaTimeFieldReplaceOnType)mediaTimeFieldBuffer.clear();
-			else if(!mediaTimeFieldBuffer.empty())mediaTimeFieldBuffer.pop_back();
-			mediaTimeFieldReplaceOnType=false;
-		}
-		else if((key>='0'&&key<='9')||key==':'||key=='.'||key=='f'||key=='F')
-		{
-			if(mediaTimeFieldReplaceOnType)mediaTimeFieldBuffer.clear();
-			mediaTimeFieldReplaceOnType=false;
-			mediaTimeFieldBuffer.push_back((char)key);
-		}
+        jp_text_input::controller().key(key);
 		return;
 	}
 	if (!tabRenaming && paintWantsKeyCapture())
@@ -9510,10 +9472,7 @@ void JPboxgroup::keyPressed(int key)
 	}
 
 	// Cursor navigation + edit at cursor (LEFT/RIGHT/HOME/END/BACKSPACE/DEL/insert).
-	if (tabRenameBuffer.size() < 64 || key < 32)
-	{
-		jp_textfield::handleKey(tabRenameBuffer, tabRenameCursor, key);
-	}
+    jp_text_input::controller().key(key);
 }
 
 bool JPboxgroup::handleInspectorRangeShortcut(int key)

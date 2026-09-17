@@ -1,3 +1,4 @@
+#include "JPutils/jp_textfield.h"
 #include "JPutils/jp_shader_audit.h"
 #include "JPutils/jp_version.h"
 #include <ctime>
@@ -225,17 +226,15 @@ void ofApp::setup() {
 
 bool ofApp::anyFieldFocused() const
 {
-	return focusedOptionsField >= 0 || focusedLiveOutputField >= 0 ||
-		focusedSplitField >= 0 || boxes.tabRenaming ||
-		// The paint panel's hex field and layer rename. Listing them here is what
-		// keeps Ctrl+C, Ctrl+V and the space-pan gesture from firing mid-word.
-		boxes.paintTextCaptureActive() ||
+	return jp_text_input::controller().focused() || focusedOptionsField >= 0 || focusedLiveOutputField >= 0 ||
+		focusedSplitField >= 0 || boxes.textCaptureActive() ||
 		(pantallaActiva == SHADER_INDEX && (shaderSearchFocused || shaderNameFocused || reviewCommentFocused));
 }
 
 void ofApp::clearFieldFocus()
 {
-    shaderNameFocused = false; shaderNameSelectAll = false;
+    jp_text_input::controller().reset();
+    shaderNameFocused = false;
     reviewCommentFocused=false;
 	// Reverting, not just unfocusing: re-initialising a field group re-reads
 	// the committed values, so an abandoned edit is discarded. The settings
@@ -249,15 +248,15 @@ void ofApp::clearFieldFocus()
 	if (focusedLiveOutputField >= 0)
 	{
 		focusedLiveOutputField = -1;
-		liveOutputFieldSelectAll = false;
+
 		initLiveOutputFields();
 	}
 	if (focusedSplitField >= 0)
 	{
 		focusedSplitField = -1;
-		splitFieldSelectAll = false;
+
 	}
-	if (boxes.tabRenaming) boxes.cancelTabRename();
+	boxes.cancelTextCapture();
 	shaderSearchFocused = false;
 }
 
@@ -408,7 +407,7 @@ void ofApp::registerSurfaces()
 
 	// One pointer-owner rule for every control that opts into a layer.
 	jp_pointer::setOcclusionTest([this](float x, float y, int order) {
-		return toastView.captures() || !toastView.hovered(x, y).empty() ||
+		return jp_text_input::controller().gesture() || toastView.captures() || !toastView.hovered(x, y).empty() ||
             (releasePanelOpen && order < jp_pointer::kModal) || surfaces.blockedAt(x, y, order);
 	});
 }
@@ -670,6 +669,8 @@ void ofApp::update() {
 	}
 }
 void ofApp::draw() {
+    jp_text_input::spanish()=language!=0;
+    jp_text_input::controller().beginFrame();
 	const auto drawStart = ProfileClock::now();
 	jp_uishot::poisonWindowStateForTest();
 	// FBO updates and shared output-window contexts may finish with a render-
@@ -723,7 +724,9 @@ void ofApp::draw() {
 
 	drawScreenTabs();
 
+	if (saveModalActive || releasePanelOpen) jp_text_input::controller().beginFrame();
 	drawSaveModal();
+    jp_text_input::controller().endFrame();
     drawReleasePanel();
     toastView.layout(toasts, modalFont, ofGetWidth(), ofGetHeight());
     toastView.draw(toasts, modalFont, toastBlocked(), language != 0);
@@ -2558,13 +2561,7 @@ void ofApp::draw_opciones() {
 		ofFill();
 		ofSetLineWidth(1.0f);
 
-		// Field text with insertion caret if focused
-		ofSetColor(COL_TEXT_PRIMARY);
-		font_p.drawString(optionsFieldText[i], fieldX + 6, rowY + rowH - 7);
-		if (focusedOptionsField == i) {
-			jp_textfield::drawCaret(font_p, optionsFieldText[i], optionsFieldCursor,
-									fieldX + 6, rowY + rowH / 2, rowH - 8);
-		}
+		drawOptionsTextInput(i, L.fields[i]);
 
 		// AUTOTAP button next to BPM field
 		if (i == FIELD_BPM) {
@@ -2642,13 +2639,7 @@ void ofApp::draw_opciones() {
 		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
 		ofFill();
 		ofSetLineWidth(1.0f);
-		// Field text with insertion caret if focused
-		ofSetColor(COL_TEXT_PRIMARY);
-		font_p.drawString(optionsFieldText[fieldIdx], fieldX + 6, rowY + rowH - 7);
-		if (focusedOptionsField == fieldIdx) {
-			jp_textfield::drawCaret(font_p, optionsFieldText[fieldIdx], optionsFieldCursor,
-									fieldX + 6, rowY + rowH / 2, rowH - 8);
-		}
+		drawOptionsTextInput(fieldIdx, L.fields[fieldIdx]);
 		jp_tooltip::draw("Edit OSC output address", fieldX, rowY, fieldW, rowH);
 	}
 	toggleRow++;
@@ -2675,13 +2666,7 @@ void ofApp::draw_opciones() {
 		ofDrawRectRounded(fieldX, rowY, fieldW, rowH, 4.0f);
 		ofFill();
 		ofSetLineWidth(1.0f);
-		// Field text with insertion caret if focused
-		ofSetColor(COL_TEXT_PRIMARY);
-		font_p.drawString(optionsFieldText[fieldIdx], fieldX + 6, rowY + rowH - 7);
-		if (focusedOptionsField == fieldIdx) {
-			jp_textfield::drawCaret(font_p, optionsFieldText[fieldIdx], optionsFieldCursor,
-									fieldX + 6, rowY + rowH / 2, rowH - 8);
-		}
+		drawOptionsTextInput(fieldIdx, L.fields[fieldIdx]);
 
 		// BROWSE button next to the field
 		float browseX = fieldX + fieldW + 10;
@@ -2723,7 +2708,7 @@ void ofApp::draw_opciones() {
 	// Hint text when focused
 	if (focusedOptionsField >= 0) {
 		ofSetColor(COL_TEXT_MUTED);
-		font_p.drawString("Enter to apply | Click outside to cancel", panelX + 15, panelY + panelH - 10);
+		font_p.drawString(language==0 ? "Enter / Tab to apply · Esc to cancel" : "Enter / Tab para aplicar · Esc para cancelar", panelX + 15, panelY + panelH - 10);
 	}
 	drawLiveOutputSettings();
 }
@@ -3530,20 +3515,10 @@ void ofApp::drawLiveOutputWallTab(const LiveOutputSettingsLayout &layout,
 	for (int field : cropFields)
 	{
 		const ofRectangle &bounds = layout.fieldRects[field];
-		drawControl(bounds, liveOutputFieldText[field],
-			focusedLiveOutputField == field, !config.cropEnabled);
-		if (focusedLiveOutputField == field)
-		{
-			if (liveOutputFieldSelectAll)
-				jp_textfield::drawSelection(font_p, liveOutputFieldText[field],
-					bounds.x + 7.0f, bounds.getBottom() - 8.0f,
-					bounds.height - 8.0f);
-			else
-				jp_textfield::drawCaret(font_p, liveOutputFieldText[field],
-					liveOutputFieldCursor, bounds.x + 7.0f,
-					bounds.getCenter().y, bounds.height - 8.0f);
-		}
-	}
+        drawControl(bounds, config.cropEnabled ? "" : liveOutputFieldText[field], focusedLiveOutputField == field, !config.cropEnabled);
+        if(config.cropEnabled) drawOutputTextInput(field,bounds);
+    }
+
 	// The text field takes digits only, so the sign lives on its own button.
 	// Minus samples WIDER, which is how CRT overscan is compensated.
 	drawControl(layout.bezelSignButton, config.bezelPx < 0 ? "-" : "+",
@@ -3553,23 +3528,11 @@ void ofApp::drawLiveOutputWallTab(const LiveOutputSettingsLayout &layout,
 	drawControl(layout.matchResolutionButton, "MATCH RES", false,
 		!config.cropEnabled || spatial);
 
-	drawControl(layout.splitColsField, splitFieldText[0],
-		focusedSplitField == 0);
-	drawControl(layout.splitRowsField, splitFieldText[1],
-		focusedSplitField == 1);
-	if (focusedSplitField >= 0)
-	{
-		const ofRectangle &bounds = focusedSplitField == 0 ?
-			layout.splitColsField : layout.splitRowsField;
-		if (splitFieldSelectAll)
-			jp_textfield::drawSelection(font_p, splitFieldText[focusedSplitField],
-				bounds.x + 7.0f, bounds.getBottom() - 8.0f,
-				bounds.height - 8.0f);
-		else
-			jp_textfield::drawCaret(font_p, splitFieldText[focusedSplitField],
-				splitFieldCursor, bounds.x + 7.0f,
-				bounds.getCenter().y, bounds.height - 8.0f);
-	}
+    drawControl(layout.splitColsField,"",focusedSplitField==0);
+    drawControl(layout.splitRowsField,"",focusedSplitField==1);
+    drawOutputTextInput(0,layout.splitColsField,true);
+    drawOutputTextInput(1,layout.splitRowsField,true);
+
 	drawControl(layout.splitButton, "SPLIT", false);
 
 	if (wallRoomView)
@@ -3944,31 +3907,20 @@ void ofApp::drawLiveOutputSettings()
 		drawControl(layout.fullscreenModeButton, "FULLSCREEN",
 			config.fullscreen);
 		drawControl(layout.widthField,
-			liveOutputFieldText[0],
+			config.fullscreen ? liveOutputFieldText[0] : "",
 			focusedLiveOutputField == 0, config.fullscreen);
 		drawControl(layout.heightField,
-			liveOutputFieldText[1],
+			config.fullscreen ? liveOutputFieldText[1] : "",
 			focusedLiveOutputField == 1, config.fullscreen);
 		static const int kRotations[4] = {0, 90, 180, 270};
 		for (int i = 0; i < 4; i++)
 			drawControl(layout.rotationButtons[i],
 				ofToString(kRotations[i]) + "\u00b0",
 				config.rotationDegrees == kRotations[i]);
-			if (focusedLiveOutputField >= 0 && !config.fullscreen)
-			{
-				const ofRectangle &field = focusedLiveOutputField == 0 ?
-					layout.widthField : layout.heightField;
-				if (liveOutputFieldSelectAll)
-					jp_textfield::drawSelection(font_p,
-						liveOutputFieldText[focusedLiveOutputField],
-						field.x + 7.0f, field.getBottom() - 8.0f,
-						field.height - 8.0f);
-				else
-					jp_textfield::drawCaret(font_p,
-						liveOutputFieldText[focusedLiveOutputField],
-						liveOutputFieldCursor, field.x + 7.0f,
-						field.getCenter().y, field.height - 8.0f);
-		}
+        if(!config.fullscreen) {
+            drawOutputTextInput(0,layout.widthField);
+            drawOutputTextInput(1,layout.heightField);
+        }
 
 		const bool sourceMissing =
 			config.sourceMode == LIVE_OUTPUT_FIXED_BOX &&
@@ -4096,11 +4048,9 @@ void ofApp::drawLiveOutputSettings()
 void ofApp::clearLiveOutputInteractionState()
 {
 	focusedLiveOutputField = -1;
-	liveOutputFieldSelectAll = false;
+
 	focusedSplitField = -1;
-	splitFieldSelectAll = false;
-	lastLiveOutputInputClick = -1;
-	lastLiveOutputInputClickMs = 0;
+
 	liveOutputMenu = LIVE_OUTPUT_MENU_NONE;
 	liveOutputMenuScroll = 0;
 	// The audio device dropdown is the third one on this screen and was the only
@@ -4148,16 +4098,16 @@ void ofApp::focusAdjacentLiveOutputField(bool backwards)
 		focusedLiveOutputField = next;
 		focusedSplitField = -1;
 		liveOutputFieldCursor = (int)liveOutputFieldText[next].size();
-		liveOutputFieldSelectAll = true;
-		splitFieldSelectAll = false;
+
+
 	}
 	else
 	{
 		focusedSplitField = next - LO_FIELD_COUNT;
 		focusedLiveOutputField = -1;
 		splitFieldCursor = (int)splitFieldText[focusedSplitField].size();
-		splitFieldSelectAll = true;
-		liveOutputFieldSelectAll = false;
+
+
 	}
 }
 
@@ -4286,7 +4236,7 @@ void ofApp::applyLiveOutputField()
 		selectedLiveOutput >= (int)liveOutputs.size())
 	{
 		focusedLiveOutputField = -1;
-		liveOutputFieldSelectAll = false;
+
 		return;
 	}
 	LiveOutputRuntime &output = liveOutputs[selectedLiveOutput];
@@ -4362,7 +4312,7 @@ void ofApp::applyLiveOutputField()
 		break;
 	}
 	focusedLiveOutputField = -1;
-	liveOutputFieldSelectAll = false;
+
 	initLiveOutputFields();
 	// Only the window size fields touch the window.
 	if ((field == LO_FIELD_WIDTH || field == LO_FIELD_HEIGHT) &&
@@ -4378,13 +4328,13 @@ void ofApp::applySplitField()
 	if (focusedSplitField < 0)
 	{
 		focusedSplitField = -1;
-		splitFieldSelectAll = false;
+
 		return;
 	}
 	splitFieldText[focusedSplitField] = ofToString(
 		ofClamp(ofToInt(splitFieldText[focusedSplitField]), 1, 16));
 	focusedSplitField = -1;
-	splitFieldSelectAll = false;
+
 }
 
 void ofApp::applyWallSplit()
@@ -4434,14 +4384,7 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 		return false;
 	}
 	LiveOutputSettingsLayout layout = getLiveOutputSettingsLayout();
-	auto inputWasDoubleClicked = [&](int inputId) {
-		const uint64_t now = ofGetElapsedTimeMillis();
-		const bool doubleClicked = inputId == lastLiveOutputInputClick &&
-			now - lastLiveOutputInputClickMs <= 350;
-		lastLiveOutputInputClick = inputId;
-		lastLiveOutputInputClickMs = now;
-		return doubleClicked;
-	};
+
 
 	if (liveOutputMenu != LIVE_OUTPUT_MENU_NONE)
 	{
@@ -4643,10 +4586,9 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 		{
 			focusedSplitField = layout.splitColsField.inside(x, y) ? 0 : 1;
 			splitFieldCursor = (int)splitFieldText[focusedSplitField].size();
-			splitFieldSelectAll = inputWasDoubleClicked(
-				LO_FIELD_COUNT + focusedSplitField);
+
 			focusedLiveOutputField = -1;
-			liveOutputFieldSelectAll = false;
+
 			return true;
 		}
 		if (layout.splitButton.inside(x, y))
@@ -4776,9 +4718,9 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 				focusedLiveOutputField = field;
 				liveOutputFieldCursor =
 					(int)liveOutputFieldText[field].size();
-				liveOutputFieldSelectAll = inputWasDoubleClicked(field);
+
 				focusedSplitField = -1;
-				splitFieldSelectAll = false;
+
 				focusedOptionsField = -1;
 				return true;
 			}
@@ -4858,10 +4800,9 @@ bool ofApp::handleLiveOutputSettingsClick(int x, int y, int button)
 			layout.widthField.inside(x, y) ? 0 : 1;
 		liveOutputFieldCursor =
 			liveOutputFieldText[focusedLiveOutputField].size();
-		liveOutputFieldSelectAll =
-			inputWasDoubleClicked(focusedLiveOutputField);
+
 		focusedSplitField = -1;
-		splitFieldSelectAll = false;
+
 		focusedOptionsField = -1;
 		return true;
 	}
@@ -4941,49 +4882,46 @@ void ofApp::initOptionsFields() {
 }
 
 void ofApp::applyOptionsField() {
-	for (int i = 0; i < FIELD_OSC_IP_OUT; i++) {
-		string text = optionsFieldText[i];
-		if (text.empty()) continue;
-		int val = ofToInt(text);
-		switch (i) {
-			case FIELD_OSC_PORT_IN:
-				receiver.setup(val);
-				break;
-			case FIELD_OSC_PORT_OUT:
-				sender.setup(sender.getHost(), val);
-				break;
-			case FIELD_RENDER_WIDTH:
-				jp_constants::setrenderWidth(val);
-				break;
-			case FIELD_RENDER_HEIGHT:
-				jp_constants::setrenderHeight(val);
-				break;
-			case FIELD_BPM:
-				jp_constants::setBpm((float)val);
-				break;
-			}
-		}
-	// Apply OSC IP Out (string field)
-	{
-		string ip = optionsFieldText[FIELD_OSC_IP_OUT];
-		if (!ip.empty()) {
-			sender.setup(ip, sender.getPort());
-			cout << "OSC IP Out set to: " << ip << endl;
-		}
-	}
-	// Apply Default Compo path (string field)
-	{
-		string path = optionsFieldText[FIELD_DEFAULT_COMPO];
-		if (!path.empty()) {
-			defaultCompoPath = path;
-			cout << "Default compo set to: " << path << endl;
-		}
-	}
-	// Render size may have changed and the wall crop fields are displayed in
-	// canvas pixels, so they have to be recomputed.
-	initLiveOutputFields();
-	saveSettings();
-	focusedOptionsField = -1;
+    if(focusedOptionsField<0 || focusedOptionsField>=OPTIONS_FIELD_COUNT)return;
+    const int field=focusedOptionsField;
+    const string value=optionsFieldText[field];
+    const int number=ofToInt(value);
+    std::function<void()> restore;
+    bool applied=true;
+    switch(field) {
+    case FIELD_OSC_PORT_IN: {
+        const int old=receiver.getPort();restore=[this,old]{receiver.setup(old);};
+        applied=receiver.setup(number);break;
+    }
+    case FIELD_OSC_PORT_OUT: {
+        const int old=sender.getPort();const auto host=sender.getHost();
+        restore=[this,old,host]{sender.setup(host,old);};applied=sender.setup(host,number);break;
+    }
+    case FIELD_OSC_IP_OUT: {
+        const int port=sender.getPort();const auto old=sender.getHost();
+        restore=[this,port,old]{sender.setup(old,port);};applied=sender.setup(value,port);break;
+    }
+    case FIELD_RENDER_WIDTH: {
+        const int old=jp_constants::renderWidth;restore=[old]{jp_constants::setrenderWidth(old);};
+        jp_constants::setrenderWidth(number);break;
+    }
+    case FIELD_RENDER_HEIGHT: {
+        const int old=jp_constants::renderHeight;restore=[old]{jp_constants::setrenderHeight(old);};
+        jp_constants::setrenderHeight(number);break;
+    }
+    case FIELD_BPM: {
+        const float old=jp_constants::bpm;restore=[old]{jp_constants::setBpm(old);};
+        jp_constants::setBpm(number);break;
+    }
+    case FIELD_DEFAULT_COMPO: {
+        const string old=defaultCompoPath;restore=[this,old]{defaultCompoPath=old;};
+        defaultCompoPath=value;break;
+    }
+    default:return;
+    }
+    if(!applied || !saveSettings()) {if(restore)restore();return;}
+    if(field==FIELD_RENDER_WIDTH || field==FIELD_RENDER_HEIGHT)initLiveOutputFields();
+    focusedOptionsField=-1;
 }
 void ofApp::autoTap() {
 	float now = ofGetElapsedTimef();
@@ -5619,7 +5557,7 @@ bool ofApp::pressPreviewInspector(int x, int y) {
         if (!shaderNameFocused) {
             shaderNamePath = getSelectedShaderPath(); shaderNameLanguage = language;
             shaderNameText = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].displayName(language!=0);
-            shaderNameCursor = shaderNameText.size(); shaderNameSelectAll = true;
+            shaderNameCursor = shaderNameText.size();
         }
         shaderNameFocused = true;
         return true;
@@ -6106,22 +6044,16 @@ void ofApp::draw_shaderindex() {
 	const float textMaxW = std::max(1.0f, textRight - textX);
 	shaderSearchCursor = ofClamp(shaderSearchCursor, 0, (int)shaderSearchText.size());
 
-	const jp_textfield::Window window = jp_textfield::visibleWindow(
-		font_p, shaderSearchText, shaderSearchCursor, textMaxW);
-	const int displayStart = window.start;
-	const string displayText =
-		shaderSearchText.substr(window.start, window.end - window.start);
-	if (shaderSearchText.empty()) {
-		ofSetColor(ofColor(COL_TEXT_MUTED, 150));
-		const string placeholder = language == 0 ? "type shader name..." : "escribe nombre...";
-		font_p.drawString(placeholder, textX + 3.0f, searchBaseline);
-	} else {
-		ofSetColor(COL_TEXT_PRIMARY);
-		font_p.drawString(displayText, textX, searchBaseline);
-	}
-	jp_textfield::drawCaret(font_p, displayText,
-		shaderSearchCursor - displayStart, textX,
-		layout.search.getCenter().y, layout.search.height - 8.0f);
+    auto search = jp_text_input::field("import-search", "import", ofRectangle(textX-6,layout.search.y,textMaxW+12,layout.search.height),font_p,shaderSearchText,shaderSearchFocused);
+    search.restoreOnCancel=false;
+    search.focus=[this]{shaderSearchFocused=true;};
+    search.cancel=search.commit=[this]{shaderSearchFocused=false;return true;};
+    search.change=[this]{shaderScroll=0;clampShaderScroll(getShaderBrowserLayout());};
+    search.special=[this](int key){
+        if(key==OF_KEY_UP || key==OF_KEY_DOWN){moveShaderSelection(key==OF_KEY_DOWN?1:-1);return true;}
+        if(key==OF_KEY_RETURN){loadSelectedShaderBox();return true;}return false;
+    };
+    jp_text_input::controller().add(std::move(search));
 
 	if (clearVisible) {
 		if (clearHovered) {
@@ -6441,6 +6373,14 @@ void ofApp::closeShaderEditorToMain()
 }
 
 void ofApp::keyPressed(int key) {
+    auto& input = jp_text_input::controller();
+    input.consumed = false;
+    if (!releasePanelOpen && (!surfaces.modalOpen() || saveModalActive) && !input.focused() &&
+        (anyFieldFocused() || midiKeymap.textFocused() || (saveModalActive && saveModalTextFocused)) && key!=OF_KEY_ESC) {
+        input.defer(key);
+        return;
+    }
+    if (!releasePanelOpen && (!surfaces.modalOpen() || saveModalActive) && input.key(key)) return;
     if(pantallaActiva==SHADER_INDEX && reviewPanelOpen && shaderCuratedMode && !toastBlocked()){reviewKeyPressed(key);return;}
     if (pantallaActiva == SHADER_INDEX && shaderNameFocused && !toastBlocked()) {
         handleShaderNameKey(key); return;
@@ -6507,85 +6447,12 @@ void ofApp::keyPressed(int key) {
 			confirmSaveModal();
 			return;
 		}
-		// Cursor navigation + backspace/del/insert at cursor.
-		if (key == OF_KEY_LEFT || key == OF_KEY_RIGHT || key == OF_KEY_HOME ||
-			key == OF_KEY_END || key == OF_KEY_BACKSPACE || key == OF_KEY_DEL) {
-			jp_textfield::handleKey(saveModalName, saveModalCursor, key);
-			return;
-		}
-		// Allow alphanumeric, dash, underscore, dot, space (insert at cursor).
-		if ((key >= 'a' && key <= 'z') ||
-			(key >= 'A' && key <= 'Z') ||
-			(key >= '0' && key <= '9') ||
-			key == '-' || key == '_' || key == '.' || key == ' ') {
-			jp_textfield::handleKey(saveModalName, saveModalCursor, key);
-		}
-		return;
-	}
+        return;
+    }
+    // A newly opened field is bound on the next draw. Do not leak its first
+    // event to composition shortcuts during that interval.
+    if(focusedOptionsField>=0 || focusedLiveOutputField>=0 || focusedSplitField>=0) return;
 
-	// keyIsDown[key] = true;
-
-	// Options screen text field input — run BEFORE tab shortcuts so digits
-	// '1','2','3' get consumed by the field instead of switching tabs.
-	if (focusedOptionsField >= 0) {
-		if (key == OF_KEY_RETURN || key == '\r') {
-			applyOptionsField();
-			return;
-		}
-		// IP/path fields accept any printable char; numeric fields digits only.
-		bool numericOnly = !(focusedOptionsField == FIELD_OSC_IP_OUT || focusedOptionsField == FIELD_DEFAULT_COMPO);
-		jp_textfield::handleKey(optionsFieldText[focusedOptionsField], optionsFieldCursor, key, numericOnly);
-		return; // consume other keys while focused
-	}
-	if (focusedLiveOutputField >= 0)
-	{
-		if (key == OF_KEY_TAB)
-		{
-			focusAdjacentLiveOutputField(ofGetKeyPressed(OF_KEY_SHIFT));
-			return;
-		}
-		if (key == 1 || ((key == 'a' || key == 'A') &&
-			ofGetKeyPressed(OF_KEY_CONTROL)))
-		{
-			liveOutputFieldSelectAll = true;
-			return;
-		}
-		if (key == OF_KEY_RETURN || key == '\r')
-		{
-			applyLiveOutputField();
-			return;
-		}
-		const bool signedPosition = wallMode == WALL_MODE_SPATIAL &&
-			(focusedLiveOutputField == LO_FIELD_CROP_X ||
-			 focusedLiveOutputField == LO_FIELD_CROP_Y);
-		jp_textfield::handleKey(
-			liveOutputFieldText[focusedLiveOutputField],
-			liveOutputFieldCursor, key, true, signedPosition,
-			&liveOutputFieldSelectAll);
-		return;
-	}
-	if (focusedSplitField >= 0)
-	{
-		if (key == OF_KEY_TAB)
-		{
-			focusAdjacentLiveOutputField(ofGetKeyPressed(OF_KEY_SHIFT));
-			return;
-		}
-		if (key == 1 || ((key == 'a' || key == 'A') &&
-			ofGetKeyPressed(OF_KEY_CONTROL)))
-		{
-			splitFieldSelectAll = true;
-			return;
-		}
-		if (key == OF_KEY_RETURN || key == '\r')
-		{
-			applySplitField();
-			return;
-		}
-		jp_textfield::handleKey(splitFieldText[focusedSplitField],
-			splitFieldCursor, key, true, false, &splitFieldSelectAll);
-		return;
-	}
 	// IMPORT used to swallow every key unconditionally, so 1-5 and every other
 	// shortcut were dead on this screen and ESC was the only way out. Typing
 	// only wins while the search field actually has focus; ESC releases it and
@@ -6608,14 +6475,10 @@ void ofApp::keyPressed(int key) {
 			loadSelectedShaderBox();
 			return;
 		}
-		if (shaderSearchFocused &&
-			jp_textfield::handleKey(shaderSearchText, shaderSearchCursor, key)) {
-			shaderScroll = 0;
-			clampShaderScroll(getShaderBrowserLayout());
-			return;
-		}
+
 	}
 
+	if (shaderSearchFocused && pantallaActiva==SHADER_INDEX) return;
 	if (key == '1') enterScreen(NODOS);
 	if (key == '2') enterScreen(OPCIONES);
 	if (key == '3') enterScreen(TUTORIAL);
@@ -6779,6 +6642,7 @@ void ofApp::keyPressed(int key) {
 	prevKey = key;*/
 }
 void ofApp::keycodePressed(ofKeyEventArgs & e) {
+    if (jp_text_input::controller().consumed || jp_text_input::controller().focused() || anyFieldFocused() || midiKeymap.textFocused()) return;
     if(pantallaActiva==SHADER_INDEX && reviewPanelOpen && shaderCuratedMode)return;
     if (shaderNameFocused && pantallaActiva==SHADER_INDEX) return;
     if (releasePanelOpen || saveModalActive) return;
@@ -6969,6 +6833,7 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	prevKey = e.keycode;
 }
 void ofApp::mouseDragged(int x, int y, int button) {
+    if (jp_text_input::controller().drag(x,y)) return;
     if(reviewScrollbarDragging){dragReviewScrollbar(y);return;}
     if (toastView.captures()) return;
     if (button == OF_MOUSE_BUTTON_LEFT && (previewInspectorDrag >= 0 || previewInspectorScrollbarDrag)) {
@@ -7068,6 +6933,11 @@ void ofApp::mouseDragged(int x, int y, int button) {
 }
 void ofApp::mousePressed(int x, int y, int button) {
     toastView.layout(toasts, modalFont, ofGetWidth(), ofGetHeight());
+    if (!toastBlocked() && jp_text_input::controller().focused() &&
+        !toastView.hovered(x,y).empty() && jp_text_input::controller().press(x,y,button)) {
+        JPdragobject::notePressOrigin(-10000.f,-10000.f);
+        return;
+    }
     if (toastView.press(x, y, button, toastBlocked())) {
         JPdragobject::notePressOrigin((float)x, (float)y);
         return;
@@ -7076,6 +6946,10 @@ void ofApp::mousePressed(int x, int y, int button) {
         if (button != OF_MOUSE_BUTTON_LEFT || !releaseViewport.inside(x,y)) return;
         if (releaseCloseButton.inside(x,y) && updates.status().state!=jp::UpdateState::Installing) { releasePanelOpen=false; return; }
         for (int i=0;i<9;++i) if (releaseButtons[i].inside(x,y)) { releaseAction(i); break; }
+        return;
+    }
+    if ((!surfaces.modalOpen() || saveModalActive) && jp_text_input::controller().press(x,y,button)) {
+        JPdragobject::notePressOrigin(-10000.f, -10000.f);
         return;
     }
     if (shaderNameFocused && !toastBlocked() && !getPreviewInspectorLayout().name.inside(x,y)) {
@@ -7553,6 +7427,7 @@ void ofApp::mouseMoved(int x, int y) {
 	}
 }
 void ofApp::mouseReleased(int x, int y, int button) {
+    if (jp_text_input::controller().release(button)) return;
     reviewScrollbarDragging=false;
     if (toastView.release(x, y, button, toastBlocked(), toasts)) {
         JPdragobject::clearPressOrigin();
@@ -7648,6 +7523,8 @@ void ofApp::touchUp(ofTouchEventArgs &touch) {
 }
 
 void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
+    if (jp_text_input::controller().gesture()) return;
+    if (!toastBlocked() && jp_text_input::controller().focused() && !jp_text_input::controller().finish()) return;
     if (audioMenuOpen && getAudioMenuBounds().inside(x, y)) {
         const int visible = int((getAudioMenuBounds().height - 4) / 24);
         const int maximum = std::max(0, int(jp_audio::getInputDeviceNames().size()) + 1 - visible);
@@ -8541,10 +8418,19 @@ void ofApp::drawSaveModal() {
 
 	// Filename text inside the field — white with blinking cursor
 	ofSetColor(COL_TEXT_PRIMARY);
-	float textY = fieldY + fieldH * 0.5f + 5.0f;
-	modalFont.drawString(saveModalName, fieldX + 8, textY);
-	jp_textfield::drawCaret(modalFont, saveModalName, saveModalCursor,
-							fieldX + 8, fieldY + fieldH * 0.5f, fieldH - 10);
+    auto filename=jp_text_input::field("save-name","save",ofRectangle(fieldX,fieldY,fieldW,fieldH),modalFont,saveModalName,saveModalTextFocused);
+    filename.layer=jp_pointer::kModal;
+    filename.focus=[this]{saveModalTextFocused=true;};
+    filename.cancel=[this]{saveModalTextFocused=false;};
+    filename.validate=[](const string& v)->string {return v.empty() || v.find_first_of("/\\:*?\"<>|\n\r")!=string::npos ? jp_text_input::message("Invalid filename","Nombre de archivo inválido") : "";};
+    filename.commit=[this]{saveModalTextFocused=false;return true;};
+    filename.special=[this](int key){
+        if(key!=OF_KEY_RETURN)return false;
+        auto& input=jp_text_input::controller();
+        if(input.validate()) {confirmSaveModal();if(!saveModalActive)input.finish();else input.model.error=jp_text_input::message("Could not save composition","No se pudo guardar la composición");}
+        return true;
+    };
+    jp_text_input::controller().add(std::move(filename));
 	jp_tooltip::draw("Enter composition filename", fieldX, fieldY, fieldW, fieldH);
 
 	// Preview path below the field
@@ -8624,6 +8510,7 @@ void ofApp::saveSessionAs() {
 }
 
 void ofApp::openSaveModal() {
+    saveModalTextFocused=true;
 	if (saveModalActive) return;
 	saveModalActive = true;
 	saveModalName = "";

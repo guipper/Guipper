@@ -191,6 +191,12 @@ public:
 	// to stand down, or typing a hex digit would swap the brush - and ofApp reads
 	// it through anyFieldFocused so the global chords stand down too.
 	bool paintTextCaptureActive() const;
+    bool textCaptureActive() const { return tabRenaming || mediaTimeFieldFocus != 0 || paintTextCaptureActive(); }
+    void cancelTextCapture() {
+        mediaTimeFieldFocus=0;mediaTimeFieldBuffer.clear();
+        if(tabRenaming)cancelTabRename();
+        if(paintTextCaptureActive())paintHandleTextKey(OF_KEY_ESC);
+    }
 	bool isPaintHelpOpen() const;
 	void closePaintHelp();
 	ofRectangle getPaintHelpRect() const;
@@ -858,7 +864,7 @@ private:
 	bool mediaInspectorPlayableBuilt = false;
 	int mediaTimeFieldFocus = 0;
 	string mediaTimeFieldBuffer;
-	bool mediaTimeFieldReplaceOnType = false;
+
 	bool mediaTimelineDragging = false;
 	int mediaRangeDragging = 0;
 	void layoutMediaInspector(JPMediaInspectable *media, float &cursorY);
@@ -1361,11 +1367,11 @@ private:
 	bool paintHexFocus = false;
 	string paintHexBuffer;
 	int paintHexCursor = 0;
-	bool paintHexSelectAll = false;
+
 	int paintRenamingLayer = -1;
 	string paintRenameBuffer;
 	int paintRenameCursor = 0;
-	bool paintRenameSelectAll = false;
+
 	// The panel consumes its own presses, so JPboxgroup::isDoubleClick never gets
 	// computed for them - it needs its own.
 	uint64_t paintLastClickMillis = 0;

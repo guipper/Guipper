@@ -95,6 +95,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <Optimization>Disabled</Optimization>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
@@ -115,6 +116,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <Optimization>Disabled</Optimization>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
@@ -136,6 +138,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
@@ -159,6 +162,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
@@ -201,6 +205,7 @@
     <ClCompile Include="src\JPutils\jp_midi_keymap.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\ofApp.cpp" />
+    <ClCompile Include="src\ofApp_text_input.cpp" />
     <ClCompile Include="src\ofApp_audio.cpp" />
     <ClCompile Include="src\JPgui\jp_knob.cpp" />
     <ClCompile Include="src\JPgui\jp_controller.cpp" />
@@ -341,6 +346,9 @@
     <ClInclude Include="src\JPbox\jp_box_kinect2.h" />
     <ClInclude Include="src\JPbox\jp_box_sequencer.h" />
     <ClInclude Include="src\JPutils\jp_textfield.h" />
+    <ClInclude Include="src\JPutils\jp_text_edit.h" />
+    <ClInclude Include="src\JPbox\jp_media_time.h" />
+    <ClInclude Include="src\JPutils\jp_text_input.h" />
     <ClInclude Include="src\JPutils\jp_tooltip.h" />
     <ClInclude Include="src\JPbox\jp_box_cam.h" />
     <ClInclude Include="src\JPbox\jp_box_video.h" />

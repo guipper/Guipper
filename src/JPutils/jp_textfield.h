@@ -1,74 +1,14 @@
 #pragma once
 
 #include "ofMain.h"
+#include "jp_text_input.h"
 #include "jp_constants.h"
 #include <string>
 #include <algorithm>
 
-// Shared single-line text-field editing: an insertion cursor with
-// LEFT/RIGHT/HOME/END, BACKSPACE/DEL, and insert-at-cursor. Reused by every
-// editable field (options, save-as modal, shader search, tab rename) so they
-// all behave consistently instead of append-only.
+// Compatibility geometry helpers. Editing and interaction live in jp_text_input.
 namespace jp_textfield
 {
-	// Handle one keystroke. Returns true if consumed. `cursor` is the insertion
-	// index in [0, text.size()]. numericOnly restricts printable input to digits;
-	// allowLeadingMinus additionally permits one minus sign at the start. When
-	// selectAll is supplied, editing replaces the selected value in one stroke.
-	inline bool handleKey(std::string &text, int &cursor, int key,
-		bool numericOnly = false, bool allowLeadingMinus = false,
-		bool *selectAll = nullptr)
-	{
-		cursor = std::max(0, std::min(cursor, (int)text.size()));
-		const bool selected = selectAll != nullptr && *selectAll;
-		switch (key)
-		{
-		case OF_KEY_LEFT:
-			cursor = selected ? 0 : std::max(0, cursor - 1);
-			if (selectAll != nullptr) *selectAll = false;
-			return true;
-		case OF_KEY_RIGHT:
-			cursor = selected ? (int)text.size() :
-				std::min((int)text.size(), cursor + 1);
-			if (selectAll != nullptr) *selectAll = false;
-			return true;
-		case OF_KEY_HOME:
-			cursor = 0;
-			if (selectAll != nullptr) *selectAll = false;
-			return true;
-		case OF_KEY_END:
-			cursor = (int)text.size();
-			if (selectAll != nullptr) *selectAll = false;
-			return true;
-		case OF_KEY_BACKSPACE:
-			if (selected) { text.clear(); cursor = 0; }
-			else if (cursor > 0) { text.erase(text.begin() + (cursor - 1)); cursor--; }
-			if (selectAll != nullptr) *selectAll = false;
-			return true;
-		case OF_KEY_DEL:
-			if (selected) { text.clear(); cursor = 0; }
-			else if (cursor < (int)text.size()) { text.erase(text.begin() + cursor); }
-			if (selectAll != nullptr) *selectAll = false;
-			return true;
-		default:
-			break;
-		}
-		const bool digit = key >= '0' && key <= '9';
-		const bool leadingMinus = numericOnly && allowLeadingMinus && key == '-' &&
-			(selected || (cursor == 0 && text.find('-') == std::string::npos));
-		bool printable = numericOnly ? (digit || leadingMinus) :
-			(key >= 32 && key <= 126);
-		if (printable)
-		{
-			if (selected) { text.clear(); cursor = 0; }
-			text.insert(text.begin() + cursor, (char)key);
-			cursor++;
-			if (selectAll != nullptr) *selectAll = false;
-			return true;
-		}
-		return false;
-	}
-
 	// The visible slice of `text` when it is wider than the field: start is
 	// pushed forward until the caret is inside the window, then end is pulled
 	// back until what remains fits. Extracted because the shader-index screen
@@ -89,12 +29,12 @@ namespace jp_textfield
 		while (w.start < cursor &&
 			font.stringWidth(text.substr(w.start, cursor - w.start)) > maxW)
 		{
-			w.start++;
+			w.start = jp_text_edit::next(text, w.start);
 		}
 		while (w.end > w.start &&
 			font.stringWidth(text.substr(w.start, w.end - w.start)) > maxW)
 		{
-			w.end--;
+			w.end = jp_text_edit::previous(text, w.end);
 		}
 		return w;
 	}
@@ -106,9 +46,9 @@ namespace jp_textfield
 	{
 		int cursor = 0;
 		const float relativeX = std::max(0.0f, mouseX - textX);
-		for (int i = 1; i <= (int)shown.size(); i++)
+		for (int p = 0, i = jp_text_edit::next(shown, 0); p < (int)shown.size(); p = i, i = jp_text_edit::next(shown, i))
 		{
-			const float before = font.stringWidth(shown.substr(0, i - 1));
+			const float before = font.stringWidth(shown.substr(0, p));
 			const float after = font.stringWidth(shown.substr(0, i));
 			if (relativeX < (before + after) * 0.5f) break;
 			cursor = i;
@@ -134,7 +74,7 @@ namespace jp_textfield
 	inline void drawCaret(ofTrueTypeFont &font, const std::string &text, int cursor,
 						   float textX, float centerY, float glyphH)
 	{
-		if ((ofGetFrameNum() / 25) % 2 != 0) return; // ~blink
+		if (std::fmod(ofGetElapsedTimef(), 1.0f) >= 0.55f) return; // ~blink
 		cursor = std::max(0, std::min(cursor, (int)text.size()));
 		float cx = textX + font.stringWidth(text.substr(0, cursor));
 		ofPushStyle();
