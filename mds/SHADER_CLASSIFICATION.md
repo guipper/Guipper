@@ -34,7 +34,7 @@ Base recuperada de la preselección local, sin limitar el universo a clasificar.
 
 | Shader | Nombre visible propuesto | Categoría | Etiquetas | Qué hace (borrador) | Estado |
 |---|---|---|---|---|---|
-| [generative/basic2.frag](../bin/data/shaders/generative/basic2.frag) | Barrido senoidal | Generador | color, patrones | Bandas verticales animadas: oscila el canal rojo; verde y azul quedan fijos en 0.5 y 1. Sin controles propios. | Clasificación y nombre acordados; visual pendiente |
+| [generative/basic2.frag](../bin/data/shaders/generative/basic2.frag) | Barrido senoidal | Generador | color, patrones | Bandas senoidales con frecuencia, velocidad reversible, ángulo, fase, contraste y niveles RGB. | Clasificación y nombre acordados; visual pendiente |
 | [generative/degrade.frag](../bin/data/shaders/generative/degrade.frag) | Patrones de dos colores | Generador | color, patrones | Interpola dos colores con patrones lineales, radiales o angulares; permite variar forma de onda, frecuencia y velocidad. | Clasificación y nombre acordados; visual pendiente |
 | [generative/solidcolor.frag](../bin/data/shaders/generative/solidcolor.frag) | Color sólido | Generador | color | Genera un color RGB uniforme. `mivariable` no interviene en la salida. | Clasificación y nombre acordados; visual pendiente |
 | [generative/simplelines.frag](../bin/data/shaders/generative/simplelines.frag) | Franjas | Generador | geometría, patrones | Franjas monocromas horizontales o verticales, con frecuencia, velocidad y umbral de intensidad ajustables. | Clasificación y nombre acordados; visual pendiente |
@@ -79,7 +79,7 @@ Revisión de código: 2026-09-16. Los ocho son generadores. Nombres y etiquetas 
 |---|---|---|---|
 | `solidcolor.frag` | Color sólido | color | Genera un color RGB uniforme. `mivariable` no interviene en la salida. |
 | `degrade.frag` | Patrones de dos colores | color, patrones | Interpola dos colores con patrones lineales, radiales o angulares; permite variar forma de onda, frecuencia y velocidad. |
-| `basic2.frag` | Barrido senoidal | color, patrones | Bandas verticales animadas: oscila el canal rojo; verde y azul quedan fijos en 0.5 y 1. Sin controles propios. |
+| `basic2.frag` | Barrido senoidal | color, patrones | Bandas senoidales con frecuencia, velocidad reversible, ángulo, fase, contraste y niveles RGB. |
 | `simplelines.frag` | Franjas | geometría, patrones | Franjas monocromas horizontales o verticales, con frecuencia, velocidad y umbral de intensidad ajustables. |
 | `simplelines_2.0.frag` | Gradiente rojo-verde (experimental) | color | La salida actual es vec4(uv.x, param1, 0, 1). Los cálculos de franjas no llegan a la salida; no es una segunda versión funcional de Franjas. |
 | `grid.frag` | Grilla de polígonos | geometría, patrones | Repite polígonos con cantidad de lados, escala, desplazamiento y rotación ajustables; suma feedback según feedbackst. |
@@ -671,7 +671,7 @@ Categorías tentativas según carpeta actual. Las entradas son samplers declarad
 ## Probar el modo de curado
 
 Desde la raíz del proyecto, ejecutar `./run-curated.sh` después de compilar con `make -j2`.
-Abre IMPORT con los 18 shaders incorporados hasta ahora (12 generadores, 4 efectos y 2 mezcladores) y una sesión vacía.
+Abre IMPORT con los 30 shaders incorporados hasta ahora (14 generadores, 11 efectos y 5 mezcladores) y una sesión vacía.
 El perfil de prueba se guarda en `dist/curated-profile`.
 
 La lista editable es `release/shader-curated.json`: cada entrada tiene ruta, categoría,
@@ -685,3 +685,171 @@ y muestra un error, con el detalle en la terminal. Los favoritos se limitan a es
 El ejecutable `bin/Guipper` sin el lanzador conserva el navegador habitual.
 El modo filtra IMPORT; no bloquea la carga manual de archivos ni representa aprobación
 para distribuir shaders. La selección oficial de publicación sigue siendo independiente.
+
+### Ajustar la preview en curado
+
+Al seleccionar un shader aparece el inspector de parámetros de preview. Los sliders y
+booleanos actualizan la imagen sin crear un nodo. Los cambios se guardan al soltar el
+slider o cambiar un interruptor, por ruta de shader, en
+`dist/curated-profile/config/curated-previews.json` cuando se usa el lanzador predeterminado.
+Se recuperan al cambiar de shader o reiniciar. RESET vuelve a los valores declarados
+en el shader (0.5 para floats sin valor explícito, false para booleanos; scaleratio usa 1).
+Estos ajustes definen la preview local; no cambian los shaders ni los parámetros de nodos existentes o nuevos.
+En ventanas pequeñas, los controles ocupan el espacio de los detalles junto a la preview.
+
+
+## Tanda 4: ajustes de color y fundido
+
+Incorporados al catálogo curado para probar:
+
+| Archivo | Nombre visible | Categoría | Controles |
+|---|---|---|---|
+| `imageprocessing/brightcontrast.frag` | Brillo / contraste | Efecto | brightness, contrast |
+| `imageprocessing/huerotate.frag` | Rotación de tono | Efecto | hue |
+| `imageprocessing/invert.frag` | Invertir | Efecto | mixr, mixg, mixb, strobo |
+| `blending/mix.frag` | Fundido | Mezclador | mixst |
+
+Verificados en nodo y preview con auditoría nativa aislada: 128 muestras en total,
+sin errores OpenGL ni componentes no finitos. Capturas de preview revisadas.
+Resultados locales: `dist/curated-batch4/`. La auditoría usa feedback de referencia;
+la evolución del modo strobo con feedback real queda para la prueba interactiva.
+Las copias del perfil curado coinciden con los originales auditados.
+
+
+## Tanda 5: ruido, fuego y ajustes de color
+
+| Archivo | Nombre visible | Categoría | Controles principales |
+|---|---|---|---|
+| `generative/fbm.frag` | Ruido fractal | Generador | speedx/y, scalex/y, flush, animationspeed1/2 |
+| `generative/perlinnoisefires.frag` | Fuego de ruido | Generador | alt1 |
+| `imageprocessing/blackandwhite.frag` | Blanco y negro | Efecto | opacity: 0 gris, 1 color original |
+| `imageprocessing/saturationbrightness.frag` | Saturación / brillo | Efecto | saturation, brightness; 0.5 conserva cada componente |
+| `blending/difference.frag` | Diferencia | Mezclador | opacity |
+
+Auditoría nativa aislada: cinco shaders aprobados, 164 muestras sin errores OpenGL
+ni componentes no finitos. Previews revisadas; copias del perfil curado iguales a
+las fuentes auditadas. Resultados locales: `dist/curated-batch5/`.
+La preview inicial de Blanco y negro conserva parte del color porque opacity
+arranca en 0.5; no es un fallo. Fuego de ruido tiene un único control de altura;
+la paleta y la velocidad están fijadas en su código actual.
+
+
+## Tanda 6: color senoidal, paleta retro y trama
+
+| Archivo | Nombre visible | Categoría | Controles |
+|---|---|---|---|
+| `imageprocessing/sinfy.frag` | Color senoidal | Efecto | speed, freq, mx |
+| `imageprocessing/gameboyfy.frag` | Paleta Game Boy | Efecto | pixels_x/y, brightness, contrast, palette_hue, palette_saturation, effect_mix |
+| `blending/screen.frag` | Trama | Mezclador | opacity; 0.5 aplica la mezcla completa |
+
+Pruebas nativas de nodo y preview aprobadas: 92 muestras sin errores OpenGL
+ni componentes no finitos, y previews inspeccionadas. Las copias del perfil curado
+coinciden con las fuentes. Resultados: `dist/curated-batch6/`.
+
+Game Boy: controles agregados en fuente y perfil curado; valores iniciales conservan la grilla de 100 × 100 y los cuatro verdes originales. `effect_mix=0` devuelve la imagen original.
+
+
+## Nombres visibles editables en curado
+
+IMPORT ordena cada categoría y Favoritos por el nombre visible del idioma activo,
+ignorando mayúsculas y acentos. El modo de favoritos dentro de las categorías
+mantiene el bloque de favoritos primero y ordena ambos bloques por nombre.
+
+El inspector curado incluye «Nombre visible (ES)» / «Display name (EN)».
+Enter, Tab o clic fuera guardan; Escape cancela. Se admiten selección completa
+(Ctrl/Cmd+A), copiar, pegar y caracteres acentuados. El cambio reordena la lista,
+actualiza búsqueda, detalles y preview, y conserva la selección por ruta.
+
+Los nombres se guardan por ruta e idioma en `release/shader-curated.json`, compartidos con el modo usuario. Los perfiles anteriores conservan compatibilidad con `config/curated-names.json`; al editar un nombre se elimina ese override local.
+Los archivos, nombres internos de nodos, parámetros, favoritos y enlaces MIDI
+conservan su identidad. El idioma alternativo mantiene su propio nombre.
+
+
+## Biblioteca completa y decisiones de curado
+
+`./run-curated.sh` muestra los 461 archivos locales, incluyendo subcarpetas,
+experimentales y auxiliares. Nuevos `.frag` se descubren al entrar a IMPORT y
+quedan desmarcados por defecto. La lista sigue ordenada por nombre visible dentro
+de cada categoría y Favoritos.
+
+Cada selección ofrece:
+
+- **Mostrar al usuario** (`user_visible`): incluye el ítem en la biblioteca común.
+- **Agregar parámetros (pendiente)** (`needs_parameters`): registra trabajo pendiente;
+  no agrega controles automáticamente.
+- **Asociar grupo…** (`group_path`): elige un grupo o composición XML de Guipper.
+  Su preview y LOAD usan los nodos y conexiones guardados. × quita la asociación.
+
+Las marcas se guardan inmediatamente en el catálogo compartido. Las letras U/P/G
+identifican usuario, parámetros pendientes y grupo en la lista. Los archivos sin
+`main` pueden revisarse pero necesitan un grupo asociado para habilitarse.
+
+`./run-user.sh` ejecuta la misma compilación con solo los ítems marcados, sin
+controles de curación y con perfil separado en `dist/user-profile`. Inicialmente
+hay 30 habilitados. Esto permite probar la selección local; no publica una release
+ni cambia las validaciones de distribución oficial.
+
+Los grupos se validan antes de asociar, previsualizar y cargar. La asociación guarda
+la ruta al XML existente; para moverla a otra computadora hay que trasladar también
+sus dependencias. No se deducen conexiones multipase de los nombres de archivos en
+`contrib`: primero se prepara y guarda el grupo. Los parámetros del grupo se editan
+en sus nodos después de LOAD.
+
+Validación: suites nativas `curation` y `curated_preview`, catálogo puro y compilación
+Linux. Incluir todos los archivos en la lista no significa que todos estén auditados
+o que todos los experimentales compilen.
+
+
+### Filtros y panel compacto
+
+En curado, **Todos / Visibles / Ocultos / Parámetros** combina el estado de revisión
+con la búsqueda de texto. «Parámetros» muestra los marcados `needs_parameters`, no
+los shaders que simplemente carecen de controles. También se filtran Favoritos.
+Cambiar el filtro vuelve al inicio de la lista y retira la selección si queda fuera.
+
+Todos los ítems conservan la imagen de preview, con o sin entradas. El recuadro
+se ajusta a la proporción de la imagen para evitar márgenes verticales sobrantes.
+Las carpetas tienen pestañas combinables con búsqueda y filtros de curación;
+«Carpetas» vuelve a la vista completa. En ventanas chicas las pestañas se distribuyen
+en filas y el inspector mantiene scroll propio.
+
+
+### Defaults compartidos e inspector para usuarios
+
+Los valores que guarda el curador se almacenan por nombre de parámetro en
+`preview_defaults` dentro del catálogo, además del respaldo local de preview.
+Los ajustes anteriores del perfil curado se incorporaron al catálogo.
+
+El inspector también aparece en modo usuario, con nombre de solo lectura y sin
+marcas de curación. Permite ajustar, RANDOM y RESET. RESET restaura los defaults
+del curador; los experimentos del usuario no sobrescriben el catálogo. Al volver
+a seleccionar el shader comienza desde esos defaults. En curado, RESET conserva
+su función de recuperar los valores originales del shader.
+
+LOAD copia los valores actuales de floats y booleanos por nombre al nuevo nodo,
+incluyendo el valor de interpolación para evitar saltos desde la inicialización.
+Las composiciones y grupos XML siguen restaurando sus propios valores guardados.
+
+
+### Guardado explícito del default
+
+Los cambios del curador (sliders, Random y Reset) quedan como borrador local en
+`config/curated-preview-drafts.json`. Solo **Guardar como default** actualiza
+`preview_defaults` del catálogo compartido. LOAD sigue usando los valores actuales.
+Un guardado fallido conserva los defaults anteriores y muestra un error.
+
+El título del inspector siempre es «Parámetros de preview» y su altura depende del
+contenido. Las pestañas usan nombres cortos y cantidades que respetan filtros y
+búsqueda; las flechas permiten recorrerlas sin truncar sus nombres.
+
+
+### Marcas de seguimiento
+
+El inspector curado incluye **Mejorar shader** (`needs_improvement`) y
+**Preguntarle a Pupper** (`ask_pupper`). Son marcas independientes guardadas
+inmediatamente en el catálogo, visibles como M y ? en la lista. No dependen de
+«Guardar como default», que solo publica valores de parámetros.
+
+
+Los filtros **Mejorar** y **Pupper** muestran, respectivamente, los shaders marcados
+para mejora o consulta. Se combinan con la búsqueda, la carpeta activa y Favoritos.

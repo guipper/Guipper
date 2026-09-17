@@ -1,0 +1,996 @@
+{
+  "format": 1,
+  "approved": false,
+  "target": {
+    "generative": 12,
+    "effects": 8,
+    "mixers": 4
+  },
+  "entries": [
+    {
+      "path": "shaders/generative/basic2.frag",
+      "sha256": "e5594141aaf9e15430955b9e0a8cc80b2d52ffd47ec65734c21b1f9d7552f713",
+      "name": {
+        "en": "Sine wash",
+        "es": "Barrido senoidal"
+      },
+      "description": {
+        "en": "A simple animated sine gradient.",
+        "es": "Gradiente senoidal animado."
+      },
+      "category": "generative",
+      "tags": [
+        "color"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/degrade.frag",
+      "sha256": "f09383878f1819b28d657367c39e45b9ea5ba6d3184463ff39dd9a0d649645fb",
+      "name": {
+        "en": "Two-color gradient",
+        "es": "Gradiente de dos colores"
+      },
+      "description": {
+        "en": "Blend two RGB colors across the image.",
+        "es": "Transición entre dos colores RGB."
+      },
+      "category": "generative",
+      "tags": [
+        "color"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/solidcolor.frag",
+      "sha256": "9d943d6aebba36d17fe11453b79e0bafddb29c7e31b0c1f1a948ddd43e1592b3",
+      "name": {
+        "en": "Solid color",
+        "es": "Color sólido"
+      },
+      "description": {
+        "en": "A uniform RGB color source.",
+        "es": "Fuente de color RGB uniforme."
+      },
+      "category": "generative",
+      "tags": [
+        "color"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/simplelines.frag",
+      "sha256": "ce7798389ad79cdc2e051d38653157c8a9c1df23530e5579098e215ec1188e4d",
+      "name": {
+        "en": "Lines",
+        "es": "Líneas"
+      },
+      "description": {
+        "en": "Animated stripes with frequency and orientation controls.",
+        "es": "Franjas con frecuencia, orientación y velocidad."
+      },
+      "category": "generative",
+      "tags": [
+        "geometry"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/simplelines_2.0.frag",
+      "sha256": "51017be139f21001c142d4416074bbac0883238cbda17daff7094dc3e60575bf",
+      "name": {
+        "en": "Lines II",
+        "es": "Líneas II"
+      },
+      "description": {
+        "en": "A second stripe variation for comparison.",
+        "es": "Segunda variante de franjas para comparar."
+      },
+      "category": "generative",
+      "tags": [
+        "geometry"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/grid.frag",
+      "sha256": "9c5764f849736869d370d451bbbdecf5f70a7414f3293762fd5ef49f5724302d",
+      "name": {
+        "en": "Polygon grid",
+        "es": "Grilla de polígonos"
+      },
+      "description": {
+        "en": "Repeated shapes arranged in rows and columns.",
+        "es": "Formas repetidas en filas y columnas."
+      },
+      "category": "generative",
+      "tags": [
+        "geometry"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/quad.frag",
+      "sha256": "205f757983cf21cd8ab71f4928ee2403d588dacd93fc4d5072bc9d073f9fea90",
+      "name": {
+        "en": "Quads",
+        "es": "Cuadrados"
+      },
+      "description": {
+        "en": "Repeated quadrilateral forms with size and offset controls.",
+        "es": "Formas cuadradas con tamaño y desplazamiento."
+      },
+      "category": "generative",
+      "tags": [
+        "geometry"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "needs_initial_control_review_and_provenance",
+      "review_notes": "Salida inicial negra: revisar valores iniciales antes de seleccionar."
+    },
+    {
+      "path": "shaders/generative/anillos3D.frag",
+      "sha256": "3b6a0cf9437c22a74c971f91a83e5b68c259d3b630eabdb58a970b876ea266b8",
+      "name": {
+        "en": "3D rings",
+        "es": "Anillos 3D"
+      },
+      "description": {
+        "en": "Rotating ring forms with thickness and scale controls.",
+        "es": "Anillos con rotación, grosor y escala."
+      },
+      "category": "generative",
+      "tags": [
+        "geometry"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/circuloresolution.frag",
+      "sha256": "aa7205a028609a191f6c23f987970f0686db7b41f167aff40d9cc5bf14920355",
+      "name": {
+        "en": "Circles",
+        "es": "Círculos"
+      },
+      "description": {
+        "en": "Circular pattern with resolution controls.",
+        "es": "Patrón circular con controles de resolución."
+      },
+      "category": "generative",
+      "tags": [
+        "geometry"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/circuloresolution2.frag",
+      "sha256": "b3e4baf70ced10636895ac6e2bf7e5acf927164e6be8f045b8f1b499ae703c74",
+      "name": {
+        "en": "Circles II",
+        "es": "Círculos II"
+      },
+      "description": {
+        "en": "A second circular pattern for comparison.",
+        "es": "Segunda variante de patrones circulares."
+      },
+      "category": "generative",
+      "tags": [
+        "geometry"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/allpaterns.frag",
+      "sha256": "c2f2c5db852f097648b94df825a6546c1a4a50264d9d6c6f69c59bf43ab1a6e4",
+      "name": {
+        "en": "Pattern field",
+        "es": "Campo de patrones"
+      },
+      "description": {
+        "en": "A procedural pattern source.",
+        "es": "Fuente de patrones procedurales."
+      },
+      "category": "generative",
+      "tags": [
+        "patterns"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/fbm.frag",
+      "sha256": "6c62a8b2f01daf15ca10d56880c60315621d0252055a153c869d76d40c633bb6",
+      "name": {
+        "en": "Fractal noise",
+        "es": "Ruido fractal"
+      },
+      "description": {
+        "en": "Layered procedural noise with animation controls.",
+        "es": "Ruido procedural en capas con animación."
+      },
+      "category": "generative",
+      "tags": [
+        "noise"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/fbmvuse.frag",
+      "sha256": "25cb1d107841dbe952c66fc4bf5accf32e687ac1bbb93334030c0aed45183eab",
+      "name": {
+        "en": "Fractal noise II",
+        "es": "Ruido fractal II"
+      },
+      "description": {
+        "en": "Alternative layered noise treatment.",
+        "es": "Tratamiento alternativo de ruido en capas."
+      },
+      "category": "generative",
+      "tags": [
+        "noise"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "8d6ccfae0a20bfccfb6389a75f1a3381edcd7a45",
+        "origin_committer": "Jpupper",
+        "reviewed": false
+      },
+      "review_status": "needs_initial_control_review_and_provenance",
+      "review_notes": "Salida inicial prácticamente plana: revisar controles antes de seleccionar."
+    },
+    {
+      "path": "shaders/generative/perlinnoisefires.frag",
+      "sha256": "25b706c854e5d01435ed486363118c289366b9278aee494dcc7abac377227e0d",
+      "name": {
+        "en": "Noise fire",
+        "es": "Fuego de ruido"
+      },
+      "description": {
+        "en": "Procedural fire-like noise.",
+        "es": "Ruido procedural con apariencia de fuego."
+      },
+      "category": "generative",
+      "tags": [
+        "noise"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "e2cfab8d23bbe28cb8fe56fdfce120e92dc063da",
+        "origin_committer": "Julian Puppo",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/ksetraps.frag",
+      "sha256": "3fbc2beba1fc32e58da1ecdd514f179bde95a8cc10d6b3ae3cb08b97b81aac87",
+      "name": {
+        "en": "Fractal orbits",
+        "es": "Órbitas fractales"
+      },
+      "description": {
+        "en": "Iterated fractal shapes with color and contrast controls.",
+        "es": "Formas fractales iterativas con color y contraste."
+      },
+      "category": "generative",
+      "tags": [
+        "fractals"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/tunel.frag",
+      "sha256": "21d3d1f6886142049f7baea34fe75adb57ba4544f0bb67d78491df0472fb0558",
+      "name": {
+        "en": "Tunnel",
+        "es": "Túnel"
+      },
+      "description": {
+        "en": "Animated tunnel with two RGB palettes.",
+        "es": "Túnel animado con dos paletas RGB."
+      },
+      "category": "generative",
+      "tags": [
+        "geometry"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "e2cfab8d23bbe28cb8fe56fdfce120e92dc063da",
+        "origin_committer": "Julian Puppo",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/FractLines.frag",
+      "sha256": "83a94141600bf320120244c7e11a9b4fb73bd93d95406e77f36de22134ba551f",
+      "name": {
+        "en": "Fractal lines",
+        "es": "Líneas fractales"
+      },
+      "description": {
+        "en": "Line-based procedural fractal.",
+        "es": "Fractal procedural construido con líneas."
+      },
+      "category": "generative",
+      "tags": [
+        "fractals"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/generative/atomdistort.frag",
+      "sha256": "584934270374841721d84954bb56a74e790c61ea5d03586a7451387038f33ff7",
+      "name": {
+        "en": "Atomic distortion",
+        "es": "Distorsión atómica"
+      },
+      "description": {
+        "en": "A compact generative distortion study.",
+        "es": "Estudio generativo de distorsión."
+      },
+      "category": "generative",
+      "tags": [
+        "abstract"
+      ],
+      "inputs": [],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "53f7dc7a485a262889e9cb35b4c0dda9737985c7",
+        "origin_committer": "julian.d.puppo@gmail.com",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/imageprocessing/brightcontrast.frag",
+      "sha256": "9aef90f1a3aafe709ad4e3ad48639d875a32c238c02914218cb64b2e878d5ef4",
+      "name": {
+        "en": "Brightness / contrast",
+        "es": "Brillo / contraste"
+      },
+      "description": {
+        "en": "Adjust brightness and contrast of one source.",
+        "es": "Ajusta brillo y contraste de una fuente."
+      },
+      "category": "effects",
+      "tags": [
+        "color"
+      ],
+      "inputs": [
+        "texture1"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/imageprocessing/huerotate.frag",
+      "sha256": "1dadd7ea54a8632fe1a3a3fe45fe8e40f864eb2fd535bdf692e8d6922066193c",
+      "name": {
+        "en": "Hue rotation",
+        "es": "Rotación de tono"
+      },
+      "description": {
+        "en": "Shift the colors of a source.",
+        "es": "Desplaza los tonos de una fuente."
+      },
+      "category": "effects",
+      "tags": [
+        "color"
+      ],
+      "inputs": [
+        "textura1"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/imageprocessing/invert.frag",
+      "sha256": "1b1f429ff940c09d9eb2541faf4a338dd0bab76c0d6eb290837b59afe82c1150",
+      "name": {
+        "en": "Invert",
+        "es": "Invertir"
+      },
+      "description": {
+        "en": "Invert source colors.",
+        "es": "Invierte los colores de la fuente."
+      },
+      "category": "effects",
+      "tags": [
+        "color"
+      ],
+      "inputs": [
+        "textura1"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/imageprocessing/blackandwhite.frag",
+      "sha256": "e813c50b2b48bc9d05c1fc2348db2e42e073f0324a33aa0103795fe7b5634580",
+      "name": {
+        "en": "Black and white",
+        "es": "Blanco y negro"
+      },
+      "description": {
+        "en": "Convert a source to monochrome.",
+        "es": "Convierte una fuente a monocromo."
+      },
+      "category": "effects",
+      "tags": [
+        "color"
+      ],
+      "inputs": [
+        "texture1"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "needs_initial_control_review_and_provenance",
+      "review_notes": "La captura inicial conserva color; revisar el control booleano de activación."
+    },
+    {
+      "path": "shaders/imageprocessing/flip.frag",
+      "sha256": "5c93ed711019a2e22451adf47267510d92652f613a1bad9258549d51a53fdb93",
+      "name": {
+        "en": "Flip",
+        "es": "Voltear"
+      },
+      "description": {
+        "en": "Flip the image orientation.",
+        "es": "Invierte la orientación de la imagen."
+      },
+      "category": "effects",
+      "tags": [
+        "geometry"
+      ],
+      "inputs": [
+        "textura1"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "needs_initial_control_review_and_provenance",
+      "review_notes": "La captura inicial puede conservar la orientación; revisar los controles booleanos."
+    },
+    {
+      "path": "shaders/imageprocessing/rotate.frag",
+      "sha256": "cd03107d8336fa97da80f667717137c72eb21888380d625c7c6d8208e72989b6",
+      "name": {
+        "en": "Rotate",
+        "es": "Rotar"
+      },
+      "description": {
+        "en": "Rotate an input image.",
+        "es": "Rota una imagen de entrada."
+      },
+      "category": "effects",
+      "tags": [
+        "geometry"
+      ],
+      "inputs": [
+        "textura1"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/imageprocessing/scale.frag",
+      "sha256": "3ae42e1c113d965e4b01730827848339478cbcc9aa4ff8ec68e0469541fe3d63",
+      "name": {
+        "en": "Scale",
+        "es": "Escalar"
+      },
+      "description": {
+        "en": "Scale the source image.",
+        "es": "Cambia la escala de la fuente."
+      },
+      "category": "effects",
+      "tags": [
+        "geometry"
+      ],
+      "inputs": [
+        "textura1"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/imageprocessing/vignette.frag",
+      "sha256": "c8dcef682fa93fda2ce4636c21a434caa475b5086dc4bc726b901430310de179",
+      "name": {
+        "en": "Vignette",
+        "es": "Viñeta"
+      },
+      "description": {
+        "en": "Shape the brightness at image edges.",
+        "es": "Modifica el brillo en los bordes."
+      },
+      "category": "effects",
+      "tags": [
+        "color"
+      ],
+      "inputs": [
+        "textura1"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "needs_initial_control_review_and_provenance",
+      "review_notes": "Salida inicial casi negra: revisar valores iniciales antes de seleccionar."
+    },
+    {
+      "path": "shaders/imageprocessing/kaleidoscope.frag",
+      "sha256": "34886a8a933f7182990b1f6714bf3856d9458afd6020932cf41fd9452bfb22bb",
+      "name": {
+        "en": "Kaleidoscope",
+        "es": "Caleidoscopio"
+      },
+      "description": {
+        "en": "Repeat and reflect a source image.",
+        "es": "Repite y refleja una imagen."
+      },
+      "category": "effects",
+      "tags": [
+        "distortion"
+      ],
+      "inputs": [
+        "textura1"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/imageprocessing/emboss.frag",
+      "sha256": "01b8d2affe5ce5b0433d96f62189ec38da755064d33acc605504c4ac74043400",
+      "name": {
+        "en": "Emboss",
+        "es": "Relieve"
+      },
+      "description": {
+        "en": "Extract a relief-like image treatment.",
+        "es": "Tratamiento de imagen con apariencia de relieve."
+      },
+      "category": "effects",
+      "tags": [
+        "edges"
+      ],
+      "inputs": [
+        "input_texture"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "needs_initial_control_review_and_provenance",
+      "review_notes": "Salida inicial negra con la referencia: revisar controles y entrada antes de seleccionar."
+    },
+    {
+      "path": "shaders/imageprocessing/recolor.frag",
+      "sha256": "fc2db33ff5c98d1d3e55c0a9d36904bdcfb1acf71b9420545d9a3d253ed3f199",
+      "name": {
+        "en": "Two-color remap",
+        "es": "Remapeo a dos colores"
+      },
+      "description": {
+        "en": "Remap a source between two RGB colors.",
+        "es": "Remapea una fuente entre dos colores RGB."
+      },
+      "category": "effects",
+      "tags": [
+        "color"
+      ],
+      "inputs": [
+        "textura1"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/imageprocessing/saturationbrightness.frag",
+      "sha256": "12b765ad79b74a809788b8e549d394900d83f2679ebd17cd16dadf98a7c57f62",
+      "name": {
+        "en": "Saturation / brightness",
+        "es": "Saturación / brillo"
+      },
+      "description": {
+        "en": "Adjust saturation and brightness.",
+        "es": "Ajusta saturación y brillo."
+      },
+      "category": "effects",
+      "tags": [
+        "color"
+      ],
+      "inputs": [
+        "textura1"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/blending/mix.frag",
+      "sha256": "c4d286901cb58d92cbea2738ddd88fe5ccf8a04b83501db71d8c8ea997c53e73",
+      "name": {
+        "en": "Crossfade",
+        "es": "Fundido"
+      },
+      "description": {
+        "en": "Interpolate between two sources.",
+        "es": "Interpola entre dos fuentes."
+      },
+      "category": "mixers",
+      "tags": [
+        "mix"
+      ],
+      "inputs": [
+        "textura1",
+        "textura2"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/blending/screen.frag",
+      "sha256": "7c028e29aa88b9e4d975a16e51bebe5a387005eeeb27616170f39f66bb0d1370",
+      "name": {
+        "en": "Screen",
+        "es": "Trama"
+      },
+      "description": {
+        "en": "Combine two sources using screen blending.",
+        "es": "Combina dos fuentes mediante trama."
+      },
+      "category": "mixers",
+      "tags": [
+        "mix"
+      ],
+      "inputs": [
+        "textura1",
+        "textura2"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/blending/multiply.frag",
+      "sha256": "e17e311aef99114dbb7dd1d72bf218e634d406174208c96d20501b5ea46f4f93",
+      "name": {
+        "en": "Multiply",
+        "es": "Multiplicar"
+      },
+      "description": {
+        "en": "Multiply two source colors.",
+        "es": "Multiplica los colores de dos fuentes."
+      },
+      "category": "mixers",
+      "tags": [
+        "mix"
+      ],
+      "inputs": [
+        "textura1",
+        "textura2"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/blending/add.frag",
+      "sha256": "a6a1413af50365d640dc4a3eae94b10a74f6b5d3b2da6da5bbd2a9257e7c1eac",
+      "name": {
+        "en": "Add",
+        "es": "Sumar"
+      },
+      "description": {
+        "en": "Add two source colors.",
+        "es": "Suma los colores de dos fuentes."
+      },
+      "category": "mixers",
+      "tags": [
+        "mix"
+      ],
+      "inputs": [
+        "textura1",
+        "textura2",
+        "textura3"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/blending/average.frag",
+      "sha256": "75af8338bd4d1c71536f50fe899b4b8dbe5b264556a9e02e2c32273a64e1586c",
+      "name": {
+        "en": "Average",
+        "es": "Promedio"
+      },
+      "description": {
+        "en": "Average two source images.",
+        "es": "Promedia dos imágenes de entrada."
+      },
+      "category": "mixers",
+      "tags": [
+        "mix"
+      ],
+      "inputs": [
+        "textura1",
+        "textura2"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    },
+    {
+      "path": "shaders/blending/difference.frag",
+      "sha256": "6a8172ecd9edc91d849b1226e9dda5e2ec2c90af043bd990d11365dba30df9b9",
+      "name": {
+        "en": "Difference",
+        "es": "Diferencia"
+      },
+      "description": {
+        "en": "Show differences between source colors.",
+        "es": "Muestra diferencias entre colores de dos fuentes."
+      },
+      "category": "mixers",
+      "tags": [
+        "mix"
+      ],
+      "inputs": [
+        "textura1",
+        "textura2"
+      ],
+      "author": "Guipper contributors (individual authorship pending review)",
+      "license": {
+        "spdx": "MIT",
+        "source": "LICENSE",
+        "origin_commit": "3ae685addf0a51f949e8128106791ce89ce78a98",
+        "origin_committer": "Damián Silvani",
+        "reviewed": false
+      },
+      "review_status": "pending_visual_and_provenance"
+    }
+  ]
+}
