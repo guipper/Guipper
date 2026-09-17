@@ -32,4 +32,6 @@ public:
 	ofColor CmouseOver;
 	ofColor Cfront;
 	// ofColor
+private:
+	float dragLastMouseX = 0.0f;
 };

@@ -685,14 +685,14 @@ void JPComplexSlider::draw()
 				boton_speed_audio.y - boton_speed_audio.height / 2.0f,
 				boton_speed_audio.width, boton_speed_audio.height);
 		}
-		jp_tooltip::draw(
-			parameters->movtype == JPParameter::BPM ? "BPM pulse decay" :
-			(parameters->audioDrivesSpeed ?
-				"Automation speed (ceiling; audio scales it)" :
-				"Automation speed"),
-			slider_speed.x - slider_speed.width / 2.0f,
-			slider_speed.y - slider_speed.height / 2.0f,
-			slider_speed.width, slider_speed.height);
+		const string speedLabel = parameters->movtype == JPParameter::BPM ? "BPM pulse decay" :
+            (parameters->audioDrivesSpeed ? "Automation speed (ceiling; audio scales it)" : "Automation speed");
+        const ofRectangle speedBounds(slider_speed.x - slider_speed.width / 2.0f,
+            slider_speed.y - slider_speed.height / 2.0f, slider_speed.width, slider_speed.height);
+        if (slider_speed.activeFlag)
+            jp_tooltip::request(speedLabel + ": " + ofToString(slider_speed.value, 4) + " | Shift: fine", speedBounds);
+        else
+            jp_tooltip::draw(speedLabel + " | Drag horizontally; Shift: fine", speedBounds);
 		string automationPattern = "Ping-pong";
 		if (parameters->movtype == JPParameter::RANDOM)
 			automationPattern = "Random";

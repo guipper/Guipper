@@ -82,10 +82,23 @@ void JPKnob::draw()
 	// rewrote its value on the spot. Same defect, same fix, as JPToogle: the
 	// origin belongs to the gesture, so it lives in JPdragobject and survives
 	// the controller rebuild that every inspector click triggers.
-	if (hovered && ofGetMousePressed() && pressStartedHere() && activable2)
-	{
-		activeFlag = true;
-	}
+	const bool pressed = ofGetMousePressed(OF_MOUSE_BUTTON_LEFT);
+    if (!pressed) activeFlag = false;
+    if (!activeFlag && hovered && pressed && pressStartedHere() && activable2)
+    {
+        activeFlag = true;
+        dragLastMouseX = ofGetMouseX();
+    }
+    if (activeFlag && parameters != nullptr)
+    {
+        // Relative motion avoids jumping to the click position. Screen pixels
+        // keep sensitivity stable outside the inspector's clipped hit area.
+        const float mouseX = ofGetMouseX();
+        const float precision = ofGetKeyPressed(OF_KEY_SHIFT) ? 0.1f : 1.0f;
+        value = ofClamp(value + (mouseX - dragLastMouseX) * (max - min) * precision / 300.0f, min, max);
+        dragLastMouseX = mouseX;
+        parameters->speed = value;
+    }
 
 	const float diameter = std::max(
 		12.0f, std::min(width, height) - 6.0f);
@@ -163,24 +176,5 @@ void JPKnob::draw()
 		x - jp_constants::p2_font.stringWidth(valueLabel) / 2.0f,
 		y + jp_constants::p2_font.stringHeight(valueLabel) / 2.0f);
 
-	// ESTO DE ACA EN REALIDAD IRIA COMO EN UN UPDATE NO EN UN DRAW.
-	//
-	// The two branches this replaces were byte-identical, one per side of an
-	// `if (movtype == 0)` that decided nothing.
-	if (activeFlag && parameters != nullptr)
-	{
-		// getMouseX(), not ofGetMouseX(): mouseOver() above hit-tests through
-		// JPdragobject's canvas override, so reading the raw pointer here made
-		// a knob on a panned or zoomed canvas highlight in one place and take
-		// its value from another.
-		value = ofClamp(ofMap(getMouseX(), x - width / 2, x + width / 2,
-			min, max), min, max);
-		parameters->speed = value;
-	}
-	// ESTO DE ACA EN REALIDAD IRIA COMO EN UN UPDATE NO EN UN DRAW. PERO BUENO ; POR AHORA QUEDA ACA TOTAL SON 2 IFS NOMA
-	if (!ofGetMousePressed())
-	{
-		activeFlag = false;
-	}
 	ofPopStyle();
 }
