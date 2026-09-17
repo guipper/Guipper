@@ -1,10 +1,10 @@
-#include "jp_audio_loopback.h"
+#include "../jp_audio_loopback.h"
 #ifdef __APPLE__
 #import <Foundation/Foundation.h>
 #import <CoreAudio/CoreAudio.h>
 #include <AvailabilityMacros.h>
-#include "jp_audio_queue.h"
-#include "jp_audio_planes.h"
+#include "../jp_audio_queue.h"
+#include "../jp_audio_planes.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>

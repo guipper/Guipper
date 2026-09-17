@@ -12,7 +12,7 @@ applications or additional streams on a multi-stream interface.
 
 ## Build integration
 
-The backend is `src/JPutils/jp_audio_loopback_macos.mm`; it uses CoreAudio and
+The backend is `src/JPutils/macos/jp_audio_loopback_macos.mm`; it uses CoreAudio and
 Foundation. The project Info.plist includes `NSAudioCaptureUsageDescription`.
 The Makefile discovers the backend on macOS and excludes it on other platforms.
 The saved Xcode project includes the new backend, but is a legacy project whose

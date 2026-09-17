@@ -68,7 +68,8 @@ OF_ROOT = ../../..
 PROJECT_EXCLUSIONS = $(PROJECT_ROOT)/src/SpoutSDK%
 PROJECT_EXCLUSIONS += $(PROJECT_ROOT)/vendor%
 ifneq ($(shell uname -s),Darwin)
-PROJECT_EXCLUSIONS += $(PROJECT_ROOT)/src/JPutils/jp_audio_loopback_macos.mm
+# openFrameworks filters source directories, not individual source files.
+PROJECT_EXCLUSIONS += $(PROJECT_ROOT)/src/JPutils/macos%
 endif
 
 ifeq ($(shell uname -s),Darwin)

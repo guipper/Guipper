@@ -13,7 +13,7 @@
 			<dict>
 				<key>isa</key><string>PBXFileReference</string>
 				<key>lastKnownFileType</key><string>sourcecode.cpp.objcpp</string>
-				<key>path</key><string>src/JPutils/jp_audio_loopback_macos.mm</string>
+				<key>path</key><string>src/JPutils/macos/jp_audio_loopback_macos.mm</string>
 				<key>sourceTree</key><string>SOURCE_ROOT</string>
 			</dict>
 			<key>A0D100000000000000000002</key>
