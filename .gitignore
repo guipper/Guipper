@@ -53,3 +53,7 @@ tests/appimage_backend_tests
 /tests/toast_tests
 
 /tests/review_tests
+
+/tests/text_edit_tests
+/tests/text_edit_tests.exe
+/tests/build-text/
