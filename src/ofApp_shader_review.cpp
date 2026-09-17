@@ -45,6 +45,7 @@ bool ofApp::saveShaderReview(const string& path, const ofJson& changes) {
         jp::atomicWrite(shaderReviewFile,root.dump(2)+"\n");
         for (const auto& metadata:parsed) if(metadata.path==path)
             for (auto& folder:shaderFolders) for(auto& entry:folder.shaders) if(entry.path==path)entry.metadata=metadata;
+        shaderFilterCacheValid = false;
         return true;
     } catch (const std::exception& e) {
         ofLogError("shader-review")<<e.what();
@@ -127,14 +128,10 @@ bool ofApp::matchesShaderReviewFilter(const ShaderEntry& entry) const {
 
 string ofApp::folderTabLabel(int index) const {
     int count=0;
-    const string query=ofToLower(shaderSearchText);
-    for(int f=0;f<int(shaderFolders.size());++f) {
-        const auto& folder=shaderFolders[f];
-        if(index==0 ? folder.isFavorites : f!=index-1)continue;
-        const bool folderMatch=ofToLower(folder.name+" "+jp_shader_catalog::categoryName(folder.category,true)).find(query)!=string::npos;
-        for(const auto& entry:folder.shaders) if(matchesShaderReviewFilter(entry) &&
-            (query.empty() || folderMatch || ofToLower(entry.name+" "+entry.path).find(query)!=string::npos ||
-            (entry.catalogued && jp_shader_catalog::matches(entry.metadata,shaderSearchText))))++count;
+    const auto& filtered = getFilteredShaderIndices();
+    for (int f = 0; f < int(shaderFolders.size()); ++f) {
+        if (index == 0 ? shaderFolders[f].isFavorites : f != index - 1) continue;
+        count += filtered[f].size();
     }
     string label=language==0?"All":"Todas";
     if(index>0) {

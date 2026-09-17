@@ -68,6 +68,11 @@ deshacer agrupado, pegado, foco, rechazo de clics, Tab, Escape, búsqueda y el
 modal de guardado, incluido un fallo real de escritura que conserva el borrador.
 Las conversiones IN/OUT se prueban con tiempos, frames y entradas inválidas. Los eventos reales de OF comprueban que pegar no se duplica
 y que editar no dispara acciones de guardar ni borrar nodos.
+IMPORT se prueba entrando por su ruta real, con el catálogo completo: escritura,
+búsqueda sin resultados, borrado del filtro y cambios de nombres y marcas.
+El log mide tres dibujos consecutivos con búsqueda activa para detectar bloqueos
+por recalcular el catálogo en cada consulta de geometría o interacción.
+
 
 ## Verificación pendiente en Windows/macOS
 

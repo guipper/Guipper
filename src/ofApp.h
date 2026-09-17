@@ -542,6 +542,14 @@ public:
     bool shaderScrollbarDragging = false;
     float shaderScrollbarGrab = 0.0f;
 	vector<ShaderFolder> shaderFolders;
+    // Search is shared by rows, tab counts and pointer-occlusion layouts.
+    mutable bool shaderFilterCacheValid = false;
+    mutable string shaderFilterCacheQuery;
+    mutable int shaderFilterCacheReview = -1;
+    mutable bool shaderFilterCacheCurated = false;
+    mutable vector<vector<int>> shaderFilteredIndices;
+    const vector<vector<int>>& getFilteredShaderIndices() const;
+
 	int selectedShaderFolder = -1;
 	int selectedShaderIndex = -1;
 

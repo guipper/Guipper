@@ -57,6 +57,36 @@ inline bool run(ofApp& app) {
     check(app.focusedOptionsField==app.FIELD_OSC_PORT_IN,"settings rejects invalid port");
     ui.key(OF_KEY_ESC);check(app.focusedOptionsField==-1,"settings escape only unfocuses input");
     ui.reset();app.clearFieldFocus();
+    // Opening IMPORT with an empty query exercises the complete catalog.
+    app.enterScreen(app.SHADER_INDEX);app.shaderSearchText.clear();
+    ofLogNotice("text-input")<<"drawing full IMPORT catalog";
+    const auto importStart=ofGetElapsedTimeMillis();
+    for(int frame=0;frame<3;++frame)app.draw();
+    ofLogNotice("text-input")<<"IMPORT draw ms="<<(ofGetElapsedTimeMillis()-importStart);
+    auto matches=[&]{size_t total=0;for(const auto& indices:app.getFilteredShaderIndices())total+=indices.size();return total;};
+    const auto allMatches=matches();
+    check(allMatches>0,"IMPORT test loads a real catalog");
+    for(char c:std::string("basic"))ui.key(c);
+    check(app.shaderSearchText=="basic"&&matches()>0&&matches()<allMatches,"typing filters the real catalog");
+    const auto searchStart=ofGetElapsedTimeMillis();
+    for(int frame=0;frame<3;++frame)app.draw();
+    const auto filteredMs=ofGetElapsedTimeMillis()-searchStart;
+    ofLogNotice("text-input")<<"IMPORT filtered draw ms="<<filteredMs;
+    check(filteredMs<1500,"repeated IMPORT drawing must not stall on catalog filtering");
+    app.shaderSearchText="__guipper_no_matching_shader__";
+    check(matches()==0,"changing the query invalidates cached matches");
+    app.clearShaderSearch();check(matches()==allMatches,"clearing search restores the full list");
+    // Metadata publication and reorder must invalidate an already cached query.
+    auto& entry=app.shaderFolders.back().shaders.front();
+    const auto originalMetadata=entry.metadata;const bool originalCatalogued=entry.catalogued;
+    app.shaderSearchText="__guipper_renamed_shader__";check(matches()==0,"renamed shader initially absent");
+    entry.catalogued=true;entry.metadata.name.en=app.shaderSearchText;app.rebuildShaderFolderOrder();
+    check(matches()==1,"updated visible name appears in search immediately");
+    app.shaderCuratedMode=true;app.shaderReviewFilter=3;entry.metadata.needsParameters=false;app.rebuildShaderFolderOrder();
+    check(matches()==0,"curator filter excludes unmarked shader");
+    entry.metadata.needsParameters=true;app.rebuildShaderFolderOrder();
+    check(matches()==1,"curator mark refreshes cached results");
+    entry.metadata=originalMetadata;entry.catalogued=originalCatalogued;app.shaderCuratedMode=false;app.shaderReviewFilter=0;app.rebuildShaderFolderOrder();
     // Register the real search and ensure Escape keeps the live query.
     app.pantallaActiva=app.SHADER_INDEX;app.shaderSearchText="niño";app.shaderSearchFocused=true;
     app.draw();ui.key('s');ui.key(OF_KEY_ESC);check(app.shaderSearchText=="niños"&&!app.shaderSearchFocused,"search escape retains query");

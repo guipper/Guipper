@@ -5229,6 +5229,7 @@ void ofApp::rebuildFavoritesFolder() {
 	rebuildShaderFolderOrder();
 }
 void ofApp::rebuildShaderFolderOrder() {
+    shaderFilterCacheValid = false;
     shaderOrderLanguage = language;
 	shaderFolderOrder.clear();
 	shaderFolderOrder.resize(shaderFolders.size());
@@ -5334,24 +5335,41 @@ const vector<int> &ofApp::getOrderedShaderIndices(int folderIndex) const {
 	if (folderIndex < 0 || folderIndex >= (int)shaderFolderOrder.size()) return empty;
 	return shaderFolderOrder[folderIndex];
 }
+const vector<vector<int>>& ofApp::getFilteredShaderIndices() const {
+    if (shaderFilterCacheValid && shaderFilterCacheQuery == shaderSearchText &&
+        shaderFilterCacheReview == shaderReviewFilter && shaderFilterCacheCurated == shaderCuratedMode)
+        return shaderFilteredIndices;
+    shaderFilteredIndices.assign(shaderFolders.size(), {});
+    const string query = ofToLower(shaderSearchText);
+    for (int f = 0; f < (int)shaderFolders.size(); ++f) {
+        const auto& folder = shaderFolders[f];
+        const bool folderMatch = query.empty() ||
+            ofToLower(folder.name + " " + jp_shader_catalog::categoryName(folder.category, true)).find(query) != string::npos;
+        for (int index : getOrderedShaderIndices(f)) {
+            const auto& entry = folder.shaders[index];
+            if (matchesShaderReviewFilter(entry) && (folderMatch ||
+                ofToLower(entry.name + " " + entry.path).find(query) != string::npos ||
+                (entry.catalogued && jp_shader_catalog::matches(entry.metadata, shaderSearchText))))
+                shaderFilteredIndices[f].push_back(index);
+        }
+    }
+    shaderFilterCacheQuery = shaderSearchText;
+    shaderFilterCacheReview = shaderReviewFilter;
+    shaderFilterCacheCurated = shaderCuratedMode;
+    shaderFilterCacheValid = true;
+    return shaderFilteredIndices;
+}
 vector<ofApp::ShaderBrowserRow> ofApp::buildShaderBrowserRows() const {
 	vector<ShaderBrowserRow> rows;
 	const bool searchActive = !shaderSearchText.empty();
-	const string searchLower = ofToLower(shaderSearchText);
+	const auto& filtered = getFilteredShaderIndices();
 
 	for (int f = 0; f < (int)shaderFolders.size(); f++) {
 		const ShaderFolder &folder = shaderFolders[f];
 		if (!shaderFolderTab.empty() && shaderFolderTab!=folder.path) continue;
 		if (searchActive && folder.isFavorites && shaderFolderTab.empty()) continue;
 
-		vector<int> visibleShaders;
-        const bool folderMatch = ofToLower(folder.name+" "+jp_shader_catalog::categoryName(folder.category,true)).find(searchLower)!=string::npos;
-        for (int shaderIndex : getOrderedShaderIndices(f)) {
-            const auto& entry=folder.shaders[shaderIndex];
-            if (!matchesShaderReviewFilter(entry)) continue;
-            if (!searchActive || folderMatch || ofToLower(entry.name+" "+entry.path).find(searchLower)!=string::npos ||
-                (entry.catalogued && jp_shader_catalog::matches(entry.metadata,shaderSearchText))) visibleShaders.push_back(shaderIndex);
-        }
+        const auto& visibleShaders = filtered[f];
         if (visibleShaders.empty()) continue;
 
 		ShaderBrowserRow folderRow;
