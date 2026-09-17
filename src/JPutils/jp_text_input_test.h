@@ -59,6 +59,11 @@ inline bool run(ofApp& app) {
     ui.reset();app.clearFieldFocus();
     // Opening IMPORT with an empty query exercises the complete catalog.
     app.enterScreen(app.SHADER_INDEX);app.shaderSearchText.clear();
+    event('6',54,0);
+    check(app.pantallaActiva==app.MIDI_KEYMAP&&app.shaderSearchText.empty(),"IMPORT does not capture screen shortcuts before its first draw");
+    app.enterScreen(app.SHADER_INDEX);app.draw();event('6',54,0);
+    check(app.pantallaActiva==app.MIDI_KEYMAP&&app.shaderSearchText.empty(),"IMPORT leaves screen shortcuts available after drawing");
+    app.enterScreen(app.SHADER_INDEX);
     ofLogNotice("text-input")<<"drawing full IMPORT catalog";
     const auto importStart=ofGetElapsedTimeMillis();
     for(int frame=0;frame<3;++frame)app.draw();
@@ -66,6 +71,11 @@ inline bool run(ofApp& app) {
     auto matches=[&]{size_t total=0;for(const auto& indices:app.getFilteredShaderIndices())total+=indices.size();return total;};
     const auto allMatches=matches();
     check(allMatches>0,"IMPORT test loads a real catalog");
+    const auto searchBounds=app.getShaderBrowserLayout().search;
+    ui.press(searchBounds.x+110,searchBounds.getCenter().y,OF_MOUSE_BUTTON_LEFT);ui.release();
+    event('6',54,0);
+    check(app.pantallaActiva==app.SHADER_INDEX&&app.shaderSearchText=="6","clicking search captures text instead of changing tabs");
+    ui.key(OF_KEY_BACKSPACE);
     for(char c:std::string("basic"))ui.key(c);
     check(app.shaderSearchText=="basic"&&matches()>0&&matches()<allMatches,"typing filters the real catalog");
     const auto searchStart=ofGetElapsedTimeMillis();

@@ -450,7 +450,8 @@ void ofApp::enterScreen(int screen)
 		}
 		break;
 	case SHADER_INDEX:
-		shaderSearchFocused = true;
+		// Keep screen shortcuts available until the search field is clicked.
+		shaderSearchFocused = false;
 		shaderSearchCursor = ofClamp(shaderSearchCursor, 0,
 			(int)shaderSearchText.size());
 		if (shaderFolders.empty() || std::getenv("GUIPPER_CURATED_LIST") || shaderUserLibrary || std::getenv("GUIPPER_USER_LIST")) scanShaders();
