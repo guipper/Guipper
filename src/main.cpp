@@ -44,6 +44,26 @@ int main()
 	settings.resizable = true;
 	// settings.shareContextWith = RenderWindow;
 	shared_ptr<ofAppBaseWindow> mainWindow = ofCreateWindow(settings);
+#ifdef TARGET_WIN32
+	auto glfwWindow = dynamic_pointer_cast<ofAppGLFWWindow>(mainWindow);
+	if (glfwWindow) {
+		const HWND window = glfwWindow->getWin32Window();
+		const HINSTANCE instance = GetModuleHandleW(nullptr);
+		// Use the executable's icon resource for the title bar, taskbar and Alt-Tab.
+		const HICON largeIcon = static_cast<HICON>(LoadImageW(instance, MAKEINTRESOURCEW(102),
+			IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_SHARED));
+		const HICON smallIcon = static_cast<HICON>(LoadImageW(instance, MAKEINTRESOURCEW(102),
+			IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_SHARED));
+		if (largeIcon) {
+			SendMessageW(window, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(largeIcon));
+			SetClassLongPtrW(window, GCLP_HICON, reinterpret_cast<LONG_PTR>(largeIcon));
+		}
+		if (smallIcon) {
+			SendMessageW(window, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
+			SetClassLongPtrW(window, GCLP_HICONSM, reinterpret_cast<LONG_PTR>(smallIcon));
+		}
+	}
+#endif
 #ifdef TARGET_LINUX
 	auto glfwWindow = dynamic_pointer_cast<ofAppGLFWWindow>(mainWindow);
 	if (glfwWindow) {
