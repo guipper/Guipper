@@ -2736,7 +2736,7 @@ ofRectangle ofApp::getAudioMenuBounds() const
 	const AudioScreenLayout L = getAudioScreenLayout();
 	const int rows = std::max(1, (int)jp_audio::getInputDeviceNames().size() + 1);
 	return ofRectangle(L.audioDevice.x, L.audioDevice.getMaxY() + 2.0f,
-		L.audioDevice.width,
+		std::min(440.0f, float(ofGetWidth()) - L.audioDevice.x - 8.0f),
 		std::min(240.0f, (float)rows * 24.0f + 4.0f));
 }
 
@@ -7648,6 +7648,12 @@ void ofApp::touchUp(ofTouchEventArgs &touch) {
 }
 
 void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
+    if (audioMenuOpen && getAudioMenuBounds().inside(x, y)) {
+        const int visible = int((getAudioMenuBounds().height - 4) / 24);
+        const int maximum = std::max(0, int(jp_audio::getInputDeviceNames().size()) + 1 - visible);
+        audioMenuScroll = ofClamp(audioMenuScroll + (scrollY > 0 ? -1 : scrollY < 0 ? 1 : 0), 0, maximum);
+        return;
+    }
     if(reviewPanelOpen && shaderCuratedMode && pantallaActiva==SHADER_INDEX && !toastBlocked() && getReviewLayout().panel.inside(x,y)){reviewScroll=std::max(0.f,reviewScroll-scrollY*40);return;}
     if (toastView.captures() || !toastView.hovered(x, y).empty()) return;
     if (releasePanelOpen) { releaseScroll -= scrollY*28.0f; return; }

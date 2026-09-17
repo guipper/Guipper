@@ -751,6 +751,7 @@ public:
 	// Audio device dropdown state (SETTINGS). Registered with SURFACE_DROPDOWN
 	// so it blocks the rows it covers.
 	bool audioMenuOpen = false;
+	int audioMenuScroll = 0;
 	bool audioGainDragging = false;
 	bool audioGateDragging = false;
 	ofRectangle getAudioMenuBounds() const;

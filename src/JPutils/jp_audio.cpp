@@ -1,6 +1,8 @@
 #include "jp_audio.h"
 #include "jp_audio_analyzer.h"
 #include "jp_audio_queue.h"
+#include "jp_audio_loopback.h"
+#include "jp_audio_device_id.h"
 
 #include <algorithm>
 #include <array>
@@ -31,6 +33,10 @@ namespace
 	AudioListener gListener;
 	ofSoundStream gStream;
 	std::vector<std::string> gDeviceNames;
+	std::vector<std::string> gDeviceIds;
+#ifdef _WIN32
+	jp_audio_internal::LoopbackCapture gLoopback;
+#endif
 	std::vector<ofSoundDevice> gDevices;
 	std::string gDeviceName;
 	std::string gStatus = "audio off";
@@ -111,9 +117,13 @@ float gDropWindowStart = -1.0f;
 
 void jp_audio::audioIn(ofSoundBuffer &buffer)
 {
+	ingest(buffer.getBuffer().data(), buffer.getNumFrames(), buffer.getNumChannels());
+}
+
+void jp_audio::ingest(const float* samples, size_t frames, size_t channels)
+{
+	if (!gAccept.load(std::memory_order_acquire) || channels == 0) return;
 	// Audio thread: bounded stack storage, atomics and fixed queue copies only.
-	const std::size_t frames = buffer.getNumFrames();
-	const std::size_t channels = std::max<std::size_t>(1, buffer.getNumChannels());
 	const float gain = gGain.load(std::memory_order_relaxed);
 	const int mode = gChannelMode.load(std::memory_order_relaxed);
 	std::array<float, MaxBlockFrames> mono{};
@@ -125,7 +135,7 @@ void jp_audio::audioIn(ofSoundBuffer &buffer)
 		{
 			const std::size_t frame = offset + i;
 			mono[i] = jp_audio_internal::downmixFrame(
-				&buffer[frame * channels], channels, mode, gain);
+				&samples[frame * channels], channels, mode, gain);
 			peak = std::max(peak, std::abs(mono[i]));
 		}
 		if (!gQueue.push(mono.data(), count)) break;
@@ -151,7 +161,7 @@ void jp_audio::setup()
 
 void jp_audio::refreshDevices()
 {
-	gDevices.clear(); gDeviceNames.clear();
+	gDevices.clear(); gDeviceNames.clear(); gDeviceIds.clear();
 	try
 	{
 		for (const ofSoundDevice &device : gStream.getDeviceList())
@@ -162,6 +172,7 @@ void jp_audio::refreshDevices()
 			while (std::find(gDeviceNames.begin(), gDeviceNames.end(), unique) != gDeviceNames.end())
 				unique = device.name + " (" + ofToString(++duplicate) + ")";
 			gDevices.push_back(device); gDeviceNames.push_back(unique);
+			gDeviceIds.push_back(unique);
 		}
 	}
 	catch (const std::exception &error)
@@ -170,6 +181,20 @@ void jp_audio::refreshDevices()
 		ofLogError("jp_audio") << gStatus;
 	}
 	catch (...) { gStatus = "device scan failed"; }
+#ifdef _WIN32
+	try {
+		gDeviceNames.push_back("Salida predeterminada (loopback)");
+		gDeviceIds.push_back(jp_audio_internal::loopbackId(""));
+		for (const auto& device : jp_audio_internal::LoopbackCapture::devices()) {
+			std::string label = device.name + " (loopback)";
+			int duplicate = 1;
+			while (std::find(gDeviceNames.begin(), gDeviceNames.end(), label) != gDeviceNames.end())
+				label = device.name + " (" + ofToString(++duplicate) + ") (loopback)";
+			gDeviceNames.push_back(label);
+			gDeviceIds.push_back(jp_audio_internal::loopbackId(device.id));
+		}
+	} catch (const std::exception& error) { gStatus = error.what(); }
+#endif
 }
 
 void jp_audio::startStream()
@@ -177,9 +202,24 @@ void jp_audio::startStream()
 	stopStream();
 	if (gTestMode > 0) { gRunning = true; return; }
 	if (!gEnabled) { gStatus = "audio off"; return; }
+#ifdef _WIN32
+	if (jp_audio_internal::isLoopbackId(gDeviceName)) {
+		gQueue.reset();
+		gInputPeak = 0; gClippingAtomic = false;
+		gSnapshot = AudioSnapshot(); gClipClock = 0; gClipHoldUntil = -1;
+		gRunning = gLoopback.start(jp_audio_internal::loopbackEndpoint(gDeviceName), &jp_audio::ingest);
+		if (gRunning) {
+			gSampleRate = gLoopback.sampleRate();
+			gAnalyzer.reset(gSampleRate);
+			gAccept.store(true, std::memory_order_release);
+			gStatus = getDeviceLabel() + " - " + ofToString(gSampleRate) + " Hz";
+		} else gStatus = "Loopback: " + gLoopback.error();
+		return;
+	}
+#endif
 	if (gDevices.empty()) { gStatus = "no audio input device"; return; }
 	int selected = -1;
-	for (std::size_t i = 0; i < gDeviceNames.size(); ++i)
+	for (std::size_t i = 0; i < gDevices.size(); ++i)
 		if (gDeviceNames[i] == gDeviceName) { selected = int(i); break; }
 	const int use = selected >= 0 ? selected : 0;
 	try
@@ -228,6 +268,9 @@ void jp_audio::startStream()
 void jp_audio::stopStream()
 {
 	gAccept.store(false, std::memory_order_release);
+#ifdef _WIN32
+	gLoopback.stop();
+#endif
 	if (!gRunning) return;
 	if (gTestMode == 0) try { gStream.stop(); gStream.close(); } catch (...) {}
 	gRunning = false;
@@ -264,6 +307,12 @@ bool jp_audio::runSelfTest(std::string *report)
 
 void jp_audio::update()
 {
+#ifdef _WIN32
+	if (gRunning && gTestMode == 0 && jp_audio_internal::isLoopbackId(gDeviceName) && !gLoopback.running()) {
+		gStatus = "Loopback: " + gLoopback.error();
+		stopStream();
+	}
+#endif
 	if (!gRunning)
 	{
 		// Setup failures and unplugged interfaces recover on the main thread.
@@ -328,6 +377,13 @@ std::string jp_audio::getStatus()
 }
 const std::vector<std::string> &jp_audio::getInputDeviceNames() { return gDeviceNames; }
 std::string jp_audio::getDeviceName() { return gDeviceName; }
+std::string jp_audio::getDeviceId(size_t index) { return gDeviceIds.at(index); }
+std::string jp_audio::getDeviceLabel() {
+	for (size_t i = 0; i < gDeviceIds.size(); ++i)
+		if (gDeviceIds[i] == gDeviceName) return gDeviceNames[i];
+	if (jp_audio_internal::isLoopbackId(gDeviceName)) return "Output unavailable (loopback)";
+	return gDeviceName;
+}
 bool jp_audio::setDevice(const std::string &name)
 {
 	gDeviceName = name; if (gEnabled) startStream(); return gRunning;

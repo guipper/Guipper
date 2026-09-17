@@ -170,7 +170,7 @@ void ofApp::drawAudioInput(const AudioScreenLayout &L)
 	caption(L.audioDevice, "DEVICE");
 	{
 		const std::vector<std::string> &names = jp_audio::getInputDeviceNames();
-		std::string label = jp_audio::getDeviceName();
+		std::string label = jp_audio::getDeviceLabel();
 		if (label.empty()) label = names.empty() ? "no input device" : "(default)";
 		while (!label.empty() &&
 			small.stringWidth(label) > L.audioDevice.width - 26.0f)
@@ -182,7 +182,7 @@ void ofApp::drawAudioInput(const AudioScreenLayout &L)
 		small.drawString("v", L.audioDevice.getMaxX() - 14.0f,
 			L.audioDevice.getMaxY() - 8.0f);
 	}
-	jp_tooltip::draw("Choose the input device", L.audioDevice);
+	jp_tooltip::draw("Choose the audio source", L.audioDevice);
 
 	caption(L.audioCalibrate, "SET GATE");
 	jp_button::draw(L.audioCalibrate, "CALIBRATE", false);
@@ -253,12 +253,13 @@ bool ofApp::handleAudioInputClick(const AudioScreenLayout &L, const ofVec2f &m,
 		{
 			const std::vector<std::string> &names =
 				jp_audio::getInputDeviceNames();
-			for (int i = 0; i <= (int)names.size(); i++)
+			for (int i = audioMenuScroll; i <= (int)names.size(); i++)
 			{
-				const ofRectangle row(menu.x, menu.y + 2.0f + i * 24.0f,
+				const ofRectangle row(menu.x, menu.y + 2.0f + (i - audioMenuScroll) * 24.0f,
 					menu.width, 24.0f);
+				if (row.getMaxY() > menu.getMaxY()) break;
 				if (!row.inside(m)) continue;
-				jp_audio::setDevice(i == 0 ? "" : names[i - 1]);
+				jp_audio::setDevice(i == 0 ? "" : jp_audio::getDeviceId(i - 1));
 				saveSettings();
 				break;
 			}
@@ -275,6 +276,7 @@ bool ofApp::handleAudioInputClick(const AudioScreenLayout &L, const ofVec2f &m,
 	if (leftButton && L.audioDevice.inside(m))
 	{
 		jp_audio::refreshDevices();
+		audioMenuScroll = 0;
 		audioMenuOpen = true;
 		return true;
 	}
@@ -719,7 +721,7 @@ void ofApp::draw_audio()
 	float statusY = L.selfTestButton.getMaxY() + 16.0f;
 	ofSetColor(COL_TEXT_MUTED);
 	const std::string device = jp_audio::getDeviceName().empty() ?
-		"(system default)" : jp_audio::getDeviceName();
+		"(system default)" : jp_audio::getDeviceLabel();
 	small.drawString("device: " + device, L.rightColumn.x, statusY);
 	statusY += 14.0f;
 	small.drawString("peak in: " + ofToString(snapshot.inputPeak, 3) +
@@ -806,22 +808,36 @@ void ofApp::draw_audio()
 		ofDrawRectRounded(menu, 4.0f);
 		ofFill();
 		const std::vector<std::string> &names = jp_audio::getInputDeviceNames();
-		for (int i = 0; i <= (int)names.size(); i++)
+		for (int i = audioMenuScroll; i <= (int)names.size(); i++)
 		{
-			const float ry = menu.y + 2.0f + i * 24.0f;
+			const float ry = menu.y + 2.0f + (i - audioMenuScroll) * 24.0f;
 			if (ry + 24.0f > menu.getMaxY()) break;
 			const bool over = ofRectangle(menu.x, ry, menu.width, 24.0f)
 				.inside((float)ofGetMouseX(), (float)ofGetMouseY());
-			const std::string name = i == 0 ? "(system default)" : names[i - 1];
+			std::string name = i == 0 ? "(system default input)" : names[i - 1];
+			while (!name.empty() && small.stringWidth(name) > menu.width - 20) {
+				name.pop_back();
+				while (!name.empty() && (static_cast<unsigned char>(name.back()) & 0xc0) == 0x80) name.pop_back();
+				if (!name.empty() && static_cast<unsigned char>(name.back()) >= 0xc0) name.pop_back();
+			}
 			if (over)
 			{
 				ofSetColor(ofColor(COL_BG_HOVER, 230));
 				ofDrawRectRounded(menu.x + 2.0f, ry, menu.width - 4.0f,
 					24.0f, 3.0f);
 			}
-			ofSetColor(name == jp_audio::getDeviceName() ?
+			ofSetColor((i == 0 ? "" : jp_audio::getDeviceId(i - 1)) == jp_audio::getDeviceName() ?
 				COL_ACCENT_CYAN : COL_TEXT_PRIMARY);
 			small.drawString(name, menu.x + 8.0f, ry + 16.0f);
+		}
+		const int visible = int((menu.height - 4) / 24);
+		const int total = int(names.size()) + 1;
+		if (total > visible) {
+			const float track = menu.height - 4;
+			const float thumb = track * visible / total;
+			ofSetColor(COL_ACCENT_CYAN);
+			ofDrawRectangle(menu.getMaxX() - 5, menu.y + 2 +
+				(track - thumb) * audioMenuScroll / (total - visible), 3, thumb);
 		}
 	}
 

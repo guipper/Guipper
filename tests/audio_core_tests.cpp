@@ -1,5 +1,7 @@
 #include "../src/JPutils/jp_audio_analyzer.h"
 #include "../src/JPutils/jp_audio_queue.h"
+#include "../src/JPutils/jp_audio_pcm.h"
+#include "../src/JPutils/jp_audio_device_id.h"
 
 #include <algorithm>
 #include <array>
@@ -529,6 +531,24 @@ namespace
 
 int main()
 {
+	using namespace jp_audio_internal;
+	for (unsigned bits : {8u, 16u, 24u, 32u}) {
+		unsigned char minimum[4] = {}, maximum[4] = {255, 255, 255, 255}, zero[4] = {};
+		if (bits == 8) zero[0] = 128;
+		else { minimum[bits / 8 - 1] = 128; maximum[bits / 8 - 1] = 127; }
+		expect(decodePcm(minimum, bits, false) == -1.0f, "PCM signed minimum");
+		expect(decodePcm(zero, bits, false) == 0.0f, "PCM silence");
+		expect(decodePcm(maximum, bits, false) > 0.99f, "PCM maximum");
+	}
+	float sample = -0.375f;
+	double sample64 = 0.625;
+	expect(decodePcm(reinterpret_cast<unsigned char*>(&sample), 32, true) == sample, "float32 conversion");
+	expect(decodePcm(reinterpret_cast<unsigned char*>(&sample64), 64, true) == 0.625f, "float64 conversion");
+	expect(!pcmFormatSupported(24, true) && !pcmFormatSupported(12, false), "unsupported formats rejected");
+	const std::string endpoint = "{0.0.0.00000000}.{endpoint-guid}";
+	expect(loopbackEndpoint(loopbackId(endpoint)) == endpoint, "output ID survives persistence without display name");
+	expect(loopbackEndpoint(loopbackId("")).empty(), "default output selection survives persistence");
+	expect(!isLoopbackId("Microphone Array (Realtek(R) Audio)") && !isLoopbackId(""), "legacy input selections preserved");
 	testSilenceAndBounds();
 	testTuningDefaultsAreIdentity();
 	testTuningKnobsDoWhatTheySay();

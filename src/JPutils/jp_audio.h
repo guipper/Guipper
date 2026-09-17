@@ -86,6 +86,9 @@ public:
 	static void refreshDevices();
 	static const std::vector<std::string> &getInputDeviceNames();
 	static std::string getDeviceName();               // "" == system default
+	static std::string getDeviceLabel();
+	static std::string getDeviceId(size_t index);
+	static void ingest(const float* samples, size_t frames, size_t channels);
 	static bool setDevice(const std::string &name);   // restarts the stream
 	static bool isRunning();
 	static std::string getStatus();                   // human text for SETTINGS
