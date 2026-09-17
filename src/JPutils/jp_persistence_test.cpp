@@ -14,6 +14,10 @@
 
 #include <cmath>
 #include <cstdlib>
+#ifdef _WIN32
+static int setenv(const char* key,const char* value,int overwrite) { if(!overwrite && std::getenv(key))return 0;return _putenv_s(key,value); }
+static int unsetenv(const char* key) {return _putenv_s(key,"");}
+#endif
 
 #undef near
 #undef far

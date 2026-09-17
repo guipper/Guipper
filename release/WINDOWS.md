@@ -70,3 +70,8 @@ de actualizaciones y la restauración automática de Windows siguen pendientes.
 Referencias: [redistribución de Visual C++](https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files?view=msvc-170),
 [dependencias que redistribuir](https://learn.microsoft.com/en-us/cpp/windows/determining-which-dlls-to-redistribute?view=msvc-170),
 [instalación sin elevación de Inno Setup](https://jrsoftware.org/ishelp/topic_setup_privilegesrequired.htm).
+
+## Curador desde el repositorio
+
+Para colaborar con Linux sin generar un instalador, compilar y ejecutar
+`run-curated.bat`. Ver [guía de curación compartida](../mds/CURADOR_COMPARTIDO.md).
