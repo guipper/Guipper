@@ -1234,8 +1234,8 @@ bool JPboxgroup::drawLiveOutputSource(bool followMainActive,
 
 	if (followMainActive)
 	{
-		if (boxes.empty() || activerender == nullptr ||
-			*activerender < 0 || *activerender >= (int)boxes.size())
+		if (!sessionFadeActive && (boxes.empty() || activerender == nullptr ||
+			*activerender < 0 || *activerender >= (int)boxes.size()))
 		{
 			return false;
 		}
@@ -2252,8 +2252,8 @@ void JPboxgroup::drawNodeEditorBackground(float _width, float _height)
 void JPboxgroup::drawLiveOutput(float x, float y, float w, float h,
 	const ofRectangle &srcNorm)
 {
-	if (boxes.empty() || activerender == nullptr || *activerender < 0 ||
-		*activerender >= (int)boxes.size())
+	if (!sessionFadeActive && (boxes.empty() || activerender == nullptr || *activerender < 0 ||
+		*activerender >= (int)boxes.size()))
 	{
 		return;
 	}
@@ -2266,7 +2266,7 @@ void JPboxgroup::drawLiveOutput(float x, float y, float w, float h,
 	// lie is in one of the values below - the size asked for, the viewport it
 	// lands in, or the FBO behind it - and which one it is cannot be guessed
 	// from a screenshot.
-	if (std::getenv("GUIPPER_RENDER_TRACE"))
+	if (std::getenv("GUIPPER_RENDER_TRACE") && !boxes.empty())
 	{
 		static uint64_t nextTrace = 0;
 		const uint64_t now = ofGetElapsedTimeMillis();
@@ -4179,6 +4179,7 @@ void JPboxgroup::update(){
 				elapsedProfileMs(profileStageStart));
 		}
 	}
+	updateSessionFade();
 		//activeSequence = true;
 		const float sequenceIntervalMs = std::max(durationGalleryMs, 16.0f);
 		if (activeSequence && 
@@ -7438,6 +7439,11 @@ void JPboxgroup::setupShaderRendersFromDataFolder()
 }
 void JPboxgroup::clear()
 {
+	sessionFadeActive = false;
+	sessionFadeStarted = false;
+	sessionFadeSnapshot.clear();
+	sessionFadeOutput.clear();
+	transition.setLerpValue(1.f);
 	endMappingEdit();
 	clearSelection();
 	clearCue();

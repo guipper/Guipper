@@ -1412,6 +1412,98 @@ namespace
     }
 
 
+    bool checkSessionFade(ofApp& app) {
+        bool passed = true;
+        auto check = [&](bool ok, const char* label) {
+            if (!ok) ofLogError("session-fade") << label;
+            passed = ok && passed;
+        };
+        app.clearFieldFocus(); app.pantallaActiva = app.NODOS;
+        app.boxes.clear();
+        const int oldW = jp_constants::renderWidth, oldH = jp_constants::renderHeight;
+        jp_constants::renderWidth = 64; jp_constants::renderHeight = 64;
+        const float oldDuration = app.boxes.getTransitionDurationMs();
+        app.boxes.setTransitionDurationMs(240.f);
+        const auto folder = ofToDataPath("uishots/session-fade/", true);
+        ofDirectory::createDirectory(folder, true, true);
+        auto colorNode = [&](ofColor color) {
+            auto* node = app.boxes.addBox("shaders/generative/solidcolor.frag", 100, 100);
+            if (!node) return node;
+            node->setonoff(true);
+            int channel = 0;
+            for (const auto& name : {"r", "g", "b"}) {
+                const int index = node->parameters.indexOfName(name);
+                if (index >= 0) {
+                    node->parameters.setFloatValue(color[channel] / 255.f, index);
+                    node->parameters.setFloatLerpValue(color[channel] / 255.f, index);
+                }
+                ++channel;
+            }
+            return node;
+        };
+        auto pixel = [&]() {
+            ofPixels pixels;
+            auto* output = app.boxes.getActiverender();
+            if (!output || !output->isAllocated()) return ofColor(0, 0, 0, 0);
+            output->readToPixels(pixels);
+            return pixels.getColor(pixels.getWidth()/2, pixels.getHeight()/2);
+        };
+        auto same = [](ofColor a, ofColor b) {
+            return std::abs(int(a.r)-b.r)<5 && std::abs(int(a.g)-b.g)<5 &&
+                std::abs(int(a.b)-b.b)<5 && std::abs(int(a.a)-b.a)<5;
+        };
+        check(app.boxes.save(folder + "empty.xml"), "save empty fixture");
+        check(colorNode(ofColor::blue) != nullptr, "green background fixture");
+        auto* greenOverlay = colorNode(ofColor::green);
+        check(greenOverlay != nullptr, "green FINAL fixture");
+        if (greenOverlay) app.boxes.addFinalLayerForBox(greenOverlay);
+        app.activerender = 0;
+        check(app.boxes.save(folder + "green.xml"), "save green fixture");
+        app.boxes.clear();
+        check(colorNode(ofColor::blue) != nullptr, "blue fixture");
+        app.activerender = 0;
+        check(app.boxes.save(folder + "blue.xml"), "save blue fixture");
+        // The outgoing red comes from FINAL, not the active blue node.
+        auto* overlay = colorNode(ofColor::red);
+        check(overlay != nullptr, "FINAL fixture");
+        if (overlay) app.boxes.addFinalLayerForBox(overlay);
+        app.boxes.update(); app.boxes.update();
+        check(same(pixel(), ofColor::red), "outgoing FINAL is red");
+        check(app.boxes.load(folder + "green.xml") == JPboxgroup::LoadResult::Success, "load green");
+        check(same(pixel(), ofColor::red), "snapshot survives graph replacement including FINAL");
+        // Loading time is excluded, even if the first update is delayed.
+        ofSleepMillis(270); app.boxes.update();
+        check(same(pixel(), ofColor::red), "first incoming frame starts at outgoing endpoint");
+        ofSleepMillis(100); app.boxes.update();
+        const auto mixed = pixel();
+        check(mixed.r > 20 && mixed.g > 20 && mixed.b < 5, "midpoint mixes red and green");
+        check(app.boxes.getActiveTexture() == &app.boxes.getActiverender()->getTexture(), "texture export shares fade output");
+        check(app.boxes.load(folder + "missing.xml") == JPboxgroup::LoadResult::ReadError, "failed read rejected");
+        check(same(pixel(), mixed), "failed read preserves visible fade");
+        check(app.boxes.load(folder + "blue.xml") == JPboxgroup::LoadResult::Success, "interrupt with blue");
+        check(same(pixel(), mixed), "interruption captures visible mixture");
+        app.boxes.update();
+        check(same(pixel(), mixed), "interrupted fade starts without a jump");
+        ofSleepMillis(270); app.boxes.update();
+        check(same(pixel(), ofColor::blue), "long frame completes at destination");
+        check(app.boxes.load(folder + "empty.xml") == JPboxgroup::LoadResult::Success, "empty load");
+        app.boxes.update();
+        check(same(pixel(), ofColor::blue), "empty scene preserves outgoing frame initially");
+        ofFbo output; output.allocate(32, 32, GL_RGBA); output.begin(); ofClear(0,0,0,0);
+        check(app.boxes.drawLiveOutputSource(true, "", 32, 32, ofRectangle(0.25,0.25,0.5,0.5), 0),
+            "cropped main output handles empty destination");
+        output.end();
+        ofPixels cropped; output.readToPixels(cropped);
+        check(same(cropped.getColor(16, 16), ofColor::blue), "cropped output displays fade pixels");
+        ofSleepMillis(270); app.boxes.update();
+        check(app.boxes.getActiverender() == nullptr, "empty fade releases output");
+        app.boxes.clear();
+        app.boxes.setTransitionDurationMs(oldDuration);
+        jp_constants::renderWidth = oldW; jp_constants::renderHeight = oldH;
+        ofLogNotice("session-fade") << "passed=" << passed;
+        return passed;
+    }
+
     bool checkCueMedia(ofApp& app) {
         bool passed=true;
         auto check=[&](bool ok,const char* label){if(!ok)ofLogError("cue-media")<<label;passed=ok&&passed;};
@@ -1504,6 +1596,7 @@ namespace
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if (testMode && string(testMode) == "session_fade") return checkSessionFade(app);
     if (testMode && string(testMode) == "cue_media") return checkCueMedia(app);
     if (testMode && string(testMode) == "text_input") return jp_text_input_test::run(app);
     if (testMode && string(testMode) == "shader_alpha_chain") return checkShaderAlphaChain(app);

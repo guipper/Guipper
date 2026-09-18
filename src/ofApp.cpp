@@ -598,8 +598,8 @@ void ofApp::update() {
 #endif
 
 #ifdef NDI
-	if (ndiActive && boxes.getBoxesSize() > 0) {
-		ndiSender.SendImage(*boxes.getActiverender());
+	if (ndiActive) {
+		if (ofFbo *output = boxes.getActiverender()) ndiSender.SendImage(*output);
 	}
 #endif
 	smoothProfileValue(frameProfile.outputsMs, elapsedProfileMs(stageStart));
@@ -8347,8 +8347,9 @@ void ofApp::drawSpout() {
 	// ====== SPOUT =====
 	if (bInitialized) {
 		if (ofGetWidth() > 0 && ofGetHeight() > 0) { // protect against user minimize
-			ofFbo & fbo = *boxes.getActiverender();
-			GLuint texID = fbo.getTexture().getTextureData().textureID;
+			ofFbo *output = boxes.getActiverender();
+			if (!output || !output->isAllocated()) return;
+			GLuint texID = output->getTexture().getTextureData().textureID;
 			spoutsender.SendTexture(texID, GL_TEXTURE_2D, resolution_spoutext.x, resolution_spoutext.y);
 		}
 	}

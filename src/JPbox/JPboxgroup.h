@@ -1120,6 +1120,18 @@ private:
 	JPQuickImageStackState finalQuickImages;
 	JPQuickImageRenderer finalQuickImageRenderer;
 	ofFbo finalQuickImageFbo;
+	// Session fades own pixels, never pointers into a graph being replaced.
+	ofFbo sessionFadeSnapshot;
+	ofFbo sessionFadeOutput;
+	TransitionSR sessionFadeMixer;
+	bool sessionFadeActive = false;
+	bool sessionFadeStarted = false;
+	double sessionFadeStartSeconds = 0.0;
+	float sessionFadeDurationSeconds = 0.833f;
+	ofFbo captureSessionOutput();
+	void updateSessionFade();
+	ofFbo *sceneOutputFbo();
+
 	// True once renderFinalComposite has actually produced a frame. The five
 	// consumers used to each ask "are there quick-image layers?", which claimed
 	// a composite existed from the moment a layer was added - one frame before

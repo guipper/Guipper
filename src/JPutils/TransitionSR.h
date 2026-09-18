@@ -54,6 +54,7 @@ public:
 	bool isSourceAllocated() const;
 	float getSourceWidth() const;
 	float getSourceHeight() const;
+	ofFbo *getOutput() { return este.isAllocated() ? &este : nullptr; }
 	ofFbo *getFirstInput() const { return fbo1; }
 	ofFbo *getSecondInput() const { return fbo2; }
 	// No reallocate here on purpose. Nothing in the app resizes render FBOs at

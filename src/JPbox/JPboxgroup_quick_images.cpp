@@ -139,6 +139,8 @@ bool JPboxgroup::quickImageUndoShortcut(bool redo)
 
 ofFbo *JPboxgroup::finalCompositeFboOrNull()
 {
+	if (sessionFadeActive)
+		return sessionFadeStarted ? &sessionFadeOutput : &sessionFadeSnapshot;
 	return finalCompositeActive && finalQuickImageFbo.isAllocated() ?
 		&finalQuickImageFbo : nullptr;
 }
@@ -398,4 +400,78 @@ bool JPboxgroup::update_quickImageMouseScrolled(int x, int y, float scrollY)
 	quickImageListScroll = ofClamp(quickImageListScroll +
 		(scrollY > 0.0f ? 1 : -1), 0, maxScroll);
 	return true;
+}
+
+// Raw incoming scene, deliberately excluding the session fade itself.
+ofFbo *JPboxgroup::sceneOutputFbo()
+{
+	if (boxes.empty()) return nullptr;
+	if (finalCompositeActive && finalQuickImageFbo.isAllocated()) return &finalQuickImageFbo;
+	if (transition.getLerpValue() < 1.0f && transition.isSourceAllocated()) return transition.getOutput();
+	if (activerender && *activerender >= 0 && *activerender < int(boxes.size()) &&
+		boxes[*activerender]->fbo.isAllocated()) return &boxes[*activerender]->fbo;
+	return nullptr;
+}
+
+ofFbo JPboxgroup::captureSessionOutput()
+{
+	ofFbo snapshot;
+	ofFbo *source = sessionFadeActive ? finalCompositeFboOrNull() : sceneOutputFbo();
+	if (!source || !source->isAllocated()) return snapshot;
+	snapshot.allocate(source->getWidth(), source->getHeight(), GL_RGBA);
+	snapshot.begin();
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+	ofSetColor(255);
+	ofClear(0, 0, 0, 0);
+	source->draw(0, 0);
+	ofPopStyle();
+	snapshot.end();
+	return snapshot;
+}
+
+void JPboxgroup::updateSessionFade()
+{
+	if (!sessionFadeActive) return;
+	ofFbo *incoming = sceneOutputFbo();
+	// An empty composition is a valid transparent destination.
+	if (!incoming && !boxes.empty()) return;
+	const double now = ofGetElapsedTimef();
+	if (!sessionFadeStarted)
+	{
+		sessionFadeOutput.allocate(sessionFadeSnapshot.getWidth(), sessionFadeSnapshot.getHeight(), GL_RGBA);
+		sessionFadeStartSeconds = now;
+		sessionFadeStarted = true;
+	}
+	// Wall time, measured after the first incoming render: loading time never
+	// consumes the fade, and a slow frame doesn't stretch its duration.
+	const float t = ofClamp(float((now - sessionFadeStartSeconds) / sessionFadeDurationSeconds), 0.f, 1.f);
+	sessionFadeOutput.begin();
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+	ofSetColor(255);
+	ofClear(0, 0, 0, 0);
+	const float eased = t * t * (3.f - 2.f * t);
+	if (incoming)
+	{
+		if (!sessionFadeMixer.renderStraightMix(&sessionFadeSnapshot, incoming, eased,
+			sessionFadeOutput.getWidth(), sessionFadeOutput.getHeight()))
+			incoming->draw(0, 0, sessionFadeOutput.getWidth(), sessionFadeOutput.getHeight());
+	}
+	else
+	{
+		ofSetColor(255, 255, 255, int(255 * (1.f - eased)));
+		sessionFadeSnapshot.draw(0, 0);
+	}
+	ofPopStyle();
+	sessionFadeOutput.end();
+	if (t >= 1.f)
+	{
+		sessionFadeActive = false;
+		sessionFadeStarted = false;
+		sessionFadeSnapshot.clear();
+		sessionFadeOutput.clear();
+	}
 }

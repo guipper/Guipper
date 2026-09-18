@@ -382,14 +382,22 @@ JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 
     const int nextRender = boxes.empty() ? 0 :
         ofClamp(xml.getChild("activerender").getIntValue(), 0, int(boxes.size()) - 1);
+    // Capture only after validation/setup succeeded. A failed load must not
+    // replace or restart an already visible transition.
+    ofFbo outgoing = captureSessionOutput();
+    const float fadeSeconds = std::max(0.001f, getTransitionDurationMs() / 1000.f);
     clear();
+    sessionFadeSnapshot = std::move(outgoing);
+    sessionFadeActive = sessionFadeSnapshot.isAllocated();
+    sessionFadeDurationSeconds = fadeSeconds;
     this->boxes.swap(boxes);
     finalQuickImages = std::move(candidateFinal);
     finalQuickImageHistory.clear();
     finalQuickImageHistoryCursor = 0;
     *activerender = nextRender;
 
-	updateTransition(*activerender);
+	// The old graph is gone. Do not arm a node fade with two identical inputs.
+	transition.setLerpValue(1.0f);
 
 
 
