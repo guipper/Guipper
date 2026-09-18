@@ -2,6 +2,7 @@
 
 Guipper source and the original Getting Started examples: MIT; see LICENSE.txt.
 Core runtime resources are enumerated and hash-checked in ASSETS.json.
+Overpass Regular and SemiBold: SIL Open Font License 1.1; see licenses/OFL-Overpass.txt.
 Montserrat Regular and Medium: SIL Open Font License 1.1; see licenses/OFL-Montserrat.txt.
 
 The SDK dependency tree is pinned in dependencies.lock.json. openFrameworks,

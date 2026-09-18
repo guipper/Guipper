@@ -7,6 +7,19 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 
 ## Sin publicar
 
+## [0.1.0-beta.5](https://github.com/guipper/Guipper/releases/tag/v0.1.0-beta.5) — 2026-09-18
+
+### Novedades principales
+- Nuevo catálogo de transiciones con familias, favoritos, aleatorio, sincronización al pulso y prueba aislada; panel plegable en SETTINGS.
+- Transiciones entre composiciones completas, incluyendo FINAL, con correcciones de frames negros y continuidad al cargar XML.
+- Tipografía Overpass y ajustes de alineación y filtrado para mejorar la legibilidad.
+- Edición de texto unificada: selección, navegación por palabras, portapapeles y deshacer local; no incluye el editor de shaders.
+- IMPORT responde mejor al abrir y buscar; abrir el panel ya no captura automáticamente el teclado en el buscador.
+- CUE refleja los parámetros de imágenes y cámaras. Los rangos personalizados muestran su valor al arrastrar y la velocidad de automatización permite ajustes más finos.
+- Carga por arrastre de composiciones con rutas antiguas o relativas corregida.
+- Revisión compartida del curador mediante carpeta sincronizada, comentarios e historial de cambios.
+
+
 ### Correcciones
 - Linux excluye correctamente el backend Core Audio de macOS durante la compilación.
 - Gameboy Palette conserva la transparencia de entrada y la mezcla al ajustar la intensidad del efecto.
@@ -34,7 +47,7 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 - Vista previa enlazada a los nombres de las entradas declaradas y controles iniciales con valores definidos; navegador adaptado a ventanas pequeñas.
 - Ejemplos de Getting Started accesibles en el navegador.
 
-La colección de 24 shaders sigue pendiente de selección visual y revisión de procedencia. La preselección permanece local; estos cambios no incluyen archivos `.frag` ni `.xml` nuevos o modificados. El catálogo oficial continúa vacío.
+El paquete incluye los recursos internos y ejemplos autorizados. La biblioteca personal y las colecciones contribuidas no se redistribuyen; el catálogo oficial continúa vacío hasta completar la revisión de procedencia. La investigación de profundidad mediante webcam RGB queda pausada y no añade una función a esta beta. La publicación binaria de esta versión es para Linux; Windows/macOS requieren validación separada.
 
 ## [0.1.0-beta.4](https://github.com/guipper/Guipper/releases/tag/v0.1.0-beta.4) — 2026-09-15
 

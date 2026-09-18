@@ -21,6 +21,10 @@ class PackagingTests(unittest.TestCase):
             self.assertTrue((output/'data/distribution.marker').exists())
             self.assertTrue((output/'data/savefiles/examples/03-mix.xml').exists())
             self.assertTrue((output/'licenses/OFL-Montserrat.txt').exists())
+            self.assertTrue((output/'licenses/OFL-Overpass.txt').exists())
+            for asset in ('font/Overpass-Regular.ttf', 'font/Overpass-SemiBold.ttf',
+                          'shaders/private/transition_catalog.frag'):
+                self.assertTrue((output/'data'/asset).is_file(), asset)
             with self.assertRaises(ValueError): stage.stage(output,binary)
 
 if __name__=='__main__': unittest.main()
