@@ -372,6 +372,23 @@ void JPbox::resetFeedbackFrame()
 	if (feedbackFrame.isAllocated()) feedbackFrame.destroy();
 }
 
+bool JPbox::seedFeedbackFrame(const ofShader &shader, const ofFbo &source)
+{
+    if (!shader.isLoaded() || shader.getUniformLocation("feedback") < 0 ||
+        !source.isAllocated() || !fbo.isAllocated()) return false;
+    feedbackFrame.allocate(fbo.getWidth(), fbo.getHeight(), GL_RGBA);
+    feedbackFrame.begin();
+    ofPushStyle(); ofSetRectMode(OF_RECTMODE_CORNER);
+    ofEnableBlendMode(OF_BLENDMODE_DISABLED); ofSetColor(255);
+    ofClear(0,0,0,0); source.draw(0,0,feedbackFrame.getWidth(),feedbackFrame.getHeight());
+    ofPopStyle(); feedbackFrame.end();
+    // On the next render prepareFeedbackFrame consumes this seed once instead
+    // of copying the destination's old FBO over it. No ordinary input changes.
+    feedbackHasRenderedFrame = false;
+    feedbackTexture = &feedbackFrame.getTexture();
+    return true;
+}
+
 void JPbox::prepareFeedbackFrame(const ofShader &shader)
 {
 	feedbackTexture = nullptr;

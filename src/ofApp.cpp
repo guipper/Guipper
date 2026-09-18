@@ -551,6 +551,20 @@ void ofApp::update() {
 	boxes.setRequiredRenderSources(requiredRenderSources);
 	stageStart = ProfileClock::now();
 	boxes.update();
+    boxes.pollSessionLoad();
+    if(pantallaActiva==OPCIONES && transitionSettingsExpanded) updateTransitionPreview();
+    if(!boxes.sessionPreparing()) toasts.close("transition-preparing");
+    const auto &qualityState=boxes.mainTransitionState();
+    if(qualityState.phase()==jp_transition::Phase::Running && !qualityState.reason().empty() &&
+        (qualityState.scale()<1.f || qualityState.capture())) {
+        const string key=ofToString(qualityState.seed())+":"+ofToString(qualityState.scale())+":"+ofToString(qualityState.capture());
+        if(key!=lastTransitionQualityNotice) {
+            lastTransitionQualityNotice=key;
+            publishToast("transition-quality",jp::ToastState::Info,
+                qualityState.capture()?(language==0?"Transition: outgoing captured to preserve performance.":"Transicion: captura de la escena saliente para mantener fluidez."):
+                (language==0?"Transition: reduced render quality.":"Transicion: calidad de render reducida."));
+        }
+    }
 	smoothProfileValue(frameProfile.boxesMs, elapsedProfileMs(stageStart));
 	updateRetiredLiveOutputWindows();
 	const float now = ofGetElapsedTimef();
@@ -2427,7 +2441,7 @@ float ofApp::getSettingsPanelHeight() const
 	// that sizes the panel, so a control added without touching it simply hangs
 	// off the bottom.
 	const int totalRows = FIELD_OSC_IP_OUT + 9;
-	return jp_screen::kHeaderH + totalRows * rowSpacing + 25.0f;
+	return jp_screen::kHeaderH + totalRows * rowSpacing + (transitionSettingsExpanded ? 680.0f : 0.0f);
 }
 
 bool ofApp::settingsUseTwoColumns() const
@@ -2726,67 +2740,151 @@ ofRectangle ofApp::getAudioMenuBounds() const
 		std::min(240.0f, (float)rows * 24.0f + 4.0f));
 }
 
+void ofApp::updateTransitionPreview()
+{
+    ofPushStyle();ofSetRectMode(OF_RECTMODE_CORNER);
+    if(!transitionPreviewA.isAllocated()) {
+        transitionPreviewA.allocate(240,135,GL_RGBA); transitionPreviewB.allocate(240,135,GL_RGBA);
+        transitionPreview.setup(&transitionPreviewA,&transitionPreviewB);
+    }
+    for(int i=0;i<2;++i) {
+        auto &fbo=i?transitionPreviewB:transitionPreviewA;
+        fbo.begin(); ofClear(i?12:4,i?30:10,i?10:35,255);
+        ofSetColor(i?COL_ACCENT_GOLD:COL_ACCENT_CYAN);
+        for(int j=0;j<5;++j) ofDrawCircle(120+sin(ofGetElapsedTimef()*(i?-.8:1.)+j*1.2)*90,67+cos(ofGetElapsedTimef()+j)*40,14);
+        fbo.end();
+    }
+    if(transitionPreviewRunning) {
+        transitionPreview.update();
+        if(transitionPreview.getLerpValue()>=1.f) transitionPreviewRunning=false;
+    } else transitionPreview.update(false);
+    ofPopStyle();
+}
+
 void ofApp::drawTransitionSettings(const SettingsLayout &L)
 {
-	// All that is left of what used to be the AUDIO IN block on this screen.
-	// The input chain moved to the AUDIO screen, where the gate is drawn on the
-	// same scale as the meter it gates and the device is the one whose spectrum
-	// is on screen.
-	ofPushStyle();
-	ofSetRectMode(OF_RECTMODE_CORNER);
-	// MAIN crossfade: how long a switch between active renders takes, and
-	// which shader blends the two frames.
-	ofSetColor(COL_TEXT_SECONDARY);
-	font_p.drawString("Transition:", L.labelX,
-		L.transitionDurationSlider.y + 19.0f);
-	const float durationMs = boxes.getTransitionDurationMs();
-	const float durationT = ofClamp(
-		(durationMs - kTransitionMinMs) / (kTransitionMaxMs - kTransitionMinMs),
-		0.0f, 1.0f);
-	ofSetColor(ofColor(COL_BG_INPUT, 220));
-	ofDrawRectRounded(L.transitionDurationSlider, 4.0f);
-	ofSetColor(ofColor(COL_ACCENT_CYAN, 170));
-	ofDrawRectRounded(L.transitionDurationSlider.x, L.transitionDurationSlider.y,
-		std::max(4.0f, L.transitionDurationSlider.width * durationT),
-		L.transitionDurationSlider.height, 4.0f);
-	ofSetColor(COL_TEXT_PRIMARY);
-	font_p.drawString(ofToString((int)durationMs) + " ms",
-		L.transitionDurationSlider.x + 8.0f,
-		L.transitionDurationSlider.getMaxY() - 8.0f);
-
-	ofSetColor(COL_TEXT_SECONDARY);
-	font_p.drawString("Transition type", L.labelX,
-		L.transitionTypeButton.y + 19.0f);
-	jp_button::draw(L.transitionTypeButton,
-		TransitionSR::typeLabel(boxes.getTransitionType()), false);
-
-	ofPopStyle();
+    using namespace jp_transition;
+    auto &config = TransitionSR::preferences();
+    transitionControls.clear();
+    ofPushStyle(); ofSetRectMode(OF_RECTMODE_CORNER);
+    const bool es = language != 0;
+    const float x = L.labelX, w = L.panel.width - 30.f;
+    float y = L.transitionDurationSlider.y;
+    auto text = [&](const string &value, float tx, float ty) {
+        ofSetColor(COL_TEXT_PRIMARY); font_p.drawString(value, tx, ty);
+    };
+    auto button = [&](ofRectangle r, string label, bool selected, std::function<void()> action) {
+        const string fullLabel=label;
+        bool shortened=false;
+        while(!label.empty() && font_p.stringWidth(label+(shortened?"...":""))>r.width-12) {
+            size_t at=label.size()-1;
+            while(at>0 && (static_cast<unsigned char>(label[at])&0xc0)==0x80) --at;
+            label.erase(at); shortened=true;
+        }
+        jp_button::draw(r,label+(shortened?"...":""),selected);
+        if(shortened) jp_tooltip::draw(fullLabel,r.x,r.y,r.width,r.height);
+        transitionControls.push_back({r,std::move(action)});
+    };
+    const ofRectangle header(x, y-34, w, 28);
+    button(header, "", false, [this] {
+        transitionSettingsExpanded = !transitionSettingsExpanded;
+        transitionDurationDragging = false;
+        if (!transitionSettingsExpanded) transitionPreviewRunning = false;
+        clampSettingsScroll();
+    });
+    ofSetColor(COL_ACCENT_CYAN);
+    const float cx = header.x+12, cy = header.getCenter().y;
+    if (transitionSettingsExpanded)
+        ofDrawTriangle(cx-4,cy-2,cx+4,cy-2,cx,cy+3);
+    else
+        ofDrawTriangle(cx-2,cy-4,cx-2,cy+4,cx+3,cy);
+    const string title = es ? "TRANSICIONES" : "TRANSITIONS";
+    text(title, x+26, header.y+19);
+    const int effect = std::clamp(config.effect, 0, int(EffectCount)-1);
+    const string summary = string(es ? catalog[effect].es : catalog[effect].en) +
+        " · " + ofToString(config.duration,2) + (config.beats ? (es ? " pulsos" : " beats") : " s");
+    const float summaryX = x+26+font_p.stringWidth(title)+18;
+    ofSetColor(COL_TEXT_SECONDARY);
+    font_p.drawString(jp_tooltip::fit(summary, std::max(0.f,header.getRight()-summaryX-10),
+        [&](const string &value) { return font_p.stringWidth(value); }),summaryX,header.y+19);
+    jp_tooltip::draw(es ? "Mostrar / ocultar ajustes de transiciones" : "Show / hide transition settings",
+        header.x,header.y,header.width,header.height);
+    if (!transitionSettingsExpanded) { ofPopStyle(); return; }
+    text(es ? "Duración" : "Duration", x, y+19);
+    const float durationT = ofClamp((boxes.getTransitionDurationMs()-kTransitionMinMs)/(kTransitionMaxMs-kTransitionMinMs),0.f,1.f);
+    ofSetColor(COL_BG_INPUT); ofDrawRectRounded(L.transitionDurationSlider,4);
+    ofSetColor(COL_ACCENT_CYAN); ofDrawRectRounded(L.transitionDurationSlider.x,L.transitionDurationSlider.y,
+        std::max(4.f,L.transitionDurationSlider.width*durationT),L.transitionDurationSlider.height,4);
+    text(ofToString(config.duration,2)+(config.beats ? (es ? " pulsos" : " beats") : " s"),L.transitionDurationSlider.x+8,y+20);
+    button({L.transitionDurationSlider.getRight()+8,y,75,28},config.beats ? "BEATS" : "SEC",false,[&config]{config.beats=!config.beats;});
+    y+=40;
+    const char *families[]={"All","Basic","Organic","AVS","Pattern","Morph","Random","Favorites"};
+    const char *familyES[]={"Todos","Básicos","Orgánicos","AVS","Trama","Morph","Azar","Favoritos"};
+    float tabW=(w-3*3)/4;
+    for(int i=0;i<8;++i) button({x+(i%4)*(tabW+3),y+(i/4)*28,tabW,24},es?familyES[i]:families[i],transitionFamily==i,[this,i]{transitionFamily=i;});
+    y+=62;
+    // A bounded list, two columns. Marks have independent hit regions.
+    int slot=0;
+    for(int i=0;i<EffectCount;++i) {
+        if(transitionFamily==7 && !config.favorites[i]) continue;
+        if(transitionFamily>0 && transitionFamily<7 && string(catalog[i].family)!=families[transitionFamily]) continue;
+        const float rowW=(w-10)*.5f;
+        float rx=x+(slot%2)*(rowW+10), ry=y+(slot/2)*27;
+        button({rx,ry,rowW-58,24},es?catalog[i].es:catalog[i].en,config.effect==i,[this,i]{boxes.setTransitionType(i);});
+        button({rx+rowW-54,ry,24,24},"*",config.favorites[i],[&config,i]{config.favorites[i]=!config.favorites[i];});
+        if(i!=Random) button({rx+rowW-27,ry,27,24},"R",config.randomEnabled[i],[&config,i]{config.randomEnabled[i]=!config.randomEnabled[i];});
+        ++slot;
+    }
+    y+=((slot+1)/2)*27;
+    text(es ? "* Favorito    R Incluir en aleatorio" : "* Favorite    R Include in random",x,y+16);
+    y+=30;
+    auto choices=[&](const string &label, const vector<string> &items,int selected,std::function<void(int)> change) {
+        text(label,x,y+18);
+        const float cx=x+110, bw=(w-110)/items.size();
+        for(int i=0;i<int(items.size());++i) button({cx+i*bw,y,bw-3,25},items[i],selected==i,[change,i]{change(i);});
+        y+=34;
+    };
+    choices(es?"Inicio":"Start",es?vector<string>{"Ahora","Pulso","4 pulsos"}:vector<string>{"Now","Beat","4 beats"},int(config.start),[&config](int i){config.start=Start(i);});
+    choices(es?"Calidad":"Quality",es?vector<string>{"Auto","Viva","Reducida","Captura"}:vector<string>{"Auto","Live","Reduced","Capture"},int(config.quality),[&config](int i){config.quality=Quality(i);});
+    if(config.effect==Push || config.effect==Wipe || config.effect==Random)
+        choices(es?"Direccion":"Direction",es?vector<string>{"Izq.","Der.","Arriba","Abajo"}:vector<string>{"Left","Right","Up","Down"},config.direction,[&config](int i){config.direction=i;});
+    if(config.effect==RadialIn || config.effect==RadialOut || config.effect==Warp)
+        choices(es?"Centro X":"Center X",{"25%","50%","75%"},int(config.centerX*4)-1,[&config](int i){config.centerX=.25f*(i+1);});
+    if(config.effect==RadialIn || config.effect==RadialOut || config.effect==Warp)
+        choices(es?"Centro Y":"Center Y",{"25%","50%","75%"},int(config.centerY*4)-1,[&config](int i){config.centerY=.25f*(i+1);});
+    if(config.effect==Plasma)
+        choices(es?"Escala":"Scale",{"1","3","6","12"},config.plasmaScale==1?0:config.plasmaScale==3?1:config.plasmaScale==6?2:3,[&config](int i){config.plasmaScale=std::array<float,4>{1,3,6,12}[i];});
+    if(config.effect==Warp)
+        choices(es?"Intensidad":"Intensity",{"10%","25%","50%"},config.intensity<.2?0:config.intensity<.4?1:2,[&config](int i){config.intensity=std::array<float,3>{.1f,.25f,.5f}[i];});
+    if(config.effect==Plasma || config.effect==RadialIn || config.effect==RadialOut || config.effect==Wipe || config.effect==Blocks)
+        choices(es?"Borde":"Edge",es?vector<string>{"Duro","Suave","Amplio"}:vector<string>{"Hard","Soft","Wide"},config.softness<.01?0:config.softness<.2?1:2,[&config](int i){config.softness=std::array<float,3>{0,.12f,.3f}[i];});
+    // Isolated animated A/B sources: exercising the compositor never changes MAIN.
+    button({x,y,110,26},es?"PROBAR":"TEST",transitionPreviewRunning,[this]{
+        transitionPreview.setType(boxes.getTransitionType()); transitionPreview.setDurationMs(boxes.getTransitionDurationMs());
+        transitionPreview.setLerpValue(0); transitionPreviewRunning=true;
+    });
+    ofSetColor(255); transitionPreviewA.draw(x+120,y,100,56); transitionPreviewB.draw(x+224,y,100,56);
+    if(transitionPreview.getOutput()) transitionPreview.draw(x+328,y,140,79);
+    text("A",x+120,y+72);text("B",x+224,y+72);
+    y+=94;
+    text(es?"Preview aislada de MAIN":"Preview isolated from MAIN",x,y);
+    text(boxes.transitionStatus(es),x,y+24);
+    ofPopStyle();
 }
 
 bool ofApp::handleTransitionSettingsClick(int x, int y, int button)
 {
-	const SettingsLayout L = getSettingsLayout();
-	const ofVec2f m((float)x, (float)y);
-	const bool leftButton = button == OF_MOUSE_BUTTON_LEFT;
-	const bool cycleButton = leftButton || button == OF_MOUSE_BUTTON_RIGHT;
-	const int step = button == OF_MOUSE_BUTTON_RIGHT ? -1 : 1;
-
-	if (leftButton && L.transitionDurationSlider.inside(m.x, m.y))
-	{
-		transitionDurationDragging = true;
-		applyTransitionDurationFromMouse(m.x, L);
-		return true;
-	}
-	if (cycleButton && L.transitionTypeButton.inside(m.x, m.y))
-	{
-		// Cycles rather than opening a menu: three values, and the label on the
-		// button already says which one you are on.
-		boxes.setTransitionType(
-			(boxes.getTransitionType() + step + TransitionSR::TYPE_COUNT) %
-			TransitionSR::TYPE_COUNT);
-		return true;
-	}
-	return false;
+    if(button!=OF_MOUSE_BUTTON_LEFT) return false;
+    const auto L=getSettingsLayout();
+    if(transitionSettingsExpanded && L.transitionDurationSlider.inside(x,y)) {
+        transitionDurationDragging=true; applyTransitionDurationFromMouse(float(x),L); return true;
+    }
+    for(size_t i=0;i<transitionControls.size();++i) {
+        if(i>0 && !transitionSettingsExpanded) break;
+        auto &control=transitionControls[i];
+        if(control.bounds.inside(x,y)) {control.action();return true;}
+    }
+    return false;
 }
 
 vector<string> ofApp::getLiveOutputSourceOptions() const
@@ -6604,7 +6702,7 @@ void ofApp::keyPressed(int key) {
 		}
 		if (key == 'l') {
 			cout << "Load session from " << savedirectory << endl;
-			loadSession(savedirectory);
+			queueSessionLoad(savedirectory);
 		}
 		if (key == 'd') {
 			isDebug = !isDebug;
@@ -7668,7 +7766,7 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
 		path = std::filesystem::absolute(dragInfo.files[i]).lexically_normal().string();
 		const bool composition = ofToLower(ofFilePath::getFileExt(path)) == "xml";
 		if (composition && !loadAspreset) {
-			loadSession(path);
+			queueSessionLoad(path);
 		} else {
 			if (composition && !boxes.validateGroupFile(path, &boxes.lastLoadErrorDetail)) {
 				const string failedFile = boxes.lastLoadErrorDetail.empty() ?
@@ -7780,11 +7878,27 @@ void ofApp::loadSettings() {
 	boxes.setDurationGalleryMs(durationgallery ?
 		durationgallery.getFloatValue() : boxes.getDurationGalleryMs());
 	// Absent in settings written before transitions were configurable; the
-	// TransitionSR default (833ms, the old fixed 60fps feel) then stands.
+	// TransitionSR default (1500ms) then stands.
 	if (transitionDuration)
 		boxes.setTransitionDurationMs(transitionDuration.getFloatValue());
 	if (transitionTypeNode)
 		boxes.setTransitionType(transitionTypeNode.getIntValue());
+    if(auto tx=settings.getChild("transitions")) {
+        auto &tc=TransitionSR::preferences();
+        tc.beats=tx.getAttribute("beats").getBoolValue();
+        tc.start=jp_transition::Start(ofClamp(tx.getAttribute("start").getIntValue(),0,2));
+        tc.quality=jp_transition::Quality(ofClamp(tx.getAttribute("quality").getIntValue(),0,3));
+        tc.direction=ofClamp(tx.getAttribute("direction").getIntValue(),0,3);
+        tc.centerX=ofClamp(tx.getAttribute("centerX").getFloatValue(),0.f,1.f);
+        tc.centerY=ofClamp(tx.getAttribute("centerY").getFloatValue(),0.f,1.f);
+        tc.softness=ofClamp(tx.getAttribute("softness").getFloatValue(),0.f,1.f);
+        tc.plasmaScale=ofClamp(tx.getAttribute("scale").getFloatValue(),.25f,24.f);
+        tc.intensity=ofClamp(tx.getAttribute("intensity").getFloatValue(),0.f,1.f);
+        for(auto e:tx.getChildren("effect")) {
+            int i=e.getAttribute("id").getIntValue();
+            if(i>=0 && i<jp_transition::EffectCount) {tc.favorites[i]=e.getAttribute("favorite").getBoolValue();tc.randomEnabled[i]=e.getAttribute("random").getBoolValue();}
+        }
+    }
 	if (cuePanelX && cuePanelY && cuePanelW && cuePanelH) {
 		boxes.setCuePanelLayout(
 			24.0f, // siempre izquierda
@@ -8039,6 +8153,16 @@ bool ofApp::saveSettings() {
 	settings.appendChild("transitionduration").set(
 		boxes.getTransitionDurationMs());
 	settings.appendChild("transitiontype").set(boxes.getTransitionType());
+    auto tx=settings.appendChild("transitions");
+    auto &tc=TransitionSR::preferences();
+    tx.setAttribute("version",1); tx.setAttribute("beats",tc.beats);
+    tx.setAttribute("start",int(tc.start)); tx.setAttribute("quality",int(tc.quality));
+    tx.setAttribute("direction",tc.direction); tx.setAttribute("centerX",tc.centerX); tx.setAttribute("centerY",tc.centerY);
+    tx.setAttribute("softness",tc.softness); tx.setAttribute("scale",tc.plasmaScale); tx.setAttribute("intensity",tc.intensity);
+    for(int i=0;i<jp_transition::EffectCount;++i) {
+        auto e=tx.appendChild("effect"); e.setAttribute("id",i);
+        e.setAttribute("favorite",tc.favorites[i]); e.setAttribute("random",tc.randomEnabled[i]);
+    }
 	// The HELP language. It used to reset to English on every launch, and the
 	// ES/EN toggle exists on exactly one screen, so a Spanish reader had to find
 	// and flip it again every single time.
@@ -8186,6 +8310,26 @@ bool ofApp::loadSession(string path) {
 	return true;
 }
 
+void ofApp::queueSessionLoad(string path, bool recovering)
+{
+    lastTransitionLoadPath=path;lastTransitionLoadRecovery=recovering;
+    jp::Toast preparing;
+    preparing.id="transition-preparing"; preparing.state=jp::ToastState::Info; preparing.duration=0;
+    preparing.message=(language==0?"Preparing: ":"Preparando: ")+ofFilePath::getFileName(path);
+    toasts.publish(std::move(preparing));
+    const string resolved=std::filesystem::path(path).is_absolute()?path:jp_normalizePath(path);
+    boxes.requestSessionLoad(resolved,[this,path,recovering](JPboxgroup::LoadResult result) {
+        sessionLoadResult=result; toasts.close("transition-preparing");
+        if(result!=JPboxgroup::LoadResult::Success) {notifySessionLoadError();jp::recordEvent("session_load_failed");return;}
+        savedirectory=recovering?"savefiles/recovered.xml":path;
+        toasts.close("load-error"); recovery.markSaved(boxes,false);
+        if(recovering) {
+            recovery.dismiss(); recoveryCandidate.clear(); toasts.close("recovery");
+            publishToast("recovered",jp::ToastState::Success,language==0?"Session recovered.":"Sesión recuperada.");
+        }
+    });
+}
+
 void ofApp::notifySessionLoadError()
 {
 	const bool readError = sessionLoadResult == JPboxgroup::LoadResult::ReadError;
@@ -8201,7 +8345,9 @@ void ofApp::notifySessionLoadError()
         message = language == 0 ? "A shader or group could not load. Check the source files. Current composition kept." :
             "No se pudo cargar un shader o grupo. Revisá sus archivos. Se conservó la composición actual.";
     if (!boxes.lastLoadErrorDetail.empty()) message = ofFilePath::getFileName(boxes.lastLoadErrorDetail) + ": " + message;
-    publishToast("load-error", jp::ToastState::Error, message);
+    jp::Toast error;error.id="load-error";error.state=jp::ToastState::Error;error.message=message;
+    if(!lastTransitionLoadPath.empty()) error.actions={{"retry-transition",language==0?"Retry":"Reintentar"}};
+    toasts.publish(std::move(error));
 }
 
 bool ofApp::toastBlocked() const {
@@ -8227,11 +8373,12 @@ void ofApp::offerRecovery() {
 void ofApp::handleToastAction(const string& action) {
     if (toastBlocked()) return;
     if (action == "update") { releasePanelOpen = true; return; }
+    if(action=="retry-transition") {queueSessionLoad(lastTransitionLoadPath,lastTransitionLoadRecovery);return;}
     if (recoveryCandidate.empty()) return;
     if (action == "recover") {
         if (!saveSession("savefiles/before-recovery.xml")) return;
-        if (!loadSession(recoveryCandidate)) return;
-        savedirectory = "savefiles/recovered.xml";
+        queueSessionLoad(recoveryCandidate, true);
+        return;
     } else if (action != "discard-recovery") return;
     recovery.dismiss();
     recoveryCandidate.clear();
@@ -8263,7 +8410,7 @@ void ofApp::updateOSC() {
 
 			string dirfinal = "savefiles/" + dir;
 			cout << "DIR FINNAL : " << dirfinal << endl;
-			loadSession(dirfinal);
+			queueSessionLoad(dirfinal);
 		}
 	}
 

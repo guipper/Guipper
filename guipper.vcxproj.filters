@@ -815,6 +815,7 @@
     <ClInclude Include="src\defines.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="src\JPutils\jp_transition.h" />
     <ClInclude Include="src\JPutils\TransitionSR.h">
       <Filter>src\JPutils</Filter>
     </ClInclude>

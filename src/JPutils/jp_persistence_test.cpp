@@ -1094,11 +1094,13 @@ namespace
         fs::remove_all(backup);
         app.recoveryCandidate = directory + "missing.xml";
         app.handleToastAction("recover");
+        for(int i=0;i<2000&&app.boxes.sessionPreparing();++i){app.boxes.update();app.boxes.pollSessionLoad();ofSleepMillis(1);}
         check(!app.recoveryCandidate.empty() && app.toasts.find("load-error") &&
             app.toasts.find("recovery") && app.recovery.pending() == snapshot,
             "failed recovery load preserves notice and marker");
         app.recoveryCandidate = snapshot;
         app.keyPressed(OF_KEY_F9);
+        for(int i=0;i<2000&&app.boxes.sessionPreparing();++i){app.boxes.update();app.boxes.pollSessionLoad();ofSleepMillis(1);}
         check(app.recoveryCandidate.empty() && app.recovery.pending().empty() &&
             app.toasts.find("recovered") && fs::is_regular_file(backup), "F9 recovers with backup");
         check(app.savedirectory == "savefiles/recovered.xml", "recovered target separate from snapshot");
@@ -1111,6 +1113,7 @@ namespace
         }
         app.recoveryCandidate=snapshot; app.offerRecovery();
         app.toasts.activate("recovery", "recover"); app.dispatchToastActions();
+        for(int i=0;i<2000&&app.boxes.sessionPreparing();++i){app.boxes.update();app.boxes.pollSessionLoad();ofSleepMillis(1);}
         check(app.recoveryCandidate.empty() && app.toasts.find("recovered"), "recover button matches F9");
         app.toasts = jp::ToastManager{};
         check(!app.saveSession(directory, true) && app.toasts.find("save-error") &&
@@ -1439,6 +1442,7 @@ namespace
             check(group->getonoff(), "tommy group resumes");
         }
         app.loadAspreset = false; app.dragEvent(drop);
+        for(int i=0;i<2000&&app.boxes.sessionPreparing();++i){app.boxes.update();app.boxes.pollSessionLoad();ofSleepMillis(1);}
         check(app.boxes.boxes.size() == 9, "tommy/3 loads as full composition");
         check(jp_normalizePath("data/shaders/test.frag") == "shaders/test.frag", "legacy relative path");
         check(jp_normalizePath("./data/shaders/test.frag") == "shaders/test.frag", "dot relative path");
@@ -1496,12 +1500,187 @@ namespace
         check(app.boxes.boxes.size() == count, "empty drop is harmless");
         app.loadAspreset = false; event.files.push_back(file);
         app.dragEvent(event);
+        for(int i=0;i<2000&&app.boxes.sessionPreparing();++i){app.boxes.update();app.boxes.pollSessionLoad();ofSleepMillis(1);}
         check(app.boxes.boxes.size() == 1 && dynamic_cast<JPbox_shader*>(app.boxes.boxes[0]),
             "session mode also loads the exact dropped file");
         app.boxes.clear(); app.loadAspreset = oldMode;
         jp::AppPaths::current() = previousPaths;
         ofLogNotice("xml-drop") << "passed=" << passed;
         return passed;
+    }
+
+    bool checkTransitionCatalog(ofApp &app) {
+        bool passed=true;
+        auto check=[&](bool ok,const string &why){if(!ok)ofLogError("transition-catalog")<<why;passed=ok&&passed;};
+        const auto original=TransitionSR::preferences();
+        const auto oldType=app.boxes.getTransitionType();
+        const float oldDuration=app.boxes.getTransitionDurationMs();
+        TransitionSR::preferences()=jp_transition::Config();
+        const string folder=ofToDataPath("uishots/transitions/",true);
+        ofDirectory::createDirectory(folder,true,true);
+        ofFbo a,b,result; a.allocate(80,48,GL_RGBA);b.allocate(80,48,GL_RGBA);result.allocate(80,48,GL_RGBA);
+        a.begin();ofClear(220,10,20,90);a.end();b.begin();ofClear(5,210,50,200);b.end();
+        // These headless frames do not swap a window; finish GPU work before
+        // inspecting pixels. No extra render or synchronization in production.
+        auto pixel=[&](ofFbo &fbo){glFinish();ofPixels pixels;fbo.readToPixels(pixels);return pixels.getColor(40,24);};
+        auto same=[](ofColor a,ofColor b){return abs(int(a.r)-b.r)<3&&abs(int(a.g)-b.g)<3&&abs(int(a.b)-b.b)<3&&abs(int(a.a)-b.a)<3;};
+        // An existing development profile is migrated only once and therefore
+        // lacks newly shipped internal shaders. Match normal startup's data root.
+        {
+            const string bundleRoot=ofToDataPath("",true);
+            const auto previousBundle=jp::AppPaths::current().bundle;
+            const string legacyRoot=folder+"legacy-profile/";
+            ofDirectory::createDirectory(legacyRoot+"shaders/private",true,true);
+            for(const string &asset:{string("shaders/default.vert"),string("shaders/common.frag"),string("shaders/private/mix.frag")})
+                ofBufferToFile(legacyRoot+asset,ofBufferFromFile(ofFilePath::join(bundleRoot,asset)));
+            jp::AppPaths::current().bundle=bundleRoot;
+            ofSetDataPathRoot(legacyRoot);
+            TransitionSR profileMixer;
+            profileMixer.setType(TransitionSR::TYPE_MIX);
+            result.begin();ofPushStyle();ofEnableBlendMode(OF_BLENDMODE_DISABLED);ofSetColor(255);ofClear(0,0,0,0);
+            profileMixer.renderStraightMix(&a,&b,.5f,80,48);
+            ofPopStyle();result.end();
+            check(profileMixer.shader.getShader(GL_FRAGMENT_SHADER)!=0,"existing profile loads complete internal transition program");
+            const auto mixed=pixel(result);
+            check(same(mixed,ofColor(112,110,35,145)),"existing profile transition produces the expected RGBA mixture");
+            // Even an incomplete installation must reject a vertex-only program
+            // and use the remaining legacy crossfade, rather than output black.
+            jp::AppPaths::current().bundle=legacyRoot;profileMixer.reload();
+            result.begin();ofPushStyle();ofEnableBlendMode(OF_BLENDMODE_DISABLED);ofSetColor(255);ofClear(0,0,0,0);
+            profileMixer.renderStraightMix(&a,&b,.5f,80,48);
+            ofPopStyle();result.end();
+            check(profileMixer.shader.getShader(GL_FRAGMENT_SHADER)!=0 &&
+                same(pixel(result),ofColor(112,110,35,145)),"missing catalog uses a complete visible crossfade fallback");
+            ofSetDataPathRoot(bundleRoot);jp::AppPaths::current().bundle=previousBundle;
+        }
+        TransitionSR mixer;
+        for(int effect=0;effect<TransitionSR::TYPE_COUNT;++effect) {
+            mixer.setType(effect);
+            for(float progress:{0.f,.5f,1.f}) {
+                result.begin(); ofPushStyle();ofSetRectMode(OF_RECTMODE_CORNER);ofEnableBlendMode(OF_BLENDMODE_DISABLED);ofSetColor(255);ofClear(0,0,0,0);
+                check(mixer.renderStraightMix(&a,&b,progress,80,48),"compositor renders "+ofToString(effect));
+                ofPopStyle();result.end();
+                if(progress==0)check(same(pixel(result),pixel(a)),"exact A including alpha "+ofToString(effect));
+                if(progress==1)check(same(pixel(result),pixel(b)),"exact B including alpha "+ofToString(effect));
+                if(progress==.5f) {ofPixels pixels;result.readToPixels(pixels);ofSaveImage(pixels,folder+"effect-"+ofToString(effect)+".png");}
+            }
+        }
+        check(mixer.shader.isLoaded(),"catalog shader linked");
+        app.boxes.clear();app.boxes.setTransitionType(TransitionSR::TYPE_MIX);app.boxes.setTransitionDurationMs(1500);
+        app.boxes.save(folder+"empty.xml");
+        const string animated=folder+"moving.frag";
+        const string source="#pragma include \"../../shaders/common.frag\"\nvoid main(){fragColor=vec4(.5+.5*sin(time*9.0),.2,.4,1.0);}\n";
+        ofBufferToFile(animated,ofBuffer(source.data(),source.size()));
+        auto *moving=dynamic_cast<JPbox_shader *>(app.boxes.addBox(animated,100,100));
+        check(moving!=nullptr,"animated fixture");
+        if(moving) {
+            moving->setonoff(true);app.activerender=0;app.boxes.update();
+            check(app.boxes.save(folder+"moving.xml"),"save animated fixture");
+            auto *before=moving;
+            check(app.boxes.load(folder+"empty.xml")==JPboxgroup::LoadResult::Success,"live outgoing into empty destination");
+            app.boxes.update();const auto first=pixel(before->fbo);
+            bool changed=false;
+            for(int frame=0;frame<4;++frame) {ofSleepMillis(60);app.boxes.update();changed=changed||!same(first,pixel(before->fbo));}
+            check(changed,"outgoing shader continues to animate");
+        }
+        app.boxes.clear();
+        bool completed=false;JPboxgroup::LoadResult loadResult=JPboxgroup::LoadResult::ReadError;
+        auto callback=[&](JPboxgroup::LoadResult value){completed=true;loadResult=value;};
+        app.boxes.requestSessionLoad(folder+"moving.xml",callback);
+        for(int i=0;i<2000&&!completed;++i){app.boxes.update();app.boxes.pollSessionLoad();ofSleepMillis(1);}
+        check(completed&&loadResult==JPboxgroup::LoadResult::Success,"incremental preparation completes");
+        const auto count=app.boxes.boxes.size();completed=false;
+        app.boxes.requestSessionLoad(folder+"missing.xml",callback);
+        for(int i=0;i<2000&&!completed;++i){app.boxes.pollSessionLoad();ofSleepMillis(1);}
+        check(completed&&loadResult==JPboxgroup::LoadResult::ReadError&&app.boxes.boxes.size()==count,"failed candidate preserves scene");
+        const string invalidShader=folder+"invalid.frag";
+        const string invalidSource="#version 330\nthis is not valid GLSL;\n";
+        ofBufferToFile(invalidShader,ofBuffer(invalidSource.data(),invalidSource.size()));
+        ofXml invalidSession;invalidSession.load(folder+"moving.xml");
+        invalidSession.getChild("box").getChild("directory").set(invalidShader);
+        invalidSession.save(folder+"invalid.xml");completed=false;
+        app.boxes.requestSessionLoad(folder+"invalid.xml",callback);
+        for(int i=0;i<2000&&!completed;++i){app.boxes.update();app.boxes.pollSessionLoad();ofSleepMillis(1);}
+        check(completed&&loadResult==JPboxgroup::LoadResult::AssetError&&app.boxes.boxes.size()==count,"failed shader compilation preserves scene");
+        completed=false;app.boxes.requestSessionLoad(folder+"moving.xml",callback);app.boxes.clear();app.boxes.pollSessionLoad();
+        check(!completed&&!app.boxes.sessionPreparing(),"Clear cancels candidate and completion");
+        // Compatible morph emits temporary values, while XML retains defaults.
+        const string morphFile=folder+"morph.frag", otherFile=folder+"other.frag";
+        const string morphSource="#pragma include \"../../shaders/common.frag\"\nuniform float gain = .8;\nuniform bool enabled = true;\nvoid main(){fragColor=vec4(gain,enabled?1.0:0.0,0.0,1.0);}\n";
+        ofBufferToFile(morphFile,ofBuffer(morphSource.data(),morphSource.size()));
+        const string otherSource=morphSource+"\n// Different shader source\n";
+        ofBufferToFile(otherFile,ofBuffer(otherSource.data(),otherSource.size()));
+        auto *ma=app.boxes.addBox(morphFile,20,20),*mb=app.boxes.addBox(morphFile,120,20);
+        if(ma && mb) {
+            int gain=ma->parameters.indexOfName("gain"), enabled=ma->parameters.indexOfName("enabled");
+            ma->parameters.setFloatValue(.2f,gain);ma->parameters.setFloatLerpValue(.2f,gain);
+            mb->parameters.setFloatValue(.8f,gain);mb->parameters.setFloatLerpValue(.8f,gain);
+            ma->parameters.setBoolValue(false,enabled);mb->parameters.setBoolValue(true,enabled);
+            ma->setonoff(true);mb->setonoff(true);app.activerender=0;app.boxes.update();
+            app.boxes.setTransitionType(TransitionSR::TYPE_MORPH);app.boxes.setTransitionDurationMs(100);
+            app.boxes.requestSetActiveRender(1);app.boxes.update();
+            check(mb->parameters.getJParameter(gain)->isMorphing(),"compatible shaders arm morph");
+            check(std::abs(mb->parameters.getFloatValue(gain)-.2f)<.01f,"morph temporary emission");
+            auto saved=app.boxes.snapshotXml();
+            for(auto box:saved.getChildren("box")) if(box.getChild("nombre").getValue()==mb->name)
+                for(auto param:box.getChild("parameters").getChildren("param")) {
+                    if(param.getChild("name").getValue()=="gain")check(std::abs(param.getChild("value").getFloatValue()-.8f)<.001f,"save ignores morph overlay");
+                    if(param.getChild("name").getValue()=="enabled")check(param.getChild("value").getBoolValue(),"save retains destination discrete value");
+                }
+            check(pixel(mb->fbo).g<3,"discrete value held during morph");
+            ofSleepMillis(130);ofNoFill();app.boxes.update();ofFill();
+            check(!mb->parameters.getJParameter(gain)->isMorphing()&&pixel(mb->fbo).g>250,"morph releases exact discrete destination");
+            auto *different=app.boxes.addBox(otherFile,220,20);
+            check(different && !app.boxes.transitionCompatible(ma,different),"same names in different shader rejected");
+        } else check(false,"morph fixtures created");
+        app.boxes.clear();
+        const string feedbackFile=folder+"feedback.frag";
+        const string feedbackSource="#pragma include \"../../shaders/common.frag\"\nvoid main(){fragColor=texture(feedback,gl_FragCoord.xy/resolution)*.5;}\n";
+        ofBufferToFile(feedbackFile,ofBuffer(feedbackSource.data(),feedbackSource.size()));
+        JPbox_shader feedback;feedback.setup(feedbackFile,"feedback");feedback.setonoff(true);feedback.fbo.allocate(80,48,GL_RGBA);
+        check(feedback.seedTransitionFeedback(a),"explicit active feedback capability");
+        feedback.update();check(std::abs(int(pixel(feedback.fbo).r)-110)<3,"feedback consumes outgoing seed");
+        feedback.update();check(std::abs(int(pixel(feedback.fbo).r)-55)<3,"feedback subsequently consumes own output");
+        feedback.setTransitionRenderScale(.5f);check(feedback.fbo.getWidth()==40&&feedback.fbo.getHeight()==24,"actual node render reduced");
+        feedback.setTransitionRenderScale(1.f);check(feedback.fbo.getWidth()==80&&feedback.fbo.getHeight()==48,"native size restored");
+        check(std::abs(int(pixel(feedback.fbo).r)-55)<3,"resizing preserves rendered feedback");feedback.clear();
+
+        // Nested feedback capability and a return to A while A -> B is running.
+        {
+            TransitionSR::preferences().effect=jp_transition::Feedback;
+            TransitionSR::preferences().duration=1.5;
+            JPbox_preset group;
+            group.JPbox::setup("", "transition-group");group.setonoff(true);group.activeRender=0;
+            group.fbo.allocate(80,48,GL_RGBA);
+            auto *sourceNode=new JPbox_shader;
+            sourceNode->setup(morphFile,"source");sourceNode->setonoff(true);sourceNode->fbo.allocate(80,48,GL_RGBA);
+            auto *nested=new JPbox_preset;
+            nested->JPbox::setup("", "nested");nested->setonoff(true);nested->activeRender=0;nested->fbo.allocate(80,48,GL_RGBA);
+            auto *feedbackNode=new JPbox_shader;
+            feedbackNode->setup(feedbackFile,"nested-feedback");feedbackNode->setonoff(true);feedbackNode->fbo.allocate(80,48,GL_RGBA);
+            nested->boxes.push_back(feedbackNode);group.boxes={sourceNode,nested};
+            group.update();const int outgoingRed=pixel(sourceNode->fbo).r;
+            group.activeRender=1;group.update();
+            check(group.activeRenderTransition.state().effect()==jp_transition::Feedback,"nested group declares feedback capability");
+            check(std::abs(int(pixel(feedbackNode->fbo).r)-outgoingRed/2)<3,"nested feedback receives outgoing frame once");
+            group.activeRender=0;group.update();
+            check(group.activeRenderTransitionTarget==0 && group.activeTransitionSnapshot.isAllocated(),"group interruption returning to A captures visible mixture");
+            group.clear();
+            TransitionSR::preferences().effect=jp_transition::Mix;
+        }
+
+        // Make visual captures of the real settings panel, without a live show.
+        const int oldLanguage=app.language;const float oldScroll=app.settingsScroll;
+        for(int lang:{0,1}) {
+            app.language=lang;app.updateTransitionPreview();
+            auto layout=app.getSettingsLayout();app.settingsScroll+=layout.transitionDurationSlider.y-70;
+            ofFbo shot;shot.allocate(ofGetWidth(),ofGetHeight(),GL_RGBA);shot.begin();ofClear(12,16,20,255);
+            app.drawTransitionSettings(app.getSettingsLayout());shot.end();ofPixels pixels;shot.readToPixels(pixels);
+            ofSaveImage(pixels,folder+(lang?"settings-es.png":"settings-en.png"));
+        }
+        app.language=oldLanguage;app.settingsScroll=oldScroll;
+        app.boxes.setTransitionType(oldType);app.boxes.setTransitionDurationMs(oldDuration);TransitionSR::preferences()=original;
+        ofLogNotice("transition-catalog")<<"passed="<<passed;return passed;
     }
 
     bool checkSessionFade(ofApp& app) {
@@ -1514,7 +1693,11 @@ namespace
         app.boxes.clear();
         const int oldW = jp_constants::renderWidth, oldH = jp_constants::renderHeight;
         jp_constants::renderWidth = 64; jp_constants::renderHeight = 64;
+        const auto oldConfig = TransitionSR::preferences();
+        const int oldType = app.boxes.getTransitionType();
         const float oldDuration = app.boxes.getTransitionDurationMs();
+        TransitionSR::preferences() = jp_transition::Config();
+        app.boxes.setTransitionType(TransitionSR::TYPE_MIX);
         app.boxes.setTransitionDurationMs(240.f);
         const auto folder = ofToDataPath("uishots/session-fade/", true);
         ofDirectory::createDirectory(folder, true, true);
@@ -1544,6 +1727,20 @@ namespace
             return std::abs(int(a.r)-b.r)<5 && std::abs(int(a.g)-b.g)<5 &&
                 std::abs(int(a.b)-b.b)<5 && std::abs(int(a.a)-b.a)<5;
         };
+        TransitionSR::preferences().quality=jp_transition::Quality::Capture;
+        // Exercise the node compositor itself, not just each node's framebuffer.
+        colorNode(ofColor::red);colorNode(ofColor::blue);app.activerender=0;
+        app.boxes.update();app.boxes.update();
+        ofEnableNormalizedTexCoords();app.draw();
+        app.boxes.requestSetActiveRender(1);app.boxes.update();
+        check(same(pixel(),ofColor::red),"node transition starts with visible red source");
+        app.draw();ofSleepMillis(100);app.boxes.update();
+        const auto nodeMix=pixel();
+        ofLogNotice("session-fade")<<"node midpoint="<<nodeMix;
+        check(nodeMix.r>20&&nodeMix.b>20,"node transition has visible midpoint");
+        ofSleepMillis(270);app.boxes.update();
+        check(same(pixel(),ofColor::blue),"node transition ends at blue");
+        app.boxes.clear();
         check(app.boxes.save(folder + "empty.xml"), "save empty fixture");
         check(colorNode(ofColor::blue) != nullptr, "green background fixture");
         auto* greenOverlay = colorNode(ofColor::green);
@@ -1591,6 +1788,8 @@ namespace
         check(app.boxes.getActiverender() == nullptr, "empty fade releases output");
         app.boxes.clear();
         app.boxes.setTransitionDurationMs(oldDuration);
+        app.boxes.setTransitionType(oldType);
+        TransitionSR::preferences() = oldConfig;
         jp_constants::renderWidth = oldW; jp_constants::renderHeight = oldH;
         ofLogNotice("session-fade") << "passed=" << passed;
         return passed;
@@ -1690,6 +1889,7 @@ bool jp_persistence_test::run(ofApp &app)
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
     if (testMode && string(testMode) == "legacy_composition") return checkLegacyComposition(app);
     if (testMode && string(testMode) == "xml_drop") return checkXmlDrop(app);
+    if (testMode && string(testMode) == "transition_catalog") return checkTransitionCatalog(app);
     if (testMode && string(testMode) == "session_fade") return checkSessionFade(app);
     if (testMode && string(testMode) == "cue_media") return checkCueMedia(app);
     if (testMode && string(testMode) == "text_input") return jp_text_input_test::run(app);
@@ -3094,14 +3294,14 @@ bool jp_persistence_test::run(ofApp &app)
 		const float longer = elapsedFor(2000.0f, 1.0f / 60.0f);
 		if (std::abs(longer - 2.0f) > 0.07f)
 			fail("2000ms took " + ofToString(longer, 3) + "s");
-		// A huge stall must not jump the whole fade in one frame.
+		// A long frame must not stretch the configured wall-clock duration.
 		{
 			TransitionSR t;
 			t.setDurationMs(800.0f);
 			t.setLerpValue(0.0f);
 			t.advance(5.0f);
-			if (t.getLerpValue() >= 1.0f)
-				fail("a single 5s stall completed the whole transition");
+			if (t.getLerpValue() != 1.0f)
+				fail("a long frame stretched the wall-clock transition");
 		}
 	}
 	// Parameter morph: the MilkDrop half of the transition.
@@ -3175,6 +3375,7 @@ bool jp_persistence_test::run(ofApp &app)
 	// and a clean release.
 	bool morphArming = true;
 	{
+        app.boxes.setTransitionType(TransitionSR::TYPE_MORPH);
 		auto fail = [&](const string &why)
 		{
 			morphArming = false;
@@ -3297,7 +3498,8 @@ bool jp_persistence_test::run(ofApp &app)
 		const char *frags[] = {
 			"shaders/private/mix.frag",
 			"shaders/private/transition_warp.frag",
-			"shaders/private/transition_dither.frag"
+			"shaders/private/transition_dither.frag",
+            "shaders/private/transition_catalog.frag"
 		};
 		for (const char *frag : frags)
 		{

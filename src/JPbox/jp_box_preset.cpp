@@ -1,3 +1,5 @@
+#include <set>
+#include <chrono>
 #include "../JPutils/jp_storage.h"
 #include "jp_box_preset.h"
 #include "jp_media.h"
@@ -90,6 +92,16 @@ void JPbox_preset::setup(string _directory, string _name)
 		boxes.push_back(bx);
 	}
 
+    loadPreparedState(xml);
+}
+void JPbox_preset::setupPrepared(string directory, string name, const ofXml &xml, vector<JPbox *> &children)
+{
+    JPbox::setup(directory,name);tipo=PRESETBOX;clear();boxes.swap(children);
+    loadPreparedState(xml);
+}
+void JPbox_preset::loadPreparedState(const ofXml &xml)
+{
+    auto boxloader=xml.find("/box");
 	// Initialize exposedParams based on loaded boxes
 	resizeExposedParams((int)boxes.size());
 
@@ -218,7 +230,7 @@ void JPbox_preset::setup(string _directory, string _name)
 		index1++;
 	}
 	//activeRender = xml.getChild("activerender").getIntValue();
-	activeRender = int(ofClamp(xml.getChild("activerender").getIntValue(), 0, boxes.size() - 1));
+	activeRender = boxes.empty()?0:ofClamp(xml.getChild("activerender").getIntValue(),0,int(boxes.size())-1);
 
 	// Load viewport zoom/pan
 	auto zoomChild = xml.getChild("viewportZoom");
@@ -261,6 +273,27 @@ void JPbox_preset::updateFBO()
 		// throttling - the one place where the saving matters most, because a
 		// group is how you park a branch you are not currently showing.
 		//
+        beginActiveRenderTransition();
+        if(activeRenderTransitionRunning) activeRenderTransition.advance();
+        updateActiveRenderMorph();
+        const auto transitionStarted=std::chrono::steady_clock::now();
+        const float parentScale=TransitionSR::renderScaleLimit();
+        struct RestoreScale {float value;~RestoreScale(){TransitionSR::renderScaleLimit()=value;}} restoreScale{parentScale};
+        const float localScale=activeRenderTransitionRunning && activeRenderTransition.getLerpValue()<1.f?activeRenderTransition.state().scale():1.f;
+        const float scale=std::min(parentScale,localScale);
+        if(scale!=childTransitionScale) {
+            std::function<void(const vector<JPbox *> &)> resize=[&](const vector<JPbox *> &nodes) {
+                for(auto *node:nodes) {if(auto *shader=dynamic_cast<JPbox_shader *>(node))shader->setTransitionRenderScale(scale);if(auto *group=dynamic_cast<JPbox_preset *>(node))resize(group->boxes);}
+            };
+            resize(boxes);childTransitionScale=scale;
+        }
+        TransitionSR::renderScaleLimit()=scale;
+        if(activeRenderTransitionRunning && activeRenderTransition.state().capture() && !activeTransitionSnapshot.isAllocated() && lastCompositedActiveRender>=0 && lastCompositedActiveRender<int(boxes.size())) {
+            auto &source=boxes[lastCompositedActiveRender]->fbo;
+            activeTransitionSnapshot.allocate(source.getWidth(),source.getHeight(),GL_RGBA);
+            activeTransitionSnapshot.begin();ofPushStyle();ofSetRectMode(OF_RECTMODE_CORNER);
+            ofEnableBlendMode(OF_BLENDMODE_DISABLED);ofSetColor(255);source.draw(0,0);ofPopStyle();activeTransitionSnapshot.end();
+        }
 		// Roots are collected only when this group is itself rendering. When
 		// the group is off-frame its composite is skipped anyway, so keeping a
 		// child at full rate would produce a frame nobody reads; leaving the
@@ -272,7 +305,7 @@ void JPbox_preset::updateFBO()
 				roots.push_back(activeRender);
 				// Mid-crossfade both ends have to stay live, exactly as the
 				// top-level scheduler keeps both transition inputs.
-				if (activeRenderTransitionRunning)
+				if (activeRenderTransitionRunning && !activeTransitionSnapshot.isAllocated())
 					roots.push_back(lastCompositedActiveRender);
 			}
 			jp_renderschedule::apply(boxes, roots, ofGetFrameNum(), false);
@@ -297,6 +330,10 @@ void JPbox_preset::updateFBO()
 		// The composite is a full-resolution blit of the active child, so it
 		// obeys the group's own rate.
 		if (shouldRenderThisFrame()) renderActiveRender();
+        TransitionSR::renderScaleLimit()=parentScale;
+        activeRenderTransition.observeFrame(std::max(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-transitionStarted).count(),ofGetLastFrameTime()*1000.),
+            ofGetTargetFrameRate()>0?ofGetTargetFrameRate():60.);
+
 	}
 	else
 	{
@@ -304,7 +341,7 @@ void JPbox_preset::updateFBO()
 	}
 }
 
-void JPbox_preset::renderActiveRender()
+void JPbox_preset::beginActiveRenderTransition()
 {
 	if (boxes.empty() || activeRender < 0 || activeRender >= (int)boxes.size() ||
 		boxes[activeRender] == nullptr)
@@ -321,14 +358,101 @@ void JPbox_preset::renderActiveRender()
 		activeRenderTransitionRunning = false;
 	}
 
-	if (targetIndex != lastCompositedActiveRender &&
-		(!activeRenderTransitionRunning || activeRenderTransitionTarget != targetIndex))
+	if (activeRenderTransitionRunning ? targetIndex != activeRenderTransitionTarget :
+        targetIndex != lastCompositedActiveRender)
 	{
+        if(activeRenderTransitionRunning && fbo.isAllocated()) {
+            activeTransitionSnapshot.allocate(fbo.getWidth(),fbo.getHeight(),GL_RGBA);
+            activeTransitionSnapshot.begin();ofPushStyle();ofSetRectMode(OF_RECTMODE_CORNER);
+            ofEnableBlendMode(OF_BLENDMODE_DISABLED);ofSetColor(255);ofClear(0,0,0,0);
+            fbo.draw(0,0);ofPopStyle();activeTransitionSnapshot.end();
+        } else activeTransitionSnapshot.clear();
 		activeRenderTransitionInitialized = true;
-		activeRenderTransition.setLerpValue(0);
+		activeRenderTransition.setType(TransitionSR::preferences().effect);
+        activeRenderTransition.setDurationMs(TransitionSR::preferences().duration * 1000.);
+        clearActiveRenderMorph();
+        jp_transition::Capabilities caps;
+        auto *source=dynamic_cast<JPbox_shader *>(boxes[lastCompositedActiveRender]);
+        auto *target=dynamic_cast<JPbox_shader *>(boxes[targetIndex]);
+        caps.morph=source && target && source!=target && !activeTransitionSnapshot.isAllocated() && source->transitionCompatibleWith(*target);
+        if(caps.morph) for(int i=0;i<target->parameters.getSize();++i)
+            caps.staged=caps.staged || jp_transition::category(target->shader.getShaderSource(GL_FRAGMENT_SHADER),target->parameters.getName(i))!=jp_transition::Category::None;
+        // Resolve feedback capabilities through the incoming dependency graph,
+        // including nested groups, while preserving every shared branch.
+        vector<JPbox *> allNodes;
+        std::function<void(const vector<JPbox *> &)> collect = [&](const vector<JPbox *> &nodes) {
+            for (auto *node : nodes) {
+                allNodes.push_back(node);
+                if (auto *group = dynamic_cast<JPbox_preset *>(node)) collect(group->boxes);
+            }
+        };
+        collect(boxes);
+        auto dependencies = [&](JPbox *root) {
+            std::set<JPbox *> seen;
+            std::function<void(JPbox *)> visit = [&](JPbox *node) {
+                if (!node || !seen.insert(node).second) return;
+                if (auto *group = dynamic_cast<JPbox_preset *>(node)) {
+                    if (group->activeRender >= 0 && group->activeRender < int(group->boxes.size()))
+                        visit(group->boxes[group->activeRender]);
+                }
+                for (int i = 0; i < node->fbohandlergroup.getSize(); ++i)
+                    if (node->fbohandlergroup.getisPointerSet(i))
+                        for (auto *candidate : allNodes)
+                            if (&candidate->fbo == node->fbohandlergroup.getFboPointerReference(i)) visit(candidate);
+            };
+            visit(root);
+            return seen;
+        };
+        const auto shared = dependencies(boxes[lastCompositedActiveRender]);
+        vector<JPbox_shader *> feedbackTargets;
+        for (auto *node : dependencies(boxes[targetIndex]))
+            if (!shared.count(node)) if (auto *shader = dynamic_cast<JPbox_shader *>(node))
+                if (shader->shader.getUniformLocation("feedback") >= 0) feedbackTargets.push_back(shader);
+        caps.feedback = !feedbackTargets.empty();
+        activeRenderTransition.setCapabilities(caps);
+        activeRenderTransition.setLerpValue(0);
+        if (activeRenderTransition.state().effect() == jp_transition::Feedback)
+            for (auto *shader : feedbackTargets)
+                shader->seedTransitionFeedback(activeTransitionSnapshot.isAllocated() ? activeTransitionSnapshot : boxes[lastCompositedActiveRender]->fbo);
+        if(activeRenderTransition.state().effect()==jp_transition::Morph || activeRenderTransition.state().effect()==jp_transition::StagedMorph) {
+            localMorphSource=source;localMorphTarget=target;
+            for(int i=0;i<target->parameters.getSize();++i) {
+                auto *a=source->parameters.getJParameter(i),*b=target->parameters.getJParameter(i);
+                if(b->variabletype==JPParameter::BOOL)b->setMorph(a->boolValue?1.f:0.f,1.f);
+                else {a->setMorph(b->floatValue,0.f);b->setMorph(a->floatValue,1.f);}
+            }
+        }
 		activeRenderTransitionTarget = targetIndex;
 		activeRenderTransitionRunning = true;
 	}
+
+}
+void JPbox_preset::clearActiveRenderMorph()
+{
+    for(auto *node:{localMorphSource,localMorphTarget})
+        if(node && std::find(boxes.begin(),boxes.end(),node)!=boxes.end())
+            for(int i=0;i<node->parameters.getSize();++i)node->parameters.getJParameter(i)->clearMorph();
+    localMorphSource=nullptr;localMorphTarget=nullptr;
+}
+void JPbox_preset::updateActiveRenderMorph()
+{
+    if(!localMorphSource || !localMorphTarget)return;
+    if(std::find(boxes.begin(),boxes.end(),localMorphSource)==boxes.end() ||
+        std::find(boxes.begin(),boxes.end(),localMorphTarget)==boxes.end() || activeRenderTransition.getLerpValue()>=1.f) {clearActiveRenderMorph();return;}
+    auto *target=dynamic_cast<JPbox_shader *>(localMorphTarget);
+    for(int i=0;i<target->parameters.getSize();++i) {
+        auto category=activeRenderTransition.state().effect()==jp_transition::StagedMorph?
+            jp_transition::category(target->shader.getShaderSource(GL_FRAGMENT_SHADER),target->parameters.getName(i)):jp_transition::Category::None;
+        const float amount=jp_transition::morphProgress(activeRenderTransition.getLerpValue(),category);
+        auto *a=localMorphSource->parameters.getJParameter(i),*b=target->parameters.getJParameter(i);
+        if(a->isMorphing())a->morphAmount=amount;
+        if(b->isMorphing())b->morphAmount=1.f-amount;
+    }
+}
+void JPbox_preset::renderActiveRender()
+{
+    if(boxes.empty() || activeRender<0 || activeRender>=int(boxes.size()))return;
+    const int targetIndex=activeRender;
 
 	ofPushStyle();
 	// Rect mode is global and this runs during update(), so it inherits
@@ -355,11 +479,10 @@ void JPbox_preset::renderActiveRender()
 	ofEnableBlendMode(OF_BLENDMODE_DISABLED);
 	if (activeRenderTransitionRunning)
 	{
-		activeRenderTransition.advance();
 		float progress = activeRenderTransition.getLerpValue();
 		float easedProgress = progress * progress * (3.0f - 2.0f * progress);
 		if (!activeRenderTransition.renderStraightMix(
-			&boxes[lastCompositedActiveRender]->fbo,
+			activeTransitionSnapshot.isAllocated()?&activeTransitionSnapshot:&boxes[lastCompositedActiveRender]->fbo,
 			&boxes[targetIndex]->fbo, easedProgress,
 			fbo.getWidth(), fbo.getHeight()))
 		{
@@ -378,6 +501,7 @@ void JPbox_preset::renderActiveRender()
 	if (activeRenderTransitionRunning && activeRenderTransition.getLerpValue() >= 1.0f)
 	{
 		lastCompositedActiveRender = activeRenderTransitionTarget;
+        activeTransitionSnapshot.clear();
 		activeRenderTransitionRunning = false;
 	}
 }
@@ -775,6 +899,8 @@ void JPbox_preset::updateExposedTextureInputNodePositions()
 
 void JPbox_preset::clear()
 {
+    childTransitionScale=1.f;
+    clearActiveRenderMorph();activeTransitionSnapshot.clear();
 	activeRenderTransitionRunning = false;
 	lastCompositedActiveRender = -1;
 	activeRenderTransitionTarget = -1;

@@ -310,6 +310,7 @@
     <ClInclude Include="src\JPbox\jp_box_factory.h" />
     <ClInclude Include="src\JPutils\jp_parameter_xml.h" />
     <ClInclude Include="src\defines.h" />
+    <ClInclude Include="src\JPutils\jp_transition.h" />
     <ClInclude Include="src\JPutils\TransitionSR.h" />
     <ClInclude Include="src\JPutils\jp_midi_keymap.h" />
     <ClInclude Include="src\ofApp.h" />

@@ -3,29 +3,31 @@
 #pragma once
 #include "ofMain.h"
 #include "jp_constants.h"
+#include "jp_transition.h"
 class TransitionSR {
 
 public:
+	static jp_transition::Config &preferences();
+    static float &renderScaleLimit() { static float value=1.f; return value; }
+	const jp_transition::Timeline &state() const { return timeline; }
+	void setCapabilities(jp_transition::Capabilities value) { capabilities = value; }
+	void captureInterruption();
+    void freezeOutgoing();
+    bool observeFrame(double milliseconds, double fps) { return timeline.sample(milliseconds, fps); }
+
 	TransitionSR();
 	~TransitionSR();
 	void setup();
 	void setup(ofFbo * _fbo1, ofFbo * _fbo2);
 	void advance();
-	// Elapsed seconds to advance by. Defaults to ofGetLastFrameTime(); the
-	// explicit form exists so a test can feed a fixed timestep.
+	// Explicit timestep for deterministic tests; advance() uses the wall clock.
 	void advance(float deltaSeconds);
-	void update();
-	// How long a full 0..1 transition takes. Was a fixed 0.02 per FRAME, which
-	// meant 833ms at 60fps and 2s at 25fps - the fade got slower exactly when
-	// the machine was struggling. 833 is that old 60fps figure, so nothing
-	// visibly changes until someone moves it.
+	void update(bool advanceClock = true);
+	// Duration is independent of frame rate; new profiles default to 1500 ms.
 	void setDurationMs(float _durationMs);
 	float getDurationMs() const;
 
-	// Which shader blends the two frames. All of them share one uniform
-	// contract - textura1, textura2, mixst, resolution - so switching is a
-	// shader swap and nothing at the call sites changes.
-	//
+	// Stable effect identifiers consumed by the common compositor.
 	// APPEND ONLY: the value is written into settings.xml, so inserting one
 	// would silently change what an existing configuration means.
 	enum Type
@@ -33,6 +35,9 @@ public:
 		TYPE_MIX = 0,     // straight per-pixel crossfade, the original
 		TYPE_WARP,        // both frames displaced through one shared flow
 		TYPE_DITHER,      // ordered dither, no pixel is ever a mixture
+		TYPE_CUT, TYPE_BEAT_CUT, TYPE_PLASMA, TYPE_RADIAL_IN, TYPE_RADIAL_OUT,
+		TYPE_PUSH, TYPE_WIPE, TYPE_BLOCKS, TYPE_SPLIT_PUSH, TYPE_CENTER_PUSH,
+		TYPE_CENTER_SQUEEZE, TYPE_DOTS, TYPE_FEEDBACK, TYPE_MORPH, TYPE_STAGED_MORPH, TYPE_RANDOM,
 		TYPE_COUNT
 	};
 	void setType(int _type);
@@ -86,6 +91,12 @@ private:
 	string dir;
 
 	float lerpValue;
-	float durationMs = 833.0f;
+	float durationMs = 1500.0f;
+	jp_transition::Timeline timeline;
+	jp_transition::Capabilities capabilities;
+	bool armed = false;
+    bool outgoingFrozen = false;
+	double explicitClock = 0.;
+	ofFbo interruptedFrame;
 	int transitionType = TYPE_MIX;
 };

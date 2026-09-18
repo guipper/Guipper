@@ -244,6 +244,7 @@ protected:
 	void prepareFeedbackFrame(const ofShader &shader);
 	const ofTexture *getFeedbackTexture() const { return feedbackTexture; }
 	void resetFeedbackFrame();
+    bool seedFeedbackFrame(const ofShader &shader, const ofFbo &source);
 	ofFbo feedbackFrame;
 	const ofTexture *feedbackTexture = nullptr;
 	bool feedbackHasRenderedFrame = false;

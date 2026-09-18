@@ -156,6 +156,19 @@ public:
 	void copyCustomStateFrom(const JPbox *source) override;
 	// ofFbo fbo;
 	ofShader shader;
+    bool seedTransitionFeedback(const ofFbo &source) { return seedFeedbackFrame(shader, source); }
+    bool setTransitionRenderScale(float scale);
+    bool transitionCompatibleWith(JPbox_shader &other) {
+        if(this==&other || shader.getShaderSource(GL_FRAGMENT_SHADER).empty() ||
+            shader.getShaderSource(GL_FRAGMENT_SHADER)!=other.shader.getShaderSource(GL_FRAGMENT_SHADER) ||
+            parameters.getSize()!=other.parameters.getSize()) return false;
+        for(int i=0;i<parameters.getSize();++i)
+            if(parameters.getName(i)!=other.parameters.getName(i) || parameters.getType(i)!=other.parameters.getType(i) ||
+                parameters.getNativeMin(i)!=other.parameters.getNativeMin(i) || parameters.getNativeMax(i)!=other.parameters.getNativeMax(i)) return false;
+        return true;
+    }
+    int transitionNativeWidth = 0, transitionNativeHeight = 0;
+
 
 	//LIVECODING THINGS : 
 	//bool showCode;

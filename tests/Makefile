@@ -30,7 +30,7 @@ MAPPING_BOOLEAN_HEADERS := ../src/JPbox/jp_mapping_boolean.h
 UNIFORM_TARGET := uniform_parser_tests
 UNIFORM_SOURCES := uniform_parser_tests.cpp ../src/JPutils/jp_uniform_parser.cpp
 UNIFORM_HEADERS := ../src/JPutils/jp_uniform_parser.h
-TARGETS := text_edit_tests review_tests toast_tests shader_catalog_tests appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM_TARGET) $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
+TARGETS := transition_tests text_edit_tests review_tests toast_tests shader_catalog_tests appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM_TARGET) $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
 
 .PHONY: all run tsan clean
 
@@ -86,6 +86,7 @@ $(UNIFORM_TARGET): $(UNIFORM_SOURCES) $(UNIFORM_HEADERS)
 	$(CXX) $(CXXFLAGS) $(UNIFORM_SOURCES) -o $@
 
 run: $(TARGETS)
+	./transition_tests
 	./text_edit_tests
 	./review_tests
 	./toast_tests
@@ -114,3 +115,6 @@ clean:
 
 text_edit_tests: text_edit_tests.cpp ../src/JPutils/jp_text_edit.h ../src/JPbox/jp_media_time.h
 	$(CXX) $(CXXFLAGS) text_edit_tests.cpp -o $@
+
+transition_tests: transition_tests.cpp ../src/JPutils/jp_transition.h
+	$(CXX) $(CXXFLAGS) transition_tests.cpp -o $@

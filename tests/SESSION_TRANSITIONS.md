@@ -1,45 +1,123 @@
 # Transiciones de composición
 
-Primera etapa: captura RGBA de la salida completa saliente (incluye FINAL),
-fundida con la nueva composición viva. La duración se toma del ajuste existente
-al cargar; el efecto de sesión en esta etapa es un fundido. Los cambios de nodo
-conservan sus propios efectos.
+El compositor se comparte entre MAIN, grupos, CUE y XML. Los identificadores
+históricos siguen siendo Mix=0, Warp=1 y Bayer=2. Los nuevos perfiles usan
+fundido, 1,5 segundos, inicio inmediato y calidad automática.
 
-El reloj comienza después del primer render entrante. Una carga fallida antes
-de instalar el grafo conserva la salida anterior. Si llega otro cambio durante
-el fundido, se captura la mezcla visible. Clear cancela y libera la transición.
-La carga de una composición vacía termina en transparencia.
+## Flujo
 
-## Prueba nativa
+- L, OSC, recuperación y XML arrastrado como composición solicitan una carga.
+- Lectura, validación y expansión del árbol XML ocurren en un trabajador CPU.
+- Se construye un recurso por frame en el contexto GL, también dentro de grupos.
+  Los programas de shader se reutilizan por fuente, incluyendo sus includes.
+- Se comprueban shaders enlazados, FBO, media decodificada y textura de cámara/
+  video. Una imagen negra es válida. El destino se renderiza antes de instalarlo.
+- Hasta completar la preparación, MAIN y el nombre del archivo activo permanecen
+  en la composición anterior. Un error o 10 s sin preparación conserva esa escena.
+  El aviso permite reintentar. Una petición nueva reemplaza al candidato pendiente.
+- Al presentar, se retiene el grafo saliente y su FINAL. Una interrupción utiliza
+  la mezcla visible capturada. Clear cancela el candidato y libera escenas retenidas.
+- Las salidas MAIN, recortes y exportaciones leen el mismo resultado. Las salidas
+  directamente vinculadas a nodos mantienen su selección.
 
-Después de compilar:
+`JPboxgroup::load()` continúa siendo la variante sincrónica para inicialización y
+herramientas; la carga interactiva usa `requestSessionLoad`/`pollSessionLoad`.
+
+## Recursos internos y perfiles existentes
+
+El compositor carga sus shaders internos desde la instalación (`AppPaths::bundle`),
+no desde la copia de la biblioteca del usuario. Los perfiles de desarrollo ya
+migrados pueden no contener archivos internos agregados después de su creación.
+La carga verifica ambas etapas de shader antes de enlazar; un programa con sólo
+vértices no es un compositor válido. Si falta el catálogo, intenta el fundido
+interno y nunca conserva un programa incompleto como carga exitosa.
+
+La regresión del catálogo crea un perfil antiguo sin `transition_catalog.frag`,
+separa instalación y datos, y comprueba que la mezcla siga produciendo píxeles.
+También puede ejecutarse sin `xvfb-run` para probar el contexto GPU del escritorio.
+
+## Catálogo y configuración
+
+SETTINGS ofrece familias, favoritos y participación en aleatorio independientes,
+duración en segundos/pulsos, inicio inmediato/próximo pulso/próximo grupo de cuatro,
+controles del efecto y calidad. La prueba A/B usa dos fuentes animadas sintéticas;
+no aplica cambios a MAIN. Los nuevos ajustes viven en `<transitions version="1">`.
+
+El patrón se fija al iniciar. Aleatorio excluye morph/feedback incompatibles y
+el efecto anterior si hay alternativas. El reloj usa el BPM maestro, convierte la
+duración en pulsos al empezar y no retrocede ni se alarga por un frame lento.
+
+## Morph y feedback
+
+Morph exige igualdad de la fuente compilada y del esquema de nombres, tipos y
+rangos nativos. Para escenas completas/CUE se emparejan identidades únicas.
+La automatización conserva sus valores; el guardado usa el valor propio del
+destino. Los booleanos del shader cambian al finalizar.
+
+Categorías opcionales, declaradas en la fuente (sin inferirlas del nombre):
+
+```glsl
+// @transition-category motion zoom
+// @transition-category color saturation
+// @transition-category shape radius
+```
+
+Las ventanas son movimiento 0–60 %, color 20–80 % y forma 40–100 %. Sin categorías,
+la variante escalonada usa morph simultáneo. Los floats sin categoría usan la
+ventana completa; no se presupone una unidad angular o un espacio de color.
+
+Feedback requiere un sampler `feedback` activo en el programa enlazado. Se
+inicializa una vez; nunca se utiliza una entrada normal ni se siembra un nodo que
+ambas ramas comparten. Sin compatibilidad se aplica fundido y se indica el motivo.
+
+## Calidad
+
+Automática utiliza el límite configurado, como máximo 60 FPS. Doce frames seguidos
+por encima del presupuesto reducen 100 → 75 → 50 % por dimensión. Si sigue
+excedido, captura la saliente y mantiene vivo el destino. Los shaders reducen sus
+FBO reales; media y mapping mantienen sus recursos nativos. Al finalizar se
+restauran los buffers, conservando feedback, antes de retirar la mezcla.
+
+Las métricas actuales son tiempo de preparación, envío de render/composición en
+CPU y tiempo entre frames; **no son consultas de tiempo GPU**. Los logs
+`transition-prepare` y `transition` explican preparación y degradación. Una
+compilación individual todavía puede bloquear el driver.
+
+## Pruebas reproducibles
 
 ```sh
+make -C tests transition_tests
+./tests/transition_tests
+xvfb-run -a python3 tests/run_transition_catalog.py
 xvfb-run -a python3 tests/run_session_fade.py
+xvfb-run -a python3 tests/run_cue_media.py
+xvfb-run -a python3 tests/run_xml_drop.py
+xvfb-run -a python3 tests/run_shader_alpha.py
 ```
 
-En Windows, con escritorio y el ejecutable compilado:
+Los runners copian datos y ejecutable a un directorio temporal y utilizan otro
+perfil. No editan composiciones personales. El catálogo verifica extremos RGBA,
+proporción no cuadrada, saliente animada, preparación incremental, error de
+lectura y cancelación. Produce capturas en `dist/transition-catalog-shots`.
+También comprueba morph sin contaminar el guardado, valores discretos, feedback
+anidado y la interrupción A→B→A dentro de grupos. Las lecturas de píxeles esperan
+a la GPU en los tests; esa sincronización no se ejecuta en el render normal.
+La prueba de sesión cubre FINAL, primer frame, mezcla, interrupción, exportación,
+recorte y destino vacío.
 
-```bat
-python tests/run_session_fade.py --binary bin/Guipper.exe
-```
+También se puede compilar el modelo puro mediante CMake/CTest en Windows/macOS.
+Los runners nativos admiten `--binary bin/Guipper.exe` con escritorio Windows.
 
-El runner copia ejecutable y datos a un directorio temporal y usa un perfil
-separado. Comprueba los píxeles de FINAL saliente/entrante, primer frame,
-punto intermedio, extremo final, carga fallida, interrupción, salida por textura,
-recorte y composición vacía. El log queda en `dist/session-fade.log`.
+## Validación que requiere el entorno real
 
-## Límites de esta etapa
+- Comparar visualmente `tommy/3.xml` y las parejas de composiciones del show.
+- Cámara, video, varias pantallas, mapping y CUE simultáneos bajo carga real.
+- Presión de memoria y compilaciones que bloqueen el driver.
+- Compilar/ejecutar en Windows y comprobar OpenGL/Spout; Linux no verifica Spout.
+- Revisar artísticamente plasma, radial y warp: las pruebas de píxeles no deciden
+  si una transición resulta apropiada para una pareja concreta.
 
-- La saliente queda congelada durante el fundido.
-- Lectura y construcción del grafo siguen siendo sincrónicas; una composición
-  pesada todavía puede detener la UI durante la carga.
-- Primer render no implica que un decoder asíncrono de imagen/video ya haya
-  entregado todos sus recursos. La disponibilidad por tipo de media y la
-  preparación escalonada quedan para la próxima etapa.
-- Las salidas vinculadas directamente a un nodo conservan esa selección;
-  el fundido de sesión corresponde a las que siguen la salida principal.
-- Windows/Spout requiere verificación allí; Linux no valida esa integración.
-
-Revisión manual adicional: cámaras y videos reales, CUE activo, mapping de varias
-pantallas, transparencia sobre fondos claros/oscuros y sesiones pesadas.
+CUE conserva una copia de render de la escena saliente; esa copia se construye
+al aplicar. Aunque reutiliza programas y captura de cámara, una escena grande
+puede producir un pico de asignación. La previsualización A/B es del efecto,
+no un segundo editor de composiciones.

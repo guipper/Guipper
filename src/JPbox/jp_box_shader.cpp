@@ -1,3 +1,7 @@
+#include <deque>
+#include <set>
+#include <sstream>
+#include <chrono>
 #include "jp_box_shader.h"
 #include "../JPutils/jp_shader_globals.h"
 #include <iostream>
@@ -11,6 +15,41 @@ bool linkedProgram(ofShader& shader) {
     GLint linked = GL_FALSE;
     glGetProgramiv(shader.getProgram(), GL_LINK_STATUS, &linked);
     return linked == GL_TRUE;
+}
+}
+
+namespace {
+// Programs are immutable between draws; uniforms are supplied for every box.
+// Include contents participate in the key so editing common.frag invalidates
+// descendants too. This cache is accessed only on the owning GL thread.
+bool loadTransitionCachedProgram(ofShader &shader, const string &fragment)
+{
+    struct Entry { string key; ofShader program; };
+    static std::deque<Entry> cache;
+    std::set<string> visited;
+    std::function<string(string)> sourceTree = [&](string path) -> string {
+        path=ofFilePath::getAbsolutePath(ofToDataPath(path,true));
+        if(!visited.insert(path).second) return {};
+        const string source=ofBufferFromFile(path).getText();
+        string result=path+"\n"+source;
+        std::istringstream lines(source); string line;
+        while(std::getline(lines,line)) {
+            if(line.find("#pragma include")==string::npos) continue;
+            auto first=line.find('"'),last=line.find('"',first==string::npos?0:first+1);
+            if(first!=string::npos && last!=string::npos)
+                result+=sourceTree(ofFilePath::getEnclosingDirectory(path)+line.substr(first+1,last-first-1));
+        }
+        return result;
+    };
+    string key=sourceTree("shaders/default.vert")+sourceTree(fragment);
+    for(auto &entry:cache) if(entry.key==key) { shader=entry.program; return true; }
+    const auto start=std::chrono::steady_clock::now();
+    if(!shader.load("shaders/default.vert",fragment)) return false;
+    ofLogNotice("transition-prepare") << fragment << " compile ms=" <<
+        std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+    if(cache.size()>=24) cache.pop_front();
+    cache.push_back({std::move(key),shader});
+    return true;
 }
 }
 
@@ -205,7 +244,7 @@ void JPbox_shader::setup(ofTrueTypeFont &_font,
 	showCode = true;
 	try
 	{
-		shader.load("shaders/default.vert", dir);
+		loadTransitionCachedProgram(shader, dir);
 	}
 	catch (int e)
 	{
@@ -249,7 +288,7 @@ void JPbox_shader::setup2(string _dir,
 	}
 	try
 	{
-		shader.load("shaders/default.vert", dir);
+		loadTransitionCachedProgram(shader, dir);
 	}
 	catch (int e)
 	{
@@ -292,7 +331,7 @@ void JPbox_shader::setup(string _dir,
 	}
 	try
 	{
-		shader.load("shaders/default.vert", dir);
+		loadTransitionCachedProgram(shader, dir);
 	}
 	catch (int e)
 	{
@@ -347,6 +386,32 @@ void JPbox_shader::clear()
 	shader.unload();
 	clearAdvancedMappingResources();
 }
+bool JPbox_shader::setTransitionRenderScale(float scale)
+{
+    // Mapping shaders keep their native pixel coordinate systems.
+    if (!fbo.isAllocated() || isAdvancedMappingShader() ||
+        ofToLower(ofFilePath::getBaseName(dir)).find("mapping") != string::npos) return false;
+    if (!transitionNativeWidth) {
+        transitionNativeWidth=int(fbo.getWidth()); transitionNativeHeight=int(fbo.getHeight());
+    }
+    const int width=std::max(1,int(std::round(transitionNativeWidth*scale)));
+    const int height=std::max(1,int(std::round(transitionNativeHeight*scale)));
+    if(int(fbo.getWidth())==width && int(fbo.getHeight())==height) return false;
+    auto resize=[&](ofFbo &target) {
+        if(!target.isAllocated()) return;
+        ofFbo replacement; replacement.allocate(width,height,GL_RGBA);
+        if(!replacement.isAllocated()) return;
+        replacement.begin(); ofPushStyle(); ofSetRectMode(OF_RECTMODE_CORNER);
+        ofEnableBlendMode(OF_BLENDMODE_DISABLED); ofSetColor(255);
+        ofClear(0,0,0,0); target.draw(0,0,width,height);
+        ofPopStyle(); replacement.end(); target=std::move(replacement);
+    };
+    resize(fbo); resize(feedbackFrame);
+    feedbackTexture=feedbackFrame.isAllocated()?&feedbackFrame.getTexture():nullptr;
+    // Preserve previous output and feedback while the first resized frame renders.
+    return true;
+}
+
 void JPbox_shader::update()
 {
 	JPbox::update();
@@ -389,6 +454,7 @@ void JPbox_shader::updateFBO()
 		}
 		ofPushStyle();
 		ofSetRectMode(OF_RECTMODE_CORNER);
+        ofFill(); // A fullscreen shader must not inherit the inspector outline mode.
 		ofSetColor(255, 255);
 		fbo.begin();
 		// A fragment shader already produces the complete destination pixel.
@@ -516,7 +582,10 @@ void JPbox_shader::update_NonglobalUniforms()
 		}
 		else if (parameters.getType(i) == parameters.BOOL)
 		{
-			shader.setUniform1f(parameters.getName(i), parameters.getBoolValue(i));
+			const auto *parameter=parameters.getJParameter(i);
+            const bool value=parameter->isMorphing() && parameter->morphAmount>0.f ?
+                parameter->morphTarget>.5f : parameter->boolValue;
+            shader.setUniform1i(parameters.getName(i), value?1:0);
 		}
 	}
 	for (int i = 0; i < fbohandlergroup.getSize(); i++)

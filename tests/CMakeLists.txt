@@ -9,3 +9,13 @@ else()
     target_compile_options(text_edit_tests PRIVATE -Wall -Wextra -Werror)
 endif()
 add_test(NAME text_edit COMMAND text_edit_tests)
+
+add_executable(transition_tests transition_tests.cpp)
+target_compile_features(transition_tests PRIVATE cxx_std_17)
+add_test(NAME transition COMMAND transition_tests)
+
+if(MSVC)
+    target_compile_options(transition_tests PRIVATE /W4 /utf-8 /UNDEBUG)
+else()
+    target_compile_options(transition_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+endif()

@@ -52,6 +52,7 @@ public:
 
 	void setup(string _dir, string _name);
 	int camsize;
+    bool transitionReady() const { return cameraSource && cameraSource->hasTexture(); }
 
 	// Re-enumerates capture devices so a camera plugged in after startup shows
 	// up. Static and generation counted: every camera box picks the new list up

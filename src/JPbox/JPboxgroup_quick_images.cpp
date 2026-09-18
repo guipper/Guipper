@@ -431,47 +431,101 @@ ofFbo JPboxgroup::captureSessionOutput()
 	return snapshot;
 }
 
+void JPboxgroup::applyTransitionQuality()
+{
+    auto &mixer=sessionFadeActive?sessionFadeMixer:transition;
+    const bool running=sessionFadeActive || transition.getLerpValue()<1.f;
+    float scale=running && mixer.state().phase()!=jp_transition::Phase::Complete?mixer.state().scale():1.f;
+    restoringTransitionScale=scale==1.f && appliedTransitionScale<1.f;
+    TransitionSR::renderScaleLimit()=scale;
+    if(scale!=appliedTransitionScale) {
+        std::function<void(const vector<JPbox *> &)> resize=[&](const vector<JPbox *> &nodes) {
+            for(auto *node:nodes) {
+                if(auto *shader=dynamic_cast<JPbox_shader *>(node)) shader->setTransitionRenderScale(scale);
+                if(auto *group=dynamic_cast<JPbox_preset *>(node)) resize(group->boxes);
+            }
+        };
+        resize(boxes); if(outgoingScene) resize(outgoingScene->nodes);
+        appliedTransitionScale=scale;
+        ofLogNotice("transition") << "render scale=" << scale << " reason=" << mixer.state().reason();
+    }
+    if(running && mixer.state().capture()) {
+        // The latest outgoing image is already in the snapshot; release only
+        // its graph. Incoming keeps rendering, including media at native size.
+        outgoingScene.reset();
+        if(!sessionFadeActive && transition.getFirstInput()!=nullptr)
+            transition.freezeOutgoing();
+    }
+}
+
+void JPboxgroup::renderOutgoingScene()
+{
+    if (!outgoingScene || outgoingScene->nodes.empty()) return;
+    // Temporarily bind only render state so the existing FINAL source resolver
+    // sees this graph. No input, history, cue, reload or UI handlers run here.
+    auto &scene = *outgoingScene;
+    const int incomingIndex = *activerender;
+    const bool incomingFinal = finalCompositeActive;
+    auto overlays = std::move(frameOverlays);
+    boxes.swap(scene.nodes);
+    std::swap(finalQuickImages, scene.finalLayers);
+    std::swap(finalQuickImageFbo, scene.finalOutput);
+    *activerender = scene.active;
+    collectFinalOverlays();
+    applyRenderPins();
+    // Retain full rate only for presentation roots and their dependencies.
+    scheduleTopLevelRenders();
+    for (auto it = boxes.rbegin(); it != boxes.rend(); ++it) (*it)->update();
+    // Incoming node crossfades must not be painted into the outgoing FINAL.
+    // Session loads always reset the node mixer; no timeline mutation here.
+    renderFinalComposite();
+    ofFbo *source = finalCompositeActive ? &finalQuickImageFbo :
+        (scene.active >= 0 && scene.active < int(boxes.size()) ? &boxes[scene.active]->fbo : nullptr);
+    if (source && source->isAllocated()) {
+        sessionFadeSnapshot.begin();
+        ofPushStyle(); ofSetRectMode(OF_RECTMODE_CORNER);
+        ofEnableBlendMode(OF_BLENDMODE_DISABLED); ofSetColor(255);
+        ofClear(0,0,0,0);
+        source->draw(0,0,sessionFadeSnapshot.getWidth(),sessionFadeSnapshot.getHeight());
+        ofPopStyle(); sessionFadeSnapshot.end();
+    }
+    *activerender = incomingIndex;
+    boxes.swap(scene.nodes);
+    std::swap(finalQuickImages, scene.finalLayers);
+    std::swap(finalQuickImageFbo, scene.finalOutput);
+    finalCompositeActive = incomingFinal;
+    frameOverlays = std::move(overlays);
+}
+
 void JPboxgroup::updateSessionFade()
 {
-	if (!sessionFadeActive) return;
-	ofFbo *incoming = sceneOutputFbo();
-	// An empty composition is a valid transparent destination.
-	if (!incoming && !boxes.empty()) return;
-	const double now = ofGetElapsedTimef();
-	if (!sessionFadeStarted)
-	{
-		sessionFadeOutput.allocate(sessionFadeSnapshot.getWidth(), sessionFadeSnapshot.getHeight(), GL_RGBA);
-		sessionFadeStartSeconds = now;
-		sessionFadeStarted = true;
-	}
-	// Wall time, measured after the first incoming render: loading time never
-	// consumes the fade, and a slow frame doesn't stretch its duration.
-	const float t = ofClamp(float((now - sessionFadeStartSeconds) / sessionFadeDurationSeconds), 0.f, 1.f);
-	sessionFadeOutput.begin();
-	ofPushStyle();
-	ofSetRectMode(OF_RECTMODE_CORNER);
-	ofEnableBlendMode(OF_BLENDMODE_DISABLED);
-	ofSetColor(255);
-	ofClear(0, 0, 0, 0);
-	const float eased = t * t * (3.f - 2.f * t);
-	if (incoming)
-	{
-		if (!sessionFadeMixer.renderStraightMix(&sessionFadeSnapshot, incoming, eased,
-			sessionFadeOutput.getWidth(), sessionFadeOutput.getHeight()))
-			incoming->draw(0, 0, sessionFadeOutput.getWidth(), sessionFadeOutput.getHeight());
-	}
-	else
-	{
-		ofSetColor(255, 255, 255, int(255 * (1.f - eased)));
-		sessionFadeSnapshot.draw(0, 0);
-	}
-	ofPopStyle();
-	sessionFadeOutput.end();
-	if (t >= 1.f)
-	{
-		sessionFadeActive = false;
-		sessionFadeStarted = false;
-		sessionFadeSnapshot.clear();
-		sessionFadeOutput.clear();
-	}
+    if (!sessionFadeActive) return;
+    ofFbo *incoming = sceneOutputFbo();
+    if (!incoming && !boxes.empty()) return;
+    renderOutgoingScene();
+    if (!sessionFadeStarted) {
+        sessionFadeOutput.allocate(sessionFadeSnapshot.getWidth(), sessionFadeSnapshot.getHeight(), GL_RGBA);
+        sessionFadeStarted = true;
+    }
+    if(sessionFadeMixer.state().phase()==jp_transition::Phase::Preparing)sessionFadeMixer.advance();
+    const float t = sessionFadeMixer.getLerpValue();
+    sessionFadeOutput.begin();
+    ofPushStyle(); ofSetRectMode(OF_RECTMODE_CORNER);
+    ofEnableBlendMode(OF_BLENDMODE_DISABLED); ofSetColor(255);
+    ofClear(0,0,0,0);
+    const float eased = jp_transition::ease(t);
+    if (incoming) {
+        if (!sessionFadeMixer.renderStraightMix(&sessionFadeSnapshot, incoming, eased,
+            sessionFadeOutput.getWidth(), sessionFadeOutput.getHeight()))
+            incoming->draw(0,0,sessionFadeOutput.getWidth(),sessionFadeOutput.getHeight());
+    } else {
+        ofSetColor(255,255,255,int(255*(1.f-eased)));
+        sessionFadeSnapshot.draw(0,0);
+    }
+    ofPopStyle(); sessionFadeOutput.end();
+    if (t >= 1.f && appliedTransitionScale >= 1.f) {
+        sessionFadeActive = false; sessionFadeStarted = false;
+        sessionFadeSnapshot.clear(); sessionFadeOutput.clear();
+        clearParameterMorph(); outgoingScene.reset();
+    }
 }

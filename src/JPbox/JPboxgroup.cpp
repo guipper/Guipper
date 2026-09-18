@@ -20,6 +20,7 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <set>
 
 namespace
 {
@@ -349,6 +350,7 @@ void JPboxgroup::scheduleTopLevelRenders()
 JPboxgroup::JPboxgroup() {}
 JPboxgroup::~JPboxgroup()
 {
+	outgoingScene.reset();
 	clearCue();
 }
 
@@ -4006,6 +4008,11 @@ void JPboxgroup::update(){
 	// Resolved BEFORE the scheduler so both it and renderFinalComposite read
 	// the same answer this frame, and so the pins below are in place when
 	// jp_renderschedule::apply runs.
+    if(sessionFadeActive) sessionFadeMixer.advance();
+    else transition.advance();
+    updateParameterMorph();
+    applyTransitionQuality();
+    const auto transitionGraphStart=std::chrono::steady_clock::now();
 	collectFinalOverlays();
 	applyRenderPins();
 	scheduleTopLevelRenders();
@@ -4169,9 +4176,8 @@ void JPboxgroup::update(){
 	if (!boxes.empty())
 	{
 		profileStageStart = ProfileClock::now();
-		transition.update(); //ACTUALIZO EL TRANSITION
+		transition.update(false); // Clock and morph already advanced before rendering.
 		renderFinalComposite();
-		updateParameterMorph();
 		if (profilingEnabled)
 		{
 			float unusedPeak = 0.0f;
@@ -4179,7 +4185,12 @@ void JPboxgroup::update(){
 				elapsedProfileMs(profileStageStart));
 		}
 	}
-	updateSessionFade();
+    updateSessionFade();
+    transitionRenderMilliseconds=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-transitionGraphStart).count();
+    auto &qualityMixer=sessionFadeActive?sessionFadeMixer:transition;
+    if(qualityMixer.observeFrame(std::max(transitionRenderMilliseconds,ofGetLastFrameTime()*1000.),
+        ofGetTargetFrameRate()>0?ofGetTargetFrameRate():60.))
+        ofLogNotice("transition") << qualityMixer.state().reason();
 		//activeSequence = true;
 		const float sequenceIntervalMs = std::max(durationGalleryMs, 16.0f);
 		if (activeSequence && 
@@ -5465,102 +5476,183 @@ void JPboxgroup::setInspectorScrollNormalized(float normalized)
 	inspectorScrollY = ofClamp(normalized, 0.0f, 1.0f) * inspectorMaxScrollY;
 	setControllers();
 }
+bool JPboxgroup::transitionCompatible(JPbox *outgoing, JPbox *incoming) const
+{
+    auto *a = dynamic_cast<JPbox_shader *>(outgoing);
+    auto *b = dynamic_cast<JPbox_shader *>(incoming);
+    return a && b && a->transitionCompatibleWith(*b);
+}
+jp_transition::Capabilities JPboxgroup::transitionCapabilities(JPbox *outgoing, JPbox *incoming, bool seed, const ofFbo *seedSource)
+{
+    jp_transition::Capabilities caps;
+    caps.morph = transitionCompatible(outgoing,incoming);
+    if(caps.morph) {
+        auto *shader=dynamic_cast<JPbox_shader *>(incoming);
+        for(int i=0;i<shader->parameters.getSize();++i)
+            caps.staged=caps.staged || jp_transition::category(shader->shader.getShaderSource(GL_FRAGMENT_SHADER),shader->parameters.getName(i))!=jp_transition::Category::None;
+    }
+    vector<JPbox *> all;
+    std::function<void(const vector<JPbox *> &)> flatten = [&](const vector<JPbox *> &nodes) {
+        for(auto *node:nodes) { all.push_back(node); if(auto *g=dynamic_cast<JPbox_preset *>(node)) flatten(g->boxes); }
+    };
+    flatten(boxes);
+    auto dependencies = [&](JPbox *root) {
+        std::set<JPbox *> seen;
+        std::function<void(JPbox *)> walk = [&](JPbox *node) {
+            if(!node || !seen.insert(node).second) return;
+            if(auto *g=dynamic_cast<JPbox_preset *>(node))
+                if(g->activeRender>=0 && g->activeRender<int(g->boxes.size())) walk(g->boxes[g->activeRender]);
+            for(int i=0;i<node->fbohandlergroup.getSize();++i) {
+                if(!node->fbohandlergroup.getisPointerSet(i)) continue;
+                const auto *fbo=node->fbohandlergroup.getFboPointerReference(i);
+                for(auto *candidate:all) if(&candidate->fbo==fbo) walk(candidate);
+            }
+        };
+        walk(root); return seen;
+    };
+    auto shared=dependencies(outgoing);
+    for(auto *node:dependencies(incoming)) {
+        if(shared.count(node)) continue;
+        auto *shader=dynamic_cast<JPbox_shader *>(node);
+        if(!shader || !shader->shader.isLoaded() || shader->shader.getUniformLocation("feedback")<0) continue;
+        caps.feedback=true;
+        if(seed && (seedSource || outgoing)) shader->seedTransitionFeedback(seedSource?*seedSource:outgoing->fbo);
+    }
+    return caps;
+}
+const jp_transition::Timeline &JPboxgroup::mainTransitionState() const
+{
+    if(sessionFadeActive)return sessionFadeMixer.state();
+    if(transition.getLerpValue()<1.f)return transition.state();
+    const vector<JPbox *> *nodes=&boxes;
+    int index=activerender?*activerender:-1;
+    while(index>=0 && index<int(nodes->size())) {
+        auto *group=dynamic_cast<JPbox_preset *>((*nodes)[index]);
+        if(!group)break;
+        if(group->activeRenderTransitionRunning)return group->activeRenderTransition.state();
+        index=group->activeRender;nodes=&group->boxes;
+    }
+    return transition.state();
+}
+string JPboxgroup::transitionStatus(bool es) const
+{
+    const auto &state=mainTransitionState();
+    string label;
+    if(sessionPreparing()) return es?"Preparando destino":"Preparing destination";
+    switch(state.phase()) {
+        case jp_transition::Phase::Preparing: label=es?"Preparando":"Preparing";break;
+        case jp_transition::Phase::Waiting: label=es?"Esperando pulso":"Waiting for beat";break;
+        case jp_transition::Phase::Running: label=es?"Transicion":"Transition";break;
+        case jp_transition::Phase::Failed:label=es?"Error":"Failed";break;
+        default:label=es?"Lista":"Ready";break;
+    }
+    if(state.capture()) label+=es?" · captura":" · capture";
+    else if(state.scale()<1.f) label+=es?" · calidad reducida":" · reduced quality";
+    if(state.reason()=="No compatible parameter schema") label+=es?" · sin parametros compatibles":" · no compatible parameters";
+    if(state.reason()=="Destination has no feedback capability") label+=es?" · destino sin feedback":" · destination has no feedback";
+    if(state.reason()=="No declared parameter categories; simultaneous morph") label+=es?" · morph simultaneo":" · simultaneous morph";
+    return label;
+}
+
+void JPboxgroup::addMorphPair(JPbox *outgoing, JPbox *incoming)
+{
+    if(!transitionCompatible(outgoing,incoming)) return;
+    bool matched=false;
+    for(int i=0;i<incoming->parameters.getSize();++i) {
+        auto *a=outgoing->parameters.getJParameter(i), *b=incoming->parameters.getJParameter(i);
+        if(incoming->parameters.getType(i)==JPParameter::BOOL) {
+            b->setMorph(a->boolValue?1.f:0.f,1.f);matched=true;continue;
+        }
+        a->setMorph(b->floatValue,0.f); b->setMorph(a->floatValue,1.f); matched=true;
+    }
+    if(matched) morphPairs.emplace_back(outgoing,incoming);
+}
 void JPboxgroup::armParameterMorph(JPbox *outgoing, JPbox *incoming)
 {
-	clearParameterMorph();
-	morphOutgoing = nullptr;
-	morphIncoming = nullptr;
-	if (outgoing == nullptr || incoming == nullptr || outgoing == incoming)
-		return;
-
-	// Name-only matching. copyParametersByNameOrIndex is the existing precedent
-	// but falls back to POSITION when a name is absent, which is right for cue
-	// drafts - same shader, same array - and wrong here: two different shaders
-	// would have unrelated uniforms paired by array index. A parameter with no
-	// counterpart simply does not morph; the image crossfade still covers it.
-	bool matchedAny = false;
-	for (int i = 0; i < incoming->parameters.getSize(); ++i)
-	{
-		if (incoming->parameters.getType(i) != JPParameter::FLOAT) continue;
-		const string name = incoming->parameters.getName(i);
-		const int outIndex = outgoing->parameters.indexOfName(name);
-		if (outIndex < 0) continue;
-		if (outgoing->parameters.getType(outIndex) != JPParameter::FLOAT)
-			continue;
-
-		JPParameter *inParam = incoming->parameters.getJParameter(i);
-		JPParameter *outParam = outgoing->parameters.getJParameter(outIndex);
-		if (inParam == nullptr || outParam == nullptr) continue;
-
-		// Each side aims at the other's CURRENT emitted value, captured now so
-		// a parameter that is also being animated does not chase a moving
-		// target for the length of the fade.
-		const float incomingValue = inParam->floatValue;
-		const float outgoingValue = outParam->floatValue;
-		// Incoming starts wearing the outgoing look and returns to its own;
-		// outgoing leaves wearing the incoming one. Amounts are set per frame.
-		inParam->setMorph(outgoingValue, 1.0f);
-		outParam->setMorph(incomingValue, 0.0f);
-		matchedAny = true;
-	}
-	if (!matchedAny) return;
-	morphOutgoing = outgoing;
-	morphIncoming = incoming;
+    clearParameterMorph();
+    if(transition.state().effect()==jp_transition::Morph || transition.state().effect()==jp_transition::StagedMorph)
+        addMorphPair(outgoing,incoming);
 }
-
+void JPboxgroup::configureSceneTransition()
+{
+    jp_transition::Capabilities caps;
+    JPbox *target=activerender && *activerender>=0 && *activerender<int(boxes.size())?boxes[*activerender]:nullptr;
+    caps.feedback=transitionCapabilities(nullptr,target,false).feedback;
+    if(outgoingScene) {
+        std::map<string,vector<JPbox *>> oldNodes,newNodes;
+        std::function<void(const vector<JPbox *> &,std::map<string,vector<JPbox *>> &)> collect=[&](const vector<JPbox *> &nodes,auto &result) {
+            for(auto *node:nodes) {result[node->uid].push_back(node);if(auto *g=dynamic_cast<JPbox_preset *>(node))collect(g->boxes,result);}
+        };
+        collect(outgoingScene->nodes,oldNodes);collect(boxes,newNodes);
+        for(auto &entry:newNodes) {
+            auto found=oldNodes.find(entry.first);
+            if(found==oldNodes.end() || found->second.size()!=1 || entry.second.size()!=1)continue;
+            auto pairCaps=transitionCapabilities(found->second.front(),entry.second.front(),false);
+            caps.morph=caps.morph||pairCaps.morph;caps.staged=caps.staged||pairCaps.staged;
+        }
+    }
+    sessionFadeMixer.setType(getTransitionType()); sessionFadeMixer.setDurationMs(getTransitionDurationMs());
+    sessionFadeMixer.setCapabilities(caps); sessionFadeMixer.setLerpValue(0.f);
+    if(sessionFadeMixer.state().effect()==jp_transition::Feedback)
+        transitionCapabilities(nullptr,target,true,&sessionFadeSnapshot);
+    armSceneMorph();
+}
+void JPboxgroup::armSceneMorph()
+{
+    clearParameterMorph();
+    if(!outgoingScene) return;
+    if(sessionFadeMixer.state().effect()!=jp_transition::Morph && sessionFadeMixer.state().effect()!=jp_transition::StagedMorph) return;
+    std::map<string,vector<JPbox *>> oldNodes,newNodes;
+    std::function<void(const vector<JPbox *> &,std::map<string,vector<JPbox *>> &)> collect=[&](const vector<JPbox *> &nodes,auto &result) {
+        for(auto *node:nodes) {result[node->uid].push_back(node);if(auto *group=dynamic_cast<JPbox_preset *>(node)) collect(group->boxes,result);}
+    };
+    collect(outgoingScene->nodes,oldNodes);collect(boxes,newNodes);
+    for(auto &entry:newNodes) {
+        auto found=oldNodes.find(entry.first);
+        if(found!=oldNodes.end() && found->second.size()==1 && entry.second.size()==1)
+            addMorphPair(found->second.front(),entry.second.front());
+    }
+}
 void JPboxgroup::clearParameterMorph()
 {
-	// Returning the amount to 0 is the whole restore: nothing permanent was
-	// ever written, so both boxes emit their own values again from the next
-	// tick. Guarded against a box that has since been deleted.
-	auto clearOn = [this](JPbox *box)
-	{
-		if (box == nullptr) return;
-		if (std::find(boxes.begin(), boxes.end(), box) == boxes.end()) return;
-		for (int i = 0; i < box->parameters.getSize(); ++i)
-		{
-			JPParameter *parameter = box->parameters.getJParameter(i);
-			if (parameter != nullptr) parameter->clearMorph();
-		}
-	};
-	clearOn(morphOutgoing);
-	clearOn(morphIncoming);
-	morphOutgoing = nullptr;
-	morphIncoming = nullptr;
+    std::set<JPbox *> alive;
+    std::function<void(const vector<JPbox *> &)> visit=[&](const vector<JPbox *> &nodes) {
+        for(auto *node:nodes) {alive.insert(node);if(auto *group=dynamic_cast<JPbox_preset *>(node)) visit(group->boxes);}
+    };
+    visit(boxes);if(outgoingScene)visit(outgoingScene->nodes);
+    for(auto pair:morphPairs) for(auto *node:{pair.first,pair.second}) if(alive.count(node))
+        for(int i=0;i<node->parameters.getSize();++i) node->parameters.getJParameter(i)->clearMorph();
+    morphPairs.clear();
 }
-
 void JPboxgroup::updateParameterMorph()
 {
-	if (morphOutgoing == nullptr && morphIncoming == nullptr) return;
-	if (transition.getLerpValue() >= 1.0f)
-	{
-		clearParameterMorph();
-		return;
-	}
-	// The same eased progress the crossfade uses, so pixels and parameters
-	// stay in step rather than drifting apart mid-fade.
-	const float t = transition.getLerpValue();
-	const float eased = t * t * (3.0f - 2.0f * t);
-	auto setAmount = [this](JPbox *box, float amount)
-	{
-		if (box == nullptr) return;
-		if (std::find(boxes.begin(), boxes.end(), box) == boxes.end()) return;
-		for (int i = 0; i < box->parameters.getSize(); ++i)
-		{
-			JPParameter *parameter = box->parameters.getJParameter(i);
-			if (parameter != nullptr && parameter->isMorphing())
-				parameter->morphAmount = amount;
-		}
-	};
-	// Outgoing pulls toward the incoming look as it fades; incoming lets go of
-	// it as it arrives.
-	setAmount(morphOutgoing, eased);
-	setAmount(morphIncoming, 1.0f - eased);
+    if(morphPairs.empty()) return;
+    const auto &state=sessionFadeActive?sessionFadeMixer.state():transition.state();
+    if(state.progress()>=1.f) {clearParameterMorph();return;}
+    std::set<JPbox *> alive;
+    std::function<void(const vector<JPbox *> &)> visit=[&](const vector<JPbox *> &nodes) {
+        for(auto *node:nodes) {alive.insert(node);if(auto *g=dynamic_cast<JPbox_preset *>(node))visit(g->boxes);}
+    };
+    visit(boxes);if(outgoingScene)visit(outgoingScene->nodes);
+    for(auto pair:morphPairs) {
+        if(!alive.count(pair.second)) continue;
+        auto *shader=dynamic_cast<JPbox_shader *>(pair.second);
+        const string source=shader?shader->shader.getShaderSource(GL_FRAGMENT_SHADER):string();
+        for(int i=0;i<pair.second->parameters.getSize();++i) {
+            auto category=state.effect()==jp_transition::StagedMorph?jp_transition::category(source,pair.second->parameters.getName(i)):jp_transition::Category::None;
+            float amount=jp_transition::morphProgress(state.progress(),category);
+            auto *a=alive.count(pair.first)?pair.first->parameters.getJParameter(i):nullptr;
+            auto *b=pair.second->parameters.getJParameter(i);
+            if(a && a->isMorphing())a->morphAmount=amount;
+            if(b->isMorphing())b->morphAmount=1.f-amount;
+        }
+    }
 }
 
 void JPboxgroup::setTransitionDurationMs(float _ms)
 {
 	transition.setDurationMs(_ms);
+	TransitionSR::preferences().duration = transition.getDurationMs() / 1000.;
 }
 
 float JPboxgroup::getTransitionDurationMs() const
@@ -5571,6 +5663,7 @@ float JPboxgroup::getTransitionDurationMs() const
 void JPboxgroup::setTransitionType(int _type)
 {
 	transition.setType(_type);
+	TransitionSR::preferences().effect = transition.getType();
 }
 
 float JPboxgroup::getTransitionLerp() const
@@ -5591,15 +5684,19 @@ void JPboxgroup::updateTransition(int _idx) {
 		bool activeRenderChanged = _idx != *activerender;
 		JPbox *outgoingBox = boxes[*activerender];
 		if (&boxes[*activerender]->fbo != 0) {
-			transition.setFboPointer1(&boxes[*activerender]->fbo);
+			if (transition.getLerpValue() < 1.f) transition.captureInterruption();
+            else transition.setFboPointer1(&boxes[*activerender]->fbo);
 		}
 		*activerender = _idx;
 
 		if (&boxes[*activerender]->fbo != 0) {
 			transition.setFboPointer2(&boxes[*activerender]->fbo);
 		}
-		transition.setLerpValue(0);
-		if (activeRenderChanged)
+        transition.setCapabilities(transitionCapabilities(outgoingBox, boxes[*activerender], false));
+        transition.setLerpValue(0);
+        if (transition.state().effect() == jp_transition::Feedback)
+            transitionCapabilities(outgoingBox, boxes[*activerender], true);
+        if (activeRenderChanged)
 			armParameterMorph(outgoingBox, boxes[*activerender]);
 		else
 			clearParameterMorph();
@@ -7439,6 +7536,11 @@ void JPboxgroup::setupShaderRendersFromDataFolder()
 }
 void JPboxgroup::clear()
 {
+    ++sessionRequestTicket; requestedSessionPath.clear(); pendingSession.reset(); sessionCompletion={};
+    appliedTransitionScale = 1.f;
+	clearParameterMorph();
+	outgoingScene.reset();
+	sessionFadeMixer.setLerpValue(1.f);
 	sessionFadeActive = false;
 	sessionFadeStarted = false;
 	sessionFadeSnapshot.clear();
@@ -8743,9 +8845,9 @@ ofTexture *JPboxgroup::getActiveTexture()
 {
 	if (ofFbo *composite = finalCompositeFboOrNull())
 		return &composite->getTexture();
-	if (boxes.size() >= 1)
+	if (ofFbo *source = sceneOutputFbo())
 	{
-		return &boxes[*activerender]->fbo.getTexture();
+		return &source->getTexture();
 		// boxes[*activerender]->shaderrender.fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
 	}
 	return nullptr;
@@ -8758,9 +8860,9 @@ ofFbo *JPboxgroup::getActiverender()
 {
 	if (ofFbo *composite = finalCompositeFboOrNull())
 		return composite;
-	if (boxes.size() >= 1)
+	if (ofFbo *source = sceneOutputFbo())
 	{
-		return &boxes[*activerender]->fbo;
+		return source;
 		// boxes[*activerender]->shaderrender.fbo.draw(0, 0, ofGetWidth(), ofGetHeight());
 	}
 	return nullptr;

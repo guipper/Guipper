@@ -651,6 +651,29 @@ void JPboxgroup::clearCueDraft()
 	cueState.stagedActiveRenderIndex = -1;
 }
 
+std::unique_ptr<JPboxgroup::RetainedScene> JPboxgroup::cloneRenderScene()
+{
+    auto scene=std::make_unique<RetainedScene>();
+    scene->active=activerender?*activerender:0;
+    scene->finalLayers=finalQuickImages;
+    for(auto *source:boxes) {
+        auto *clone=jp_box_factory::create(source->dir,jp_box_factory::Context::Interactive);
+        if(!clone) return nullptr;
+        scene->nodes.push_back(clone);
+        clone->setup(source->dir,source->name);
+        copyEditableBoxState(clone,source); clone->uid=source->uid;
+        if(auto *group=dynamic_cast<JPbox_preset *>(clone)) {
+            auto *original=dynamic_cast<JPbox_preset *>(source);
+            if(!synchronizeCuePresetStructure(group,original)) return nullptr;
+            copyPresetInternalState(group,original);
+        }
+        copyFboStraight(source->fbo,clone->fbo);
+        if(auto *shader=dynamic_cast<JPbox_shader *>(clone)) shader->seedTransitionFeedback(source->fbo);
+    }
+    for(size_t i=0;i<boxes.size();++i) copyBoxLinksByName(scene->nodes[i],boxes[i],scene->nodes);
+    return scene;
+}
+
 bool JPboxgroup::applyCueDraftToSource()
 {
 	if (!isCueDraftMode())
@@ -671,8 +694,14 @@ bool JPboxgroup::applyCueDraftToSource()
 	{
 		return true;
 	}
-	if (targetActiveRender >= 0 && targetActiveRender < targetSize &&
-		(cueApplySnapshotFbo.getWidth() != getCueTargetBoxAt(targetActiveRender)->fbo.getWidth() ||
+    // Preserve the whole outgoing presentation, including FINAL, before applying
+    // draft edits. Interrupted changes deliberately start from the displayed mix.
+    ofFbo visibleBeforeApply=captureSessionOutput();
+    std::unique_ptr<RetainedScene> liveBeforeApply;
+    if(!sessionFadeActive && mainTransitionState().progress()>=1.f && TransitionSR::preferences().quality!=jp_transition::Quality::Capture)
+        liveBeforeApply=cloneRenderScene();
+    if (targetActiveRender >= 0 && targetActiveRender < targetSize &&
+        (cueApplySnapshotFbo.getWidth() != getCueTargetBoxAt(targetActiveRender)->fbo.getWidth() ||
 		 cueApplySnapshotFbo.getHeight() != getCueTargetBoxAt(targetActiveRender)->fbo.getHeight()))
 	{
 		cueApplySnapshotFbo.allocate(getCueTargetBoxAt(targetActiveRender)->fbo.getWidth(), getCueTargetBoxAt(targetActiveRender)->fbo.getHeight());
@@ -778,11 +807,31 @@ bool JPboxgroup::applyCueDraftToSource()
 		// child crossfade, so do not hijack MAIN with a sub-box FBO.
 		if (cueState.targetPreset == nullptr)
 		{
-			transition.setFboPointer1(&cueApplySnapshotFbo);
-			transition.setFboPointer2(&targetBoxes[stagedActiveIndex]->fbo);
-			transition.setLerpValue(0);
+            transition.setLerpValue(1.f);
+            transition.setFboPointer1(nullptr);
+            transition.setFboPointer2(&targetBoxes[stagedActiveIndex]->fbo);
 		}
 	}
+
+    // The scene compositor owns this CUE apply. Do not also animate a group's
+    // child selection underneath it, which would apply the transition twice.
+    std::function<void(const vector<JPbox *> &)> settleGroups = [&](const vector<JPbox *> &nodes) {
+        for (auto *node : nodes) if (auto *group = dynamic_cast<JPbox_preset *>(node)) {
+            settleGroups(group->boxes);
+            group->clearActiveRenderMorph();
+            group->activeRenderTransition.setLerpValue(1.f);
+            group->activeRenderTransitionRunning = false;
+            group->activeTransitionSnapshot.clear();
+            group->lastCompositedActiveRender = group->activeRender;
+            group->activeRenderTransitionTarget = group->activeRender;
+        }
+    };
+    settleGroups(boxes);
+
+    outgoingScene=std::move(liveBeforeApply);
+    sessionFadeSnapshot=std::move(visibleBeforeApply);
+    sessionFadeActive=sessionFadeSnapshot.isAllocated(); sessionFadeStarted=false;
+    configureSceneTransition();
 
 	bool keepFullscreenPreview = cueFullscreenPreview;
 	CueMonitorMode keepMonitorMode = cueMonitorMode;

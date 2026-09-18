@@ -45,6 +45,8 @@ public:
 	~JPbox_preset();
 
 	void setup(string _directory, string _name);
+    void setupPrepared(string directory, string name, const ofXml &xml, vector<JPbox *> &children);
+    void loadPreparedState(const ofXml &xml);
 
 	// void setup(float _x, float _y, string _dirinput);
 	// void setup(string _dir);
@@ -81,6 +83,12 @@ public:
 
 	// Local crossfade for switching between this preset's child renders.
 	TransitionSR activeRenderTransition;
+    ofFbo activeTransitionSnapshot;
+    JPbox *localMorphSource = nullptr, *localMorphTarget = nullptr;
+    void beginActiveRenderTransition();
+    void updateActiveRenderMorph();
+    void clearActiveRenderMorph();
+    float childTransitionScale = 1.f;
 	bool activeRenderTransitionInitialized = false;
 	bool activeRenderTransitionRunning = false;
 	int lastCompositedActiveRender = -1;

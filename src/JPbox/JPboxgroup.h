@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <functional>
+#include <future>
 
 #include "defines.h"
 #include "ofMain.h"
@@ -228,6 +229,10 @@ public:
 	// Success does not yet guarantee all referenced assets were available.
 	enum class LoadResult { Success, ReadError, InvalidComposition, UnsupportedVersion, AssetError };
 	LoadResult load(string _dirinput);
+    void requestSessionLoad(string path, std::function<void(LoadResult)> completion);
+    void pollSessionLoad();
+    bool sessionPreparing() const { return !requestedSessionPath.empty(); }
+
 	string lastLoadErrorDetail;
     static bool validateGroupFile(const string& path, string* errorDetail = nullptr);
 
@@ -273,6 +278,11 @@ public:
 	float getTransitionDurationMs() const;
 	void setTransitionType(int _type);
 	int getTransitionType() const;
+    string transitionStatus(bool spanish) const;
+    const jp_transition::Timeline &mainTransitionState() const;
+    bool transitionCompatible(JPbox *a, JPbox *b) const;
+    jp_transition::Capabilities transitionCapabilities(JPbox *outgoing, JPbox *incoming, bool seed, const ofFbo *seedSource = nullptr);
+
 	// How far the main crossfade has run, 0..1. 1 means settled.
 	float getTransitionLerp() const;
 	vector<string> getBoxNames() const;
@@ -1112,6 +1122,34 @@ private:
 	ofVec2f advancedMappingViewPanStartMouse;
 	ofVec2f advancedMappingViewPanStartCenter;
 
+    struct PreparedSession {
+        struct LegacyOverlay { JPbox *box; float opacity; int order; };
+        string path, error;
+        uint64_t ticket = 0;
+        ofXml xml;
+        vector<ofXml> declarations, loaded;
+        vector<std::shared_ptr<PreparedSession>> groups;
+        bool presetContext = false;
+        vector<JPbox *> nodes;
+        vector<LegacyOverlay> legacy;
+        JPQuickImageStackState finalLayers;
+        LoadResult result = LoadResult::Success;
+        size_t cursor = 0;
+        bool linked = false;
+        ~PreparedSession() { for(auto *node:nodes) { node->clear(); delete node; } }
+    };
+    static std::shared_ptr<PreparedSession> parseSession(const string &path);
+    LoadResult buildSessionNode(PreparedSession &candidate, ofXml box, PreparedSession *group = nullptr);
+    LoadResult buildNextSessionResource(PreparedSession &candidate);
+    void linkPreparedSession(PreparedSession &candidate);
+    LoadResult commitPreparedSession(PreparedSession &candidate);
+    std::shared_ptr<PreparedSession> pendingSession;
+    std::future<std::shared_ptr<PreparedSession>> parsingSession;
+    string requestedSessionPath;
+    uint64_t sessionRequestTicket = 0;
+    double sessionPreparationStarted = 0.;
+    std::function<void(LoadResult)> sessionCompletion;
+
 	// ------------------------------------------------------ quick image editor
 	enum QuickImageDrag
 	{
@@ -1121,14 +1159,31 @@ private:
 	JPQuickImageStackState finalQuickImages;
 	JPQuickImageRenderer finalQuickImageRenderer;
 	ofFbo finalQuickImageFbo;
-	// Session fades own pixels, never pointers into a graph being replaced.
+	// Render-only outgoing graph: no second editor, event listeners or audio engine.
+    struct RetainedScene {
+        vector<JPbox *> nodes;
+        JPQuickImageStackState finalLayers;
+        ofFbo finalOutput;
+        int active = 0;
+        ~RetainedScene() { for (auto *node : nodes) { node->clear(); delete node; } }
+    };
+    std::unique_ptr<RetainedScene> outgoingScene;
+    void renderOutgoingScene();
+    std::unique_ptr<RetainedScene> cloneRenderScene();
+    void applyTransitionQuality();
+    float appliedTransitionScale = 1.f;
+    bool restoringTransitionScale = false;
+    double transitionRenderMilliseconds = 0.;
+
+    // Interruptions deliberately retain the last displayed mix instead.
+
 	ofFbo sessionFadeSnapshot;
 	ofFbo sessionFadeOutput;
 	TransitionSR sessionFadeMixer;
 	bool sessionFadeActive = false;
 	bool sessionFadeStarted = false;
 	double sessionFadeStartSeconds = 0.0;
-	float sessionFadeDurationSeconds = 0.833f;
+	float sessionFadeDurationSeconds = 1.5f;
 	ofFbo captureSessionOutput();
 	void updateSessionFade();
 	ofFbo *sceneOutputFbo();
@@ -1616,8 +1671,10 @@ private:
 	// The two boxes whose parameters are currently morphing into each other,
 	// or nullptr. Raw pointers because they are boxes this group owns; every
 	// use re-checks membership so a deletion mid-fade cannot dangle.
-	JPbox *morphOutgoing = nullptr;
-	JPbox *morphIncoming = nullptr;
+	vector<std::pair<JPbox *,JPbox *>> morphPairs;
+    void armSceneMorph();
+    void configureSceneTransition();
+    void addMorphPair(JPbox *outgoing, JPbox *incoming);
 	void armParameterMorph(JPbox *outgoing, JPbox *incoming);
 	void updateParameterMorph();
 	void clearParameterMorph();

@@ -171,3 +171,9 @@ Revisar la convención de alfa de extremo a extremo. El mix actual interpola RGB
 Las cabeceras de los archivos MilkDrop2 estudiados incluyen condiciones BSD de tres cláusulas; el port AVS contiene también ese aviso. projectM declara LGPL 2.1 o posterior en `COPYING`. Si se copia código concreto, conservar los avisos correspondientes y revisar sus dependencias por archivo. La propuesta inicial es implementar los mecanismos en la arquitectura propia, sin incorporar un motor DirectX o toda la biblioteca projectM. [Aviso MilkDrop](https://sourceforge.net/p/milkdrop2/code/ci/f05b0d811a87a17c4624170c26c93bac39b05bde/tree/src/vis_milk2/plugin.cpp#l1), [aviso projectM](https://github.com/projectM-visualizer/projectm/blob/1e7ef7803b69024d1e0656705670adda2ffac817/COPYING), [aviso AVS](https://github.com/grandchild/vis_avs/blob/1cee1f3d4f783b830538c3e4d2082a2c59521dee/LICENSE.TXT).
 
 **Siguiente paso recomendado:** implementar y probar el ciclo de cambio de composición con captura de salida completa y fundido correcto. Luego preparar escenas sin saltos y añadir plasma, radial y barrido. El feedback compartido queda como experimento posterior, medido y optativo.
+
+## Implementación del rediseño
+
+El estado del compositor común, catálogo, preparación escalonada y pruebas está
+documentado en [SESSION_TRANSITIONS](../tests/SESSION_TRANSITIONS.md). Las secciones
+anteriores conservan la investigación y la propuesta original como referencia.

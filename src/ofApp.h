@@ -327,6 +327,9 @@ public:
     void releaseAction(int action);
     void drawReleasePanel();
 	bool loadSession(string path);
+    void queueSessionLoad(string path, bool recovering = false);
+    string lastTransitionLoadPath;
+    bool lastTransitionLoadRecovery = false;
 	JPboxgroup::LoadResult sessionLoadResult = JPboxgroup::LoadResult::Success;
 	void notifySessionLoadError();
 
@@ -752,6 +755,15 @@ public:
 	// so a composition saved before uids binds exactly as it used to and
 	// becomes rename-proof from that point on. Non-const: healing writes back.
 	bool transitionDurationDragging = false;
+    struct TransitionControl { ofRectangle bounds; std::function<void()> action; };
+    std::vector<TransitionControl> transitionControls;
+    TransitionSR transitionPreview;
+    ofFbo transitionPreviewA, transitionPreviewB;
+    bool transitionPreviewRunning = false;
+    int transitionFamily = 0;
+    bool transitionSettingsExpanded = false;
+    string lastTransitionQualityNotice;
+
 	void applyTransitionDurationFromMouse(float mouseX,
 		const SettingsLayout &L);
 	JPbox *resolveLiveOutputSource(LiveOutputConfig &config);
@@ -769,6 +781,7 @@ public:
 	// The transition rows are all that is left of the old audio block on the
 	// SETTINGS screen; the input chain lives on the AUDIO screen now.
 	void drawTransitionSettings(const SettingsLayout &L);
+    void updateTransitionPreview();
 	bool handleTransitionSettingsClick(int x, int y, int button);
 	void drawAudioInput(const AudioScreenLayout &L);
 	bool handleAudioInputClick(const AudioScreenLayout &L, const ofVec2f &m,

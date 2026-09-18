@@ -5,6 +5,8 @@
 #include "jp_box_factory.h"
 #include <algorithm>
 #include <set>
+#include <thread>
+#include <chrono>
 
 namespace {
 JPboxgroup::LoadResult validateStoredTree(const ofXml& xml, std::set<std::string>& stack, std::string& detail) {
@@ -15,6 +17,9 @@ JPboxgroup::LoadResult validateStoredTree(const ofXml& xml, std::set<std::string
     for (auto node : xml.getChildren("box")) {
         const auto source = jp_normalizePath(node.getChild("directory").getValue());
         if (ofTrim(source).empty()) { detail = node.getChild("nombre").getValue(); return Result::InvalidComposition; }
+        if ((jp_media::isImage(source) || jp_media::isVideo(source)) && !ofFile::doesFileExist(source)) {
+            detail=source;return Result::AssetError;
+        }
         if (ofToLower(ofFilePath::getFileExt(source)) == "frag") {
             const auto bytes = ofBufferFromFile(source);
             if (bytes.size() == 0 || jp_uniform_parser::parse(bytes.getText()).hasErrors()) {
@@ -183,58 +188,31 @@ void JPboxgroup::load2(string _dirinput)
 
 	*activerender = 0;*/
 }
-JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
+std::shared_ptr<JPboxgroup::PreparedSession> JPboxgroup::parseSession(const string &path)
 {
-	lastLoadErrorDetail.clear();
-	// Parse exactly once before touching any live state. ofXml retains the
-	// parsed document for the reconstruction below, even if the file changes.
-	ofXml xml;
-	if (!xml.load(_dirinput))
-	{
-		ofLogError("session") << "Cannot read composition XML: " << _dirinput;
-		return LoadResult::ReadError;
-	}
-    std::set<std::string> stack;
-    stack.insert(std::filesystem::absolute(ofToDataPath(_dirinput, true)).lexically_normal().string());
-    const auto validation = validateStoredTree(xml, stack, lastLoadErrorDetail);
-    if (validation != LoadResult::Success) return validation;
-	// Legacy compositions may omit activerender. An explicitly empty project
-	// saved by Guipper contains activerender, so it remains a valid load.
-	if (!xml.getChild("activerender") && !xml.getChild("box"))
-	{
-		ofLogError("session") << "Not a Guipper composition: " << _dirinput;
-		return LoadResult::InvalidComposition;
-	}
-	for (const auto &node : xml.getChildren("box"))
-	{
-		if (ofTrim(node.getChild("directory").getValue()).empty())
-		{
-			ofLogError("session") << "Box has no source directory: " << _dirinput;
-			return LoadResult::InvalidComposition;
-		}
-	}
-    vector<JPbox*> boxes;
-    struct CandidateCleanup {
-        vector<JPbox*>& nodes;
-        ~CandidateCleanup() { for (auto* node : nodes) { node->clear(); delete node; } }
-    } cleanup{boxes};
-    decltype(finalQuickImages) candidateFinal;
-    jp_quick_image::loadStack(xml, candidateFinal);
-	// Carga inicial de las cajitas :
-	auto boxloader = xml.find("/box");
-	// Kept in lockstep with `boxes`, so the link pass below can pair a box
-	// with the node it came from even when some nodes produce no box.
-	vector<ofXml> loadedBoxNodes;
-	// Boxes carrying the pre-stack GO TO FINAL flag, migrated into FINAL layers
-	// once every box exists - the stack is loaded before them, and a layer has
-	// to name a box that is already there.
-	struct LegacyOverlay { JPbox *box; float opacity; int order; };
-	vector<LegacyOverlay> legacyOverlays;
-
-	cout << "******************************************************************" << endl;
-	for (auto &box : boxloader)
-	{
-
+    auto candidate=std::make_shared<PreparedSession>(); candidate->path=path;
+    if(!candidate->xml.load(path)) { candidate->result=LoadResult::ReadError; candidate->error=path; return candidate; }
+    std::set<string> stack;
+    stack.insert(std::filesystem::absolute(ofToDataPath(path,true)).lexically_normal().string());
+    candidate->result=validateStoredTree(candidate->xml,stack,candidate->error);
+    if(candidate->result!=LoadResult::Success) return candidate;
+    for(auto node:candidate->xml.getChildren("box")) {
+        candidate->declarations.push_back(node);
+        const auto directory=jp_normalizePath(node.getChild("directory").getValue());
+        if(ofToLower(ofFilePath::getFileExt(directory))=="xml") {
+            auto child=parseSession(directory);child->presetContext=true;
+            if(child->result!=LoadResult::Success) {candidate->result=child->result;candidate->error=child->error;return candidate;}
+            candidate->groups.push_back(std::move(child));
+        } else candidate->groups.push_back(nullptr);
+    }
+    jp_quick_image::loadStack(candidate->xml,candidate->finalLayers);
+    return candidate;
+}
+JPboxgroup::LoadResult JPboxgroup::buildSessionNode(PreparedSession &candidate, ofXml box, PreparedSession *group)
+{
+    auto &boxes=candidate.nodes;
+    auto &loadedBoxNodes=candidate.loaded;
+    auto &legacyOverlays=candidate.legacy;
 		auto nombre = box.getChild("nombre");
 		auto x = box.getChild("x");
 		auto y = box.getChild("y");
@@ -248,24 +226,18 @@ JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 
 		JPbox *bx = jp_box_factory::create(directory.getValue(),
 			jp_box_factory::Context::Stored);
-		if (bx == nullptr)
-		{
-			// Nothing matched: a build without NDI/Spout, or a save that
-			// references a box type this binary does not know about.
-			ofLogWarning("JPboxgroup")
-				<< "skipping box '" << nombre.getValue()
-				<< "' with unsupported directory '"
-				<< directory.getValue() << "'";
-			continue;
-		}
+        if (!bx) { candidate.error=directory.getValue(); return LoadResult::AssetError; }
 
         boxes.push_back(bx);
-        try { bx->setup(jp_normalizePath(directory.getValue()), nombre.getValue()); }
+        try {
+            if(group) static_cast<JPbox_preset *>(bx)->setupPrepared(jp_normalizePath(directory.getValue()),nombre.getValue(),group->xml,group->nodes);
+            else bx->setup(jp_normalizePath(directory.getValue()), nombre.getValue());
+        }
         catch (const std::exception& error) {
             ofLogError("session") << error.what();
             return LoadResult::AssetError;
         }
-        if (!validBuiltTree(bx, lastLoadErrorDetail)) return LoadResult::AssetError;
+        if (!validBuiltTree(bx, candidate.error)) return LoadResult::AssetError;
 		bx->setPos(x.getIntValue(), y.getIntValue());
 		bx->setonoff(onoff ? onoff.getBoolValue() : true);
 		bx->setBypass(bypass ? bypass.getBoolValue() : false);
@@ -288,7 +260,7 @@ JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 		}
 
 		jp_parameter_xml::load(box, bx->parameters,
-			jp_parameter_xml::LoadContext::Composition);
+			candidate.presetContext?jp_parameter_xml::LoadContext::Preset:jp_parameter_xml::LoadContext::Composition);
 		bx->loadCustomState(box);
 
 
@@ -327,13 +299,25 @@ JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 				}
 			}
 		}
-	}
-	// Una vez que cargo todas las cajitas les cargamos los links :
-	// Mira lo que esta este algoritmo para levantar los links entre cajitas papa !!!
-	// Walk the nodes that actually produced a box, not every node in the file.
-	// Iterating boxloader here assumed the two ran in lockstep, so a single
-	// skipped box shifted every later node onto the wrong box and silently
-	// rewired the rest of the patch.
+    return LoadResult::Success;
+}
+JPboxgroup::LoadResult JPboxgroup::buildNextSessionResource(PreparedSession &candidate)
+{
+    if(candidate.cursor>=candidate.declarations.size()) return LoadResult::Success;
+    auto group=candidate.groups[candidate.cursor];
+    if(group && group->cursor<group->declarations.size()) {
+        auto result=buildNextSessionResource(*group);
+        if(result!=LoadResult::Success) candidate.error=group->error;
+        return result;
+    }
+    if(group && !group->linked) linkPreparedSession(*group);
+    const auto declaration=candidate.declarations[candidate.cursor++];
+    return buildSessionNode(candidate,declaration,group.get());
+}
+void JPboxgroup::linkPreparedSession(PreparedSession &candidate)
+{
+    auto &boxes=candidate.nodes;
+    auto &loadedBoxNodes=candidate.loaded;
 	int index1 = 0;
 	cout << "COMIENZA LINKS DE LOS FBO " << endl;
 	for (auto &box : loadedBoxNodes)
@@ -387,13 +371,34 @@ JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 		index1++;
 	}
 
+    candidate.linked=true;
+}
+JPboxgroup::LoadResult JPboxgroup::commitPreparedSession(PreparedSession &candidate)
+{
+    auto &boxes=candidate.nodes;
+    auto &candidateFinal=candidate.finalLayers;
+    auto &xml=candidate.xml;
+    auto &legacyOverlays=candidate.legacy;
+    using LegacyOverlay=PreparedSession::LegacyOverlay;
     const int nextRender = boxes.empty() ? 0 :
         ofClamp(xml.getChild("activerender").getIntValue(), 0, int(boxes.size()) - 1);
     // Capture only after validation/setup succeeded. A failed load must not
     // replace or restart an already visible transition.
     ofFbo outgoing = captureSessionOutput();
     const float fadeSeconds = std::max(0.001f, getTransitionDurationMs() / 1000.f);
+    std::unique_ptr<RetainedScene> retained;
+    // A second request starts from the visible mixed frame, not from B.
+    if (!sessionFadeActive && mainTransitionState().progress() >= 1.f &&
+        TransitionSR::preferences().quality != jp_transition::Quality::Capture) {
+        clearParameterMorph();
+        clearCue();
+        retained = std::make_unique<RetainedScene>();
+        retained->active = *activerender;
+        retained->nodes.swap(this->boxes);
+        retained->finalLayers = std::move(finalQuickImages);
+    }
     clear();
+    outgoingScene = std::move(retained);
     sessionFadeSnapshot = std::move(outgoing);
     sessionFadeActive = sessionFadeSnapshot.isAllocated();
     sessionFadeDurationSeconds = fadeSeconds;
@@ -444,5 +449,93 @@ JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 	// took its layers with it can carry rows whose source no longer exists, and
 	// those rows draw nothing while looking exactly like a healthy one.
 	pruneOrphanFinalLayers();
+    configureSceneTransition();
 	return LoadResult::Success;
+}
+JPboxgroup::LoadResult JPboxgroup::load(string path)
+{
+    lastLoadErrorDetail.clear();
+    auto candidate=parseSession(path);
+    if(candidate->result==LoadResult::Success)
+        while(candidate->cursor<candidate->declarations.size()) {
+            candidate->result=buildNextSessionResource(*candidate);
+            if(candidate->result!=LoadResult::Success) break;
+        }
+    if(candidate->result!=LoadResult::Success) { lastLoadErrorDetail=candidate->error; return candidate->result; }
+    linkPreparedSession(*candidate);
+    return commitPreparedSession(*candidate);
+}
+void JPboxgroup::requestSessionLoad(string path, std::function<void(LoadResult)> completion)
+{
+    ++sessionRequestTicket;
+    pendingSession.reset();
+    requestedSessionPath=std::move(path);
+    sessionCompletion=std::move(completion);
+    sessionPreparationStarted=ofGetElapsedTimef();
+    lastLoadErrorDetail.clear();
+}
+void JPboxgroup::pollSessionLoad()
+{
+    if(requestedSessionPath.empty()) return;
+    auto finish=[&](LoadResult result) {
+        auto callback=std::move(sessionCompletion);
+        auto candidate=std::move(pendingSession);
+        requestedSessionPath.clear();
+        if(result==LoadResult::Success && candidate) result=commitPreparedSession(*candidate);
+        else if(candidate) lastLoadErrorDetail=candidate->error;
+        if(callback) callback(result);
+    };
+    if(ofGetElapsedTimef()-sessionPreparationStarted>=10.) {
+        if(pendingSession && pendingSession->error.empty()) pendingSession->error=requestedSessionPath;
+        else lastLoadErrorDetail=requestedSessionPath;
+        finish(LoadResult::AssetError); return;
+    }
+    if(!pendingSession) {
+        if(!parsingSession.valid()) {
+            const auto path=requestedSessionPath;
+            // packaged_task futures do not block the rendering thread when a
+            // request is cancelled. The worker owns only CPU-side parsed data.
+            const auto ticket=sessionRequestTicket;
+            std::packaged_task<std::shared_ptr<PreparedSession>()> task([path,ticket]{auto result=parseSession(path);result->ticket=ticket;return result;});
+            parsingSession=task.get_future(); std::thread(std::move(task)).detach();
+            return;
+        }
+        if(parsingSession.wait_for(std::chrono::seconds(0))!=std::future_status::ready) return;
+        try { pendingSession=parsingSession.get(); }
+        catch(const std::exception &e) { lastLoadErrorDetail=e.what(); finish(LoadResult::ReadError); return; }
+        if(pendingSession->path!=requestedSessionPath || pendingSession->ticket!=sessionRequestTicket) { pendingSession.reset(); return; }
+        if(pendingSession->result!=LoadResult::Success) { finish(pendingSession->result); return; }
+    }
+    auto &candidate=*pendingSession;
+    // One resource per frame, including nested presets. A single driver
+    // compilation can still block; timings identify that remaining spike.
+    if(candidate.cursor<candidate.declarations.size()) {
+        const auto start=ofGetElapsedTimef();
+        try { candidate.result=buildNextSessionResource(candidate); }
+        catch(const std::exception &error) {candidate.error=error.what();candidate.result=LoadResult::AssetError;}
+        ofLogNotice("transition-prepare") << candidate.path << " node=" << candidate.cursor << " ms=" << (ofGetElapsedTimef()-start)*1000.;
+        if(candidate.result!=LoadResult::Success) finish(candidate.result);
+        return;
+    }
+    if(!candidate.linked) linkPreparedSession(candidate);
+    bool ready=true;
+    // A paused destination still needs one valid frame before presentation.
+    // Restore transport flags after warming; nothing is written to the project.
+    vector<std::pair<JPbox *,bool>> transports;
+    std::function<void(JPbox *)> warm=[&](JPbox *node) {
+        transports.emplace_back(node,node->getonoff());node->setonoff(true);node->setRenderPinned(true);node->setRenderThisFrame(true);
+        if(auto *group=dynamic_cast<JPbox_preset *>(node))for(auto *child:group->boxes)warm(child);
+    };
+    for(auto *node:candidate.nodes)warm(node);
+    for(auto it=candidate.nodes.rbegin();it!=candidate.nodes.rend();++it) (*it)->update();
+    for(auto state:transports)state.first->setonoff(state.second);
+    std::function<void(JPbox *)> inspect=[&](JPbox *node) {
+        if(auto *media=dynamic_cast<JPMediaInspectable *>(node)) if(!media->mediaReady()) { ready=false;candidate.error=node->dir; }
+        if(auto *video=dynamic_cast<JPbox_video *>(node)) if(!video->movie.isLoaded() || !video->movie.getTexture().isAllocated()) {ready=false;candidate.error=node->dir;}
+        if(auto *camera=dynamic_cast<JPbox_cam *>(node)) if(!camera->transitionReady()) {ready=false;candidate.error=node->dir;}
+        if(auto *group=dynamic_cast<JPbox_preset *>(node)) for(auto *child:group->boxes) inspect(child);
+        if(!node->fbo.isAllocated()) {ready=false;candidate.error=node->dir;}
+    };
+    for(auto *node:candidate.nodes) inspect(node);
+    if(ready) { ofLogNotice("transition-prepare") << "ready ms=" << (ofGetElapsedTimef()-sessionPreparationStarted)*1000.; finish(LoadResult::Success); }
 }

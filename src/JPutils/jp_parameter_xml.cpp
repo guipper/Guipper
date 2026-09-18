@@ -60,7 +60,11 @@ void jp_parameter_xml::save(ofXml &boxNode, JPParameterGroup &group)
 				param.appendChild("name").set(group.getName(k));
 				param.appendChild("min").set(group.getRangeMin(k));
 				param.appendChild("max").set(group.getRangeMax(k));
-				param.appendChild("value").set(group.getFloatValue(k));
+				// Morph changes only emitted values; snapshots/save/history retain the
+                // destination automation value, never a transition intermediate.
+                auto *valueParameter=group.getJParameter(k);
+                param.appendChild("value").set(valueParameter && valueParameter->isMorphing() ?
+                    valueParameter->floatLerpValue : group.getFloatValue(k));
 				param.appendChild("movtype").set(group.getMovType(k));
 				param.appendChild("lastmovtype").set(group.getLastMovType(k));
 				saveParameterUserState(param,

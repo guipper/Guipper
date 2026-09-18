@@ -1,4 +1,5 @@
 #include "TransitionSR.h"
+#include "jp_app_paths.h"
 
 TransitionSR::TransitionSR()
 	: fbo1(nullptr), fbo2(nullptr), lerpValue(1.0f) {}
@@ -34,29 +35,33 @@ void TransitionSR::setup(ofFbo * _fbo1, ofFbo * _fbo2){
 	ensureShader();
 	//este.allocate(ofGetWidth(), ofGetHeight());
 
-	este.allocate(jp_constants::renderWidth, jp_constants::renderHeight);
+	este.allocate(_fbo1 && _fbo1->isAllocated() ? _fbo1->getWidth() : jp_constants::renderWidth,
+        _fbo1 && _fbo1->isAllocated() ? _fbo1->getHeight() : jp_constants::renderHeight);
 	este.begin();
 	ofClear(0, 0, 0, 0);
 	este.end();
 }
-void TransitionSR::advance() {
-	// ofGetLastFrameTime() is 0 during setup and on the first frames, and a
-	// transition armed there would sit at 0 forever rather than merely running
-	// slowly. Fall back to a nominal frame so progress is always made - which
-	// also reproduces the old per-frame behaviour exactly in that case.
-	const float measured = (float)ofGetLastFrameTime();
-	advance(measured > 0.0f ? measured : 1.0f / 60.0f);
+jp_transition::Config &TransitionSR::preferences() {
+    static jp_transition::Config config;
+    return config;
 }
-
+void TransitionSR::advance() {
+    if (!armed) return;
+    ensureShader();
+    const double now = ofGetElapsedTimef();
+    if (timeline.phase() == jp_transition::Phase::Preparing)
+        timeline.ready(now, jp_constants::bpm, jp_constants::beatOriginSeconds);
+    timeline.tick(now, jp_constants::bpm, jp_constants::beatOriginSeconds);
+    lerpValue = timeline.progress();
+}
 void TransitionSR::advance(float deltaSeconds) {
-	// Time-based, not per-frame. The old `lerpValue += 0.02` meant a fade took
-	// 833ms at 60fps and 2s at 25fps: it stretched precisely when the machine
-	// was already struggling, and no duration control could mean anything while
-	// the unit was "frames".
-	const float duration = std::max(1.0f, durationMs);
-	const float dt = ofClamp(deltaSeconds, 0.0f, 0.1f);
-	lerpValue += dt * 1000.0f / duration;
-	lerpValue = ofClamp(lerpValue, 0.0, 1.0);
+    if (!armed) return;
+    if (timeline.phase() == jp_transition::Phase::Preparing)
+        timeline.ready(explicitClock, jp_constants::bpm, 0.);
+    timeline.tick(explicitClock);
+    explicitClock += std::max(0.f, deltaSeconds);
+    timeline.tick(explicitClock);
+    lerpValue = timeline.progress();
 }
 
 void TransitionSR::setDurationMs(float _durationMs) {
@@ -67,8 +72,8 @@ float TransitionSR::getDurationMs() const {
 	return durationMs;
 }
 
-void TransitionSR::update() {
-	advance();
+void TransitionSR::update(bool advanceClock) {
+	if(advanceClock) advance();
 	ofPushStyle();
 	ofSetColor(255, 255);
 	// Rect mode is global and this runs during UPDATE, so it inherits whatever
@@ -108,25 +113,11 @@ void TransitionSR::update() {
 
 	este.end();*/
 }
-const char *TransitionSR::typeLabel(int _type)
-{
-	switch (_type)
-	{
-		case TYPE_WARP:   return "warp";
-		case TYPE_DITHER: return "dither";
-		default:          return "mix";
-	}
+const char *TransitionSR::typeLabel(int type) {
+    return jp_transition::catalog[std::clamp(type, 0, TYPE_COUNT-1)].en;
 }
-
-void TransitionSR::setType(int _type)
-{
-	const int next = ofClamp(_type, 0, TYPE_COUNT - 1);
-	if (next == transitionType) return;
-	transitionType = next;
-	// Force ensureShader to reload on the next draw. Unloading rather than
-	// loading here keeps every shader load on the draw thread, where a GL
-	// context is guaranteed - setType can be called from settings load.
-	shader.unload();
+void TransitionSR::setType(int type) {
+    transitionType = std::clamp(type, 0, TYPE_COUNT-1);
 }
 
 int TransitionSR::getType() const
@@ -134,20 +125,32 @@ int TransitionSR::getType() const
 	return transitionType;
 }
 
-bool TransitionSR::ensureShader()
-{
-	if (shader.isLoaded()) return true;
-	const char *fragment = "shaders/private/mix.frag";
-	if (transitionType == TYPE_WARP)
-		fragment = "shaders/private/transition_warp.frag";
-	else if (transitionType == TYPE_DITHER)
-		fragment = "shaders/private/transition_dither.frag";
-	if (shader.load("shaders/default.vert", fragment)) return true;
-	// A broken or missing transition shader must not take the whole output
-	// with it: fall back to the one that has always been there.
-	ofLogError("TransitionSR") << "failed to load " << fragment
-		<< " - falling back to mix";
-	return shader.load("shaders/default.vert", "shaders/private/mix.frag");
+bool TransitionSR::ensureShader() {
+    if (shader.isLoaded() && shader.getShader(GL_VERTEX_SHADER) != 0 &&
+        shader.getShader(GL_FRAGMENT_SHADER) != 0) return true;
+
+    // Internal rendering resources belong to this executable. Development
+    // profiles are migrated once, so their library can lack newly shipped files.
+    const auto &bundle = jp::AppPaths::current().bundle;
+    const std::filesystem::path root = bundle.empty() ?
+        std::filesystem::path(ofToDataPath("", true)) : bundle;
+    auto loadCompleteProgram = [&](const char *fragment) {
+        shader.unload();
+        // ofShader::load() ignores setupShaderFromFile failures and may link a
+        // vertex-only program successfully. That program produces no valid mix.
+        if (!shader.setupShaderFromFile(GL_VERTEX_SHADER, root / "shaders/default.vert") ||
+            !shader.setupShaderFromFile(GL_FRAGMENT_SHADER, root / fragment)) {
+            shader.unload();
+            return false;
+        }
+        shader.bindDefaults();
+        if (shader.linkProgram()) return true;
+        shader.unload();
+        return false;
+    };
+    if (loadCompleteProgram("shaders/private/transition_catalog.frag")) return true;
+    ofLogError("TransitionSR") << "Transition catalog unavailable; falling back to crossfade";
+    return loadCompleteProgram("shaders/private/mix.frag");
 }
 
 bool TransitionSR::renderStraightMix(ofFbo *first, ofFbo *second,
@@ -164,16 +167,70 @@ bool TransitionSR::renderStraightMix(ofFbo *first, ofFbo *second,
 	shader.setUniformTexture("textura2", *second, 2);
 	shader.setUniform1f("mixst", ofClamp(mixValue, 0.0f, 1.0f));
 	shader.setUniform2f("resolution", width, height);
+    const auto &config = armed ? timeline.config() : preferences();
+    shader.setUniform1i("transitionEffect", armed ? timeline.effect() : transitionType);
+    shader.setUniform1i("transitionDirection", armed ? timeline.direction() : config.direction);
+    shader.setUniform1f("transitionSeed", float(timeline.seed() % 65536));
+    shader.setUniform2f("transitionCenter", config.centerX, config.centerY);
+    shader.setUniform1f("edgeSoftness", config.softness);
+    shader.setUniform1f("plasmaScale", config.plasmaScale);
+    shader.setUniform1f("warpIntensity", config.intensity);
+	ofPushStyle();
+    ofFill();
+    ofSetRectMode(OF_RECTMODE_CORNER);
 	ofDrawRectangle(0, 0, width, height);
+    ofPopStyle();
 	shader.end();
+    // Inputs are render targets again on the next frame. Release the sampler
+    // bindings rather than leave scene textures attached to inactive units.
+    for (int unit : {1, 2}) {
+        glActiveTexture(GL_TEXTURE0 + unit);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+    glActiveTexture(GL_TEXTURE0);
 	return true;
 }
-void TransitionSR::setLerpValue(float _val) {
-	lerpValue = ofClamp(_val, 0.0f, 1.0f);
+void TransitionSR::setLerpValue(float value) {
+    lerpValue = ofClamp(value, 0.f, 1.f);
+    if (value <= 0.f) {
+        static uint32_t serial = 0;
+        auto config = preferences();
+        config.effect = transitionType;
+        config.duration = durationMs / 1000.;
+        timeline.request(config, ofGetElapsedTimef(), ++serial * 2654435761u, capabilities);
+        armed = true; outgoingFrozen = false;
+        explicitClock = 0.;
+        // Publish A immediately: another request in this same event frame must
+        // capture what is visible, not an old/uninitialized compositor buffer.
+        if(fbo1 && fbo1->isAllocated() && este.isAllocated() && fbo1!=&este) {
+            este.begin();ofPushStyle();ofSetRectMode(OF_RECTMODE_CORNER);
+            ofEnableBlendMode(OF_BLENDMODE_DISABLED);ofSetColor(255);ofClear(0,0,0,0);
+            fbo1->draw(0,0,este.getWidth(),este.getHeight());ofPopStyle();este.end();
+        }
+    } else if (value >= 1.f) {
+        timeline.cancel(); armed = false;
+        interruptedFrame.clear();
+    }
 }
-void TransitionSR::reload() {
-	shader.load("", "shaders/blending/mix.frag");
+void TransitionSR::captureInterruption() {
+    if (lerpValue >= 1.f || !este.isAllocated()) return;
+    interruptedFrame.allocate(este.getWidth(), este.getHeight(), GL_RGBA);
+    interruptedFrame.begin();
+    ofPushStyle(); ofSetRectMode(OF_RECTMODE_CORNER);
+    ofEnableBlendMode(OF_BLENDMODE_DISABLED); ofSetColor(255);
+    ofClear(0,0,0,0); este.draw(0,0); ofPopStyle();
+    interruptedFrame.end();
+    fbo1 = &interruptedFrame;
 }
+void TransitionSR::freezeOutgoing() {
+    if(outgoingFrozen || !fbo1 || !fbo1->isAllocated()) return;
+    ofFbo frozen; frozen.allocate(fbo1->getWidth(),fbo1->getHeight(),GL_RGBA);
+    frozen.begin(); ofPushStyle(); ofSetRectMode(OF_RECTMODE_CORNER);
+    ofEnableBlendMode(OF_BLENDMODE_DISABLED); ofSetColor(255);
+    ofClear(0,0,0,0); fbo1->draw(0,0); ofPopStyle(); frozen.end();
+    interruptedFrame=std::move(frozen); fbo1=&interruptedFrame; outgoingFrozen=true;
+}
+void TransitionSR::reload() { shader.unload(); }
 void TransitionSR::draw(float _x, float _y, float _w, float _h){
 	if (!este.isAllocated()) return;
 	drawSubsection(_x, _y, _w, _h,
