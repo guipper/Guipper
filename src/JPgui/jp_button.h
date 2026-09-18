@@ -58,10 +58,10 @@ namespace jp_button
 		// different heights depending on which screen drew them.
 		ofSetColor(!enabled ? COL_TEXT_MUTED :
 			((active || over) ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY));
-		const float textW = jp_constants::p_font.stringWidth(label);
-		jp_constants::p_font.drawString(label,
-			r.x + (r.width - textW) * 0.5f,
-			r.getCenter().y + 4.0f);
+		const float textW = jp_constants::control_font.stringWidth(label);
+		jp_constants::control_font.drawString(label,
+			std::round(r.x + (r.width - textW) * 0.5f),
+			std::round(r.getCenter().y + 4.0f));
 
 		ofPopStyle();
 	}

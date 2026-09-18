@@ -13,6 +13,7 @@ float jp_constants::bpm = 120.0f;
 float jp_constants::beatOriginSeconds = 0.0f;
 
 ofTrueTypeFont jp_constants::p_font;
+ofTrueTypeFont jp_constants::control_font;
 ofTrueTypeFont jp_constants::h_font;
 ofTrueTypeFont jp_constants::p2_font;
 ofTrueTypeFont jp_constants::inspector_title_font;
@@ -39,13 +40,14 @@ void jp_constants::init(int _renderwidth, int _renderheight, int _window_width, 
 	window_width = _window_width;
 	window_height = _window_height;
 
-	jp_font::loadLatin(p_font, "font/Montserrat-Regular.ttf", 11);
-	jp_font::loadLatin(h_font, "font/Montserrat-Regular.ttf", 20);
-	jp_font::loadLatin(p2_font, "font/Montserrat-Regular.ttf", 10);
-	jp_font::loadLatin(inspector_title_font, "font/Montserrat-Regular.ttf", 18);
-	jp_font::loadLatin(inspector_body_font, "font/Montserrat-Regular.ttf", 12);
-	jp_font::loadLatin(inspector_secondary_font, "font/Montserrat-Regular.ttf", 11);
-	jp_font::loadLatin(inspector_media_font, "font/Montserrat-Regular.ttf", 9);
+	jp_font::loadLatin(p_font, jp_font::bodyFace, 11);
+	jp_font::loadLatin(control_font, jp_font::emphasisFace, 11);
+	jp_font::loadLatin(h_font, jp_font::emphasisFace, 20);
+	jp_font::loadLatin(p2_font, jp_font::bodyFace, 10);
+	jp_font::loadLatin(inspector_title_font, jp_font::emphasisFace, 18);
+	jp_font::loadLatin(inspector_body_font, jp_font::bodyFace, 12);
+	jp_font::loadLatin(inspector_secondary_font, jp_font::bodyFace, 11);
+	jp_font::loadLatin(inspector_media_font, jp_font::bodyFace, 9);
 
 	CmouseOver.clear();
 	Cfront.clear();

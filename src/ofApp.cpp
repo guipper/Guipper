@@ -75,10 +75,10 @@ void ofApp::setup() {
 	// when reading someone else's crash log.
 	queryGpuInfo();
 
-	jp_font::loadLatin(font_p, "font/Montserrat-Regular.ttf", 11);
+	jp_font::loadLatin(font_p, jp_font::bodyFace, 11);
 
 	// Modal font - loaded at readable size for the save dialog
-	jp_font::loadLatin(modalFont, "font/Montserrat-Medium.ttf", 14);
+	jp_font::loadLatin(modalFont, jp_font::emphasisFace, 14);
 
 	// Shader editor
 	shaderEditor.setup();

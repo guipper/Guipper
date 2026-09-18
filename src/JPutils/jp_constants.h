@@ -109,6 +109,7 @@ public:
 	// Vamos a hacer finalmente un puntero a la tipografia as� no me vuelvo totalmente desquiciado.
 
 	static ofTrueTypeFont p_font; // Esta es la fuente mas utilizada en todo el programa.
+	static ofTrueTypeFont control_font;
 	static ofTrueTypeFont h_font;
 	static ofTrueTypeFont p2_font;
 	static ofTrueTypeFont inspector_title_font;
