@@ -7,54 +7,60 @@
 #include <set>
 
 namespace {
-JPboxgroup::LoadResult validateStoredTree(const ofXml& xml, std::set<std::string>& stack) {
+JPboxgroup::LoadResult validateStoredTree(const ofXml& xml, std::set<std::string>& stack, std::string& detail) {
     using Result = JPboxgroup::LoadResult;
     const auto format = xml.getChild("guipper_format");
     if (format && format.getValue() != "1") return Result::UnsupportedVersion;
     if (!xml.getChild("activerender") && !xml.getChild("box")) return Result::InvalidComposition;
     for (auto node : xml.getChildren("box")) {
         const auto source = jp_normalizePath(node.getChild("directory").getValue());
-        if (ofTrim(source).empty()) return Result::InvalidComposition;
+        if (ofTrim(source).empty()) { detail = node.getChild("nombre").getValue(); return Result::InvalidComposition; }
         if (ofToLower(ofFilePath::getFileExt(source)) == "frag") {
             const auto bytes = ofBufferFromFile(source);
-            if (bytes.size() == 0 || jp_uniform_parser::parse(bytes.getText()).hasErrors()) return Result::AssetError;
+            if (bytes.size() == 0 || jp_uniform_parser::parse(bytes.getText()).hasErrors()) {
+                detail = source; ofLogError("session") << "Cannot read/parse shader: " << ofToDataPath(source, true);
+                return Result::AssetError;
+            }
         }
         if (ofToLower(ofFilePath::getFileExt(source)) == "xml") {
             const auto path = std::filesystem::absolute(ofToDataPath(source, true)).lexically_normal().string();
-            if (stack.size() >= 64 || !stack.insert(path).second) return Result::InvalidComposition;
+            if (stack.size() >= 64 || !stack.insert(path).second) { detail = source; return Result::InvalidComposition; }
             ofXml child;
-            if (!child.load(path)) return Result::AssetError;
-            const auto result = validateStoredTree(child, stack);
+            if (!child.load(path)) { detail = source; return Result::AssetError; }
+            const auto result = validateStoredTree(child, stack, detail);
             stack.erase(path);
             if (result != Result::Success) return result;
         }
     }
     return Result::Success;
 }
-bool validBuiltTree(JPbox* box) {
+bool validBuiltTree(JPbox* box, std::string& detail) {
     if (auto* shader = dynamic_cast<JPbox_shader*>(box))
         {
             GLint linked = GL_FALSE;
-            if (!shader->shader.isLoaded() || !shader->shader.getProgram()) return false;
+            if (!shader->shader.isLoaded() || !shader->shader.getProgram()) { detail = box->dir; return false; }
             glGetProgramiv(shader->shader.getProgram(), GL_LINK_STATUS, &linked);
-            if (linked != GL_TRUE) return false;
+            if (linked != GL_TRUE) { detail = box->dir; return false; }
         }
     if (auto* preset = dynamic_cast<JPbox_preset*>(box))
-        for (auto* child : preset->boxes) if (!validBuiltTree(child)) return false;
+        for (auto* child : preset->boxes) if (!validBuiltTree(child, detail)) return false;
     return true;
 }
 }
 
 // Validate a curated group in isolation before assigning or inserting it.
-bool JPboxgroup::validateGroupFile(const string& path) {
+bool JPboxgroup::validateGroupFile(const string& path, string* errorDetail) {
+    string ignored;
+    string& lastLoadErrorDetail = errorDetail ? *errorDetail : ignored;
+    lastLoadErrorDetail.clear();
     ofXml xml;
-    if (!xml.load(path) || !xml.getChild("box")) return false;
+    if (!xml.load(path) || !xml.getChild("box")) { lastLoadErrorDetail = path; return false; }
     std::set<std::string> stack{std::filesystem::absolute(ofToDataPath(path,true)).lexically_normal().string()};
-    if (validateStoredTree(xml,stack) != LoadResult::Success) return false;
+    if (validateStoredTree(xml,stack,lastLoadErrorDetail) != LoadResult::Success) return false;
     JPbox_preset candidate;
     try {
         candidate.setup(path,"group-validation");
-        const bool valid=!candidate.boxes.empty() && validBuiltTree(&candidate);
+        const bool valid=!candidate.boxes.empty() && validBuiltTree(&candidate,lastLoadErrorDetail);
         candidate.clear(); return valid;
     } catch (...) { candidate.clear(); return false; }
 }
@@ -179,6 +185,7 @@ void JPboxgroup::load2(string _dirinput)
 }
 JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 {
+	lastLoadErrorDetail.clear();
 	// Parse exactly once before touching any live state. ofXml retains the
 	// parsed document for the reconstruction below, even if the file changes.
 	ofXml xml;
@@ -189,7 +196,7 @@ JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
 	}
     std::set<std::string> stack;
     stack.insert(std::filesystem::absolute(ofToDataPath(_dirinput, true)).lexically_normal().string());
-    const auto validation = validateStoredTree(xml, stack);
+    const auto validation = validateStoredTree(xml, stack, lastLoadErrorDetail);
     if (validation != LoadResult::Success) return validation;
 	// Legacy compositions may omit activerender. An explicitly empty project
 	// saved by Guipper contains activerender, so it remains a valid load.
@@ -258,7 +265,7 @@ JPboxgroup::LoadResult JPboxgroup::load(string _dirinput)
             ofLogError("session") << error.what();
             return LoadResult::AssetError;
         }
-        if (!validBuiltTree(bx)) return LoadResult::AssetError;
+        if (!validBuiltTree(bx, lastLoadErrorDetail)) return LoadResult::AssetError;
 		bx->setPos(x.getIntValue(), y.getIntValue());
 		bx->setonoff(onoff ? onoff.getBoolValue() : true);
 		bx->setBypass(bypass ? bypass.getBoolValue() : false);

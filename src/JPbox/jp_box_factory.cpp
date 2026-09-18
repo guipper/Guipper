@@ -30,7 +30,7 @@ namespace
 		case Kind::Shader: return contains(".frag");
 		case Kind::Image: return jp_media::isImage(directory);
 		case Kind::Video: return jp_media::isVideo(directory);
-		case Kind::Preset: return contains(".xml");
+		case Kind::Preset: return ofToLower(ofFilePath::getFileExt(directory)) == "xml";
 		case Kind::Kinect2: return contains("kinect2");
 		case Kind::PointerCloud: return contains("pointercloud");
 		case Kind::CameraDepth: return contains("camdepth");

@@ -7639,8 +7639,7 @@ void ofApp::mouseEntered(int x, int y) { }
 void ofApp::mouseExited(int x, int y) { }
 void ofApp::gotMessage(ofMessage msg) { }
 void ofApp::dragEvent(ofDragInfo dragInfo) {
-	cout << "WHAT " << dragInfo.position.t << endl;
-	cout << "DIR : " << dragInfo.files[0] << endl;
+	if (dragInfo.files.empty()) return;
 
 	// ESTO TIENE QUE COINCIDIR CON LOS TAMA�OS DE LAS CAJAS QUE ACTUALMENTE ESTA EN 80x80
 	float sepx = 80 * 1.4;
@@ -7664,23 +7663,24 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
 			}
 			indexx++;
 		}
-#ifdef RELATIVEDIRS
-		cout << "path " << path << endl;
-		if (path.find("data") != std::string::npos) {
-			cout << "IS INSIDE DATA FOLDER SO LETS CONVERT IT TO RELATIVE DIR" << endl;
-			path = path.substr(path.find("data"), path.size());
-			cout << "NEW PATH CONVERSION :" << path << endl;
-		} else {
-			cout << "WARNING: OUTSIDE DATA FOLDER " << endl;
-		}
-#endif
-		cout << "path " << path << endl;
-		if (path.find(".xml") != std::string::npos && !loadAspreset) {
+		// A drop is an explicit file selection. Never redirect it to a profile
+		// copy, or trim arbitrary parent names containing "data".
+		path = std::filesystem::absolute(dragInfo.files[i]).lexically_normal().string();
+		const bool composition = ofToLower(ofFilePath::getFileExt(path)) == "xml";
+		if (composition && !loadAspreset) {
 			loadSession(path);
 		} else {
-
+			if (composition && !boxes.validateGroupFile(path, &boxes.lastLoadErrorDetail)) {
+				const string failedFile = boxes.lastLoadErrorDetail.empty() ?
+					ofFilePath::getFileName(path) : ofFilePath::getFileName(boxes.lastLoadErrorDetail);
+				publishToast("import-group-error", jp::ToastState::Error,
+					failedFile + (language == 0 ? ": could not import group " : ": no se pudo importar el grupo ") +
+					ofFilePath::getFileName(path) + ".");
+				continue;
+			}
 			boxes.addBox(path, xx, yy);
 		}
+
 		xx += dropSpacing.x;
 	}
 }
@@ -8173,7 +8173,7 @@ bool ofApp::saveSession(string path, bool manual) {
     return true;
 }
 bool ofApp::loadSession(string path) {
-	sessionLoadResult = boxes.load(jp_normalizePath(path));
+	sessionLoadResult = boxes.load(std::filesystem::path(path).is_absolute() ? path : jp_normalizePath(path));
 	if (sessionLoadResult != JPboxgroup::LoadResult::Success)
 	{
 		notifySessionLoadError();
@@ -8200,6 +8200,7 @@ void ofApp::notifySessionLoadError()
     if (sessionLoadResult == JPboxgroup::LoadResult::AssetError)
         message = language == 0 ? "A shader or group could not load. Check the source files. Current composition kept." :
             "No se pudo cargar un shader o grupo. Revisá sus archivos. Se conservó la composición actual.";
+    if (!boxes.lastLoadErrorDetail.empty()) message = ofFilePath::getFileName(boxes.lastLoadErrorDetail) + ": " + message;
     publishToast("load-error", jp::ToastState::Error, message);
 }
 

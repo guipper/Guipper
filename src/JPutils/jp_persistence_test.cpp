@@ -1412,6 +1412,98 @@ namespace
     }
 
 
+    bool checkLegacyComposition(ofApp& app) {
+        bool passed = true;
+        auto check = [&](bool ok, const char* label) {
+            if (!ok) ofLogError("legacy-composition") << label << " " << app.boxes.lastLoadErrorDetail;
+            passed = ok && passed;
+        };
+        app.boxes.clear();
+        const auto oldRoot = std::filesystem::path(ofToDataPath("", true));
+        const auto assets = oldRoot / "uishots/legacy-profile/assets";
+        std::filesystem::create_directories(assets);
+        std::filesystem::copy(oldRoot / "shaders", assets / "shaders",
+            std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+        // Unlike bin/data, a profile root does not recognize the legacy data/ prefix.
+        ofSetDataPathRoot(assets.string() + "/");
+        const auto fixture = oldRoot / "savefiles/tommy/3.xml";
+        const bool oldMode = app.loadAspreset;
+        app.loadAspreset = true;
+        ofDragInfo drop; drop.position = glm::vec2(100,100); drop.files.push_back(fixture);
+        app.dragEvent(drop);
+        auto* group = app.boxes.boxes.size() == 1 ? dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]) : nullptr;
+        check(group && group->boxes.size() == 9, "tommy/3 imports all nine nodes");
+        if (group) {
+            group->setonoff(false); group->update();
+            group->setonoff(true); group->update();
+            check(group->getonoff(), "tommy group resumes");
+        }
+        app.loadAspreset = false; app.dragEvent(drop);
+        check(app.boxes.boxes.size() == 9, "tommy/3 loads as full composition");
+        check(jp_normalizePath("data/shaders/test.frag") == "shaders/test.frag", "legacy relative path");
+        check(jp_normalizePath("./data/shaders/test.frag") == "shaders/test.frag", "dot relative path");
+        check(jp_normalizePath("metadata/shaders/test.frag") == "metadata/shaders/test.frag", "unrelated prefix unchanged");
+        app.boxes.clear(); app.loadAspreset = oldMode;
+        ofSetDataPathRoot(oldRoot.string() + "/");
+        ofLogNotice("legacy-composition") << "passed=" << passed;
+        return passed;
+    }
+
+    bool checkXmlDrop(ofApp& app) {
+        bool passed = true;
+        auto check = [&](bool ok, const char* label) {
+            if (!ok) ofLogError("xml-drop") << label;
+            passed = ok && passed;
+        };
+        app.boxes.clear();
+        const auto previousPaths = jp::AppPaths::current();
+        const auto root = std::filesystem::path(ofToDataPath("uishots/drop-metadata/", true));
+        const auto bundle = root / "Guipper/bin/data";
+        const auto file = bundle / "savefiles/solo en instalacion.xml";
+        std::filesystem::create_directories(file.parent_path());
+        check(app.boxes.addBox("shaders/generative/solidcolor.frag", 100, 100) != nullptr, "fixture node");
+        app.activerender = 0;
+        check(app.boxes.save(file.string()), "save installation-only fixture");
+        app.boxes.clear();
+        auto& paths = jp::AppPaths::current();
+        paths.bundle = bundle;
+        paths.data = root / "profile/data";
+        std::filesystem::create_directories(paths.data / "savefiles");
+        // Deliberately conflicting profile copy must never replace the selection.
+        jp::atomicWrite(paths.data / "savefiles/solo en instalacion.xml", "<invalid/>");
+        const bool oldMode = app.loadAspreset;
+        check(jp_box_factory::classify("group.XML", jp_box_factory::Context::Interactive) ==
+            jp_box_factory::Kind::Preset, "uppercase XML extension is supported");
+        app.loadAspreset = true;
+        ofDragInfo event;
+        event.position = glm::vec2(120, 120);
+        event.files.push_back(file);
+        app.dragEvent(event);
+        check(app.boxes.boxes.size() == 1, "drop creates one group");
+        auto* group = app.boxes.boxes.empty() ? nullptr : dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]);
+        check(group && group->boxes.size() == 1, "group contains the selected file's nodes");
+        if (group) {
+            check(group->getonoff(), "group starts enabled");
+            group->setonoff(false); group->update();
+            group->setonoff(true); group->update();
+            check(group->getonoff() && group->boxes.size() == 1, "group can resume after pause");
+        }
+        const auto count = app.boxes.boxes.size();
+        event.files[0] = bundle / "savefiles/missing.xml";
+        app.dragEvent(event);
+        check(app.boxes.boxes.size() == count, "missing XML does not add an empty paused group");
+        event.files.clear(); app.dragEvent(event);
+        check(app.boxes.boxes.size() == count, "empty drop is harmless");
+        app.loadAspreset = false; event.files.push_back(file);
+        app.dragEvent(event);
+        check(app.boxes.boxes.size() == 1 && dynamic_cast<JPbox_shader*>(app.boxes.boxes[0]),
+            "session mode also loads the exact dropped file");
+        app.boxes.clear(); app.loadAspreset = oldMode;
+        jp::AppPaths::current() = previousPaths;
+        ofLogNotice("xml-drop") << "passed=" << passed;
+        return passed;
+    }
+
     bool checkSessionFade(ofApp& app) {
         bool passed = true;
         auto check = [&](bool ok, const char* label) {
@@ -1596,6 +1688,8 @@ namespace
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if (testMode && string(testMode) == "legacy_composition") return checkLegacyComposition(app);
+    if (testMode && string(testMode) == "xml_drop") return checkXmlDrop(app);
     if (testMode && string(testMode) == "session_fade") return checkSessionFade(app);
     if (testMode && string(testMode) == "cue_media") return checkCueMedia(app);
     if (testMode && string(testMode) == "text_input") return jp_text_input_test::run(app);

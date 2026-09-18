@@ -13,10 +13,13 @@
 #include "../JPgui/jp_toogle.h"
 
 // Normalize a stored file path so sessions saved on Windows (which use '\'
-// separators) load on Linux/macOS. Only the separator needs fixing; the
-// "data/" prefix is handled by ofToDataPath. Idempotent for Unix-style paths.
+// separators) load on Linux/macOS. Legacy paths include data/, but OF only
+// recognizes that prefix when its root is the old bin/data directory. With
+// a user profile root it would append data/ a second time.
 inline std::string jp_normalizePath(std::string p) {
 	for (char &c : p) { if (c == '\\') c = '/'; }
+    if (p.compare(0, 7, "./data/") == 0) p.erase(0, 7);
+    else if (p.compare(0, 5, "data/") == 0) p.erase(0, 5);
     const auto& paths = jp::AppPaths::current();
     if (!paths.bundle.empty() && std::filesystem::path(p).is_absolute()) {
         const auto relative = std::filesystem::path(p).lexically_normal().lexically_relative(paths.bundle);

@@ -228,7 +228,8 @@ public:
 	// Success does not yet guarantee all referenced assets were available.
 	enum class LoadResult { Success, ReadError, InvalidComposition, UnsupportedVersion, AssetError };
 	LoadResult load(string _dirinput);
-    static bool validateGroupFile(const string& path);
+	string lastLoadErrorDetail;
+    static bool validateGroupFile(const string& path, string* errorDetail = nullptr);
 
 	// Returns the box it created (nullptr when the directory maps to no box
 	// type), so callers that need to keep a handle - the quick-image panel
