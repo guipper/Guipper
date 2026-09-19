@@ -27,3 +27,12 @@ consiste en abrir beta.6, F10, canal Beta, buscar, descargar e instalar beta.7;
 comprobar que Random es el último botón de la lista de SETTINGS.
 Se mantienen las limitaciones beta.6: sin Authenticode, sin prueba de máquina
 limpia o sesión prolongada, NDI 6 externo y sin rollback automático Windows.
+
+## Publicación verificada
+
+Publicado v0.1.0-beta.7 desde commit `40974c8`. Descarga anónima de GitHub con
+SHA256 y firma Ed25519 válidos. Después de actualizar el appcast `windows-beta`,
+el probe beta.6 detectó, descargó y verificó beta.7: Checking → Available →
+Downloading → Ready, con el SHA256 anterior. Evidencia local en
+`dist/beta7-public-validation`. Se retiró la instalación temporal B con su
+desinstalador; el perfil de prueba y registros permanecen disponibles.
