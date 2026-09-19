@@ -7,6 +7,11 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 
 ## Sin publicar
 
+## [0.1.0-beta.7](https://github.com/guipper/Guipper/releases/tag/v0.1.0-beta.7) — 2026-09-18
+
+- Random (Aleatorio) aparece siempre al final de la lista de transiciones, también en Favoritos. Los identificadores guardados y las selecciones de las composiciones mantienen su significado.
+- Release Windows para probar la actualización desde beta.6.
+
 ## [0.1.0-beta.6](https://github.com/guipper/Guipper/releases/tag/v0.1.0-beta.6) — 2026-09-18
 
 - Primer instalador Windows x64, con actualizaciones verificadas mediante Ed25519 y canales Windows separados de Linux. La primera instalación Windows es manual; las siguientes se consultan desde F10.

@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 NS='http://www.andymatuschak.org/xml-namespaces/sparkle'
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--version',default=pathlib.Path('VERSION').read_text().strip())
     for name in ['probe','installer','tool','private-key','output']:
         parser.add_argument('--'+name,type=pathlib.Path,required=True)
     args=parser.parse_args();args.output.mkdir(parents=True,exist_ok=True)
@@ -27,8 +28,8 @@ def main():
             for case in ['valid','tampered','unsigned','wrong-signature','offline','cancel']:
                 root=ET.Element('rss',version='2.0');channel=ET.SubElement(root,'channel')
                 ET.SubElement(channel,'title').text='Guipper local update regression'
-                item=ET.SubElement(channel,'item');ET.SubElement(item,'title').text='Guipper 0.1.0-beta.6'
-                attributes={'url':base+'/installer.exe','length':str(len(payload)),'type':'application/octet-stream','{'+NS+'}version':'0.1.0-beta.6'}
+                item=ET.SubElement(channel,'item');ET.SubElement(item,'title').text='Guipper '+args.version
+                attributes={'url':base+'/installer.exe','length':str(len(payload)),'type':'application/octet-stream','{'+NS+'}version':args.version}
                 if case!='unsigned':attributes['{'+NS+'}edSignature']=signed if case!='wrong-signature' else ('A'*86+'==')
                 ET.SubElement(item,'enclosure',attributes)
                 (folder/'appcast.xml').write_bytes(ET.tostring(root,encoding='utf-8',xml_declaration=True))

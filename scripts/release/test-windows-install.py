@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Install the verified candidate in an isolated directory and preserve an A profile.
 
-A is a development executable supplied explicitly; it is not a previous public
-Windows release. The installer is executed without elevation and with no icons.
+A is the previous executable supplied explicitly. The installer is executed
+without elevation and with no icons.
 """
 import argparse,ctypes,ctypes.wintypes,hashlib,json,os,pathlib,shutil,subprocess,time
 
@@ -34,9 +34,10 @@ def launch(binary,profile,log):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--previous-stage',type=pathlib.Path)
     for name in ['installer','previous','stage','output']:parser.add_argument('--'+name,type=pathlib.Path,required=True)
     args=parser.parse_args();root=args.output.resolve();root.mkdir(exist_ok=False)
-    previous=root/'A';shutil.copytree(args.stage,previous);shutil.copy2(args.previous,previous/'Guipper.exe')
+    previous=root/'A';shutil.copytree(args.previous_stage or args.stage,previous);shutil.copy2(args.previous,previous/'Guipper.exe')
     profile=root/'profile';launch(previous/'Guipper.exe',profile,root/'A.log')
     # Personal shader, composition and preference must survive installer+startup.
     files={profile/'data/shaders/personal-upgrade-test.frag':b'// personal shader\nvoid main() {}\n',
@@ -49,7 +50,7 @@ def main():
     assert run.returncode==0,run.returncode
     assert (target/'Guipper.exe').is_file()
     assert digest(target/'Guipper.exe')==digest(args.stage/'guipper.exe'),'Installed executable differs'
-    assert (target/'VERSION').read_text().strip()=='0.1.0-beta.6'
+    assert (target/'VERSION').read_text().strip()==(args.stage/'VERSION').read_text().strip()
     launch(target/'Guipper.exe',profile,root/'B.log')
     after={str(p.relative_to(profile)):digest(p) for p in files}
     assert before==after,'Personal data changed'

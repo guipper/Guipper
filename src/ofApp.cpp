@@ -2825,7 +2825,10 @@ void ofApp::drawTransitionSettings(const SettingsLayout &L)
     y+=62;
     // A bounded list, two columns. Marks have independent hit regions.
     int slot=0;
-    for(int i=0;i<EffectCount;++i) {
+    for(int position=0;position<EffectCount;++position) {
+        // Keep persisted effect IDs stable; Random is always the last UI entry.
+        const int i = position == EffectCount-1 ? Random :
+            (position >= Random ? position+1 : position);
         if(transitionFamily==7 && !config.favorites[i]) continue;
         if(transitionFamily>0 && transitionFamily<7 && string(catalog[i].family)!=families[transitionFamily]) continue;
         const float rowW=(w-10)*.5f;

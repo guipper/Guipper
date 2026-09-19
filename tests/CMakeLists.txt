@@ -22,7 +22,7 @@ if(WIN32 AND GUIPPER_WINSPARKLE_SDK)
     target_compile_features(windows_update_probe PRIVATE cxx_std_17)
     target_include_directories(windows_update_probe PRIVATE "${GUIPPER_WINSPARKLE_SDK}/include")
     target_compile_definitions(windows_update_probe PRIVATE GUIPPER_UPDATE_TEST GUIPPER_WINSPARKLE=1
-        GUIPPER_VERSION="0.1.0-beta.5"
+        GUIPPER_VERSION="0.1.0-beta.6"
         GUIPPER_WINSPARKLE_PUBLIC_KEY="${GUIPPER_PUBLIC_KEY}"
         GUIPPER_WINSPARKLE_STABLE="https://example.invalid/appcast.xml"
         GUIPPER_WINSPARKLE_BETA="https://example.invalid/appcast.xml")

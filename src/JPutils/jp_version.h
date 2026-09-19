@@ -1,6 +1,6 @@
 #pragma once
 #ifndef GUIPPER_VERSION
-#define GUIPPER_VERSION "0.1.0-beta.6"
+#define GUIPPER_VERSION "0.1.0-beta.7"
 #endif
 #define GUIPPER_WIDEN_INNER(x) L##x
 #define GUIPPER_WIDEN(x) GUIPPER_WIDEN_INNER(x)
