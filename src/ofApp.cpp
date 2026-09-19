@@ -613,7 +613,7 @@ void ofApp::update() {
 
 #ifdef NDI
 	if (ndiActive) {
-		if (ofFbo *output = boxes.getActiverender()) ndiSender.SendImage(*output);
+		if (ofFbo *output = boxes.getActiverender()) sendNDIOutput(*output);
 	}
 #endif
 	smoothProfileValue(frameProfile.outputsMs, elapsedProfileMs(stageStart));

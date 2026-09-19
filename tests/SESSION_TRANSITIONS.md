@@ -36,6 +36,13 @@ La regresión del catálogo crea un perfil antiguo sin `transition_catalog.frag`
 separa instalación y datos, y comprueba que la mezcla siga produciendo píxeles.
 También puede ejecutarse sin `xvfb-run` para probar el contexto GPU del escritorio.
 
+Con NDI compilado y su runtime disponible, el catálogo también ejercita la salida
+asíncrona con fuentes de 80×48, 640×360 y el FBO de una transición. Comprueba
+que la resolución anunciada se mantenga estable y que se conserven imagen y alpha.
+Esto cubre el cierre por desbordamiento de buffers al cambiar el shader activo:
+el addon no redimensiona sus buffers CPU cuando `SendImage(texture)` recibe
+una textura mayor. Guipper adapta las fuentes a su FBO de salida NDI antes del envío.
+
 ## Catálogo y configuración
 
 SETTINGS ofrece familias, favoritos y participación en aleatorio independientes,

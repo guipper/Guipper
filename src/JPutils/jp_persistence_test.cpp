@@ -1524,6 +1524,43 @@ namespace
         // inspecting pixels. No extra render or synchronization in production.
         auto pixel=[&](ofFbo &fbo){glFinish();ofPixels pixels;fbo.readToPixels(pixels);return pixels.getColor(40,24);};
         auto same=[](ofColor a,ofColor b){return abs(int(a.r)-b.r)<3&&abs(int(a.g)-b.g)<3&&abs(int(a.b)-b.b)<3&&abs(int(a.a)-b.a)<3;};
+#ifdef NDI
+        // Exercise the real async NDI path: the old direct SendImage(source)
+        // overruns CPU buffers when a transition replaces a smaller source.
+        {
+            const auto senderName=app.ndiSender.GetSenderName();
+            const auto senderWidth=app.ndiSender.GetWidth(), senderHeight=app.ndiSender.GetHeight();
+            app.ndiSender.ReleaseSender();
+            const bool created=app.ndiSender.CreateSender("Guipper transition regression",80,48);
+            check(created,"NDI regression sender created");
+            if(created) {
+                ofFbo large;large.allocate(640,360,GL_RGBA);
+                large.begin();ofClear(25,85,175,90);large.end();
+                ofFbo empty;
+                check(!app.sendNDIOutput(empty),"NDI ignores unallocated output");
+                TransitionSR ndiTransition;ndiTransition.setup(&a,&large);
+                ndiTransition.setLerpValue(0.f);
+                for(int cycle=0;cycle<4;++cycle) {
+                    for(ofFbo *source:{&a,&large,ndiTransition.getOutput(),&b}) {
+                        bool sent=false;
+                        for(int frame=0;frame<6;++frame) {
+                            ndiTransition.advance(.02f);ndiTransition.update(false);
+                            ofSetRectMode(OF_RECTMODE_CENTER);ofSetColor(12);ofEnableAlphaBlending();
+                            sent=app.sendNDIOutput(*source)||sent;
+                            check(ofGetStyle().rectMode==OF_RECTMODE_CENTER,"NDI restores drawing style");
+                        }
+                        check(sent,"NDI async ring sends resized source");
+                        check(app.ndiSender.GetWidth()==80 && app.ndiSender.GetHeight()==48,
+                            "NDI size stable during active-render transitions");
+                        check(same(pixel(app.ndiFbo),pixel(*source)),"NDI preserves full frame and alpha");
+                    }
+                }
+                ofSetColor(255);ofSetRectMode(OF_RECTMODE_CORNER);
+            }
+            app.ndiSender.ReleaseSender();
+            if(senderWidth && senderHeight)check(app.ndiSender.CreateSender(senderName.c_str(),senderWidth,senderHeight),"NDI sender restored");
+        }
+#endif
         // An existing development profile is migrated only once and therefore
         // lacks newly shipped internal shaders. Match normal startup's data root.
         {

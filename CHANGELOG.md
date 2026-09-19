@@ -7,6 +7,8 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 
 ## Sin publicar
 
+- Corregido un cierre al cambiar el shader activo con NDI habilitado: la salida conserva su resolución aunque cambie el tamaño de las imágenes durante una transición.
+
 ## [0.1.0-beta.5](https://github.com/guipper/Guipper/releases/tag/v0.1.0-beta.5) — 2026-09-18
 
 ### Novedades principales

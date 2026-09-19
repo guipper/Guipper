@@ -169,6 +169,7 @@ public:
 	// NDI SENDER:
 	ofxNDIsender ndiSender; // NDI sender
 	ofFbo ndiFbo;			// Fbo used for graphics and sending
+	bool sendNDIOutput(ofFbo &source);
 	bool ndiActive = true;
 #endif
 

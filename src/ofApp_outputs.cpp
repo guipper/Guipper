@@ -3,6 +3,35 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
+#ifdef NDI
+bool ofApp::sendNDIOutput(ofFbo &source)
+{
+	if (!source.isAllocated() || !ndiSender.SenderCreated()) return false;
+	const auto width = ndiSender.GetWidth();
+	const auto height = ndiSender.GetHeight();
+	if (width == 0 || height == 0) return false;
+
+	// Keep the announced output size across node/transition FBOs and adaptive
+	// render quality. ofxNDIsender::SendImage(texture) changes the NDI frame
+	// dimensions without resizing its CPU buffers or draining its PBO ring.
+	// A larger input can therefore overwrite memory during async readback.
+	if (!ndiFbo.isAllocated() || ndiFbo.getWidth() != width || ndiFbo.getHeight() != height)
+		ndiFbo.allocate(width, height, GL_RGBA);
+	if (!ndiFbo.isAllocated()) return false;
+
+	ndiFbo.begin();
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+	ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+	ofSetColor(255);
+	ofClear(0, 0, 0, 0);
+	source.draw(0, 0, width, height);
+	ofPopStyle();
+	ndiFbo.end();
+	return ndiSender.SendImage(ndiFbo);
+}
+#endif
+
 // Output window lifecycle, source resolution and window callbacks.
 // Settings controls and XML persistence stay in ofApp. Events still target
 // the same ofApp instance so listener registration and retirement are paired.
