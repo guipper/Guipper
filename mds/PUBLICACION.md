@@ -1,6 +1,6 @@
 # Publicación y actualizaciones
 
-Estado al 2026-09-18: beta.5 publicada para Linux; beta.6 preparada para Windows x64
+Estado al 2026-09-18: beta.5 publicada para Linux; beta.6 publicada para Windows x64
 con WinSparkle y firmas Ed25519. Ver [pruebas Windows](PRUEBA_BETA6_WINDOWS_2026-09-18.md)
 y [procedimiento Windows](../release/WINDOWS.md). No hay claves privadas en el repo.
 

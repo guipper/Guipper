@@ -42,3 +42,20 @@ ni hardware externo audio/MIDI/NDI. NDI 6 requiere runtime externo. No se anunci
 certificación de esos escenarios. Sin Authenticode, Windows puede mostrar SmartScreen.
 No hay rollback automático Windows; sí se comprobó volver a ejecutar A.
 La publicación es beta, no estable; el canal Linux permanece en beta.5.
+
+## Verificación posterior a publicar
+
+Publicado [v0.1.0-beta.6](https://github.com/guipper/Guipper/releases/tag/v0.1.0-beta.6)
+desde `48278db5414bc6605c64fb196525b509b40755d0`, con instalador, SHA256 y firma.
+La descarga anónima de GitHub coincide con el SHA256 anterior y su firma es válida.
+El probe WinSparkle consultó `windows-beta/appcast.xml`, detectó beta.6, descargó
+y verificó el instalador público; el archivo staged conserva el mismo SHA256.
+Una primera consulta inmediatamente después de publicar dio error; la repetición
+completó Checking → Available → Downloading → Ready. No se identificó la causa del
+error inicial. El canal `windows-stable` tiene un appcast vacío.
+
+También pasan CTest (text_edit y transition) y session-fade con el candidato.
+Se desinstaló la instalación temporal B con su propio desinstalador (exit 0);
+los registros y el perfil aislado permanecen disponibles. Los binarios publicados
+son los compilados y probados localmente; no se atribuye esa validación al workflow
+de empaquetado en runners dedicados.
