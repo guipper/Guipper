@@ -1,5 +1,7 @@
 #version 330
 uniform sampler2D textura1, textura2;
+uniform sampler2D paletteTexture, historyTexture;
+uniform float historyValid, historyStep;
 uniform vec2 resolution, transitionCenter;
 uniform float mixst, transitionSeed, edgeSoftness, plasmaScale, warpIntensity;
 uniform int transitionEffect, transitionDirection;
@@ -26,7 +28,31 @@ vec2 shiftAxis(vec2 uv,float d) {
     else uv.x+=d;
     return uv;
 }
+float luma(vec3 c) { return dot(c,vec3(.2126,.7152,.0722)); }
+vec2 safeUV(vec2 uv) { return clamp(uv,vec2(0.0),vec2(1.0)); }
+// Six GPU texels: shadows/midtones/highlights for A and B. Transparent
+// pixels have no vote, and an empty tone bin falls back to the scene average.
+vec4 analyzePalette() {
+    float tone=floor(gl_FragCoord.x), scene=floor(gl_FragCoord.y);
+    vec3 sum=vec3(0.0), average=vec3(0.0);
+    float weights=0.0, coverage=0.0;
+    for(int y=0;y<12;++y) for(int x=0;x<12;++x) {
+        vec2 q=(vec2(x,y)+.5)/12.0;
+        vec4 c=scene<.5?texture(textura1,q):texture(textura2,q);
+        float weight=max(0.0,1.0-abs(luma(c.rgb)-(.15+tone*.35))/.35)*c.a;
+        sum+=c.rgb*weight; weights+=weight;
+        average+=c.rgb*c.a; coverage+=c.a;
+    }
+    return vec4(weights>.0001?sum/weights:average/max(coverage,.0001),coverage/144.0);
+}
+vec3 palette(float light,float scene) {
+    float t=clamp((light-.15)/.35,0.0,2.0);
+    vec3 low=texelFetch(paletteTexture,ivec2(int(floor(t)),int(scene)),0).rgb;
+    vec3 high=texelFetch(paletteTexture,ivec2(min(2,int(floor(t))+1),int(scene)),0).rgb;
+    return mix(low,high,fract(t));
+}
 void main() {
+    if(transitionEffect==-1) { fragColor=analyzePalette(); return; }
     vec2 uv=gl_FragCoord.xy/resolution;
     float p=clamp(mixst,0.0,1.0);
     vec4 a=texture(textura1,uv), b=texture(textura2,uv);
@@ -77,5 +103,58 @@ void main() {
             a=texture(textura1,source);w=0.0;
         } else w=1.0;
     } else if(e==14) { w=step(hash(floor(gl_FragCoord.xy)),p); }
+    else if(e>=19 && e<=21) {
+        float envelope=sin(p*3.14159265);
+        float strength=clamp(warpIntensity*2.0,0.0,1.0);
+        vec3 pa=palette(luma(a.rgb),0.0), pb=palette(luma(b.rgb),1.0);
+        // Similar colors arrive together, with luminance guiding the reveal.
+        float affinity=1.0-clamp(length(a.rgb-pb)/1.732,0.0,1.0);
+        float arrival=clamp(.55*luma(a.rgb)+.3*(1.0-affinity)+.15*noise(uv*6.0),0.0,1.0);
+        w=mask(arrival,p);
+        vec2 flow=vec2(0.0);
+        float memory=.82;
+        if(e==19) {
+            vec2 q=uv-transitionCenter;
+            vec2 gradient=vec2(
+                luma(texture(textura1,safeUV(uv+vec2(.003,0))).rgb)-luma(a.rgb),
+                luma(texture(textura1,safeUV(uv+vec2(0,.003))).rgb)-luma(a.rgb));
+            flow=(vec2(-q.y,q.x)*.035+gradient*.12+(pb.rg-pa.rg)*.012)*strength*envelope;
+            a=texture(textura1,safeUV(uv-flow));
+            b=texture(textura2,safeUV(uv+flow*.6));
+        } else if(e==20) {
+            vec2 grid=vec2(48.0,27.0), cell=floor(uv*grid), center=(cell+.5)/grid;
+            vec3 ca=texture(textura1,center).rgb, cb=texture(textura2,center).rgb;
+            float gate=step(.35,hash(cell+floor(p*18.0)));
+            // Content-driven block displacement, deliberately a codec-like
+            // simulation rather than claiming decoded motion vectors.
+            flow=(cb.rg-ca.rg+vec2(hash(cell),hash(cell+7.0))-.5)*.12*strength*envelope*gate;
+            a=texture(textura1,safeUV(uv-flow));
+            b=texture(textura2,safeUV(uv+flow*.25));
+            a.rgb=mix(a.rgb,palette(luma(a.rgb),1.0),.65*envelope*strength);
+            w=mask(clamp(arrival*.65+hash(cell)*.35,0.0,1.0),p);
+            memory=.94;
+        } else {
+            float band=floor(uv.y*72.0), tick=floor(p*32.0);
+            float tear=step(.70,hash(vec2(band,tick)));
+            flow=vec2((hash(vec2(band,tick+19.0))-.5)*.18*tear,0.0)*strength*envelope;
+            vec2 split=vec2(.018*strength*envelope*(.3+tear),0.0);
+            vec2 qa=safeUV(uv-flow), qb=safeUV(uv+flow*.4);
+            a=texture(textura1,qa);b=texture(textura2,qb);
+            a.r=texture(textura1,safeUV(qa+split)).r;a.b=texture(textura1,safeUV(qa-split)).b;
+            b.r=texture(textura2,safeUV(qb-split)).r;b.b=texture(textura2,safeUV(qb+split)).b;
+            w=mask(clamp(arrival+.15*(hash(vec2(band,tick))-.5),0.0,1.0),p);
+            memory=.68;
+        }
+        vec4 current=mix(a,b,w);
+        vec3 bridge=mix(palette(luma(current.rgb),0.0),palette(luma(current.rgb),1.0),p);
+        current.rgb=mix(current.rgb,bridge,.3*strength*envelope);
+        vec4 echo=texture(historyTexture,safeUV(uv-flow));
+        echo.rgb=mix(echo.rgb,bridge,.10*strength);
+        float persistence=historyValid*envelope*strength*pow(memory,max(.25,historyStep));
+        // Straight RGBA keeps transparent compositions transparent. Exact
+        // endpoint returns above guarantee no residual trails after arrival.
+        fragColor=mix(current,echo,persistence);
+        return;
+    }
     fragColor=mix(a,b,w);
 }

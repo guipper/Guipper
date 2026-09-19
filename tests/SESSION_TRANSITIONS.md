@@ -54,6 +54,28 @@ El patrón se fija al iniciar. Aleatorio excluye morph/feedback incompatibles y
 el efecto anterior si hay alternativas. El reloj usa el BPM maestro, convierte la
 duración en pulsos al empezar y no retrocede ni se alarga por un frame lento.
 
+## Transiciones de paleta
+
+En SETTINGS → TRANSICIONES, **Eco cromático** y **Datamosh de paleta** están
+en Orgánicos; **Glitch espectral** está en Trama. También aparecen en Todos y
+pueden incluirse en Aleatorio. Intensidad regula la deformación y la memoria.
+
+- Eco cromático: arrastra cuadros anteriores con un flujo guiado por bordes y
+  mezcla los tonos de la composición que sale con los de la que entra.
+- Datamosh de paleta: retiene y desplaza bloques según diferencias de color,
+  transfiriendo la paleta del destino. Es una simulación visual; no usa un codec
+  ni calcula optical flow.
+- Glitch espectral: bandas desplazadas, separación RGB y ecos coloreados.
+
+El análisis muestrea ambas imágenes en GPU y obtiene sombras, medios y luces,
+ponderando por alpha. No lee píxeles a CPU. Dos FBO alternados conservan la
+memoria de cada compositor sin leer y escribir la misma textura. El inicio y
+el final devuelven las fuentes exactas; cada nueva transición descarta el historial.
+Los IDs existentes (incluido Aleatorio=18) conservan su significado en XML.
+
+La regresión `transition_catalog` guarda `palette-19/20/21-*.png`, verifica
+memoria temporal y su reinicio, además de los extremos RGBA del catálogo.
+
 ## Morph y feedback
 
 Morph exige igualdad de la fuente compilada y del esquema de nombres, tipos y

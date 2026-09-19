@@ -12,7 +12,7 @@
 namespace jp_transition {
 enum Effect { Mix = 0, Warp = 1, Bayer = 2, Cut, BeatCut, Plasma, RadialIn,
     RadialOut, Push, Wipe, Blocks, SplitPush, CenterPush, CenterSqueeze, Dots,
-    Feedback, Morph, StagedMorph, Random, EffectCount };
+    Feedback, Morph, StagedMorph, Random, PaletteEcho, PaletteMosh, SpectralGlitch, EffectCount };
 enum class Start { Immediate, Beat, Bar };
 enum class Quality { Automatic, Full, Reduced, Capture };
 enum class Phase { Idle, Preparing, Waiting, Running, Complete, Failed };
@@ -27,7 +27,10 @@ inline constexpr std::array<Descriptor, EffectCount> catalog {{
     {"Push to center", "Empuje al centro", "AVS"}, {"Squeeze to center", "Compresión al centro", "AVS"},
     {"Point dissolve", "Disolución por puntos", "AVS"}, {"Feedback continuity", "Feedback", "Organic"},
     {"Parameter morph", "Morph de parámetros", "Morph"}, {"Staged morph", "Morph por etapas", "Morph"},
-    {"Random", "Aleatorio", "Random"}
+    {"Random", "Aleatorio", "Random"},
+    {"Chromatic echo", "Eco cromático", "Organic"},
+    {"Palette datamosh", "Datamosh de paleta", "Organic"},
+    {"Spectral glitch", "Glitch espectral", "Pattern"}
 }};
 struct Config {
     int effect = Mix;
@@ -43,7 +46,7 @@ struct Config {
 };
 struct Capabilities { bool morph = false, staged = false, feedback = false; };
 inline bool compatible(int effect, Capabilities caps) {
-    return effect >= 0 && effect < Random &&
+    return effect >= 0 && effect < EffectCount && effect != Random &&
         (effect != Morph || caps.morph) && (effect != StagedMorph || caps.morph) &&
         (effect != Feedback || caps.feedback);
 }
@@ -71,7 +74,7 @@ inline float morphProgress(float p, Category category) {
 class Timeline {
 public:
     void request(Config config, double now, uint32_t seed, Capabilities caps = {}) {
-        config.effect = std::clamp(config.effect, 0, int(Random));
+        config.effect = std::clamp(config.effect, 0, int(EffectCount)-1);
         config.duration = std::isfinite(config.duration) ? std::max(0., config.duration) : 1.5;
         config_ = config; seed_ = seed; reason_.clear(); elapsed_ = 0.; progress_ = 0.;
         started_ = false; preparedAt_ = now; phase_ = Phase::Preparing; overBudget_ = 0;
@@ -82,7 +85,7 @@ public:
         direction_ = std::clamp(config.direction, 0, 3);
         if (effect_ == Random) {
             std::vector<int> choices;
-            for (int i = 0; i < Random; ++i)
+            for (int i = 0; i < EffectCount; ++i)
                 if (config.randomEnabled[i] && compatible(i, caps) &&
                     (i != StagedMorph || caps.staged)) choices.push_back(i);
             if (choices.size() > 1) choices.erase(std::remove(choices.begin(), choices.end(), previous_), choices.end());

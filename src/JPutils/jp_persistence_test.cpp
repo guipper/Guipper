@@ -1603,6 +1603,46 @@ namespace
             }
         }
         check(mixer.shader.isLoaded(),"catalog shader linked");
+        // Patterned compositions exercise palette-driven displacement and
+        // real temporal memory, rather than only testing flat-color endpoints.
+        {
+            ofFbo colorA,colorB,canvas; colorA.allocate(320,180,GL_RGBA);
+            colorB.allocate(320,180,GL_RGBA);canvas.allocate(320,180,GL_RGBA);
+            auto paint=[&](ofFbo &target,bool cool) {
+                target.begin();ofPushStyle();ofSetRectMode(OF_RECTMODE_CORNER);
+                ofEnableBlendMode(OF_BLENDMODE_DISABLED);ofFill();ofClear(0,0,0,0);
+                for(int y=0;y<180;y+=10)for(int x=0;x<320;x+=10) {
+                    ofSetColor(cool?ofColor(10+x/3,35+y,230-x/2):ofColor(220-y/2,20+x/2,30+y/3));
+                    ofDrawRectangle(x,y,10,10);
+                }
+                ofSetColor(cool?ofColor(100,255,185):ofColor(255,220,55));
+                ofDrawCircle(cool?220:95,90,55);ofPopStyle();target.end();
+            };
+            paint(colorA,false);paint(colorB,true);
+            for(int effect:{TransitionSR::TYPE_PALETTE_ECHO,TransitionSR::TYPE_PALETTE_MOSH,TransitionSR::TYPE_SPECTRAL_GLITCH}) {
+                TransitionSR visual;visual.setType(effect);
+                auto render=[&](TransitionSR &renderer,float p) {
+                    canvas.begin();ofPushStyle();ofEnableBlendMode(OF_BLENDMODE_DISABLED);ofSetColor(255);
+                    check(renderer.renderStraightMix(&colorA,&colorB,p,320,180),"palette compositor renders");
+                    ofPopStyle();canvas.end();glFinish();
+                };
+                for(int frame=0;frame<=60;++frame) {
+                    render(visual,frame/60.f);
+                    if(frame%15==0) {
+                        ofPixels shot;canvas.readToPixels(shot);
+                        ofSaveImage(shot,folder+"palette-"+ofToString(effect)+"-"+ofToString(frame)+".png");
+                    }
+                }
+                render(visual,0.f);render(visual,.5f);
+                paint(colorA,true);render(visual,.5f);ofPixels remembered;canvas.readToPixels(remembered);
+                TransitionSR fresh;fresh.setType(effect);render(fresh,.5f);ofPixels clean;canvas.readToPixels(clean);
+                size_t changed=0;for(size_t i=0;i<clean.size();++i)if(std::abs(int(clean[i])-remembered[i])>2)++changed;
+                check(changed>100,"palette effect retains earlier frame "+ofToString(effect));
+                render(visual,0.f);render(visual,.5f);ofPixels reset;canvas.readToPixels(reset);
+                check(reset.size()==clean.size() && std::equal(reset.begin(),reset.end(),clean.begin()),"new transition discards earlier feedback "+ofToString(effect));
+                paint(colorA,false);
+            }
+        }
         app.boxes.clear();app.boxes.setTransitionType(TransitionSR::TYPE_MIX);app.boxes.setTransitionDurationMs(1500);
         app.boxes.save(folder+"empty.xml");
         const string animated=folder+"moving.frag";
@@ -1708,6 +1748,10 @@ namespace
 
         // Make visual captures of the real settings panel, without a live show.
         const int oldLanguage=app.language;const float oldScroll=app.settingsScroll;
+        const bool oldExpanded=app.transitionSettingsExpanded;
+        const int oldFamily=app.transitionFamily;
+        app.transitionSettingsExpanded=true;app.transitionFamily=0;
+        app.boxes.setTransitionType(TransitionSR::TYPE_PALETTE_ECHO);
         for(int lang:{0,1}) {
             app.language=lang;app.updateTransitionPreview();
             auto layout=app.getSettingsLayout();app.settingsScroll+=layout.transitionDurationSlider.y-70;
@@ -1716,6 +1760,7 @@ namespace
             ofSaveImage(pixels,folder+(lang?"settings-es.png":"settings-en.png"));
         }
         app.language=oldLanguage;app.settingsScroll=oldScroll;
+        app.transitionSettingsExpanded=oldExpanded;app.transitionFamily=oldFamily;
         app.boxes.setTransitionType(oldType);app.boxes.setTransitionDurationMs(oldDuration);TransitionSR::preferences()=original;
         ofLogNotice("transition-catalog")<<"passed="<<passed;return passed;
     }

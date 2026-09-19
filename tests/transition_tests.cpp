@@ -4,6 +4,13 @@
 using namespace jp_transition;
 int main() {
     Config c; Timeline t;
+    static_assert(Random==18 && PaletteEcho==19 && SpectralGlitch==21,"stored effect IDs must remain stable");
+    for(int effect:{PaletteEcho,PaletteMosh,SpectralGlitch}) {
+        c.effect=effect;t.request(c,0,1);assert(t.effect()==effect);
+        c.effect=Random;c.randomEnabled.fill(false);c.randomEnabled[effect]=true;
+        t.request(c,0,1);assert(t.effect()==effect);
+    }
+    c=Config();
     t.request(c, 0, 123); t.tick(9); assert(t.phase()==Phase::Preparing);
     t.ready(9,120,0); t.tick(9); assert(t.progress()==0);
     t.tick(9.75); assert(t.progress()==.5f);

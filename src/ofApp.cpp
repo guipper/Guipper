@@ -2441,7 +2441,7 @@ float ofApp::getSettingsPanelHeight() const
 	// that sizes the panel, so a control added without touching it simply hangs
 	// off the bottom.
 	const int totalRows = FIELD_OSC_IP_OUT + 9;
-	return jp_screen::kHeaderH + totalRows * rowSpacing + (transitionSettingsExpanded ? 680.0f : 0.0f);
+	return jp_screen::kHeaderH + totalRows * rowSpacing + (transitionSettingsExpanded ? 680.0f + 27.0f*((jp_transition::EffectCount+1)/2-10) : 0.0f);
 }
 
 bool ofApp::settingsUseTwoColumns() const
@@ -2854,7 +2854,7 @@ void ofApp::drawTransitionSettings(const SettingsLayout &L)
         choices(es?"Centro Y":"Center Y",{"25%","50%","75%"},int(config.centerY*4)-1,[&config](int i){config.centerY=.25f*(i+1);});
     if(config.effect==Plasma)
         choices(es?"Escala":"Scale",{"1","3","6","12"},config.plasmaScale==1?0:config.plasmaScale==3?1:config.plasmaScale==6?2:3,[&config](int i){config.plasmaScale=std::array<float,4>{1,3,6,12}[i];});
-    if(config.effect==Warp)
+    if(config.effect==Warp || config.effect==PaletteEcho || config.effect==PaletteMosh || config.effect==SpectralGlitch)
         choices(es?"Intensidad":"Intensity",{"10%","25%","50%"},config.intensity<.2?0:config.intensity<.4?1:2,[&config](int i){config.intensity=std::array<float,3>{.1f,.25f,.5f}[i];});
     if(config.effect==Plasma || config.effect==RadialIn || config.effect==RadialOut || config.effect==Wipe || config.effect==Blocks)
         choices(es?"Borde":"Edge",es?vector<string>{"Duro","Suave","Amplio"}:vector<string>{"Hard","Soft","Wide"},config.softness<.01?0:config.softness<.2?1:2,[&config](int i){config.softness=std::array<float,3>{0,.12f,.3f}[i];});

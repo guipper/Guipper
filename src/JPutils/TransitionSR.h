@@ -38,6 +38,7 @@ public:
 		TYPE_CUT, TYPE_BEAT_CUT, TYPE_PLASMA, TYPE_RADIAL_IN, TYPE_RADIAL_OUT,
 		TYPE_PUSH, TYPE_WIPE, TYPE_BLOCKS, TYPE_SPLIT_PUSH, TYPE_CENTER_PUSH,
 		TYPE_CENTER_SQUEEZE, TYPE_DOTS, TYPE_FEEDBACK, TYPE_MORPH, TYPE_STAGED_MORPH, TYPE_RANDOM,
+		TYPE_PALETTE_ECHO, TYPE_PALETTE_MOSH, TYPE_SPECTRAL_GLITCH,
 		TYPE_COUNT
 	};
 	void setType(int _type);
@@ -98,5 +99,11 @@ private:
     bool outgoingFrozen = false;
 	double explicitClock = 0.;
 	ofFbo interruptedFrame;
+	ofFbo paletteFbo;
+	ofFbo feedbackFrames[2];
+	int feedbackIndex = 0, feedbackEffect = -1;
+	bool feedbackValid = false;
+	float feedbackProgress = 0.f;
+	double feedbackTime = 0.;
 	int transitionType = TYPE_MIX;
 };

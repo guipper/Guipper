@@ -189,7 +189,7 @@
     },
     {
       "path": "shaders/private/transition_catalog.frag",
-      "sha256": "bb15ab97e68b2ecbf1c977dad2207e62d5b27c9fc31a19616f7e308da35e0d4a",
+      "sha256": "914f9fd1ea07f790659bd007f8d27a788c948648aa4fd2e3fba1046afd222916",
       "license": "MIT",
       "source": "Guipper repository"
     }

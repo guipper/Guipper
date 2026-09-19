@@ -162,28 +162,77 @@ bool TransitionSR::renderStraightMix(ofFbo *first, ofFbo *second,
 	{
 		return false;
 	}
+	const int effect = armed ? timeline.effect() : transitionType;
+	const bool paletteEffect = effect >= TYPE_PALETTE_ECHO && effect <= TYPE_SPECTRAL_GLITCH &&
+        shader.getUniformLocation("paletteTexture") >= 0;
+	const bool temporal = paletteEffect && mixValue > 0.f && mixValue < 1.f;
+	if (!temporal || effect != feedbackEffect || mixValue < feedbackProgress) feedbackValid = false;
+	const double now = ofGetElapsedTimef();
+	const float elapsed = feedbackValid ? float(std::clamp(now-feedbackTime, 1./240., .25)) : 1.f/60.f;
+	const int next = 1-feedbackIndex;
+	if (temporal) {
+        if (!paletteFbo.isAllocated()) paletteFbo.allocate(3, 2, GL_RGBA16F);
+        for (auto &frame : feedbackFrames) {
+            if (!frame.isAllocated() || frame.getWidth()!=width || frame.getHeight()!=height) {
+                frame.allocate(width, height, GL_RGBA);
+                feedbackValid = false;
+            }
+        }
+        paletteFbo.begin();
+        ofPushStyle(); ofEnableBlendMode(OF_BLENDMODE_DISABLED); ofSetColor(255);
+        ofFill(); ofSetRectMode(OF_RECTMODE_CORNER);
+        shader.begin();
+        shader.setUniformTexture("textura1", *first, 1);
+        shader.setUniformTexture("textura2", *second, 2);
+        shader.setUniform1i("transitionEffect", -1);
+        shader.setUniform2f("resolution", 3, 2);
+        shader.setUniform1f("mixst", mixValue);
+        // Never bind the palette render target as an input to its own pass.
+        shader.setUniformTexture("paletteTexture", *first, 3);
+        shader.setUniformTexture("historyTexture", *first, 4);
+        ofDrawRectangle(0,0,3,2); shader.end();
+        ofPopStyle(); paletteFbo.end();
+        feedbackFrames[next].begin();
+    }
 	shader.begin();
 	shader.setUniformTexture("textura1", *first, 1);
 	shader.setUniformTexture("textura2", *second, 2);
 	shader.setUniform1f("mixst", ofClamp(mixValue, 0.0f, 1.0f));
 	shader.setUniform2f("resolution", width, height);
     const auto &config = armed ? timeline.config() : preferences();
-    shader.setUniform1i("transitionEffect", armed ? timeline.effect() : transitionType);
+    shader.setUniform1i("transitionEffect", effect);
     shader.setUniform1i("transitionDirection", armed ? timeline.direction() : config.direction);
     shader.setUniform1f("transitionSeed", float(timeline.seed() % 65536));
     shader.setUniform2f("transitionCenter", config.centerX, config.centerY);
     shader.setUniform1f("edgeSoftness", config.softness);
     shader.setUniform1f("plasmaScale", config.plasmaScale);
     shader.setUniform1f("warpIntensity", config.intensity);
+	if (temporal) {
+        shader.setUniformTexture("paletteTexture", paletteFbo, 3);
+        shader.setUniformTexture("historyTexture", feedbackValid ? feedbackFrames[feedbackIndex] : *first, 4);
+        shader.setUniform1f("historyValid", feedbackValid ? 1.f : 0.f);
+        shader.setUniform1f("historyStep", elapsed*60.f);
+    }
 	ofPushStyle();
+    ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+    ofSetColor(255);
     ofFill();
     ofSetRectMode(OF_RECTMODE_CORNER);
 	ofDrawRectangle(0, 0, width, height);
     ofPopStyle();
 	shader.end();
+    if (temporal) {
+        feedbackFrames[next].end();
+        ofPushStyle(); ofEnableBlendMode(OF_BLENDMODE_DISABLED); ofSetColor(255);
+        ofSetRectMode(OF_RECTMODE_CORNER);
+        feedbackFrames[next].draw(0,0,width,height);
+        ofPopStyle();
+        feedbackIndex=next; feedbackValid=true; feedbackEffect=effect;
+        feedbackProgress=mixValue; feedbackTime=now;
+    }
     // Inputs are render targets again on the next frame. Release the sampler
     // bindings rather than leave scene textures attached to inactive units.
-    for (int unit : {1, 2}) {
+    for (int unit : {1, 2, 3, 4}) {
         glActiveTexture(GL_TEXTURE0 + unit);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
@@ -193,6 +242,7 @@ bool TransitionSR::renderStraightMix(ofFbo *first, ofFbo *second,
 void TransitionSR::setLerpValue(float value) {
     lerpValue = ofClamp(value, 0.f, 1.f);
     if (value <= 0.f) {
+        feedbackValid = false;
         static uint32_t serial = 0;
         auto config = preferences();
         config.effect = transitionType;
@@ -210,6 +260,9 @@ void TransitionSR::setLerpValue(float value) {
     } else if (value >= 1.f) {
         timeline.cancel(); armed = false;
         interruptedFrame.clear();
+        feedbackValid = false;
+        for (auto &frame : feedbackFrames) frame.clear();
+        paletteFbo.clear();
     }
 }
 void TransitionSR::captureInterruption() {
@@ -230,7 +283,7 @@ void TransitionSR::freezeOutgoing() {
     ofClear(0,0,0,0); fbo1->draw(0,0); ofPopStyle(); frozen.end();
     interruptedFrame=std::move(frozen); fbo1=&interruptedFrame; outgoingFrozen=true;
 }
-void TransitionSR::reload() { shader.unload(); }
+void TransitionSR::reload() { shader.unload(); feedbackValid=false; }
 void TransitionSR::draw(float _x, float _y, float _w, float _h){
 	if (!este.isAllocated()) return;
 	drawSubsection(_x, _y, _w, _h,
