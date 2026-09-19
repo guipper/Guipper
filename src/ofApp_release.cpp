@@ -7,6 +7,8 @@
 #include "JPgui/jp_button.h"
 
 void ofApp::loadReleasePreferences() {
+    // Fresh prerelease installations follow beta; existing choices are retained.
+    if (std::string(jp::version).find('-') != std::string::npos) updates.channel="beta";
     try {
         const auto file = jp::preferencePath("updates.json");
         if (!ofFile::doesFileExist(file)) return;

@@ -3,7 +3,7 @@
   "dlls": [
     "advapi32.dll", "avrt.dll", "bcrypt.dll", "bcryptprimitives.dll", "cfgmgr32.dll",
     "combase.dll", "comctl32.dll", "comdlg32.dll", "crypt32.dll", "d3d11.dll",
-    "dbghelp.dll", "dinput8.dll", "dwmapi.dll", "dxgi.dll", "gdi32.dll",
+    "dbghelp.dll", "dinput8.dll", "dsound.dll", "d3d9.dll", "dwmapi.dll", "dxgi.dll", "gdi32.dll",
     "glu32.dll", "hid.dll", "imm32.dll", "iphlpapi.dll", "kernel32.dll",
     "kernelbase.dll", "ksuser.dll", "mf.dll", "mfplat.dll", "mfreadwrite.dll",
     "mfuuid.dll", "msacm32.dll", "msimg32.dll", "msvcrt.dll", "ntdll.dll",
@@ -11,6 +11,6 @@
     "psapi.dll", "rpcrt4.dll", "secur32.dll", "setupapi.dll", "shell32.dll",
     "shlwapi.dll", "ucrtbase.dll", "user32.dll", "userenv.dll", "usp10.dll",
     "uxtheme.dll", "version.dll", "winhttp.dll", "wininet.dll", "winmm.dll",
-    "winspool.drv", "wintrust.dll", "ws2_32.dll", "wtsapi32.dll"
+    "winspool.drv", "wintrust.dll", "wldap32.dll", "ws2_32.dll", "wtsapi32.dll"
   ]
 }

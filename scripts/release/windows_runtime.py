@@ -73,6 +73,11 @@ def validate(binary, root, manifest, system_dlls, inspect):
                             and not name.startswith(('api-ms-win-', 'ext-ms-win-')))
         if unresolved:
             raise ValueError(f'{source.name}: missing DLLs: {", ".join(unresolved)}')
+    for index, entry in enumerate(manifest.get('sdk_notices', [])):
+        source = inside(root, entry['path'])
+        if hashlib.sha256(source.read_bytes()).hexdigest() != entry['sha256']:
+            raise ValueError(f'SDK notice hash mismatch: {source.name}')
+        licenses[f'sdk-{index}-{source.name}'] = source
     return payloads, licenses
 
 

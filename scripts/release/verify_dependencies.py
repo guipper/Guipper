@@ -3,13 +3,15 @@
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--of-root', type=Path, required=True)
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[2]
-lock = json.loads((repo/'release/dependencies.lock.json').read_text())
+lock_name = 'dependencies-windows.lock.json' if sys.platform == 'win32' else 'dependencies.lock.json'
+lock = json.loads((repo/'release'/lock_name).read_text())
 version_header = (args.of_root/'libs/openFrameworks/utils/ofConstants.h').read_text()
 for name, value in [('MAJOR',0), ('MINOR',12), ('PATCH',1)]:
     import re

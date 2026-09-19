@@ -1,0 +1,8 @@
+{
+  "version": "0.9.4",
+  "url": "https://github.com/vslavik/winsparkle/releases/download/v0.9.4/WinSparkle-0.9.4.zip",
+  "sha256": "6037df37fc263bd1650a1c4949681a9d40ffe991d01f35892a406cb5d103c976",
+  "stable": "https://github.com/guipper/Guipper/releases/download/windows-stable/appcast.xml",
+  "beta": "https://github.com/guipper/Guipper/releases/download/windows-beta/appcast.xml",
+  "public_key": "release/keys/guipper-windows-ed25519.pub"
+}

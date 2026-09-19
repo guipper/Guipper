@@ -186,6 +186,7 @@ class WinSparkleBackend final : public UpdateBackend {
     static void setState(UpdateState state) {
         if (!instance) return;
         std::lock_guard<std::mutex> lock(instance->mutex);
+        if (state==UpdateState::Available && instance->current.state==UpdateState::Downloading) return;
         instance->current.state=state;
     }
     static int stageInstaller(const wchar_t* payload) {
@@ -202,6 +203,9 @@ class WinSparkleBackend final : public UpdateBackend {
 public:
     WinSparkleBackend() {
         instance=this;
+#ifdef GUIPPER_UPDATE_TEST
+        win_sparkle_set_registry_path("Software\\Guipper\\UpdateRegression");
+#endif
         win_sparkle_set_app_details(L"Guipper",L"Guipper", GUIPPER_WIDE_VERSION);
         if (!win_sparkle_set_eddsa_public_key(GUIPPER_WINSPARKLE_PUBLIC_KEY)) {
             current={UpdateState::Disabled,0,"Invalid update public key."}; return;
@@ -224,11 +228,19 @@ public:
         // reinitialize it, after the policy has ruled out an active operation.
         if (initialized) win_sparkle_cleanup();
         win_sparkle_set_appcast_url(channel=="beta"?GUIPPER_WINSPARKLE_BETA:GUIPPER_WINSPARKLE_STABLE);
+#ifdef GUIPPER_UPDATE_TEST
+        if (const char* feed=std::getenv("GUIPPER_TEST_APPCAST")) win_sparkle_set_appcast_url(feed);
+#endif
         win_sparkle_init(); initialized=true; setState(UpdateState::Checking);
         if (manual) win_sparkle_check_update_with_ui();
         else win_sparkle_check_update_without_ui();
     }
-    void download() override { win_sparkle_check_update_with_ui(); }
+    void download() override {
+        setState(UpdateState::Downloading);
+        // Guipper already received the user's download action. The callback
+        // stages the verified payload; only Guipper's Install action runs it.
+        win_sparkle_check_update_with_ui_and_install();
+    }
     void cancel() override {
         if (initialized) { win_sparkle_cleanup(); initialized=false; }
         setState(UpdateState::Cancelled);

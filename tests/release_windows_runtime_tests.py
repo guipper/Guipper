@@ -50,6 +50,10 @@ class WindowsRuntimeTests(unittest.TestCase):
         self.dll.write_bytes(b'changed')
         with self.assertRaisesRegex(ValueError,'hash mismatch'): self.validate()
 
+    def test_sdk_notice_hash(self):
+        self.manifest['sdk_notices']=[{'path':'LICENSE.txt','sha256':'0'*64}]
+        with self.assertRaisesRegex(ValueError,'SDK notice hash mismatch'): self.validate()
+
     def test_missing_notice(self):
         self.notice.unlink()
         with self.assertRaisesRegex(ValueError,'Missing'): self.validate()
@@ -65,5 +69,9 @@ class WindowsRuntimeTests(unittest.TestCase):
     def test_symlink_escape(self):
         with tempfile.TemporaryDirectory() as outside:
             foreign=Path(outside)/'foreign.dll';pe(foreign)
-            self.dll.unlink();self.dll.symlink_to(foreign)
+            self.dll.unlink()
+            try: self.dll.symlink_to(foreign)
+            except OSError as error:
+                if getattr(error,'winerror',None)==1314: self.skipTest('Windows symlink privilege unavailable')
+                raise
             with self.assertRaisesRegex(ValueError,'escaping'): self.validate()

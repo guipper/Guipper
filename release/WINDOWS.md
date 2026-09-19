@@ -1,9 +1,30 @@
 # Windows x64: preparación del runtime
 
-Estado: herramientas de staging implementadas y probadas con fixtures en Linux.
-Todavía no se compiló ni ejecutó este instalador en Windows. El manifiesto
-`windows-runtime.json` está deliberadamente sin revisar; el empaquetado se detiene
-hasta completarlo con los archivos reales del SDK Windows.
+Estado al 2026-09-18: beta.6 compilada, empaquetada y ejecutada en Windows.
+El manifiesto `windows-runtime.json` contiene DLLs y avisos revisados con SHA256.
+Ver [resultados y límites](../mds/PRUEBA_BETA6_WINDOWS_2026-09-18.md).
+NDI es opcional y requiere instalar el runtime NDI 6 por separado; no se redistribuye.
+
+## Actualizaciones Windows
+
+Usar WinSparkle 0.9.4, cuyo archivo oficial y SHA256 figuran en
+`windows-update-sdk.json`. Configurar `GUIPPER_WINSPARKLE_SDK` con la carpeta que
+contiene `include` y `x64`; `build-windows.ps1` genera la configuración pública y
+enlaza el SDK. `-Output` permite compilar sin reemplazar una aplicación abierta.
+El canal beta usa el release `windows-beta`; stable usa `windows-stable` y permanece
+vacío hasta disponer de una versión estable. Linux conserva sus propios canales.
+Las instalaciones nuevas beta seleccionan beta; una preferencia existente se respeta.
+
+Firmar cada instalador con `winsparkle-tool sign --private-key-file CLAVE INSTALADOR`.
+La clave privada se guarda fuera del repositorio y debe respaldarse de forma segura.
+La clave pública está en `keys/guipper-windows-ed25519.pub`. Generar el appcast con
+`scripts/release/feed.py`, publicar primero el artefacto versionado, verificar su
+descarga y recién entonces publicar el appcast. No reemplazar un instalador publicado.
+
+`test-windows-updates.py` usa el backend real y WinSparkle con un servidor local;
+requiere el probe CMake, instalador, herramienta de firma y clave privada.
+`test-windows-install.py` recibe el instalador verificado, ejecutable anterior,
+staging y carpeta de salida nueva para comprobar instalación y conservación de datos.
 
 ## Preparación en Windows 11
 
@@ -64,8 +85,10 @@ no cubren plugins ni bibliotecas cargadas dinámicamente. No publicar el borrado
 hasta completar los resultados de `BETA.md`.
 
 La instalación usa directorios por versión. No elimina `%LOCALAPPDATA%\Guipper`
-al desinstalar y no cierra una instancia activa. La firma Authenticode, la firma
-de actualizaciones y la restauración automática de Windows siguen pendientes.
+al desinstalar y no cierra una instancia activa. La firma
+de actualizaciones Ed25519 está implementada; Authenticode y la restauración
+automática de Windows siguen pendientes. La recuperación probada es manual,
+ejecutando la versión anterior que permanece disponible.
 
 Referencias: [redistribución de Visual C++](https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files?view=msvc-170),
 [dependencias que redistribuir](https://learn.microsoft.com/en-us/cpp/windows/determining-which-dlls-to-redistribute?view=msvc-170),

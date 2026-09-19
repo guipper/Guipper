@@ -1,0 +1,16 @@
+{
+  "openframeworks": "0.12.1",
+  "cpp": "17",
+  "platform": "Windows x64",
+  "addons": {
+    "ofxNDI": {
+      "sha256_tree": "d6b73c17215dd66294f8d3a0597cedd0543fd94729a6c40b211718f89533192f"
+    },
+    "ofxMidi": {
+      "sha256_tree": "f06c3b5a4d7c14128e537434b3c49347c32676e6b5ea76d8b476ece3384d356b"
+    },
+    "ofxOsc": {
+      "sha256_tree": "d6cdb1fc5dfd779774a4db9033aaab9055e2172828ee21ce13e8ee9c894c61db"
+    }
+  }
+}

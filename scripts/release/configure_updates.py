@@ -42,4 +42,4 @@ output.write_text('\n'.join(lines)+'\n')
 # file. Invalidate the adapter so enabling updates cannot reuse a disabled build.
 if output.resolve()==Path(__file__).resolve().parents[2]/'src/JPutils/jp_update_config.h':
     output.with_name('jp_update_platform.cpp').touch()
-print('Public configuration generated. Package the native update worker and sign the AppImage before distributing this build.')
+print('Public configuration generated. Sign the Windows installer before distributing this build.' if args.platform=='windows' else 'Public configuration generated. Package the native update worker and sign the AppImage before distributing this build.')

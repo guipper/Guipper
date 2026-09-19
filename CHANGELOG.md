@@ -7,6 +7,10 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 
 ## Sin publicar
 
+## [0.1.0-beta.6](https://github.com/guipper/Guipper/releases/tag/v0.1.0-beta.6) — 2026-09-18
+
+- Primer instalador Windows x64, con actualizaciones verificadas mediante Ed25519 y canales Windows separados de Linux. La primera instalación Windows es manual; las siguientes se consultan desde F10.
+
 - Tres transiciones que toman los colores de ambas composiciones: Eco cromático, Datamosh de paleta y Glitch espectral, con memoria de cuadros, análisis de sombras/medios/luces en GPU y control de intensidad.
 
 - Corregido un cierre al cambiar el shader activo con NDI habilitado: la salida conserva su resolución aunque cambie el tamaño de las imágenes durante una transición.
