@@ -779,6 +779,12 @@ void jp_uishot::setup(ofApp &app)
 	if (tag == nullptr) return;
 	gActive = true;
 	gTag = tag;
+	if (gTag == "groups") {
+		ofDirectory::createDirectory(shotDir(), true, true);
+		jp_audio::setEnabled(false);
+
+		return;
+	}
     if (gTag=="release") {
         gReleaseOnly=true;
         auto backend=std::make_unique<ReleaseBackend>();gReleaseBackend=backend.get();
@@ -810,6 +816,45 @@ void jp_uishot::setup(ofApp &app)
 void jp_uishot::update(ofApp &app)
 {
 	if (!gActive || gDone) return;
+	if (gTag == "groups") {
+		static bool initialized = false;
+		if (!initialized) {
+			if (app.boxes.sessionPreparing()) return;
+		app.boxes.clear();
+		app.pantallaActiva = ofApp::NODOS;
+		auto makeGroup = [](const string &name, int index) {
+			auto *group = new JPbox_preset();
+			group->JPbox::setup("", name);
+			group->setTipo(JPbox::PRESETBOX);
+			group->activeRender = -1;
+			group->setPos(160 + (index % 5) * 180, 200 + (index / 5) * 120);
+			return group;
+		};
+		for (int i = 0; i < 12; ++i) {
+			auto *group = makeGroup(i == 0 ? "Composición con un nombre muy largo" : "Grupo " + ofToString(i + 1), i);
+			app.boxes.boxes.push_back(group);
+		}
+		auto *parent = static_cast<JPbox_preset *>(app.boxes.boxes[0]);
+		for (int i = 0; i < 8; ++i) parent->boxes.push_back(makeGroup("Escena " + ofToString(i+1), i));
+		static_cast<JPbox_preset *>(parent->boxes[0])->boxes.push_back(makeGroup("Detalle", 0));
+			initialized = true;
+		}
+		const int width = (gState == 0 || gState == 2) ? 1280 : 640;
+		if (ofGetWidth() != width || ofGetHeight() != 720) { ofSetWindowShape(width, 720); return; }
+		if (gFrames == 0) {
+			if (gState == 0) app.boxes.openguinumber = 10;
+			if (gState == 1) app.boxes.openguinumber = 10;
+			if (gState == 2) { app.boxes.viewportZoom = 1.7f; app.boxes.navigateToChildPreset(0); app.boxes.groupInspectorIndex = 7; }
+			if (gState == 3) app.boxes.navigateToChildPreset(0);
+			if (gState == 4) {
+				app.boxes.navigateToBreadcrumbLevel(0);
+				if (std::abs(app.boxes.viewportZoom - 1.7f) > 0.001f) std::exit(EXIT_FAILURE);
+				for (int i=0; i<10; ++i) app.boxes.scrollGroupTabs(-1);
+			}
+		}
+		++gFrames;
+		return;
+	}
     if (gReleaseOnly) {
         const int w=gReleaseCase<4?1080:400,h=gReleaseCase<4?780:430;
         if (ofGetWidth()!=w || ofGetHeight()!=h) {ofSetWindowShape(w,h);return;}
@@ -873,6 +918,46 @@ void jp_uishot::poisonWindowStateForTest()
 void jp_uishot::draw(ofApp &app)
 {
 	if (!gActive || gDone) return;
+	if (gTag == "groups") {
+		if (gFrames < 8) return;
+		const int expectedDepth = gState == 2 ? 1 : (gState == 3 ? 2 : 0);
+		if (app.boxes.boxes.size() != 12 || (int)app.boxes.activeGroupPath.size() != expectedDepth)
+			std::exit(EXIT_FAILURE);
+		const auto layout = app.boxes.groupTabLayout();
+		if (gState <= 2) {
+			const int selectedTab = gState == 2 ? 9 : 11;
+			bool found = false;
+			for (const auto &item : layout.items) if (item.index == selectedTab) found = true;
+			if (!found || layout.bar.getRight() > app.boxes.getInspectorBounds().x - 8)
+				std::exit(EXIT_FAILURE);
+			if (layout.next.width > 0 && layout.next.getRight() > layout.bar.getRight()) std::exit(EXIT_FAILURE);
+		}
+		for (const auto &item : layout.items) {
+			if (app.boxes.getTabAtScreenPos(item.bounds.getCenter().x, item.bounds.getCenter().y) != item.index ||
+				item.bounds.getRight() > ofGetWidth() - 8) std::exit(EXIT_FAILURE);
+		}
+		if (app.boxes.getTabAtScreenPos(20, app.boxes.tabBarOffsetY + 4) != -1) std::exit(EXIT_FAILURE);
+		const float zoom = app.boxes.viewportZoom;
+		for (const auto &item : layout.items) {
+			if (item.index != (int)app.boxes.activeGroupPath.size()) continue;
+			ofEvents().notifyMouseMoved(item.bounds.getCenter().x, item.bounds.getCenter().y);
+			app.boxes.lastGroupTabClickUid.clear();
+			if (!app.boxes.handleTabClick() || app.boxes.viewportZoom != zoom) std::exit(EXIT_FAILURE);
+			if (expectedDepth > 0) {
+				app.boxes.handleTabClick();
+				if (!app.boxes.tabRenaming) std::exit(EXIT_FAILURE);
+				app.boxes.keyPressed(OF_KEY_ESC);
+				if (app.boxes.tabRenaming) std::exit(EXIT_FAILURE);
+			}
+		}
+		app.boxes.mouseScrolled(20, layout.bar.y + 10, 0, 1);
+		if (app.boxes.viewportZoom != zoom) std::exit(EXIT_FAILURE);
+		ofImage shot; shot.grabScreen(0, 0, ofGetWidth(), ofGetHeight());
+		shot.save(shotDir() + "groups_" + ofToString(gState) + ".png");
+		gFrames = 0;
+		if (++gState == 5) { ofLogNotice("group-tabs") << "PASS: layout, overflow, nested navigation and viewport restoration"; gDone = true; ofExit(0); }
+		return;
+	}
     if (gReleaseOnly) {
         if (gReleaseFrames<8) return;
         ofImage shot;shot.grabScreen(0,0,ofGetWidth(),ofGetHeight());

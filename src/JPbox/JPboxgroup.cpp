@@ -4649,8 +4649,8 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	// update() is too late: a slider drag may leave the inspector and cross a
 	// box, while a box drag may enter the inspector. Each surface must retain
 	// ownership until release.
-	inspectorOwnsPointer = getInspectorBox() != nullptr &&
-		getInspectorBounds().inside(ofGetMouseX(), ofGetMouseY());
+	inspectorOwnsPointer = groupTabLayout().bar.inside(ofGetMouseX(), ofGetMouseY()) ||
+		(getInspectorBox() != nullptr && getInspectorBounds().inside(ofGetMouseX(), ofGetMouseY()));
 
 	// The "before" side of every drag that this press could turn out to be.
 	// Taken here, unconditionally, rather than at the point each drag actually
@@ -4800,6 +4800,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				}
 				// Single click: select for inspector (blue box, like openguinumber in main view)
 				groupInspectorIndex = clickedIndex;
+				tabSelectionUid.clear();
 				groupPreviewBoxIndex = -1;
 				setControllers();
 				// Double-click: activate the box in the graph currently on screen.
@@ -5108,6 +5109,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 					clearSelection();
 				}
 				openguinumber = i;
+				tabSelectionUid.clear();
 				boxes[i]->activeFlag = true;
 				if (!mouseOverGui())
 				{
@@ -5404,6 +5406,8 @@ bool JPboxgroup::update_cueMouseReleased(int mouseButton)
 
 bool JPboxgroup::mouseScrolled(int x, int y, float scrollX, float scrollY)
 {
+	if (groupTabLayout().bar.inside(x, y))
+		return scrollGroupTabs(scrollX != 0 ? -scrollX : scrollY);
 	if (update_quickImageMouseScrolled(x, y, scrollY)) return true;
 	if (mappingEditActive &&
 		updateAdvancedMappingMouseScrolled(x, y, scrollY))
@@ -7408,6 +7412,7 @@ bool JPboxgroup::mouseOverGui()
 	const float mx = ofGetMouseX();
 	const float my = ofGetMouseY();
 	// Surfaces this class owns...
+	if (groupTabLayout().bar.inside(mx, my)) return true;
 	if (getMappingPanelBounds().inside(mx, my)) return true;
 	if (getQuickImagePanelBounds().inside(mx, my)) return true;
 	if (getPaintPanelBounds().inside(mx, my)) return true;
@@ -7596,6 +7601,13 @@ void JPboxgroup::clear()
 	// getActivePreset indexing past the end - reachable today through the OSC
 	// load command, not just from the UI.
 	activeGroupPath.clear();
+	tabLayoutPath.clear();
+	tabSelectionUid.clear();
+	tabAvailableWidth = -1;
+	firstVisibleGroupTab = 1;
+	lastGroupTabClickUid.clear();
+	lastGroupTabClickTime = 0;
+	cancelTabRename();
 }
 
 void JPboxgroup::clearSelection()
@@ -8917,6 +8929,7 @@ static string getBreadcrumbNameAtLevel(const vector<int> &activeGroupPath, const
 	// level 0 = root (MAIN)
 	if (level == 0) return "MAIN";
 	if (level < 0 || level > (int)activeGroupPath.size()) return "?";
+	if (activeGroupPath[0] < 0 || activeGroupPath[0] >= (int)boxes.size()) return "?";
 
 	// Navigate path to find the box at this level
 	JPbox *box = boxes[activeGroupPath[0]];
@@ -8936,255 +8949,191 @@ static string getBreadcrumbNameAtLevel(const vector<int> &activeGroupPath, const
 	return (box != nullptr) ? box->name : "?";
 }
 
+JPboxgroup::GroupTabLayout JPboxgroup::groupTabLayout() const
+{
+	GroupTabLayout layout;
+	const auto children = getDirectChildPresetIndices();
+	const int depth = (int)activeGroupPath.size();
+	vector<string> names = {"MAIN"};
+	for (int level = 1; level <= depth; ++level)
+		names.push_back(getBreadcrumbNameAtLevel(activeGroupPath, boxes, level));
+	const auto *preset = getActivePreset();
+	const auto &nodes = preset ? preset->boxes : boxes;
+	for (int index : children)
+		names.push_back(nodes[index]->name.empty() ? "Group" : nodes[index]->name);
+	if (names.size() == 1) return layout;
+
+	const int inspectorIndex = preset ? groupInspectorIndex : openguinumber;
+	const bool inspectorVisible = inspectorIndex >= 0 && inspectorIndex < (int)nodes.size() && nodes[inspectorIndex];
+	float rightEdge = ofGetWidth() - 8.0f;
+	const auto inspector = getInspectorBounds();
+	const float y = tabBarOffsetY + 8;
+	if (inspectorVisible && inspector.width > 0 && inspector.y < y + 30 && inspector.getBottom() > y)
+		rightEdge = std::min(rightEdge, inspector.x - 8);
+	layout.bar = ofRectangle(8, y, std::max(0.0f, rightEdge - 8), 30);
+	if (layout.bar.width < 140) return layout;
+
+	int selectedTab = -1;
+	string selectedUid;
+	for (int i = 0; i < (int)children.size(); ++i) {
+		if (children[i] == inspectorIndex) {
+			selectedTab = depth + 1 + i;
+			selectedUid = nodes[children[i]]->uid;
+			break;
+		}
+	}
+	const bool contextChanged = tabLayoutPath != activeGroupPath;
+	const bool reveal = contextChanged || selectedUid != tabSelectionUid ||
+		std::abs(tabAvailableWidth - layout.bar.width) > 0.5f;
+	if (contextChanged) {
+		tabLayoutPath = activeGroupPath;
+		firstVisibleGroupTab = std::max(1, depth);
+	}
+	tabSelectionUid = selectedUid;
+	tabAvailableWidth = layout.bar.width;
+
+	const float rootWidth = layout.bar.width < 300 ? 60 : 76;
+	auto width = [&](int i) { return std::min(210.0f, std::max(90.0f,
+		jp_constants::p_font.stringWidth(names[i]) + 28.0f)); };
+	float total = rootWidth + 8;
+	for (int i = 1; i < (int)names.size(); ++i) total += width(i) + 4;
+	const bool overflow = total > layout.bar.width;
+	if (!overflow) firstVisibleGroupTab = 1;
+	firstVisibleGroupTab = ofClamp(firstVisibleGroupTab, 1, (int)names.size() - 1);
+	float right = layout.bar.getRight();
+	if (overflow) {
+		const float buttonWidth = layout.bar.width < 300 ? 24 : 28;
+		layout.previous = ofRectangle(right - buttonWidth * 2 - 4, y, buttonWidth, 28);
+		layout.next = ofRectangle(right - buttonWidth, y, buttonWidth, 28);
+		right -= buttonWidth * 2 + 8;
+	}
+	auto placeItems = [&] {
+		layout.items.clear();
+		float x = layout.bar.x;
+		layout.items.push_back({0, names[0], ofRectangle(x, y, rootWidth, 28)});
+		x += rootWidth + 8;
+		int last = firstVisibleGroupTab - 1;
+		for (int i = firstVisibleGroupTab; i < (int)names.size(); ++i) {
+			const float available = right - x;
+			if (available < 28) break;
+			const float w = std::min(width(i), available);
+			if (w < width(i) && i != firstVisibleGroupTab) break;
+			layout.items.push_back({i, names[i], ofRectangle(x, y, w, 28)});
+			x += w + 4;
+			last = i;
+		}
+		layout.canPrevious = overflow && firstVisibleGroupTab > 1;
+		layout.canNext = overflow && last < (int)names.size() - 1;
+	};
+	placeItems();
+	// Reveal only when selection, context or available space changes. Manual
+	// paging remains free while the same box stays selected in the inspector.
+	const int target = selectedTab > 0 ? selectedTab : depth;
+	if (reveal && target > 0) {
+		if (target < firstVisibleGroupTab) {
+			firstVisibleGroupTab = target;
+			placeItems();
+		}
+		while (firstVisibleGroupTab < target && std::none_of(layout.items.begin(), layout.items.end(),
+			[target](const GroupTabItem &item) { return item.index == target; })) {
+			++firstVisibleGroupTab;
+			placeItems();
+		}
+	}
+	return layout;
+}
+
+bool JPboxgroup::scrollGroupTabs(float delta)
+{
+	const auto layout = groupTabLayout();
+	if (tabRenaming) return true;
+	if (delta > 0 && layout.canPrevious) --firstVisibleGroupTab;
+	if (delta < 0 && layout.canNext) ++firstVisibleGroupTab;
+	return true;
+}
+
 void JPboxgroup::drawTabs()
 {
-	vector<int> childIndices = getDirectChildPresetIndices();
-	int pathLen = (int)activeGroupPath.size();
-
-	// Total tabs = MAIN(1) + breadcrumb(pathLen) + children(childIndices.size())
-	int totalTabs = 1 + pathLen + (int)childIndices.size();
-	if (totalTabs <= 1)
-	{
-		return; // Only MAIN, no presets at all
-	}
-
-	// activeTab logic:
-	// In MAIN view, activeTab = 0 (MAIN tab)
-	// In group view, activeTab = pathLen (the last breadcrumb tab)
-	int activeTabIndex = isGroupViewActive() ? pathLen : 0;
-
-	const float tabMinWidth = 90;
-	const float pad = 8;
-	const float gap = 2;
-	const float tabH = 28;
-	float x = pad;
-	const float y = tabBarOffsetY + pad;
-
-	// Draw tab bar background
+	const auto layout = groupTabLayout();
+	if (layout.items.empty()) return;
+	const int depth = (int)activeGroupPath.size();
+	const auto children = getDirectChildPresetIndices();
+	const int inspectorIndex = isGroupViewActive() ? groupInspectorIndex : openguinumber;
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
-	ofSetColor(COL_BG_TAB, 210);
-	ofDrawRectRounded(x, y, ofGetWidth() - pad * 2, tabH + gap * 2, 4);
+	ofSetColor(COL_BG_TAB, 245);
+	ofDrawRectangle(layout.bar);
+	for (const auto &item : layout.items) {
+		const auto &r = item.bounds;
+		const bool active = item.index == depth;
+		const int child = item.index - depth - 1;
+		const bool selected = child >= 0 && child < (int)children.size() &&
+			(children[child] == inspectorIndex || isBoxSelected(children[child]));
+		const bool hover = r.inside(ofGetMouseX(), ofGetMouseY());
+		ofSetColor(selected ? COL_ACCENT_CYAN_DARK :
+			(active || hover ? COL_BG_HOVER : COL_TAB_INACTIVE_BG));
+		ofDrawRectRounded(r.x, r.y, r.width, r.height, 3);
+		if (active) {
+			ofSetColor(COL_ACCENT_GREEN_BR);
+			ofDrawRectangle(r.x + 6, r.getBottom() - 3, r.width - 12, 2);
+		}
+		if (tabRenaming && item.index == tabRenameTabIndex) {
+			auto f = jp_text_input::field("tab-name", "tabs",
+				ofRectangle(r.x + 4, r.y + 3, r.width - 8, r.height - 7),
+				jp_constants::p_font, tabRenameBuffer, true);
+			f.limit = 64;
+			f.cancel = [this]{ cancelTabRename(); };
+			f.commit = [this]{ commitTabRename(); return !tabRenaming; };
+			f.validate = [](const string &v)->string { return v.empty() ?
+				jp_text_input::message("Enter a name", "Ingresá un nombre") : ""; };
+			jp_text_input::controller().add(std::move(f));
+		} else {
+			string label = item.name;
+			const float available = r.width - (item.index == 0 ? 20 : 28);
+			if (jp_constants::p_font.stringWidth(label) > available) {
+				while (!label.empty() && jp_constants::p_font.stringWidth(label + "...") > available) {
+					// Remove one UTF-8 code point, never leave a partial character.
+					size_t end = label.size() - 1;
+					while (end > 0 && (static_cast<unsigned char>(label[end]) & 0xc0) == 0x80) --end;
+					label.resize(end);
+				}
+				label += "...";
+			}
+			ofSetColor(active || selected ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
+			jp_constants::p_font.drawString(label, r.x + 10, r.y + 19);
+			if (item.index > depth) {
+				// Child groups lead forward; ancestors remain simple navigation labels.
+				ofSetColor(selected ? COL_ACCENT_CYAN : COL_TEXT_DIM);
+				ofDrawLine(r.getRight()-10, r.y+11, r.getRight()-7, r.y+14);
+				ofDrawLine(r.getRight()-7, r.y+14, r.getRight()-10, r.y+17);
+			}
+		}
+		string hint = item.name + " — " + (active && depth > 0 ?
+			jp_text_input::message("Double-click to rename", "Doble clic para renombrar") :
+			(item.index <= depth ? jp_text_input::message("Return to group", "Volver al grupo") :
+			jp_text_input::message("Open group", "Abrir grupo")));
+		jp_tooltip::draw(hint, r.x, r.y, r.width, r.height);
+	}
+	for (int direction : {-1, 1}) {
+		const auto &r = direction < 0 ? layout.previous : layout.next;
+		if (r.width == 0) continue;
+		const bool enabled = direction < 0 ? layout.canPrevious : layout.canNext;
+		ofSetColor(enabled && r.inside(ofGetMouseX(), ofGetMouseY()) ? COL_BG_HOVER : COL_BG_TAB);
+		ofDrawRectRounded(r.x, r.y, r.width, r.height, 3);
+		ofSetColor(enabled ? COL_TEXT_PRIMARY : COL_TEXT_DIM);
+		const float cx = r.getCenter().x, cy = r.getCenter().y;
+		ofDrawLine(cx-direction*3, cy-5, cx+direction*3, cy);
+		ofDrawLine(cx+direction*3, cy, cx-direction*3, cy+5);
+		jp_tooltip::draw(jp_text_input::message("Scroll groups (or use the wheel)",
+			"Recorrer grupos (o usar la rueda)"), r.x, r.y, r.width, r.height);
+	}
 	ofPopStyle();
-
-	// Draw each tab
-	int tabCounter = 0;
-
-	// TAB 0: MAIN (always)
-	{
-		string name = "MAIN";
-		float textW = jp_constants::p_font.stringWidth(name);
-		float tabW = std::max(tabMinWidth, textW + 24);
-		bool isActive = (activeTabIndex == tabCounter);
-
-		ofPushStyle();
-		ofSetRectMode(OF_RECTMODE_CORNER);
-		// Active = soft raised fill + green border & underline; inactive = flat dark.
-		ofSetColor(isActive ? ofColor(COL_BG_HOVER, 240) : ofColor(COL_TAB_INACTIVE_BG, 220));
-		ofDrawRectRounded(x, y, tabW, tabH, 4);
-		ofNoFill(); ofSetLineWidth(1);
-		ofSetColor(isActive ? ofColor(COL_ACCENT_GREEN, 230) : ofColor(COL_TAB_INACTIVE_BRD, 200));
-		ofDrawRectRounded(x, y, tabW, tabH, 4); ofFill();
-		if (isActive) { ofSetColor(COL_ACCENT_GREEN_BR); ofDrawRectangle(x + 6, y + tabH - 4, tabW - 12, 2); }
-		ofSetColor(isActive ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
-		jp_constants::p_font.drawString(name, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
-		ofPopStyle();
-
-		x += tabW + gap;
-		tabCounter++;
-	}
-
-	// Breadcrumb tabs (level 1..pathLen) - each is clickable to go back
-	if (isGroupViewActive())
-	{
-		for (int level = 1; level <= pathLen; level++)
-		{
-			string name = getBreadcrumbNameAtLevel(activeGroupPath, boxes, level);
-			float textW = jp_constants::p_font.stringWidth(name);
-			float tabW = std::max(tabMinWidth, textW + 24);
-			bool isActive = (activeTabIndex == tabCounter);
-
-			ofPushStyle();
-			ofSetRectMode(OF_RECTMODE_CORNER);
-			if (isActive)
-			{
-				// Current level - highlighted green
-				ofSetColor(COL_ACCENT_GREEN, 235);
-			}
-			else if (level < pathLen)
-			{
-				// Parent level - clickable to go back
-				ofSetColor(COL_BG_HOVER, 225);
-			}
-			else
-			{
-				// Should not happen, but just in case
-				ofSetColor(COL_TAB_INACTIVE_BG, 225);
-			}
-			ofDrawRectRounded(x, y, tabW, tabH, 3);
-			ofNoFill(); ofSetLineWidth(1);
-			ofSetColor(isActive ? ofColor(COL_ACCENT_GREEN_BR, 255) : ofColor(COL_BORDER_MUTED, 200));
-			ofDrawRectRounded(x, y, tabW, tabH, 3); ofFill();
-
-			// Small ">" separator before breadcrumb levels (except first)
-			if (level > 1)
-			{
-				ofSetColor(COL_TEXT_DIM);
-				jp_constants::p_font.drawString(">", x - gap - 10, y + tabH * 0.5f + 5);
-			}
-
-			ofSetColor(isActive ? COL_TEXT_PRIMARY : (level < pathLen ? COL_TEXT_SECONDARY : COL_TEXT_DIM));
-
-			if (tabRenaming && tabCounter == tabRenameTabIndex)
-			{
-				// Draw text input field overlay on this breadcrumb tab
-				float inputPad = 4;
-				ofSetRectMode(OF_RECTMODE_CORNER);
-				ofSetColor(COL_BG_INPUT);
-				ofDrawRectRounded(x + inputPad, y + inputPad, tabW - inputPad * 2, tabH - inputPad * 2, 2);
-				ofSetColor(COL_TEXT_DARK);
-                auto f=jp_text_input::field("tab-name","tabs",ofRectangle(x+inputPad,y+inputPad,tabW-inputPad*2,tabH-inputPad*2),jp_constants::p_font,tabRenameBuffer,true);
-                f.limit=64;f.cancel=[this]{cancelTabRename();};
-                f.commit=[this]{commitTabRename();return !tabRenaming;};
-                f.validate=[](const string& v)->string{return v.empty()?jp_text_input::message("Enter a name","Ingresá un nombre"):"";};
-                jp_text_input::controller().add(std::move(f));
-			}
-			else
-			{
-				jp_constants::p_font.drawString(name, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
-			}
-			ofPopStyle();
-			jp_tooltip::draw(level < pathLen ? "Return to this parent group" : "Current group", x, y, tabW, tabH);
-
-			x += tabW + gap;
-			tabCounter++;
-		}
-	}
-
-	// Child preset tabs (direct children)
-	for (int ti = 0; ti < (int)childIndices.size(); ti++)
-	{
-		int idx = childIndices[ti];
-		string tabName = "?";
-
-		const vector<JPbox *> *boxList = &boxes;
-		if (isGroupViewActive())
-		{
-			JPbox_preset *preset = getActivePreset();
-			if (preset != nullptr) boxList = &preset->boxes;
-		}
-		if (idx >= 0 && idx < (int)boxList->size() && (*boxList)[idx] != nullptr)
-			tabName = (*boxList)[idx]->name;
-		if (tabName.empty()) tabName = "Group " + ofToString(ti);
-
-		float textW = jp_constants::p_font.stringWidth(tabName);
-		float tabW = std::max(tabMinWidth, textW + 24);
-		bool isActive = (activeTabIndex == tabCounter);
-
-		ofPushStyle();
-		ofSetRectMode(OF_RECTMODE_CORNER);
-		// Active = soft raised fill + green border & underline; inactive = flat dark.
-		ofSetColor(isActive ? ofColor(COL_BG_HOVER, 240) : ofColor(COL_TAB_INACTIVE_BG, 220));
-		ofDrawRectRounded(x, y, tabW, tabH, 4);
-		ofNoFill(); ofSetLineWidth(1);
-		ofSetColor(isActive ? ofColor(COL_ACCENT_GREEN, 230) : ofColor(COL_TAB_INACTIVE_BRD, 200));
-		ofDrawRectRounded(x, y, tabW, tabH, 4); ofFill();
-		if (isActive) { ofSetColor(COL_ACCENT_GREEN_BR); ofDrawRectangle(x + 6, y + tabH - 4, tabW - 12, 2); }
-
-		if (tabRenaming && tabCounter == tabRenameTabIndex)
-		{
-			// Draw text input field overlay on this tab
-			float inputPad = 4;
-			ofSetRectMode(OF_RECTMODE_CORNER);
-			ofSetColor(COL_BG_INPUT);
-			ofDrawRectRounded(x + inputPad, y + inputPad, tabW - inputPad * 2, tabH - inputPad * 2, 2);
-			ofSetColor(COL_TEXT_DARK);
-                auto f=jp_text_input::field("tab-name","tabs",ofRectangle(x+inputPad,y+inputPad,tabW-inputPad*2,tabH-inputPad*2),jp_constants::p_font,tabRenameBuffer,true);
-                f.limit=64;f.cancel=[this]{cancelTabRename();};
-                f.commit=[this]{commitTabRename();return !tabRenaming;};
-                f.validate=[](const string& v)->string{return v.empty()?jp_text_input::message("Enter a name","Ingresá un nombre"):"";};
-                jp_text_input::controller().add(std::move(f));
-		}
-		else
-		{
-			ofSetColor(isActive ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
-			jp_constants::p_font.drawString(tabName, x + (tabW - textW) * 0.5f, y + tabH * 0.5f + 5);
-		}
-		ofPopStyle();
-
-		x += tabW + gap;
-		tabCounter++;
-	}
 }
 
 int JPboxgroup::getTabAtScreenPos(int screenX, int screenY) const
 {
-	vector<int> childIndices = getDirectChildPresetIndices();
-	int pathLen = (int)activeGroupPath.size();
-	int totalTabs = 1 + pathLen + (int)childIndices.size();
-
-	const float tabHeight = 28;
-	const float tabMinWidth = 90;
-	const float pad = 8;
-	const float gap = 2;
-
-	// tabBarOffsetY was added twice, so the strip claimed clicks ~48px below
-	// where it is actually drawn - a dead band across the top of the canvas.
-	if (totalTabs <= 1 || screenY < tabBarOffsetY ||
-		screenY > tabBarOffsetY + tabHeight + pad * 2)
-	{
-		return -1;
-	}
-
-	float x = pad;
-
-	// Iterate tabs in same order as drawTabs() and find hit
-	int tabIndex = 0;
-
-	// MAIN
-	{
-		float tabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth("MAIN") + 24);
-		if (screenX >= x && screenX <= x + tabW) return tabIndex;
-		x += tabW + gap;
-		tabIndex++;
-	}
-
-	// Breadcrumb
-	if (isGroupViewActive())
-	{
-		for (int level = 1; level <= pathLen; level++)
-		{
-			string name = getBreadcrumbNameAtLevel(activeGroupPath, boxes, level);
-			float tabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth(name) + 24);
-			// Account for ">" separator space
-			if (level > 1) x += 12;
-			if (screenX >= x && screenX <= x + tabW) return tabIndex;
-			x += tabW + gap;
-			tabIndex++;
-		}
-	}
-
-	// Children
-	for (int ti = 0; ti < (int)childIndices.size(); ti++)
-	{
-		int idx = childIndices[ti];
-		string tabName = "?";
-		const vector<JPbox *> *boxList = &boxes;
-		if (isGroupViewActive())
-		{
-			JPbox_preset *preset = getActivePreset();
-			if (preset != nullptr) boxList = &preset->boxes;
-		}
-		if (idx >= 0 && idx < (int)boxList->size() && (*boxList)[idx] != nullptr)
-			tabName = (*boxList)[idx]->name;
-		if (tabName.empty()) tabName = "Group " + ofToString(ti);
-
-		float tabW = std::max(tabMinWidth, jp_constants::p_font.stringWidth(tabName) + 24);
-		if (screenX >= x && screenX <= x + tabW) return tabIndex;
-		x += tabW + gap;
-		tabIndex++;
-	}
-
+	for (const auto &item : groupTabLayout().items)
+		if (item.bounds.inside(screenX, screenY)) return item.index;
 	return -1;
 }
 
@@ -9370,14 +9319,31 @@ bool JPboxgroup::navigateToChildPreset(int childIndex)
 
 bool JPboxgroup::handleTabClick()
 {
+	const auto layout = groupTabLayout();
+	if (layout.previous.inside(ofGetMouseX(), ofGetMouseY())) return scrollGroupTabs(1);
+	if (layout.next.inside(ofGetMouseX(), ofGetMouseY())) return scrollGroupTabs(-1);
 	int tabIndex = getTabAtScreenPos(ofGetMouseX(), ofGetMouseY());
 	if (tabIndex < 0)
 	{
-		return false;
+		return layout.bar.inside(ofGetMouseX(), ofGetMouseY());
 	}
 
 	int pathLen = (int)activeGroupPath.size();
 	vector<int> childIndices = getDirectChildPresetIndices();
+
+	// A canvas click or a different group must never count as a rename click.
+	JPbox *clicked = nullptr;
+	if (tabIndex == pathLen && pathLen > 0) clicked = getActivePreset();
+	if (tabIndex > pathLen) {
+		const auto *parent = getActivePreset();
+		const auto &nodes = parent ? parent->boxes : boxes;
+		clicked = nodes[childIndices[tabIndex - pathLen - 1]];
+	}
+	const uint64_t now = ofGetSystemTimeMillis();
+	const bool renameClick = clicked && clicked->uid == lastGroupTabClickUid &&
+		now - lastGroupTabClickTime < duration_mouseclick;
+	lastGroupTabClickUid = clicked ? clicked->uid : "";
+	lastGroupTabClickTime = now;
 
 	// Tab index breakdown:
 	// 0 = MAIN
@@ -9386,30 +9352,14 @@ bool JPboxgroup::handleTabClick()
 
 	if (tabIndex == 0)
 	{
-		// MAIN tab
-		if (!isGroupViewActive())
-		{
-			// Already in MAIN - reset zoom
-			viewportZoom = 1.0f;
-			viewportPan = ofVec2f(0, 0);
-			ensureTabStateSize();
-			if (0 < (int)tabZooms.size())
-			{
-				tabZooms[0] = viewportZoom;
-				tabPans[0] = viewportPan;
-			}
-		}
-		else
-		{
-			navigateToBreadcrumbLevel(0);
-		}
+		if (isGroupViewActive()) navigateToBreadcrumbLevel(0);
 		return true;
 	}
 
 	if (tabIndex >= 1 && tabIndex <= pathLen)
 	{
 		// Handle double-click on the last breadcrumb tab (current level) -> inline rename
-		if (isDoubleClick && tabIndex == pathLen && pathLen > 0)
+		if (renameClick && tabIndex == pathLen && pathLen > 0)
 		{
 			int realIdx = activeGroupPath[pathLen - 1];
 			const vector<JPbox *> *boxList = nullptr;
@@ -9457,24 +9407,8 @@ bool JPboxgroup::handleTabClick()
 			return true;
 		}
 
-		// Clicked a breadcrumb level - navigate back
-		if (tabIndex == pathLen && isGroupViewActive())
-		{
-			// Clicked the current level - reset zoom
-			viewportZoom = 1.0f;
-			viewportPan = ofVec2f(0, 0);
-			ensureTabStateSize();
-			if (tabIndex < (int)tabZooms.size())
-			{
-				tabZooms[tabIndex] = viewportZoom;
-				tabPans[tabIndex] = viewportPan;
-			}
-		}
-		else
-		{
-			// Navigate back to that breadcrumb level
-			navigateToBreadcrumbLevel(tabIndex);
-		}
+		// Selecting the current tab preserves the user's framing.
+		if (tabIndex != pathLen) navigateToBreadcrumbLevel(tabIndex);
 		return true;
 	}
 
@@ -9482,27 +9416,6 @@ bool JPboxgroup::handleTabClick()
 	int childIndex = tabIndex - pathLen - 1;
 	if (childIndex >= 0 && childIndex < (int)childIndices.size())
 	{
-		// Handle double-click on child -> inline rename
-		if (isDoubleClick)
-		{
-			int realIdx = childIndices[childIndex];
-			const vector<JPbox *> *boxList = &boxes;
-			if (isGroupViewActive())
-			{
-				JPbox_preset *preset = getActivePreset();
-				if (preset != nullptr) boxList = &preset->boxes;
-			}
-			if (realIdx >= 0 && realIdx < (int)boxList->size() && (*boxList)[realIdx] != nullptr)
-			{
-				// Start inline rename
-				tabRenaming = true;
-				tabRenameTabIndex = tabIndex;
-				tabRenameBuffer = (*boxList)[realIdx]->name;
-				tabRenameCursor = tabRenameBuffer.size();
-			}
-			return true;
-		}
-
 		// Navigate into child preset
 		navigateToChildPreset(childIndex);
 		return true;

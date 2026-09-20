@@ -519,6 +519,20 @@ public:
 	int activeTab = 0;
 	vector<int> activeGroupPath;
 	float tabBarOffsetY = 40; // Offset for screen-level tabs above the boxgroup tabs (clearance below the top screen-tab bar)
+	struct GroupTabItem { int index; string name; ofRectangle bounds; };
+	struct GroupTabLayout {
+		ofRectangle bar, previous, next;
+		vector<GroupTabItem> items;
+		bool canPrevious = false, canNext = false;
+	};
+	string lastGroupTabClickUid;
+	uint64_t lastGroupTabClickTime = 0;
+	mutable int firstVisibleGroupTab = 1;
+	mutable vector<int> tabLayoutPath;
+	mutable string tabSelectionUid;
+	mutable float tabAvailableWidth = -1;
+	GroupTabLayout groupTabLayout() const;
+	bool scrollGroupTabs(float delta);
 	void drawTabs();
 	int getTabAtScreenPos(int screenX, int screenY) const;
 	bool handleTabClick();

@@ -7,6 +7,12 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 
 ## Sin publicar
 
+- Seleccionar una caja de grupo muestra automáticamente su pestaña. La barra y sus flechas se ajustan al espacio disponible antes del inspector de propiedades.
+
+- Seleccionar una caja de grupo resalta su pestaña en cian, también dentro de grupos anidados y en selección múltiple.
+
+- Pestañas de grupos con MAIN fijo, desplazamiento mediante flechas o rueda y nombres largos abreviados con ayuda contextual. Las zonas clickeables coinciden con la barra en grupos anidados; seleccionar el grupo actual conserva el zoom y el encuadre. El doble clic para renombrar identifica el grupo y los gestos sobre la barra no arrastran nodos del fondo.
+
 ## [0.1.0-beta.7](https://github.com/guipper/Guipper/releases/tag/v0.1.0-beta.7) — 2026-09-18
 
 - Random (Aleatorio) aparece siempre al final de la lista de transiciones, también en Favoritos. Los identificadores guardados y las selecciones de las composiciones mantienen su significado.
