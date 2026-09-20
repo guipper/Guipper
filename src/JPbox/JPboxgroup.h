@@ -1,3 +1,4 @@
+#include <map>
 #pragma once
 
 #include <array>
@@ -531,6 +532,8 @@ public:
 	mutable vector<int> tabLayoutPath;
 	mutable string tabSelectionUid;
 	mutable float tabAvailableWidth = -1;
+	mutable string tabContextUid;
+	mutable std::map<string, int> groupTabPages;
 	GroupTabLayout groupTabLayout() const;
 	bool scrollGroupTabs(float delta);
 	void drawTabs();

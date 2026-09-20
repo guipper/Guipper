@@ -7,6 +7,8 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 
 ## Sin publicar
 
+- Ruta de grupos separada de las pestañas de sus subgrupos, con memoria de página por grupo durante la sesión.
+
 - Seleccionar una caja de grupo muestra automáticamente su pestaña. La barra y sus flechas se ajustan al espacio disponible antes del inspector de propiedades.
 
 - Seleccionar una caja de grupo resalta su pestaña en cian, también dentro de grupos anidados y en selección múltiple.

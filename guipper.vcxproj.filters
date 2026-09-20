@@ -145,6 +145,9 @@
 	<ClCompile Include="src\JPbox\JPboxgroup_quick_images.cpp">
 	  <Filter>src\JPbox</Filter>
 	</ClCompile>
+	<ClCompile Include="src\JPbox\JPboxgroup_tabs.cpp">
+	  <Filter>src\JPbox</Filter>
+	</ClCompile>
     <ClCompile Include="src\JPbox\jp_box_video.cpp">
       <Filter>src\JPbox</Filter>
     </ClCompile>
