@@ -6539,6 +6539,11 @@ void ofApp::keyPressed(int key) {
 		return;
 	}
 
+    // Alt+Up is routed once, through the modifier-aware callback. Do not let
+    // the legacy Up event also capture an inspector slider's range endpoint.
+    if (pantallaActiva==NODOS && !anyFieldFocused() && !boxes.wantsKeyCapture() &&
+        !surfaces.modalOpen() && key==OF_KEY_UP && ofGetKeyPressed(OF_KEY_ALT)) return;
+
 	// ONE ESC RULE FOR THE WHOLE PROGRAM: dismiss the topmost surface, one
 	// layer per press - field edit, then dropdown, then panel, then modal.
 	// When nothing is open it does nothing. It never changes screen and never
@@ -6777,6 +6782,11 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
     if (shaderNameFocused && pantallaActiva==SHADER_INDEX) return;
     if (releasePanelOpen || saveModalActive) return;
     if (pantallaActiva == NODOS && boxes.groupMenuOpen) return;
+    if (pantallaActiva == NODOS && !surfaces.modalOpen() && !shaderEditor.wantsKeyCapture()) {
+        const int tabKey=e.keycode==GLFW_KEY_F?'f':e.key;
+        if(boxes.handleGroupShortcut(tabKey,e.hasModifier(OF_KEY_CONTROL)||e.hasModifier(OF_KEY_SUPER),
+            e.hasModifier(OF_KEY_ALT),e.hasModifier(OF_KEY_SHIFT))) return;
+    }
 
 	// cout << "KEY : " << e.key << endl;
 

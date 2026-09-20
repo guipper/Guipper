@@ -168,6 +168,18 @@ void JPboxgroup::drawTabs()
 	const int depth = (int)activeGroupPath.size();
 	const auto children = getDirectChildPresetIndices();
 	const int inspectorIndex = isGroupViewActive() ? groupInspectorIndex : openguinumber;
+	bool livePath=true;
+	const vector<JPbox*> *pathNodes=&boxes;
+	int pathRender=activerender?*activerender:-1;
+	for(int index:activeGroupPath) {
+		if(index!=pathRender) livePath=false;
+		if(index<0||index>=(int)pathNodes->size()) {livePath=false;break;}
+		auto *group=dynamic_cast<JPbox_preset*>((*pathNodes)[index]);
+		if(!group){livePath=false;break;}
+		pathNodes=&group->boxes;pathRender=group->activeRender;
+	}
+	// Follow the live graph; CUE may have a different staged render.
+	const int outputIndex=pathRender;
 	ofPushStyle();
 	ofSetRectMode(OF_RECTMODE_CORNER);
 	ofSetColor(COL_BG_TAB, 245);
@@ -178,6 +190,8 @@ void JPboxgroup::drawTabs()
 		const int child = item.index - depth - 1;
 		const bool selected = child >= 0 && child < (int)children.size() &&
 			(children[child] == inspectorIndex || isBoxSelected(children[child]));
+		const bool output=(child>=0&&child<(int)children.size()&&children[child]==outputIndex)||
+			(active&&depth>0&&livePath);
 		const bool hover = r.inside(ofGetMouseX(), ofGetMouseY());
 		ofSetColor(selected ? COL_ACCENT_CYAN_DARK :
 			(active || hover ? COL_BG_HOVER : COL_TAB_INACTIVE_BG));
@@ -198,7 +212,7 @@ void JPboxgroup::drawTabs()
 			jp_text_input::controller().add(std::move(f));
 		} else {
 			string label = item.name;
-			const float available = r.width - (item.index == 0 ? 20 : 28);
+			const float available = r.width - (item.index == 0 ? 20 : (output?42:28));
 			if (jp_constants::p_font.stringWidth(label) > available) {
 				while (!label.empty() && jp_constants::p_font.stringWidth(label + "...") > available) {
 					// Remove one UTF-8 code point, never leave a partial character.
@@ -217,10 +231,19 @@ void JPboxgroup::drawTabs()
 				ofDrawLine(r.getRight()-7, r.y+14, r.getRight()-10, r.y+17);
 			}
 		}
+		if(output) {
+			ofSetColor(livePath?COL_ACCENT_GOLD:COL_ACCENT_GOLD_DIM);
+			if(!livePath) ofNoFill();
+			ofDrawCircle(r.getRight()-(child>=0?20:10),r.y+14,3);
+			ofFill();
+		}
 		string hint = item.name + " — " + (active && depth > 0 ?
 			jp_text_input::message("Double-click to rename", "Doble clic para renombrar") :
 			(item.index <= depth ? jp_text_input::message("Return to group", "Volver al grupo") :
 			jp_text_input::message("Open group", "Abrir grupo")));
+		if(selected) hint+=" · "+jp_text_input::message("Selected box", "Caja seleccionada");
+		if(active) hint+=" · "+jp_text_input::message("Editing this view", "Vista en edición");
+		if(output) hint+=" · "+jp_text_input::message(livePath?"Main render path":"Group output",livePath?"Ruta del render principal":"Salida del grupo");
 		jp_tooltip::draw(hint, r.x, r.y, r.width, r.height);
 	}
 	if(layout.search.width>0) {
@@ -229,7 +252,7 @@ void JPboxgroup::drawTabs()
 		ofDrawRectRounded(r,3);
 		ofNoFill();ofSetLineWidth(1.5f);ofSetColor(COL_TEXT_PRIMARY);
 		ofDrawCircle(r.x+12,r.y+12,5);ofDrawLine(r.x+16,r.y+16,r.x+21,r.y+21);ofFill();
-		jp_tooltip::draw(jp_text_input::message("Find a group", "Buscar un grupo"),r.x,r.y,r.width,r.height);
+		jp_tooltip::draw(jp_text_input::message("Find a group (Ctrl/Cmd+Shift+F)", "Buscar un grupo (Ctrl/Cmd+Shift+F)"),r.x,r.y,r.width,r.height);
 	}
 	for (int direction : {-1, 1}) {
 		const auto &r = direction < 0 ? layout.previous : layout.next;
@@ -894,4 +917,50 @@ void JPboxgroup::drawGroupMenu() {
         jp_constants::p_font.drawString(groupLabel(status,r.width-24),r.x+12,r.getBottom()-12);
     }
     ofPopStyle();
+}
+
+bool JPboxgroup::handleGroupShortcut(int key,bool control,bool alt,bool shift) {
+    if(tabRenaming||groupMenuOpen||paintWantsKeyCapture()||mappingEditActive||isQuickImageEditorOpen()) return false;
+    if(control&&shift&&!alt&&(key=='f'||key=='F')) {openGroupSearch();return true;}
+    if(alt&&!control&&!shift&&key==OF_KEY_UP) {
+        if(!activeGroupPath.empty()) navigateToBreadcrumbLevel((int)activeGroupPath.size()-1);
+        return true;
+    }
+    if(key==OF_KEY_F2&&!control&&!alt&&!shift) {
+        auto *parent=getActivePreset();
+        const auto &nodes=parent?parent->boxes:boxes;
+        const int selected=parent?groupInspectorIndex:openguinumber;
+        const auto children=getDirectChildPresetIndices();
+        auto it=std::find(children.begin(),children.end(),selected);
+        if(it!=children.end()) {
+            tabRenameTabIndex=(int)activeGroupPath.size()+1+(int)(it-children.begin());
+            tabRenameBuffer=nodes[selected]->name;tabSelectionUid.clear();
+        } else if(parent) {
+            tabRenameTabIndex=(int)activeGroupPath.size();tabRenameBuffer=parent->name;
+        } else return true;
+        tabRenaming=true;tabRenameCursor=tabRenameBuffer.size();return true;
+    }
+    if(control&&!alt&&!shift&&(key==OF_KEY_PAGE_UP||key==OF_KEY_PAGE_DOWN)) {
+        const vector<JPbox*> *siblings=&boxes;
+        int current=openguinumber;
+        if(!activeGroupPath.empty()) {
+            for(size_t level=0;level+1<activeGroupPath.size();++level) {
+                const int index=activeGroupPath[level];
+                if(index<0||index>=(int)siblings->size()) return true;
+                auto *parent=dynamic_cast<JPbox_preset*>((*siblings)[index]);
+                if(!parent) return true;
+                siblings=&parent->boxes;
+            }
+            current=activeGroupPath.back();
+        }
+        vector<int> indices;
+        for(int i=0;i<(int)siblings->size();++i) if(dynamic_cast<JPbox_preset*>((*siblings)[i]))indices.push_back(i);
+        if(indices.empty()) return true;
+        auto it=std::find(indices.begin(),indices.end(),current);
+        const int step=key==OF_KEY_PAGE_DOWN?1:-1;
+        const int next=it==indices.end()?(step>0?0:(int)indices.size()-1):
+            ((int)(it-indices.begin())+step+(int)indices.size())%(int)indices.size();
+        navigateGroupUid((*siblings)[indices[next]]->uid);return true;
+    }
+    return false;
 }

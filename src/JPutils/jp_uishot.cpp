@@ -1,4 +1,5 @@
 #include "jp_uishot.h"
+#include "jp_text_input.h"
 
 #include "../ofApp.h"
 #include "jp_audio.h"
@@ -859,6 +860,11 @@ void jp_uishot::update(ofApp &app)
 				if(!app.boxes.groupMenuOpen || app.boxes.groupSearchMode) std::exit(EXIT_FAILURE);
 			}
 			if (gState == 7) {app.boxes.openGroupSearch();app.boxes.groupSearchText="missing-group-fixture";}
+			if (gState == 8) {
+				app.boxes.navigateToBreadcrumbLevel(0);
+				app.activerender=0;
+				static_cast<JPbox_preset*>(app.boxes.boxes[0])->activeRender=0;
+			}
 			if (gState == 4) {
 				app.boxes.navigateToBreadcrumbLevel(0);
 				if (std::abs(app.boxes.viewportZoom - 1.7f) > 0.001f) std::exit(EXIT_FAILURE);
@@ -933,7 +939,7 @@ void jp_uishot::draw(ofApp &app)
 	if (!gActive || gDone) return;
 	if (gTag == "groups") {
 		if (gFrames < 8) return;
-		const int expectedDepth = (gState == 2 || gState >= 6) ? 1 : (gState == 3 ? 2 : 0);
+		const int expectedDepth = (gState == 2 || gState == 6 || gState == 7) ? 1 : (gState == 3 ? 2 : 0);
 		if (app.boxes.boxes.size() != 12 || (int)app.boxes.activeGroupPath.size() != expectedDepth)
 			std::exit(EXIT_FAILURE);
 		const auto layout = app.boxes.groupTabLayout();
@@ -987,8 +993,27 @@ void jp_uishot::draw(ofApp &app)
 			app.boxes.groupMenuKeyPressed(OF_KEY_ESC);
 			if(app.boxes.groupMenuOpen || app.boxes.navigateGroupUid("missing-uid")) std::exit(EXIT_FAILURE);
 		}
+		if(gState==8) {
+			jp_text_input::controller().consumed=false;
+			ofKeyEventArgs nextGroup(ofKeyEventArgs::Pressed,OF_KEY_PAGE_DOWN,0,0,0,OF_KEY_CONTROL);
+			app.keycodePressed(nextGroup);
+			if(app.boxes.activeGroupPath!=vector<int>{0}) std::exit(EXIT_FAILURE);
+			app.boxes.handleGroupShortcut(OF_KEY_PAGE_DOWN,true,false,false);
+			if(app.boxes.activeGroupPath!=vector<int>{1}) std::exit(EXIT_FAILURE);
+			app.boxes.handleGroupShortcut(OF_KEY_PAGE_UP,true,false,false);
+			if(app.boxes.activeGroupPath!=vector<int>{0}) std::exit(EXIT_FAILURE);
+			app.boxes.handleGroupShortcut(OF_KEY_F2,false,false,false);
+			if(!app.boxes.tabRenaming) std::exit(EXIT_FAILURE);
+			if(app.boxes.handleGroupShortcut(OF_KEY_PAGE_DOWN,true,false,false)) std::exit(EXIT_FAILURE);
+			app.boxes.keyPressed(OF_KEY_ESC);
+			app.boxes.handleGroupShortcut(OF_KEY_UP,false,true,false);
+			if(!app.boxes.activeGroupPath.empty()||app.activerender!=0) std::exit(EXIT_FAILURE);
+			app.boxes.handleGroupShortcut('f',true,false,true);
+			if(!app.boxes.groupMenuOpen) std::exit(EXIT_FAILURE);
+			app.boxes.closeGroupMenu();
+		}
 		gFrames = 0;
-		if (++gState == 8) { ofLogNotice("group-tabs") << "PASS: layout, overflow, nested navigation and viewport restoration"; gDone = true; ofExit(0); }
+		if (++gState == 9) { ofLogNotice("group-tabs") << "PASS: layout, selection reveal, page memory, search, menu, rename, shortcuts and viewport restoration"; gDone = true; ofExit(0); }
 		return;
 	}
     if (gReleaseOnly) {

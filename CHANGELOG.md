@@ -7,6 +7,8 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 
 ## Sin publicar
 
+- Atajos para recorrer grupos hermanos, subir al padre, buscar y renombrar; indicadores diferenciados de vista en edición, caja seleccionada y salida del grupo/render principal. Ayuda ES/EN integrada.
+
 - Buscador de grupos con rutas completas y menú contextual para abrir, localizar en el lienzo o renombrar grupos.
 
 - Ruta de grupos separada de las pestañas de sus subgrupos, con memoria de página por grupo durante la sesión.

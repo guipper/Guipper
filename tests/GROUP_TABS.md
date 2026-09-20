@@ -7,7 +7,7 @@ Compilar con `make Release -j2`. Ejecutar con una copia aislada del binario y
 GUIPPER_UISHOT=groups GUIPPER_USER_ROOT=/tmp/guipper-group-profile ./Guipper
 ```
 
-El modo genera cinco capturas en `data/uishots/groups`: barra ancha con un grupo seleccionado fuera de la primera página, ventana
+El modo genera nueve capturas en `data/uishots/groups`: barra ancha con un grupo seleccionado fuera de la primera página, ventana
 estrecha con inspector abierto, selección dentro de un grupo, grupo anidado y
 grupos desplazados.
 Comprueba las zonas clickeables de cada pestaña visible, límites de ventana,
@@ -30,10 +30,16 @@ Comprobación manual adicional:
 - Guardar y volver a abrir una composición con grupos anidados.
 
 Validación local (2026-09-20): compilación Release Linux, 18 suites del núcleo
-y los cinco casos gráficos bajo Xvfb aprobados. Capturas revisadas a 1280×720 y
+y los casos gráficos bajo Xvfb aprobados. Capturas revisadas a 1280×720 y
 640×720. No se realizó una compilación Windows o macOS en esta modificación.
 
 El modo también captura búsqueda con un resultado, menú contextual y búsqueda
 sin resultados. Verifica localización por UID, renombrado desde el menú,
 Escape, rechazo de UID inexistentes y memoria de página al regresar de un grupo.
 La lupa abre el buscador; clic derecho sobre una pestaña abre sus acciones.
+
+Atajos en NODES (fuera de campos de texto y editores): Ctrl/Cmd+RePág/AvPág
+recorre grupos hermanos, Alt+Arriba sube al padre, F2 renombra y
+Ctrl/Cmd+Shift+F abre la búsqueda. La novena captura muestra el indicador de
+salida principal; el caso comprueba navegación en ambos sentidos, bloqueo
+durante renombrado y que navegar no cambie el render activo.
