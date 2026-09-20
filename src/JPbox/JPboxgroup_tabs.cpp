@@ -3,6 +3,8 @@
 #include "../JPutils/jp_tooltip.h"
 #include <algorithm>
 #include <cmath>
+#include <set>
+#include "../JPgui/jp_gl_state.h"
 
 vector<int> JPboxgroup::getDirectChildPresetIndices() const
 {
@@ -99,7 +101,8 @@ JPboxgroup::GroupTabLayout JPboxgroup::groupTabLayout() const
 	layout.items.push_back({0,names[0],ofRectangle(8,y,rootWidth,28)});
 	// Breadcrumbs are a separate row. Keep MAIN and the deepest suffix when
 	// space is limited; every ancestor is still reachable by stepping upward.
-	float available = layout.bar.width-rootWidth-8;
+	layout.search = ofRectangle(layout.bar.getRight()-28,y,28,28);
+	float available = layout.bar.width-rootWidth-8-32;
 	int firstCrumb = depth;
 	float used = depth>0 ? std::min(width(depth),available) : 0;
 	while (firstCrumb>1 && used+width(firstCrumb-1)+4<=available) {
@@ -107,7 +110,7 @@ JPboxgroup::GroupTabLayout JPboxgroup::groupTabLayout() const
 	}
 	float x=8+rootWidth+8;
 	for (int i=firstCrumb; i>0 && i<=depth; ++i) {
-		const float w=std::min(width(i),layout.bar.getRight()-x);
+		const float w=std::min(width(i),layout.search.x-4-x);
 		if(w<28) break;
 		layout.items.push_back({i,names[i],ofRectangle(x,y,w,28)});x+=w+4;
 	}
@@ -219,6 +222,14 @@ void JPboxgroup::drawTabs()
 			(item.index <= depth ? jp_text_input::message("Return to group", "Volver al grupo") :
 			jp_text_input::message("Open group", "Abrir grupo")));
 		jp_tooltip::draw(hint, r.x, r.y, r.width, r.height);
+	}
+	if(layout.search.width>0) {
+		const auto &r=layout.search;
+		ofSetColor(r.inside(ofGetMouseX(),ofGetMouseY())?COL_BG_HOVER:COL_BG_TAB);
+		ofDrawRectRounded(r,3);
+		ofNoFill();ofSetLineWidth(1.5f);ofSetColor(COL_TEXT_PRIMARY);
+		ofDrawCircle(r.x+12,r.y+12,5);ofDrawLine(r.x+16,r.y+16,r.x+21,r.y+21);ofFill();
+		jp_tooltip::draw(jp_text_input::message("Find a group", "Buscar un grupo"),r.x,r.y,r.width,r.height);
 	}
 	for (int direction : {-1, 1}) {
 		const auto &r = direction < 0 ? layout.previous : layout.next;
@@ -653,4 +664,234 @@ void JPboxgroup::commitTabRename()
 		return;
 	}
 	cancelTabRename();
+}
+
+namespace {
+string groupLabel(string value, float width) {
+    auto &font=jp_constants::p_font;
+    if(font.stringWidth(value)<=width) return value;
+    while(!value.empty() && font.stringWidth(value+"...")>width) {
+        size_t last=value.size()-1;
+        while(last>0 && (static_cast<unsigned char>(value[last])&0xc0)==0x80) --last;
+        value.resize(last);
+    }
+    return value+"...";
+}
+}
+
+vector<JPboxgroup::GroupEntry> JPboxgroup::groupEntries() const {
+    vector<GroupEntry> result;
+    std::set<const JPbox*> visited;
+    std::function<void(const vector<JPbox*>&,vector<int>,string)> walk;
+    walk=[&](const vector<JPbox*>& nodes,vector<int> path,string label) {
+        if(path.size()>=MAX_PRESET_DEPTH) return;
+        for(int i=0;i<(int)nodes.size();++i) {
+            auto *group=dynamic_cast<JPbox_preset*>(nodes[i]);
+            if(!group || !visited.insert(group).second) continue;
+            auto next=path;next.push_back(i);
+            const string full=label+" / "+group->name;
+            result.push_back({group->uid,full,next});
+            walk(group->boxes,next,full);
+        }
+    };
+    walk(boxes,{},"MAIN");
+    return result;
+}
+
+vector<JPboxgroup::GroupEntry> JPboxgroup::filteredGroups() const {
+    auto entries=groupEntries();
+    const string query=ofToLower(ofTrim(groupSearchText));
+    entries.erase(std::remove_if(entries.begin(),entries.end(),[&](const GroupEntry&e){
+        return ofToLower(e.label).find(query)==string::npos;
+    }),entries.end());
+    return entries;
+}
+
+bool JPboxgroup::navigateGroupUid(const string &uid,bool showBox) {
+    const auto entries=groupEntries();
+    auto found=std::find_if(entries.begin(),entries.end(),[&](const GroupEntry&e){return e.uid==uid;});
+    if(found==entries.end()) return false;
+    const auto path=found->path;
+    if(tabRenaming) commitTabRename();
+    navigateToBreadcrumbLevel(0);
+    const int levels=(int)path.size()-(showBox?1:0);
+    for(int level=0;level<levels;++level) {
+        auto children=getDirectChildPresetIndices();
+        auto it=std::find(children.begin(),children.end(),path[level]);
+        if(it==children.end() || !navigateToChildPreset((int)(it-children.begin()))) return false;
+    }
+    if(showBox) {
+        const int index=path.back();
+        if(isGroupViewActive()) groupInspectorIndex=index; else openguinumber=index;
+        auto *parent=getActivePreset();
+        auto &nodes=parent?parent->boxes:boxes;
+        JPbox *node=nodes[index];
+        setControllers();
+        const float right=std::max(160.0f,getInspectorBounds().x);
+        viewportPan=ofVec2f(right*0.5f,ofGetHeight()*0.5f)-ofVec2f(node->x,node->y)*viewportZoom;
+        tabSelectionUid.clear();
+    }
+    return true;
+}
+
+void JPboxgroup::openGroupSearch() {
+    if(tabRenaming) commitTabRename();
+    groupMenuOpen=true;groupSearchMode=true;groupSearchFocused=true;
+    groupSearchText.clear();groupMenuTargetUid.clear();groupMenuSelection=groupMenuFirst=0;
+    const auto layout=groupTabLayout();
+    groupMenuAnchor=ofVec2f(layout.bar.x,layout.bar.getBottom()+4);
+}
+
+void JPboxgroup::closeGroupMenu() {
+    groupMenuOpen=false;groupSearchFocused=false;groupMenuTargetUid.clear();
+}
+
+ofRectangle JPboxgroup::groupMenuBounds() const {
+    if(!groupMenuOpen) return {};
+    const float w=std::max(0.0f,std::min(groupSearchMode?560.0f:280.0f,ofGetWidth()-16.0f));
+    const float h=std::max(0.0f,std::min(groupSearchMode?420.0f:116.0f,ofGetHeight()-16.0f));
+    return ofRectangle(ofClamp(groupMenuAnchor.x,8.f,std::max(8.f,ofGetWidth()-w-8)),
+        ofClamp(groupMenuAnchor.y,8.f,std::max(8.f,ofGetHeight()-h-8)),w,h);
+}
+
+bool JPboxgroup::groupTabsMousePressed(int x,int y,int button) {
+    if(groupMenuOpen) {
+        inspectorOwnsPointer=true;
+        const auto r=groupMenuBounds();
+        if(!r.inside(x,y)){closeGroupMenu();return true;}
+        if(button!=OF_MOUSE_BUTTON_LEFT) return true;
+        const float top=r.y+(groupSearchMode?56:8);
+        const int row=(int)std::floor((y-top)/32);
+        const int visible=std::max(0,(int)((r.height-(groupSearchMode?88:16))/32));
+        if(row>=0&&row<visible&&x>=r.x+8&&x<r.getRight()-8) {
+            groupMenuSelection=groupSearchMode?groupMenuFirst+row:row;
+            performGroupMenuAction();
+        }
+        return true;
+    }
+    const auto layout=groupTabLayout();
+    if(button==OF_MOUSE_BUTTON_LEFT&&layout.search.inside(x,y)) {
+        inspectorOwnsPointer=true;openGroupSearch();return true;
+    }
+    if(button!=OF_MOUSE_BUTTON_RIGHT) return false;
+    const int tab=getTabAtScreenPos(x,y),depth=(int)activeGroupPath.size();
+    if(tab<=0) return false;
+    vector<int> path=activeGroupPath;
+    if(tab<=depth) path.resize(tab);
+    else {
+        const auto children=getDirectChildPresetIndices();
+        const int child=tab-depth-1;
+        if(child<0||child>=(int)children.size()) return true;
+        path.push_back(children[child]);
+    }
+    for(const auto&e:groupEntries()) if(e.path==path) {
+        if(tabRenaming) commitTabRename();
+        groupMenuTargetUid=e.uid;groupMenuAnchor=ofVec2f(x,y);
+        groupMenuOpen=true;groupSearchMode=false;groupSearchFocused=false;
+        groupMenuSelection=0;inspectorOwnsPointer=true;break;
+    }
+    return true;
+}
+
+void JPboxgroup::performGroupMenuAction() {
+    if(groupSearchMode) {
+        const auto entries=filteredGroups();
+        if(groupMenuSelection<0||groupMenuSelection>=(int)entries.size()) return;
+        const string uid=entries[groupMenuSelection].uid;
+        closeGroupMenu();navigateGroupUid(uid);return;
+    }
+    if(groupMenuSelection<0||groupMenuSelection>2) return;
+    const string uid=groupMenuTargetUid;
+    const int action=groupMenuSelection;
+    closeGroupMenu();
+    if(!navigateGroupUid(uid,action!=0)) return;
+    if(action==2) {
+        const int index=isGroupViewActive()?groupInspectorIndex:openguinumber;
+        const auto children=getDirectChildPresetIndices();
+        auto it=std::find(children.begin(),children.end(),index);
+        if(it==children.end()) return;
+        auto *parent=getActivePreset();
+        const auto &nodes=parent?parent->boxes:boxes;
+        tabRenameTabIndex=(int)activeGroupPath.size()+1+(int)(it-children.begin());
+        tabRenaming=true;tabRenameBuffer=nodes[index]->name;tabRenameCursor=tabRenameBuffer.size();
+    }
+}
+
+bool JPboxgroup::groupMenuKeyPressed(int key) {
+    if(!groupMenuOpen) return false;
+    if(key==OF_KEY_ESC){closeGroupMenu();return true;}
+    const int count=groupSearchMode?(int)filteredGroups().size():3;
+    if(key==OF_KEY_UP||key==OF_KEY_DOWN||key==OF_KEY_PAGE_UP||key==OF_KEY_PAGE_DOWN) {
+        const int step=(key==OF_KEY_UP?-1:key==OF_KEY_DOWN?1:key==OF_KEY_PAGE_UP?-8:8);
+        groupMenuSelection=ofClamp(groupMenuSelection+step,0,std::max(0,count-1));
+        return true;
+    }
+    if(key==OF_KEY_RETURN||key=='\r'){performGroupMenuAction();return true;}
+    if(groupSearchMode&&!jp_text_input::controller().focused()) {
+        groupSearchFocused=true;jp_text_input::controller().defer(key);
+    }
+    return true;
+}
+
+bool JPboxgroup::groupMenuScroll(float delta) {
+    if(!groupMenuOpen) return false;
+    if(delta!=0) {
+        const int count=groupSearchMode?(int)filteredGroups().size():3;
+        groupMenuSelection=ofClamp(groupMenuSelection+(delta>0?-3:3),0,std::max(0,count-1));
+    }
+    return true;
+}
+
+void JPboxgroup::drawGroupMenu() {
+    if(!groupMenuOpen) return;
+    jp_pointer::Scope scope(jp_pointer::kDropdown+1);
+    const auto r=groupMenuBounds();
+    ofPushStyle();ofSetRectMode(OF_RECTMODE_CORNER);
+    ofSetColor(COL_BG_TAB);ofDrawRectRounded(r,4);
+    ofNoFill();ofSetColor(COL_BORDER_MUTED);ofDrawRectRounded(r,4);ofFill();
+    const auto entries=groupSearchMode?filteredGroups():vector<GroupEntry>{};
+    const int count=groupSearchMode?(int)entries.size():3;
+    groupMenuSelection=ofClamp(groupMenuSelection,0,std::max(0,count-1));
+    const int visible=std::max(1,(int)((r.height-(groupSearchMode?88:16))/32));
+    if(groupMenuSelection<groupMenuFirst)groupMenuFirst=groupMenuSelection;
+    if(groupMenuSelection>=groupMenuFirst+visible)groupMenuFirst=groupMenuSelection-visible+1;
+    groupMenuFirst=ofClamp(groupMenuFirst,0,std::max(0,count-visible));
+    if(groupSearchMode) {
+        ofSetColor(COL_TEXT_SECONDARY);
+        jp_constants::p_font.drawString(jp_text_input::message("Find a group", "Buscar un grupo"),r.x+12,r.y+19);
+        auto field=jp_text_input::field("group-search","group-tabs",ofRectangle(r.x+8,r.y+24,r.width-16,26),
+            jp_constants::p_font,groupSearchText,groupSearchFocused);
+        field.layer=jp_pointer::kDropdown+2;field.restoreOnCancel=false;
+        field.focus=[this]{groupSearchFocused=true;};
+        field.change=[this]{groupMenuSelection=groupMenuFirst=0;};
+        field.cancel=[this]{closeGroupMenu();};
+        field.commit=[this]{groupSearchFocused=false;return true;};
+        field.special=[this](int key){
+            if(key==OF_KEY_RETURN||key==OF_KEY_UP||key==OF_KEY_DOWN||key==OF_KEY_PAGE_UP||key==OF_KEY_PAGE_DOWN)
+                return groupMenuKeyPressed(key);
+            return false;
+        };
+        jp_text_input::controller().add(std::move(field));
+    }
+    const char* en[]={"Open group","Show box on canvas","Rename"};
+    const char* es[]={"Abrir grupo","Mostrar caja en el lienzo","Renombrar"};
+    const float top=r.y+(groupSearchMode?56:8);
+    for(int row=0;row<visible&&groupMenuFirst+row<count;++row) {
+        const int i=groupSearchMode?groupMenuFirst+row:row;
+        ofRectangle item(r.x+8,top+row*32,r.width-16,30);
+        const bool selected=i==groupMenuSelection;
+        ofSetColor(selected?COL_ACCENT_CYAN_DARK:(item.inside(ofGetMouseX(),ofGetMouseY())?COL_BG_HOVER:COL_BG_TAB));
+        ofDrawRectangle(item);ofSetColor(COL_TEXT_PRIMARY);
+        const string label=groupSearchMode?entries[i].label:jp_text_input::message(en[i],es[i]);
+        jp_constants::p_font.drawString(groupLabel(label,item.width-16),item.x+8,item.y+20);
+        jp_tooltip::draw(label,item.x,item.y,item.width,item.height);
+    }
+    if(groupSearchMode) {
+        ofSetColor(COL_TEXT_SECONDARY);
+        const string status=count?ofToString(groupMenuSelection+1)+" / "+ofToString(count)+"   ·   "+
+            jp_text_input::message("Enter: open", "Enter: abrir"):
+            jp_text_input::message("No matching groups", "No hay grupos coincidentes");
+        jp_constants::p_font.drawString(groupLabel(status,r.width-24),r.x+12,r.getBottom()-12);
+    }
+    ofPopStyle();
 }

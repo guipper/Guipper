@@ -839,13 +839,26 @@ void jp_uishot::update(ofApp &app)
 		static_cast<JPbox_preset *>(parent->boxes[0])->boxes.push_back(makeGroup("Detalle", 0));
 			initialized = true;
 		}
-		const int width = (gState == 0 || gState == 2) ? 1280 : 640;
+		const int width = (gState == 0 || gState == 2 || gState >= 5) ? 1280 : 640;
 		if (ofGetWidth() != width || ofGetHeight() != 720) { ofSetWindowShape(width, 720); return; }
 		if (gFrames == 0) {
 			if (gState == 0) app.boxes.openguinumber = 10;
 			if (gState == 1) app.boxes.openguinumber = 10;
 			if (gState == 2) { app.boxes.viewportZoom = 1.7f; app.boxes.navigateToChildPreset(0); app.boxes.groupInspectorIndex = 7; }
 			if (gState == 3) app.boxes.navigateToChildPreset(0);
+			if (gState == 5) {
+				app.boxes.openGroupSearch();app.boxes.groupSearchText="Escena 8";
+			}
+			if (gState == 6) {
+				const auto found=app.boxes.filteredGroups();
+				if(found.size()!=1 || !app.boxes.navigateGroupUid(found[0].uid,true)) std::exit(EXIT_FAILURE);
+				app.boxes.closeGroupMenu();
+				const auto tabs=app.boxes.groupTabLayout();
+				for(const auto &tab:tabs.items) if(tab.index==9)
+					app.boxes.groupTabsMousePressed(tab.bounds.getCenter().x,tab.bounds.getCenter().y,OF_MOUSE_BUTTON_RIGHT);
+				if(!app.boxes.groupMenuOpen || app.boxes.groupSearchMode) std::exit(EXIT_FAILURE);
+			}
+			if (gState == 7) {app.boxes.openGroupSearch();app.boxes.groupSearchText="missing-group-fixture";}
 			if (gState == 4) {
 				app.boxes.navigateToBreadcrumbLevel(0);
 				if (std::abs(app.boxes.viewportZoom - 1.7f) > 0.001f) std::exit(EXIT_FAILURE);
@@ -920,7 +933,7 @@ void jp_uishot::draw(ofApp &app)
 	if (!gActive || gDone) return;
 	if (gTag == "groups") {
 		if (gFrames < 8) return;
-		const int expectedDepth = gState == 2 ? 1 : (gState == 3 ? 2 : 0);
+		const int expectedDepth = (gState == 2 || gState >= 6) ? 1 : (gState == 3 ? 2 : 0);
 		if (app.boxes.boxes.size() != 12 || (int)app.boxes.activeGroupPath.size() != expectedDepth)
 			std::exit(EXIT_FAILURE);
 		const auto layout = app.boxes.groupTabLayout();
@@ -939,7 +952,7 @@ void jp_uishot::draw(ofApp &app)
 		if (app.boxes.getTabAtScreenPos(20, app.boxes.tabBarOffsetY + 4) != -1) std::exit(EXIT_FAILURE);
 		const float zoom = app.boxes.viewportZoom;
 		for (const auto &item : layout.items) {
-			if (item.index != (int)app.boxes.activeGroupPath.size()) continue;
+			if (gState >= 5 || item.index != (int)app.boxes.activeGroupPath.size()) continue;
 			ofEvents().notifyMouseMoved(item.bounds.getCenter().x, item.bounds.getCenter().y);
 			app.boxes.lastGroupTabClickUid.clear();
 			if (!app.boxes.handleTabClick() || app.boxes.viewportZoom != zoom) std::exit(EXIT_FAILURE);
@@ -950,12 +963,32 @@ void jp_uishot::draw(ofApp &app)
 				if (app.boxes.tabRenaming) std::exit(EXIT_FAILURE);
 			}
 		}
-		app.boxes.mouseScrolled(20, layout.bar.y + 10, 0, 1);
+		if(gState < 5) app.boxes.mouseScrolled(20, layout.bar.y + 10, 0, 1);
 		if (app.boxes.viewportZoom != zoom) std::exit(EXIT_FAILURE);
 		ofImage shot; shot.grabScreen(0, 0, ofGetWidth(), ofGetHeight());
 		shot.save(shotDir() + "groups_" + ofToString(gState) + ".png");
+		if(gState==4) {
+			const int page=app.boxes.firstVisibleGroupTab;
+			app.boxes.navigateToChildPreset(0);app.boxes.groupTabLayout();
+			app.boxes.navigateToBreadcrumbLevel(0);app.boxes.groupTabLayout();
+			if(app.boxes.firstVisibleGroupTab!=page) std::exit(EXIT_FAILURE);
+		}
+		if(gState==6) {
+			const string uid=app.boxes.groupMenuTargetUid;
+			app.boxes.groupMenuSelection=2;app.boxes.performGroupMenuAction();
+			if(!app.boxes.tabRenaming) std::exit(EXIT_FAILURE);
+			app.boxes.tabRenameBuffer="Renamed fixture";app.boxes.keyPressed(OF_KEY_RETURN);
+			bool found=false;for(const auto&e:app.boxes.groupEntries()) if(e.uid==uid&&e.label.find("Renamed fixture")!=string::npos) found=true;
+			if(!found) std::exit(EXIT_FAILURE);
+		}
+		if(gState==7) {
+			app.boxes.groupMenuKeyPressed(OF_KEY_RETURN);
+			if(!app.boxes.groupMenuOpen || !app.boxes.filteredGroups().empty()) std::exit(EXIT_FAILURE);
+			app.boxes.groupMenuKeyPressed(OF_KEY_ESC);
+			if(app.boxes.groupMenuOpen || app.boxes.navigateGroupUid("missing-uid")) std::exit(EXIT_FAILURE);
+		}
 		gFrames = 0;
-		if (++gState == 5) { ofLogNotice("group-tabs") << "PASS: layout, overflow, nested navigation and viewport restoration"; gDone = true; ofExit(0); }
+		if (++gState == 8) { ofLogNotice("group-tabs") << "PASS: layout, overflow, nested navigation and viewport restoration"; gDone = true; ofExit(0); }
 		return;
 	}
     if (gReleaseOnly) {

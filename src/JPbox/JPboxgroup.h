@@ -522,7 +522,7 @@ public:
 	float tabBarOffsetY = 40; // Offset for screen-level tabs above the boxgroup tabs (clearance below the top screen-tab bar)
 	struct GroupTabItem { int index; string name; ofRectangle bounds; };
 	struct GroupTabLayout {
-		ofRectangle bar, previous, next;
+		ofRectangle bar, previous, next, search;
 		vector<GroupTabItem> items;
 		bool canPrevious = false, canNext = false;
 	};
@@ -534,6 +534,23 @@ public:
 	mutable float tabAvailableWidth = -1;
 	mutable string tabContextUid;
 	mutable std::map<string, int> groupTabPages;
+	struct GroupEntry { string uid, label; vector<int> path; };
+	vector<GroupEntry> groupEntries() const;
+	vector<GroupEntry> filteredGroups() const;
+	bool navigateGroupUid(const string &uid, bool showBox = false);
+	void openGroupSearch();
+	void closeGroupMenu();
+	void drawGroupMenu();
+	bool groupTabsMousePressed(int x, int y, int button);
+	bool groupMenuKeyPressed(int key);
+	bool groupMenuScroll(float delta);
+	ofRectangle groupMenuBounds() const;
+	void performGroupMenuAction();
+	bool groupMenuOpen = false, groupSearchMode = false, groupSearchFocused = false;
+	string groupSearchText, groupMenuTargetUid;
+	int groupMenuSelection = 0, groupMenuFirst = 0;
+	ofVec2f groupMenuAnchor;
+	bool handleGroupShortcut(int key, bool control, bool alt, bool shift);
 	GroupTabLayout groupTabLayout() const;
 	bool scrollGroupTabs(float delta);
 	void drawTabs();

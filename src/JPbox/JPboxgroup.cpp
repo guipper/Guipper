@@ -881,6 +881,7 @@ void JPboxgroup::draw(bool showInspector)
 	drawMappingPanel();
 	drawPaintPanel();
 	drawQuickImagePanel();
+	drawGroupMenu();
 
 }
 void JPboxgroup::drawCuePreview()
@@ -7604,6 +7605,7 @@ void JPboxgroup::clear()
 	tabLayoutPath.clear();
 	tabContextUid.clear();
 	groupTabPages.clear();
+	closeGroupMenu();
 	tabSelectionUid.clear();
 	tabAvailableWidth = -1;
 	firstVisibleGroupTab = 1;

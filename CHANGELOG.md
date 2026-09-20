@@ -7,6 +7,8 @@ límites se registran por separado en `mds/PRUEBA_*.md`.
 
 ## Sin publicar
 
+- Buscador de grupos con rutas completas y menú contextual para abrir, localizar en el lienzo o renombrar grupos.
+
 - Ruta de grupos separada de las pestañas de sus subgrupos, con memoria de página por grupo durante la sesión.
 
 - Seleccionar una caja de grupo muestra automáticamente su pestaña. La barra y sus flechas se ajustan al espacio disponible antes del inspector de propiedades.

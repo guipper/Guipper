@@ -385,6 +385,13 @@ void ofApp::registerSurfaces()
 	surfaces.add(s);
 
 	s = JPSurface();
+	s.id = s.order = jp_pointer::kDropdown + 1;
+	s.isOpen = [this]{return pantallaActiva == NODOS && boxes.groupMenuOpen;};
+	s.close = [this]{boxes.closeGroupMenu();};
+	s.bounds = []{return ofRectangle(0,0,ofGetWidth(),ofGetHeight());};
+	surfaces.add(s);
+
+	s = JPSurface();
 	s.id = s.order = SURFACE_SAVE_MODAL;
 	s.modal = true;
 	s.isOpen = [this]() { return saveModalActive; };
@@ -6501,6 +6508,9 @@ void ofApp::keyPressed(int key) {
         return;
     }
     if (!releasePanelOpen && (!surfaces.modalOpen() || saveModalActive) && input.key(key)) return;
+    if (pantallaActiva == NODOS && !releasePanelOpen && !saveModalActive && boxes.groupMenuOpen) {
+        boxes.groupMenuKeyPressed(key); return;
+    }
     if(pantallaActiva==SHADER_INDEX && reviewPanelOpen && shaderCuratedMode && !toastBlocked()){reviewKeyPressed(key);return;}
     if (pantallaActiva == SHADER_INDEX && shaderNameFocused && !toastBlocked()) {
         handleShaderNameKey(key); return;
@@ -6766,6 +6776,7 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
     if(pantallaActiva==SHADER_INDEX && reviewPanelOpen && shaderCuratedMode)return;
     if (shaderNameFocused && pantallaActiva==SHADER_INDEX) return;
     if (releasePanelOpen || saveModalActive) return;
+    if (pantallaActiva == NODOS && boxes.groupMenuOpen) return;
 
 	// cout << "KEY : " << e.key << endl;
 
@@ -7133,6 +7144,11 @@ void ofApp::mousePressed(int x, int y, int button) {
 		// and switch screens straight through the "modal".
 		return;
 	}
+
+    if (pantallaActiva == NODOS && !surfaces.modalOpen() && boxes.groupTabsMousePressed(x,y,button)) {
+        JPdragobject::notePressOrigin(-10000.f,-10000.f);
+        return;
+    }
 
 	// Clicking away commits an inline tab rename. It used to have no exit but
 	// ENTER/ESC, so a stray click left it open swallowing every key. Clicks on
@@ -7643,6 +7659,9 @@ void ofApp::touchUp(ofTouchEventArgs &touch) {
 }
 
 void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
+    if (pantallaActiva == NODOS && !releasePanelOpen && !surfaces.modalOpen() && boxes.groupMenuOpen) {
+        boxes.groupMenuScroll(scrollY != 0 ? scrollY : -scrollX); return;
+    }
     if (jp_text_input::controller().gesture()) return;
     if (!toastBlocked() && jp_text_input::controller().focused() && !jp_text_input::controller().finish()) return;
     if (audioMenuOpen && getAudioMenuBounds().inside(x, y)) {
