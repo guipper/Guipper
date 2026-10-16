@@ -7014,6 +7014,28 @@ bool JPboxgroup::toggleBypassForBox(string boxName)
 	}
 	return false;
 }
+void JPboxgroup::pauseSelectedBoxes()
+{
+	vector<JPbox *> *currentBoxes = getCurrentViewBoxes();
+	if (currentBoxes == nullptr) return;
+	for (int index : selectedBoxIndices)
+	{
+		if (index < 0 || index >= (int)currentBoxes->size()) continue;
+		JPbox *draftBox = getCueDraftBoxForCurrentViewIndex(index);
+		JPbox *box = draftBox != nullptr ? draftBox : (*currentBoxes)[index];
+		if (box == nullptr || !box->getonoff()) continue;
+		const bool bypassBefore = box->getBypass();
+		box->setonoff(false);
+		recordBoxStateChange(box, true, bypassBefore);
+		if (draftBox != nullptr)
+		{
+			const int dirtyIndex = isGroupViewActive() && !activeGroupPath.empty()
+				? activeGroupPath[0] : index;
+			markCueDraftDirty(dirtyIndex, CUE_DIRTY_BYPASS_PAUSE);
+		}
+	}
+}
+
 bool JPboxgroup::togglePauseForBox(string boxName)
 {
 	int index = findBoxIndexByName(boxName);

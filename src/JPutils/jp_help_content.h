@@ -235,6 +235,8 @@ namespace jp_help
 			"Copia y pega las cajas seleccionadas", Scope::Nodes, "ctrl c v"),
 		E("DEL / BACKSPACE", "Delete every selected box",
 			"Elimina todas las cajas seleccionadas", Scope::Nodes, "del backspace"),
+		E("p", "Pause every selected box",
+			"Pausa todas las cajas seleccionadas", Scope::Nodes, "p"),
 		E("Ctrl/Cmd+G", "Group at least two selected boxes. Their live instances move into the group without recompiling or reloading",
 			"Agrupa al menos dos cajas seleccionadas. Sus instancias activas pasan al grupo sin recompilarse ni recargarse", Scope::Nodes, "ctrl+g"),
 		E("Ctrl/Cmd+Shift+G", "Dissolve every selected group into the current view as one undo step. Its boxes keep their live state",

@@ -6686,6 +6686,12 @@ void ofApp::keyPressed(int key) {
 		if (key == 'P') {
 			boxes.addBox("pointercloud");
 		}
+		if (key == 'p' && !surfaces.modalOpen() &&
+			!ofGetKeyPressed(OF_KEY_CONTROL) &&
+			!ofGetKeyPressed(OF_KEY_COMMAND) && !ofGetKeyPressed(OF_KEY_ALT)) {
+			boxes.pauseSelectedBoxes();
+			return;
+		}
 		if (key == 'n') {
 #ifdef NDI
 			boxes.addBox("ndiReceiver");

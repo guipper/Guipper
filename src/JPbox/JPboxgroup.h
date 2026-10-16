@@ -380,6 +380,7 @@ public:
 	JPbox *findTopLevelBoxByName(const string &boxName) const;
 	bool toggleBypassForBox(string boxName);
 	bool togglePauseForBox(string boxName);
+	void pauseSelectedBoxes();
 	bool setBypassForBox(string boxName, bool value);
 	// FINAL stack, addressed by box name for MIDI.
 	bool setFinalLayerForBoxName(const string &boxName, bool value);
