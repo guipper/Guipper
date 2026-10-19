@@ -561,6 +561,7 @@ int main()
 	const std::string endpoint = "{0.0.0.00000000}.{endpoint-guid}";
 	expect(loopbackEndpoint(loopbackId(endpoint)) == endpoint, "output ID survives persistence without display name");
 	expect(loopbackEndpoint(loopbackId("")).empty(), "default output selection survives persistence");
+    expect(isLoopbackId("pulse-loopback:alsa_output.test") && loopbackEndpoint("pulse-loopback:alsa_output.test")=="alsa_output.test", "Linux output IDs are stable and classified as output");
 	expect(!isLoopbackId("Microphone Array (Realtek(R) Audio)") && !isLoopbackId(""), "legacy input selections preserved");
 	expect(isLoopbackId("coreaudio-loopback:BuiltInSpeakerDevice") &&
 		loopbackEndpoint("coreaudio-loopback:BuiltInSpeakerDevice") == "BuiltInSpeakerDevice", "macOS output UID round trip");

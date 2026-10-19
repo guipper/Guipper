@@ -8,6 +8,7 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <stdexcept>
 
 namespace
 {
@@ -34,11 +35,12 @@ namespace
 	ofSoundStream gStream;
 	std::vector<std::string> gDeviceNames;
 	std::vector<std::string> gDeviceIds;
-#if defined(_WIN32) || defined(__APPLE__)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__linux__)
 	jp_audio_internal::LoopbackCapture gLoopback;
 #endif
 	std::vector<ofSoundDevice> gDevices;
 	std::string gDeviceName;
+	std::string gLastInput, gLastOutput=jp_audio_internal::loopbackId("");
 	std::string gStatus = "audio off";
 	bool gRunning = false;
 	bool gEnabled = true;
@@ -181,16 +183,16 @@ void jp_audio::refreshDevices()
 		ofLogError("jp_audio") << gStatus;
 	}
 	catch (...) { gStatus = "device scan failed"; }
-#if defined(_WIN32) || defined(__APPLE__)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__linux__)
 	try {
 		if (!jp_audio_internal::LoopbackCapture::supported()) return;
-		gDeviceNames.push_back("Salida predeterminada (loopback)");
+		gDeviceNames.push_back("System default output");
 		gDeviceIds.push_back(jp_audio_internal::loopbackId(""));
 		for (const auto& device : jp_audio_internal::LoopbackCapture::devices()) {
-			std::string label = device.name + " (loopback)";
+			std::string label = device.name;
 			int duplicate = 1;
 			while (std::find(gDeviceNames.begin(), gDeviceNames.end(), label) != gDeviceNames.end())
-				label = device.name + " (" + ofToString(++duplicate) + ") (loopback)";
+				label = device.name + " (" + ofToString(++duplicate) + ")";
 			gDeviceNames.push_back(label);
 			gDeviceIds.push_back(jp_audio_internal::loopbackId(device.id));
 		}
@@ -203,7 +205,7 @@ void jp_audio::startStream()
 	stopStream();
 	if (gTestMode > 0) { gRunning = true; return; }
 	if (!gEnabled) { gStatus = "audio off"; return; }
-#if defined(_WIN32) || defined(__APPLE__)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__linux__)
 	if (jp_audio_internal::isLoopbackId(gDeviceName)) {
 		gQueue.reset();
 		gInputPeak = 0; gClippingAtomic = false;
@@ -222,7 +224,9 @@ void jp_audio::startStream()
 	int selected = -1;
 	for (std::size_t i = 0; i < gDevices.size(); ++i)
 		if (gDeviceNames[i] == gDeviceName) { selected = int(i); break; }
-	const int use = selected >= 0 ? selected : 0;
+	if(selected<0 && !gDeviceName.empty()){gStatus="Selected input is unavailable. Reconnect it or choose another input.";return;}
+    int use=selected;
+    if(use<0){use=0;for(size_t i=0;i<gDevices.size();++i)if(gDevices[i].isDefaultInput){use=int(i);break;}}
 	try
 	{
 		ofSoundStreamSettings settings;
@@ -238,7 +242,7 @@ void jp_audio::startStream()
 			(supports(44100) ? 44100 : (rates.empty() ? 44100 : rates.front()));
 		settings.bufferSize = 256;
 		settings.setInListener(&gListener);
-		gStream.setup(settings);
+		if(!gStream.setup(settings))throw std::runtime_error("Cannot open this input. Choose another device or Refresh.");
 		gSampleRate = settings.sampleRate;
 		gAnalyzer.reset(gSampleRate);
 		gQueue.reset();
@@ -269,7 +273,7 @@ void jp_audio::startStream()
 void jp_audio::stopStream()
 {
 	gAccept.store(false, std::memory_order_release);
-#if defined(_WIN32) || defined(__APPLE__)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__linux__)
 	gLoopback.stop();
 #endif
 	if (!gRunning) return;
@@ -308,7 +312,7 @@ bool jp_audio::runSelfTest(std::string *report)
 
 void jp_audio::update()
 {
-#if defined(_WIN32) || defined(__APPLE__)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__linux__)
 	if (gRunning && gTestMode == 0 && jp_audio_internal::isLoopbackId(gDeviceName) && !gLoopback.running()) {
 		gStatus = "Loopback: " + gLoopback.error();
 		stopStream();
@@ -379,10 +383,25 @@ std::string jp_audio::getStatus()
 const std::vector<std::string> &jp_audio::getInputDeviceNames() { return gDeviceNames; }
 std::string jp_audio::getDeviceName() { return gDeviceName; }
 std::string jp_audio::getDeviceId(size_t index) { return gDeviceIds.at(index); }
+bool jp_audio::isOutputSource(){return jp_audio_internal::isLoopbackId(gDeviceName);}
+std::string jp_audio::getSourceDefaultId(){return isOutputSource()?jp_audio_internal::loopbackId(""):"";}
+std::vector<size_t> jp_audio::getSourceDeviceIndices(){
+    std::vector<size_t> result;
+    for(size_t i=0;i<gDeviceIds.size();++i)
+        if(jp_audio_internal::isLoopbackId(gDeviceIds[i])==isOutputSource() && gDeviceIds[i]!=getSourceDefaultId())result.push_back(i);
+    return result;
+}
+void jp_audio::setOutputSource(bool output){
+    if(output==isOutputSource())return;
+    if(isOutputSource())gLastOutput=gDeviceName;else gLastInput=gDeviceName;
+    setDevice(output?gLastOutput:gLastInput);
+}
 std::string jp_audio::getDeviceLabel() {
 	for (size_t i = 0; i < gDeviceIds.size(); ++i)
 		if (gDeviceIds[i] == gDeviceName) return gDeviceNames[i];
-	if (jp_audio_internal::isLoopbackId(gDeviceName)) return "Output unavailable (loopback)";
+	if(gDeviceName.empty())return "System default input";
+	if(gDeviceName==jp_audio_internal::loopbackId(""))return "System default output";
+	if (jp_audio_internal::isLoopbackId(gDeviceName)) return "Selected output unavailable";
 	return gDeviceName;
 }
 bool jp_audio::setDevice(const std::string &name)

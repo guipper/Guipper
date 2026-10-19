@@ -466,6 +466,7 @@ public:
 		// and gating belong next to the analysis they feed, not three screens
 		// away from it.
 		ofRectangle audioEnable, audioDevice, audioCalibrate;
+        ofRectangle audioInputSource, audioOutputSource, audioRefresh;
 		ofRectangle audioAutoGain, audioChannel, audioDiv;
 		ofRectangle audioGain, audioGate;
 		// Per tuned source: the name/meter line and the four value cells.
@@ -776,6 +777,7 @@ public:
 	// so it blocks the rows it covers.
 	bool audioMenuOpen = false;
 	int audioMenuScroll = 0;
+    int audioMenuCursor = 0;
 	bool audioGainDragging = false;
 	bool audioGateDragging = false;
 	ofRectangle getAudioMenuBounds() const;

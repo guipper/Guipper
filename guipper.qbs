@@ -11,6 +11,10 @@ Project{
     ofApp {
         name: { return FileInfo.baseName(sourceDirectory) }
 
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.dynamicLibraries: (outer || []).concat(["pulse"])
+        }
         Group {
             condition: qbs.targetOS.contains("macos")
             files: ['src/JPutils/macos/jp_screen_capture_macos.mm']

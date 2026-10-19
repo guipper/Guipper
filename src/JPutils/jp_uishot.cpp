@@ -781,6 +781,7 @@ void jp_uishot::setup(ofApp &app)
 	if (tag == nullptr) return;
 	gActive = true;
 	gTag = tag;
+    if(gTag=="audio_sources") {ofSetWindowShape(1440,900);jp_audio::setEnabled(false);return;}
     if((gTag=="screen_capture" || gTag=="window_capture")) {
         ofDirectory::createDirectory(shotDir(),true,true);
         ofSetWindowShape(1440,810);jp_audio::setEnabled(false);return;
@@ -822,6 +823,7 @@ void jp_uishot::setup(ofApp &app)
 void jp_uishot::update(ofApp &app)
 {
 	if (!gActive || gDone) return;
+    if(gTag=="audio_sources"){app.pantallaActiva=ofApp::AUDIO_DEBUG;++gFrames;return;}
     if((gTag=="screen_capture" || gTag=="window_capture")) {
         if(app.boxes.sessionPreparing())return;
         if(gFrames==0){
@@ -943,7 +945,7 @@ void jp_uishot::update(ofApp &app)
 
 void jp_uishot::poisonWindowStateForTest()
 {
-	if ((gTag=="screen_capture" || gTag=="window_capture") || gReleaseOnly || !gActive || gDone || !isWindowLayoutState(kStates[gState].arm)) return;
+	if (gTag=="audio_sources" || (gTag=="screen_capture" || gTag=="window_capture") || gReleaseOnly || !gActive || gDone || !isWindowLayoutState(kStates[gState].arm)) return;
 	// Reproduce the render-sized state that originally escaped an offscreen
 	// pass. This runs after box updates, so the fixture FBO itself stays valid.
 	glViewport(0, 0, jp_constants::renderWidth, jp_constants::renderHeight);
@@ -955,6 +957,22 @@ void jp_uishot::poisonWindowStateForTest()
 void jp_uishot::draw(ofApp &app)
 {
 	if (!gActive || gDone) return;
+    if(gTag=="audio_sources") {
+        if(gFrames<30)return;
+        ofDirectory::createDirectory(shotDir(),true,true);
+        ofImage shot;shot.grabScreen(0,0,ofGetWidth(),ofGetHeight());shot.save(shotDir()+"audio-"+ofToString(gState)+".png");
+        if(gState==0){
+            jp_audio::setOutputSource(true);
+            for(auto index:jp_audio::getSourceDeviceIndices())
+                if(jp_audio::getDeviceId(index).find("loopback:")==std::string::npos)std::exit(EXIT_FAILURE);
+            const auto selected=jp_audio::getDeviceName();
+            jp_audio::setOutputSource(false);jp_audio::setOutputSource(true);
+            if(jp_audio::getDeviceName()!=selected)std::exit(EXIT_FAILURE);
+            app.audioMenuOpen=true;
+        } else if(gState==1){ofSetWindowShape(1280,800);}
+        else {ofLogNotice("audio-ui")<<"PASS: source filtering, selection memory and layouts";gDone=true;ofExit();}
+        ++gState;gFrames=0;return;
+    }
     if((gTag=="screen_capture" || gTag=="window_capture")) {
         if(gFrames<20)return;
         auto *screen=dynamic_cast<JPbox_screen*>(app.boxes.boxes[0]);

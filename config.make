@@ -182,3 +182,8 @@ endif
 #   no-op on Linux/Windows.
 ################################################################################
 PROJECT_AFTER = if [ "`uname -s`" = "Darwin" ]; then cp -r bin/data "bin/$(APPNAME).app/Contents/Resources/" 2>/dev/null || true; fi
+
+# Linux system-output capture uses the PulseAudio protocol (also PipeWire-Pulse).
+ifeq ($(shell uname -s),Linux)
+PROJECT_LDFLAGS += -lpulse
+endif

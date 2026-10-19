@@ -2741,7 +2741,7 @@ ofRectangle ofApp::getAudioMenuBounds() const
 	// The device picker moved to the AUDIO screen with the rest of the input
 	// chain, so its bounds come from that layout now.
 	const AudioScreenLayout L = getAudioScreenLayout();
-	const int rows = std::max(1, (int)jp_audio::getInputDeviceNames().size() + 1);
+	const int rows = std::max(1, (int)jp_audio::getSourceDeviceIndices().size() + 1);
 	return ofRectangle(L.audioDevice.x, L.audioDevice.getMaxY() + 2.0f,
 		std::min(440.0f, float(ofGetWidth()) - L.audioDevice.x - 8.0f),
 		std::min(240.0f, (float)rows * 24.0f + 4.0f));
@@ -6508,6 +6508,18 @@ void ofApp::keyPressed(int key) {
         return;
     }
     if (!releasePanelOpen && (!surfaces.modalOpen() || saveModalActive) && input.key(key)) return;
+    if(pantallaActiva==AUDIO_DEBUG && audioMenuOpen && !releasePanelOpen && !surfaces.modalOpen() && !anyFieldFocused()) {
+        const auto indices=jp_audio::getSourceDeviceIndices();
+        audioMenuCursor=ofClamp(audioMenuCursor,0,int(indices.size()));
+        if(key==OF_KEY_ESC)audioMenuOpen=false;
+        else if(key==OF_KEY_RETURN){jp_audio::setDevice(audioMenuCursor==0?jp_audio::getSourceDefaultId():jp_audio::getDeviceId(indices[audioMenuCursor-1]));audioMenuOpen=false;saveSettings();}
+        else if(key==OF_KEY_UP || key==OF_KEY_DOWN){
+            audioMenuCursor=ofClamp(audioMenuCursor+(key==OF_KEY_UP?-1:1),0,int(indices.size()));
+            const int visible=std::max(1,int((getAudioMenuBounds().height-4)/24));
+            audioMenuScroll=ofClamp(audioMenuScroll,std::max(0,audioMenuCursor-visible+1),audioMenuCursor);
+        }
+        return;
+    }
     if (pantallaActiva == NODOS && !releasePanelOpen && !saveModalActive && boxes.groupMenuOpen) {
         boxes.groupMenuKeyPressed(key); return;
     }
@@ -7688,7 +7700,7 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
     if (!toastBlocked() && jp_text_input::controller().focused() && !jp_text_input::controller().finish()) return;
     if (audioMenuOpen && getAudioMenuBounds().inside(x, y)) {
         const int visible = int((getAudioMenuBounds().height - 4) / 24);
-        const int maximum = std::max(0, int(jp_audio::getInputDeviceNames().size()) + 1 - visible);
+        const int maximum = std::max(0, int(jp_audio::getSourceDeviceIndices().size()) + 1 - visible);
         audioMenuScroll = ofClamp(audioMenuScroll + (scrollY > 0 ? -1 : scrollY < 0 ? 1 : 0), 0, maximum);
         return;
     }

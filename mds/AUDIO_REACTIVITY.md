@@ -6,8 +6,8 @@ it does not play audio files or capture Guipper's internal output mix.
 
 ## Quick Start
 
-1. Open **SETTINGS** and enable audio input.
-2. Select the input device and `Mix`, `Left`, or `Right` channel mode.
+1. Open **AUDIO**, choose **INPUT / MIC** or **SYSTEM OUTPUT**, then turn **CAPTURE** on.
+2. Select the device and `Mix`, `Left`, or `Right` channel mode.
 3. Play representative material and confirm that the level and spectrum meters
    respond without persistent clipping.
 4. Run the three-second calibration while the source is at its normal idle
@@ -117,3 +117,21 @@ GUIPPER_PERSISTENCE_TEST=1 ./Guipper    # current/legacy/invalid XML checks
 
 Generated captures and persistence fixtures are written below
 `bin/data/uishots/` and are ignored by Git.
+
+### Selección de fuente de audio
+
+En AUDIO, `INPUT / MIC` muestra las entradas y `SYSTEM OUTPUT` captura el sonido
+que reproducen las aplicaciones. `CAPTURE` activa o detiene el análisis; no
+reproduce audio ni cambia por dónde suenan los parlantes. Cada categoría conserva
+su última selección mientras Guipper está abierto. La fuente activa se guarda
+con los ajustes habituales.
+
+`System default output` sigue la salida predeterminada del sistema. También se
+puede fijar una salida concreta (por ejemplo, auriculares Bluetooth). Si se
+desconecta, Guipper informa el problema y reintenta sin elegir otra salida.
+`REFRESH` vuelve a consultar los dispositivos. El selector admite flechas,
+Enter para confirmar y Escape para cerrar.
+
+En Linux, la captura de salida usa los monitores de PulseAudio o PipeWire-Pulse,
+con `libpulse` (paquete de desarrollo `libpulse-dev` para compilar). No requiere
+crear un cable virtual ni cambiar la entrada predeterminada del sistema.

@@ -88,6 +88,10 @@ public:
 	static std::string getDeviceName();               // "" == system default
 	static std::string getDeviceLabel();
 	static std::string getDeviceId(size_t index);
+	static bool isOutputSource();
+	static void setOutputSource(bool output);
+	static std::string getSourceDefaultId();
+	static std::vector<size_t> getSourceDeviceIndices();
 	static void ingest(const float* samples, size_t frames, size_t channels);
 	static bool setDevice(const std::string &name);   // restarts the stream
 	static bool isRunning();

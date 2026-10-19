@@ -161,11 +161,18 @@ void ofApp::drawAudioInput(const AudioScreenLayout &L)
 	};
 
 	const bool live = jp_audio::isRunning();
-	caption(L.audioEnable, "INPUT");
+	caption(L.audioEnable, "CAPTURE");
+    caption(L.audioInputSource, "SOURCE");
+    jp_button::draw(L.audioInputSource,"INPUT / MIC",!jp_audio::isOutputSource());
+    jp_button::draw(L.audioOutputSource,"SYSTEM OUTPUT",jp_audio::isOutputSource());
+    jp_button::draw(L.audioRefresh,"REFRESH",false);
+    jp_tooltip::draw("Analyse a microphone or audio interface",L.audioInputSource);
+    jp_tooltip::draw("Analyse sound playing through your speakers or headphones. No audio is played back by this control.",L.audioOutputSource);
+    jp_tooltip::draw("Rescan devices. Retry the selected source if disconnected.",L.audioRefresh);
 	jp_button::draw(L.audioEnable, jp_audio::getEnabled() ? "ON" : "OFF",
 		jp_audio::getEnabled(), true,
 		live ? COL_ACCENT_GREEN : COL_ACCENT_CYAN);
-	jp_tooltip::draw("Turn the audio input on or off", L.audioEnable);
+	jp_tooltip::draw("Start or stop audio analysis", L.audioEnable);
 
 	caption(L.audioDevice, "DEVICE");
 	{
@@ -182,7 +189,7 @@ void ofApp::drawAudioInput(const AudioScreenLayout &L)
 		small.drawString("v", L.audioDevice.getMaxX() - 14.0f,
 			L.audioDevice.getMaxY() - 8.0f);
 	}
-	jp_tooltip::draw("Choose the audio source", L.audioDevice);
+	jp_tooltip::draw(jp_audio::getDeviceLabel(), L.audioDevice);
 
 	caption(L.audioCalibrate, "SET GATE");
 	jp_button::draw(L.audioCalibrate, "CALIBRATE", false);
@@ -251,15 +258,14 @@ bool ofApp::handleAudioInputClick(const AudioScreenLayout &L, const ofVec2f &m,
 		const ofRectangle menu = getAudioMenuBounds();
 		if (menu.inside(m))
 		{
-			const std::vector<std::string> &names =
-				jp_audio::getInputDeviceNames();
-			for (int i = audioMenuScroll; i <= (int)names.size(); i++)
+            const auto indices=jp_audio::getSourceDeviceIndices();
+			for (int i = audioMenuScroll; i <= (int)indices.size(); i++)
 			{
 				const ofRectangle row(menu.x, menu.y + 2.0f + (i - audioMenuScroll) * 24.0f,
 					menu.width, 24.0f);
 				if (row.getMaxY() > menu.getMaxY()) break;
 				if (!row.inside(m)) continue;
-				jp_audio::setDevice(i == 0 ? "" : jp_audio::getDeviceId(i - 1));
+				jp_audio::setDevice(i == 0 ? jp_audio::getSourceDefaultId() : jp_audio::getDeviceId(indices[i - 1]));
 				saveSettings();
 				break;
 			}
@@ -267,6 +273,14 @@ bool ofApp::handleAudioInputClick(const AudioScreenLayout &L, const ofVec2f &m,
 		audioMenuOpen = false;
 		return true;
 	}
+    if(leftButton && (L.audioInputSource.inside(m) || L.audioOutputSource.inside(m))) {
+        jp_audio::setOutputSource(L.audioOutputSource.inside(m));audioMenuScroll=0;saveSettings();return true;
+    }
+    if(leftButton && L.audioRefresh.inside(m)) {
+        jp_audio::refreshDevices();
+        if(jp_audio::getEnabled() && !jp_audio::isRunning())jp_audio::setDevice(jp_audio::getDeviceName());
+        return true;
+    }
 	if (leftButton && L.audioEnable.inside(m))
 	{
 		jp_audio::setEnabled(!jp_audio::getEnabled());
@@ -276,8 +290,12 @@ bool ofApp::handleAudioInputClick(const AudioScreenLayout &L, const ofVec2f &m,
 	if (leftButton && L.audioDevice.inside(m))
 	{
 		jp_audio::refreshDevices();
-		audioMenuScroll = 0;
+        audioMenuScroll=0;audioMenuCursor=0;
+        const auto indices=jp_audio::getSourceDeviceIndices();
+        for(size_t i=0;i<indices.size();++i)if(jp_audio::getDeviceId(indices[i])==jp_audio::getDeviceName())audioMenuCursor=int(i)+1;
 		audioMenuOpen = true;
+        const int visible=std::max(1,int((getAudioMenuBounds().height-4)/24));
+        audioMenuScroll=std::max(0,audioMenuCursor-visible+1);
 		return true;
 	}
 	if (leftButton && L.audioCalibrate.inside(m))
@@ -331,28 +349,17 @@ ofApp::AudioScreenLayout ofApp::getAudioScreenLayout() const
 	l.frame.y -= audioScreenScroll;
 	const ofRectangle body = jp_screen::body(l.frame);
 
-	// The input chain, in one strip across the top: device and level come
-	// BEFORE analysis, so they read first.
-	{
-		const float h = jp_button::kHeight;
-		const float gap = 8.0f;
-		const float top = body.y + 14.0f;
-		float x = body.x;
-		auto slot = [&](ofRectangle &r, float w) {
-			r.set(x, top, w, h);
-			x += w + gap;
-		};
-		slot(l.audioEnable, 54.0f);
-		slot(l.audioDevice, 240.0f);
-		slot(l.audioCalibrate, 92.0f);
-		slot(l.audioAutoGain, 86.0f);
-		slot(l.audioChannel, 86.0f);
-		slot(l.audioDiv, 54.0f);
-		x += 8.0f;   // the gain/gate pair reads as its own group
-		slot(l.audioGain, 150.0f);
-		slot(l.audioGate, 150.0f);
-	}
-	const float stripH = 14.0f + jp_button::kHeight + 22.0f;
+    // Source choice stays visible; device and analysis controls have separate rows.
+    const float h=jp_button::kHeight, gap=8.f;
+    float x=body.x, stripY=body.y+14.f;
+    auto slot=[&](ofRectangle &r,float w){r.set(x,stripY,w,h);x+=w+gap;};
+    slot(l.audioEnable,72);slot(l.audioInputSource,120);slot(l.audioOutputSource,148);
+    slot(l.audioDevice,std::max(180.f,std::min(440.f,body.width-450.f)));
+    slot(l.audioRefresh,96);
+    stripY+=h+30.f;x=body.x;
+    slot(l.audioGain,150);slot(l.audioGate,150);slot(l.audioCalibrate,100);
+    slot(l.audioAutoGain,96);slot(l.audioChannel,86);slot(l.audioDiv,54);
+    const float stripH=14.f+2*h+54.f;
 	const ofRectangle columns(body.x, body.y + stripH, body.width,
 		std::max(0.0f, body.height - stripH));
 
@@ -451,8 +458,8 @@ void ofApp::draw_audio()
 	ofSetColor(COL_BG_DARK);
 	ofDrawRectRounded(L.frame, jp_screen::kRadius);
 	jp_screen::drawFrame(L.frame, "AUDIO ANALYSER",
-		live ? jp_audio::getStatus() :
-			"input is not running - the numbers below are all zero");
+		!jp_audio::getEnabled() ? "Capture is off. Choose a source, then turn capture on." :
+            jp_audio::getStatus());
 
 	ofTrueTypeFont &font = jp_constants::p_font;
 	ofTrueTypeFont &small = jp_constants::p2_font;
@@ -637,7 +644,7 @@ void ofApp::draw_audio()
 	// app showed the input level before, so "is anything even arriving" was not
 	// a question the UI could answer.
 	ofSetColor(COL_TEXT_SECONDARY);
-	small.drawString("INPUT", L.inputMeter.x, L.inputMeter.y - 7.0f);
+	small.drawString("SIGNAL", L.inputMeter.x, L.inputMeter.y - 7.0f);
 	drawWell(L.inputMeter);
 	const float rmsW = L.inputMeter.width * ofClamp(d.rms * 4.0f, 0.0f, 1.0f);
 	ofSetColor(d.gated ? ofColor(COL_TEXT_MUTED, 200) :
@@ -801,37 +808,38 @@ void ofApp::draw_audio()
 	if (audioMenuOpen)
 	{
 		const ofRectangle menu = getAudioMenuBounds();
-		ofSetColor(ofColor(COL_BG_PANEL, 245));
+		ofSetColor(COL_BG_PANEL);
 		ofDrawRectRounded(menu, 4.0f);
 		ofNoFill();
 		ofSetColor(ofColor(COL_ACCENT_CYAN, 200));
 		ofDrawRectRounded(menu, 4.0f);
 		ofFill();
-		const std::vector<std::string> &names = jp_audio::getInputDeviceNames();
-		for (int i = audioMenuScroll; i <= (int)names.size(); i++)
+        const auto &names=jp_audio::getInputDeviceNames();
+        const auto indices=jp_audio::getSourceDeviceIndices();
+		for (int i = audioMenuScroll; i <= (int)indices.size(); i++)
 		{
 			const float ry = menu.y + 2.0f + (i - audioMenuScroll) * 24.0f;
 			if (ry + 24.0f > menu.getMaxY()) break;
 			const bool over = ofRectangle(menu.x, ry, menu.width, 24.0f)
 				.inside((float)ofGetMouseX(), (float)ofGetMouseY());
-			std::string name = i == 0 ? "(system default input)" : names[i - 1];
+			std::string name = i == 0 ? (jp_audio::isOutputSource()?"System default output (follows system)":"System default input") : names[indices[i - 1]];
 			while (!name.empty() && small.stringWidth(name) > menu.width - 20) {
 				name.pop_back();
 				while (!name.empty() && (static_cast<unsigned char>(name.back()) & 0xc0) == 0x80) name.pop_back();
 				if (!name.empty() && static_cast<unsigned char>(name.back()) >= 0xc0) name.pop_back();
 			}
-			if (over)
+			if (over || i==audioMenuCursor)
 			{
 				ofSetColor(ofColor(COL_BG_HOVER, 230));
 				ofDrawRectRounded(menu.x + 2.0f, ry, menu.width - 4.0f,
 					24.0f, 3.0f);
 			}
-			ofSetColor((i == 0 ? "" : jp_audio::getDeviceId(i - 1)) == jp_audio::getDeviceName() ?
+			ofSetColor((i == 0 ? jp_audio::getSourceDefaultId() : jp_audio::getDeviceId(indices[i - 1])) == jp_audio::getDeviceName() ?
 				COL_ACCENT_CYAN : COL_TEXT_PRIMARY);
 			small.drawString(name, menu.x + 8.0f, ry + 16.0f);
 		}
 		const int visible = int((menu.height - 4) / 24);
-		const int total = int(names.size()) + 1;
+		const int total = int(indices.size()) + 1;
 		if (total > visible) {
 			const float track = menu.height - 4;
 			const float thumb = track * visible / total;
