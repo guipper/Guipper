@@ -7,6 +7,7 @@
 #include "../JPbox/jp_box_factory.h"
 #include "../JPbox/jp_box_image.h"
 #include "../JPbox/jp_box_cam.h"
+#include "../JPbox/jp_box_screen.h"
 #include "../JPbox/jp_box_video.h"
 #include "../JPbox/jp_media.h"
 #include "../JPbox/jp_box_paint.h"
@@ -2073,6 +2074,89 @@ namespace
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if (testMode && string(testMode) == "screen_capture") {
+        bool passed=true;
+        auto check=[&](bool ok,const string &message){if(!ok)ofLogError("screen_capture")<<message;passed=passed&&ok;};
+        struct Fake : jp_screen::Backend { void stop() override {} };
+        std::vector<std::shared_ptr<jp_screen::Mailbox>> sessions;
+        auto *screen=new JPbox_screen([&](const string &){auto backend=std::make_unique<Fake>();sessions.push_back(backend->mailbox);return backend;});
+        app.boxes.clear();screen->setup("screenCapture","PANTALLA");screen->setonoff(true);
+        app.boxes.boxes.push_back(screen);app.activerender=0;
+        screen->selectScreen();
+#ifdef _WIN32
+        screen->monitorChoices={{"test","Test"}};screen->selectMonitor(0);
+#endif
+        jp_screen::Frame frame;frame.width=80;frame.height=48;frame.rgba.resize(80*48*4);
+        for(int y=0;y<48;++y)for(int x=0;x<80;++x){auto p=frame.rgba.data()+(y*80+x)*4;p[0]=y<24?240:10;p[1]=10;p[2]=y<24?10:240;p[3]=255;}
+        sessions.back()->publish(frame);screen->setRenderPinned(true);screen->setRenderThisFrame(true);screen->update();screen->updateFBO();
+        check(screen->transitionReady(),"first frame readiness");
+        app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.selectOpenBoxByIndex(0);app.boxes.setControllers();
+        ofPixels pixels;screen->fbo.readToPixels(pixels);
+        auto top=pixels.getColor(pixels.getWidth()/2,pixels.getHeight()/3);
+        auto bottom=pixels.getColor(pixels.getWidth()/2,pixels.getHeight()*2/3);
+        check(top.r>top.b+100 && bottom.b>bottom.r+100,"screen texture orientation and colors");
+        JPbox_shader effect;effect.setup("shaders/imageprocessing/transform.frag","screen transform");
+        const int inlet=effect.fbohandlergroup.findIndexByName("textura1");
+        check(inlet>=0,"shader texture inlet");
+        if(inlet>=0){
+            effect.fbohandlergroup.setFboPointer(&screen->fbo,&screen->name,inlet);
+            effect.setonoff(true);effect.setRenderPinned(true);effect.setRenderThisFrame(true);effect.update();
+            ofPixels transformed;effect.fbo.readToPixels(transformed);
+            auto a=transformed.getColor(transformed.getWidth()/2,transformed.getHeight()/3);
+            auto b=transformed.getColor(transformed.getWidth()/2,transformed.getHeight()*2/3);
+            check(a.r>a.b+100 && b.b>b.r+100,"screen to shader preserves orientation");
+        }
+        effect.clear();
+        screen->setonoff(false);screen->update();
+        check(!screen->transitionReady() && screen->captureStatus().state==jp_screen::State::Stopped,"disabled screen releases capture");
+        screen->selectScreen();
+#ifdef _WIN32
+        screen->monitorChoices={{"test","Test"}};screen->selectMonitor(0);
+#endif
+        frame.width=48;frame.height=80;frame.rgba.assign(48*80*4,255);sessions.back()->publish(frame);screen->update();
+        check(screen->captureStatus().frame && screen->captureStatus().frame->width==48,"portrait resize");
+        auto oldSession=sessions.back();
+        screen->setWindowMode(true);
+        check(screen->windowMode() && !screen->transitionReady(),"mode change clears output");
+        oldSession->publish(frame);check(!oldSession->read().frame,"mode change rejects old frames");
+        screen->selectScreen();
+#ifdef _WIN32
+        screen->monitorChoices={{"test","Test"}};screen->selectMonitor(0);
+#endif
+        sessions.back()->publish(frame);screen->update();
+        check(screen->transitionReady(),"window mode accepts frames");
+        // Repeated fullscreen/windowed transitions, including shrinking a texture.
+        for(const auto size: {std::pair<int,int>{1920,1080},{640,360},{1280,720},{480,800},{1920,1080}}) {
+            frame.width=size.first;frame.height=size.second;frame.rgba.resize(size_t(frame.width)*frame.height*4);
+            for(size_t i=0;i<frame.rgba.size();i+=4){frame.rgba[i]=20;frame.rgba[i+1]=220;frame.rgba[i+2]=40;frame.rgba[i+3]=255;}
+            sessions.back()->publish(frame);screen->update();screen->updateFBO();
+            ofPixels resizedOutput;screen->fbo.readToPixels(resizedOutput);
+            auto center=resizedOutput.getColor(resizedOutput.getWidth()/2,resizedOutput.getHeight()/2);
+            check(center.g>200 && center.r<30 && center.b<50,"fullscreen resize keeps fresh pixels");
+        }
+        screen->parameters.setFloatValue(.7f,2);screen->parameters.setFloatLerpValue(.7f,2);
+        const string path=ofToDataPath("screen-capture-test.xml",true);
+        check(app.boxes.save(path),"save screen composition");
+        const string xml=ofBufferFromFile(path).getText();
+        check(xml.find("screenCapture")!=string::npos && xml.find("session_handle")==string::npos,"persistent identity without session");
+        app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.copySelectedBoxes();app.boxes.pasteBoxes();
+        check(app.boxes.boxes.size()==2,"duplicate screen");
+        if(app.boxes.boxes.size()==2){auto *copy=dynamic_cast<JPbox_screen *>(app.boxes.boxes[1]);check(copy && copy->windowMode() && !copy->transitionReady() && copy->captureStatus().state==jp_screen::State::Idle,"duplicate does not capture");}
+        app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.deleteSelectedShader();
+        check(!screen->transitionReady() && !sessions.back()->read().frame,"delete releases retained capture");
+        sessions.back()->publish(frame);check(!sessions.back()->read().frame,"deleted callback ignored");
+        app.boxes.graphUndoShortcut(false);
+        check(screen->captureStatus().state==jp_screen::State::Stopped,"undo waits for explicit selection");
+        app.boxes.graphUndoShortcut(true);
+        app.boxes.clear();
+        check(app.boxes.load(path)==JPboxgroup::LoadResult::Success,"reload screen composition");
+        if(!app.boxes.boxes.empty()){
+            auto *loaded=dynamic_cast<JPbox_screen *>(app.boxes.boxes[0]);
+            check(loaded && loaded->captureStatus().state==jp_screen::State::Idle,"load does not request capture");
+            if(loaded){check(loaded->windowMode(),"window mode roundtrip");check(std::abs(loaded->parameters.getFloatValue(2)-.7f)<.001f,"transform roundtrip");}
+        }else check(false,"loaded box exists");
+        app.boxes.clear();ofLogNotice("screen_capture")<<(passed?"PASS":"FAIL");return passed;
+    }
 	if (testMode && string(testMode) == "capture_lifecycle")
 	{
 		class CaptureProbe : public JPbox_shader

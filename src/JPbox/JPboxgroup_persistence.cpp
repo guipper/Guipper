@@ -1,3 +1,4 @@
+#include "jp_box_screen.h"
 #include "../JPutils/jp_storage.h"
 #include "JPboxgroup.h"
 #include "../JPutils/jp_parameter_xml.h"
@@ -532,6 +533,7 @@ void JPboxgroup::pollSessionLoad()
     std::function<void(JPbox *)> inspect=[&](JPbox *node) {
         if(auto *media=dynamic_cast<JPMediaInspectable *>(node)) if(!media->mediaReady()) { ready=false;candidate.error=node->dir; }
         if(auto *video=dynamic_cast<JPbox_video *>(node)) if(!video->movie.isLoaded() || !video->movie.getTexture().isAllocated()) {ready=false;candidate.error=node->dir;}
+        if(auto *screen=dynamic_cast<JPbox_screen *>(node)) if(screen->captureStatus().state==jp_screen::State::Selecting && !screen->transitionReady()) {ready=false;candidate.error=node->dir;}
         if(auto *camera=dynamic_cast<JPbox_cam *>(node)) if(!camera->transitionReady()) {ready=false;candidate.error=node->dir;}
         if(auto *group=dynamic_cast<JPbox_preset *>(node)) for(auto *child:group->boxes) inspect(child);
         if(!node->fbo.isAllocated()) {ready=false;candidate.error=node->dir;}

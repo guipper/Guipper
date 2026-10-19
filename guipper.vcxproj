@@ -200,6 +200,11 @@
     <ClCompile Include="src\ofApp_outputs.cpp" />
     <ClCompile Include="src\JPbox\JPboxgroup_persistence.cpp" />
     <ClCompile Include="src\JPbox\jp_box_factory.cpp" />
+    <ClCompile Include="src\JPbox\jp_box_screen.cpp" />
+    <ClCompile Include="src\JPutils\jp_screen_capture.cpp" />
+    <ClCompile Include="src\JPutils\jp_screen_capture_windows.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
     <ClCompile Include="src\JPutils\jp_parameter_xml.cpp" />
     <ClCompile Include="src\JPutils\TransitionSR.cpp" />
     <ClCompile Include="src\JPutils\jp_midi_keymap.cpp" />
@@ -318,6 +323,9 @@
     <ClInclude Include="src\JPgui\jp_knob.h" />
     <ClInclude Include="src\JPgui\jp_button.h" />
     <ClInclude Include="src\JPgui\jp_screen.h" />
+    <ClInclude Include="src\JPbox\jp_box_screen.h" />
+    <ClInclude Include="src\JPutils\jp_screen_capture.h" />
+    <ClInclude Include="src\JPutils\jp_capture_resize.h" />
     <ClInclude Include="src\JPgui\jp_surfacestack.h" />
     <ClInclude Include="src\JPgui\jp_complexslider.h" />
     <ClInclude Include="src\JPgui\jp_tooglelist.h" />

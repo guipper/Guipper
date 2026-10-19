@@ -832,4 +832,12 @@
   <ItemGroup>
     <ResourceCompile Include="icon.rc" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\JPbox\jp_box_screen.cpp"><Filter>src\JPbox</Filter></ClCompile>
+    <ClCompile Include="src\JPutils\jp_screen_capture.cpp"><Filter>src\JPutils</Filter></ClCompile>
+    <ClCompile Include="src\JPutils\jp_screen_capture_windows.cpp"><Filter>src\JPutils</Filter></ClCompile>
+    <ClInclude Include="src\JPbox\jp_box_screen.h"><Filter>src\JPbox</Filter></ClInclude>
+    <ClInclude Include="src\JPutils\jp_screen_capture.h"><Filter>src\JPutils</Filter></ClInclude>
+    <ClInclude Include="src\JPutils\jp_capture_resize.h"><Filter>src\JPutils</Filter></ClInclude>
+  </ItemGroup>
 </Project>

@@ -73,7 +73,7 @@ PROJECT_EXCLUSIONS += $(PROJECT_ROOT)/src/JPutils/macos%
 endif
 
 ifeq ($(shell uname -s),Darwin)
-PROJECT_LDFLAGS += -framework CoreAudio -framework Foundation
+PROJECT_LDFLAGS += -framework CoreAudio -framework Foundation -weak_framework ScreenCaptureKit -framework CoreMedia -framework CoreVideo
 endif
 
 # OF 0.12.1 selects gold on Linux; fall back to BFD when gold is absent.

@@ -10,7 +10,7 @@ namespace jp_box_factory
 	enum class Context { Interactive, Stored };
 	enum class Kind {
 		Unknown, Shader, Image, Video, Preset, Kinect2, PointerCloud, CameraDepth,
-		Camera, Spout, FrameDifference, Paint, Ndi
+		Camera, Spout, FrameDifference, Paint, Ndi, Screen
 	};
 	Kind classify(const std::string &directory, Context context);
 	// Constructs but does not call setup or attach the box to any graph.

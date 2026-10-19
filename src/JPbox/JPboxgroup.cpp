@@ -4,6 +4,8 @@
 #include "../JPgui/jp_gl_state.h"
 #include "jp_media.h"
 #include "jp_box_factory.h"
+#include "jp_box_screen.h"
+#include "../JPutils/jp_textwrap.h"
 #include "../JPutils/jp_parameter_xml.h"
 #include "../JPutils/jp_pointer.h"
 #include "../JPutils/jp_audio.h"
@@ -397,6 +399,7 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	nombre = nombre.substr(0, nombre.find(".frag"));
 	nombre = nombre.substr(0, nombre.find(".xml"));
 	*/
+	if (directory == "screenCapture") return "PANTALLA";
 	if (directory.find("camdepth") != std::string::npos)
 	{
 		// Checked first for the same reason the box dispatch is: "camdepth"
@@ -3385,6 +3388,34 @@ void JPboxgroup::draw_paramswindow()
 		drawInspectorInputRows(inspectorBox);
 		drawAdvancedMappingParameterHeaders(inspectorBox);
 
+		if (auto *screen = dynamic_cast<JPbox_screen *>(inspectorBox)) {
+            const auto status = screen->captureStatus();
+            const bool pending = status.state == jp_screen::State::Selecting;
+            auto button = [&](const ofRectangle &rect, string label, bool enabled, bool selected = false) {
+                const bool hover = !suppressBodyPointer && rect.inside(ofGetMouseX(), ofGetMouseY());
+                ofSetColor(enabled && hover ? COL_BG_HOVER : COL_BG_INPUT);
+                ofDrawRectRounded(rect, 3.f);
+                ofNoFill(); ofSetColor(selected ? COL_ACCENT_CYAN : COL_BORDER_MUTED); ofDrawRectRounded(rect,3.f); ofFill();
+                ofSetColor(enabled ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
+                auto &font = jp_constants::inspector_media_font;
+                while(label.size()>3 && font.stringWidth(label)>rect.width-16) label.pop_back();
+                font.drawString(label,rect.x+8,rect.y+rect.height*.5f+font.stringHeight("Ag")*.5f);
+            };
+            button(screenDisplayModeButton, "Pantalla completa", true, !screen->windowMode());
+            button(screenWindowModeButton, "Ventana", true, screen->windowMode());
+            button(screenSelectButton, (pending || screen->choosingMonitor) ? "Cancelar seleccion" :
+                status.frame ? (screen->windowMode()?"Cambiar ventana":"Cambiar pantalla") : (screen->windowMode()?"Seleccionar ventana":"Seleccionar pantalla"), true);
+            button(screenStopButton, "Detener", pending || status.frame || screen->choosingMonitor);
+            for(size_t i=0;i<screenMonitorButtons.size();++i)
+                button(screenMonitorButtons[i],screen->monitorChoices[i].label,true);
+            ofSetColor(status.state==jp_screen::State::Error ? COL_ACCENT_GOLD : COL_TEXT_SECONDARY);
+            auto lines=jp_textwrap::wrap([](const string &line){return jp_constants::inspector_media_font.stringWidth(line);},
+                screen->statusLabel(),screenStatusRect.width);
+            float y=screenStatusRect.y+14;
+            for(const auto &line:lines){if(y>screenStatusRect.getBottom())break;jp_constants::inspector_media_font.drawString(line,screenStatusRect.x,y);y+=17;}
+            jp_tooltip::draw(screen->statusLabel(),screenStatusRect.x,screenStatusRect.y,screenStatusRect.width,screenStatusRect.height);
+        }
+
 		if (auto *kinect = dynamic_cast<JPbox_kinect2 *>(inspectorBox))
 		{
 			const char *labels[] = {"COLOR", "DEPTH", "IR"};
@@ -3877,6 +3908,19 @@ void JPboxgroup::draw_conections()
 	}
 }
 void JPboxgroup::update(){
+    // A disabled ancestor does not update its children; release screen sessions
+    // here as well, so hiding a group never leaves its monitor capture running.
+    std::function<void(JPbox *,bool)> stopHiddenScreens = [&](JPbox *node,bool enabled) {
+        if(!node)return;
+        enabled=enabled && node->getonoff();
+        if(auto *screen=dynamic_cast<JPbox_screen *>(node)) {
+            const auto state=screen->captureStatus().state;
+            if(!enabled && (state==jp_screen::State::Selecting || state==jp_screen::State::Streaming || screen->choosingMonitor))screen->stopCapture();
+        }
+        if(auto *group=dynamic_cast<JPbox_preset *>(node))for(auto *child:group->boxes)stopHiddenScreens(child,enabled);
+    };
+    for(auto *node:boxes)stopHiddenScreens(node,true);
+
 
 	// bool unoagarrado = false;
 	auto profileStageStart = ProfileClock::now();
@@ -4967,6 +5011,20 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			if (isCueDraftMode()) updateCueDraftGraph();
 			return;
 		}
+        if(auto *screen=dynamic_cast<JPbox_screen *>(inspectorBox)) {
+            if(mouseButton==OF_MOUSE_BUTTON_LEFT && inspectorBodyViewport.inside(ofGetMouseX(),ofGetMouseY())) {
+                if(screenDisplayModeButton.inside(ofGetMouseX(),ofGetMouseY())) {screen->setWindowMode(false);setControllers();return;}
+                if(screenWindowModeButton.inside(ofGetMouseX(),ofGetMouseY())) {screen->setWindowMode(true);setControllers();return;}
+                if(screenSelectButton.inside(ofGetMouseX(),ofGetMouseY())) {
+                    if(screen->choosingMonitor)screen->choosingMonitor=false;else screen->selectScreen();
+                    setControllers();return;
+                }
+                if(screenStopButton.inside(ofGetMouseX(),ofGetMouseY())) {screen->stopCapture();setControllers();return;}
+                for(size_t i=0;i<screenMonitorButtons.size();++i)if(screenMonitorButtons[i].inside(ofGetMouseX(),ofGetMouseY())) {
+                    screen->selectMonitor(i);setControllers();return;
+                }
+            }
+        }
 		if (camerarefreshbutton.mouseGrab() &&
 			inspectorBox->getTipo() == inspectorBox->CAMBOX)
 		{
@@ -5950,6 +6008,21 @@ void JPboxgroup::setControllers(){
 		layoutCursor);
 	layoutFinalOverlayInspector(inspectorBox, layoutCursor);
 	layoutCursor = layoutInspectorInputRows(inspectorBox, layoutCursor);
+    screenDisplayModeButton.set(0,0,0,0);screenWindowModeButton.set(0,0,0,0);
+    screenSelectButton.set(0,0,0,0); screenStopButton.set(0,0,0,0); screenStatusRect.set(0,0,0,0);
+    screenMonitorButtons.clear();
+    if(auto *screen=dynamic_cast<JPbox_screen *>(inspectorBox)) {
+        const float left=inspectorBodyViewport.x+inspectorLayout.contentPadding;
+        const float width=inspectorBodyViewport.width-2*inspectorLayout.contentPadding;
+        screenDisplayModeButton.set(left,layoutCursor,width,30);layoutCursor+=36;
+        screenWindowModeButton.set(left,layoutCursor,width,30);layoutCursor+=36;
+        screenSelectButton.set(left,layoutCursor,width,30);layoutCursor+=36;
+        screenStopButton.set(left,layoutCursor,width,30);layoutCursor+=36;
+        if(screen->choosingMonitor)for(size_t i=0;i<screen->monitorChoices.size();++i){
+            screenMonitorButtons.emplace_back(left,layoutCursor,width,30);layoutCursor+=36;
+        }
+        screenStatusRect.set(left,layoutCursor,width,52);layoutCursor+=60;
+    }
 	if (inspectorBox->getTipo() == inspectorBox->KINECT2BOX)
 	{
 		const float left = inspectorBodyViewport.x + inspectorLayout.contentPadding;
@@ -5971,6 +6044,7 @@ void JPboxgroup::setControllers(){
 	*/
 	auto *mediaBox = dynamic_cast<JPMediaInspectable *>(inspectorBox);
 	auto isMediaOwnedParameter = [&](const string &parameterName) {
+		if(dynamic_cast<JPbox_screen *>(inspectorBox) && parameterName=="capture window")return true;
 		return mediaBox != nullptr &&
 			(parameterName == "strech" || parameterName == "speed" ||
 			 parameterName == "position" || parameterName == "play");
@@ -7160,6 +7234,7 @@ vector<int> JPboxgroup::getBindableParameterOrder(JPbox *box) const
 	// them would be an invisible bind target that only fights the card. Media
 	// boxes only - the camera/NDI/Spout `strech` is an ordinary slider.
 	auto mediaOwned = [&](int k) {
+		if(dynamic_cast<JPbox_screen *>(box) && box->parameters.getName(k)=="capture window")return true;
 		if (!isMedia) return false;
 		const string &name = box->parameters.getName(k);
 		return name == "strech" || name == "speed" ||

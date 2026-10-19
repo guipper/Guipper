@@ -68,6 +68,57 @@ in [Publishing Guipper](mds/PUBLICACION.md). F10 opens version, update preferenc
 and diagnostic export. Development builds have updates disabled until signed
 packages and platform validation are configured.
 
+## Screen capture (PANTALLA)
+
+On the node canvas, press **Shift+S** to add PANTALLA. Select it and click
+**Pantalla completa** or **Ventana** in the inspector, then **Seleccionar pantalla**
+or **Seleccionar ventana**. Linux and macOS use the system's sharing dialog; Windows
+shows available monitors or titled application windows in the inspector. Connect
+the output to a shader or mark it **TO OUTPUT**, just like a camera box.
+
+**Cambiar pantalla** keeps the old feed until the new monitor delivers a frame.
+Cancelling keeps the previous selection. While a system picker is pending,
+**Cancelar seleccion** closes it so you can retry without losing the old feed.
+Linux sessions use separate portal connections and attach the picker to Guipper.
+If a resolution change is followed by two seconds without frames, capture makes
+one reconnect attempt to the same authorized stream. It does not reopen the
+selector or switch sources. Ordinary static windows do not trigger retries.
+**Detener**, disabling the box or its
+parent group, deleting it, and closing Guipper release capture resources.
+Undo, duplication and loading a saved composition never start sharing: select
+the source again. Transform parameters and the screen/window mode are saved. Screen sources restored
+without a selection are transparent placeholders, so loading does not wait for
+an unsolicited permission dialog.
+
+Capture includes the cursor, preserves aspect ratio by default, and processes
+at most 30 frames per second. Each box owns an independent session. Capturing
+the monitor displaying Guipper can create a recursive mirror. This first version
+captures one monitor or one fixed window per box; it does not capture audio or
+YouTube URLs. Changing mode stops capture and clears the output until you select
+the new source. Window capture does not follow the currently focused application.
+Minimized windows may stop delivering frames, depending on the operating system. Output is SDR RGBA; HDR fidelity is not guaranteed.
+
+Platform requirements:
+
+- **Linux:** a desktop portal implementing ScreenCast, PipeWire and GStreamer's
+  `pipewiresrc` plugin (`gstreamer1.0-pipewire` on Ubuntu), plus the existing GTK/GIO
+  and GStreamer development dependencies. This works from Guipper's XWayland window.
+- **Windows:** Windows 10 version 1903 or newer, D3D11, and a Windows SDK with C++/WinRT
+  headers. Build with Visual Studio 2022 and Windows SDK 10.0.19041 or newer.
+- **macOS:** macOS 14+, built with a macOS 14+ SDK, ScreenCaptureKit, CoreMedia and
+  CoreVideo. Grant the screen-sharing permission requested by the system.
+
+Tests: `make -C tests run` includes the platform-independent capture state tests.
+The `GUIPPER_PERSISTENCE_TEST=screen_capture` graphics test must run from a copy
+of `bin/data`; it tests rendering, serialization, duplicate and delete/undo/redo
+without opening the system picker, including mode changes, stale frames and mode
+persistence. `GUIPPER_UISHOT=screen_capture` (or `window_capture`) checks the
+creation shortcut and captures the inspector after the first rendered frames;
+run it from the same disposable copy. Adding `GUIPPER_CAPTURE_LIVE=1` opens the
+real picker and checks pixel totals in the source and rendered FBO (no shared
+contents are saved); select a visible, nonblack window. Native Windows/macOS builds and permission,
+monitor-removal and multi-monitor checks still require those operating systems.
+
 ## Installation
 This checkout targets openFrameworks **0.12.1**, C++17 and OpenGL 3.2.
 Place it at `apps/myApps/Guipper` inside an openFrameworks installation:

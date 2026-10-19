@@ -30,7 +30,7 @@ MAPPING_BOOLEAN_HEADERS := ../src/JPbox/jp_mapping_boolean.h
 UNIFORM_TARGET := uniform_parser_tests
 UNIFORM_SOURCES := uniform_parser_tests.cpp ../src/JPutils/jp_uniform_parser.cpp
 UNIFORM_HEADERS := ../src/JPutils/jp_uniform_parser.h
-TARGETS := transition_tests text_edit_tests review_tests toast_tests shader_catalog_tests appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM_TARGET) $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
+TARGETS := screen_capture_tests transition_tests text_edit_tests review_tests toast_tests shader_catalog_tests appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM_TARGET) $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
 
 .PHONY: all run tsan clean
 
@@ -85,7 +85,11 @@ $(MAPPING_BOOLEAN_TARGET): $(MAPPING_BOOLEAN_SOURCES) $(MAPPING_BOOLEAN_HEADERS)
 $(UNIFORM_TARGET): $(UNIFORM_SOURCES) $(UNIFORM_HEADERS)
 	$(CXX) $(CXXFLAGS) $(UNIFORM_SOURCES) -o $@
 
+screen_capture_tests: screen_capture_tests.cpp ../src/JPutils/jp_screen_capture.h ../src/JPutils/jp_capture_resize.h
+	$(CXX) $(CXXFLAGS) -pthread screen_capture_tests.cpp -o $@
+
 run: $(TARGETS)
+	./screen_capture_tests
 	./transition_tests
 	./text_edit_tests
 	./review_tests

@@ -1,5 +1,6 @@
 #include "jp_uishot.h"
 #include "jp_text_input.h"
+#include "../JPbox/jp_box_screen.h"
 
 #include "../ofApp.h"
 #include "jp_audio.h"
@@ -780,6 +781,10 @@ void jp_uishot::setup(ofApp &app)
 	if (tag == nullptr) return;
 	gActive = true;
 	gTag = tag;
+    if((gTag=="screen_capture" || gTag=="window_capture")) {
+        ofDirectory::createDirectory(shotDir(),true,true);
+        ofSetWindowShape(1440,810);jp_audio::setEnabled(false);return;
+    }
 	if (gTag == "groups") {
 		ofDirectory::createDirectory(shotDir(), true, true);
 		jp_audio::setEnabled(false);
@@ -817,6 +822,19 @@ void jp_uishot::setup(ofApp &app)
 void jp_uishot::update(ofApp &app)
 {
 	if (!gActive || gDone) return;
+    if((gTag=="screen_capture" || gTag=="window_capture")) {
+        if(app.boxes.sessionPreparing())return;
+        if(gFrames==0){
+            app.boxes.clear();app.pantallaActiva=ofApp::NODOS;
+            app.keyPressed('S');
+            if(app.boxes.boxes.size()!=1 || !dynamic_cast<JPbox_screen*>(app.boxes.boxes[0]))std::exit(EXIT_FAILURE);
+            if(gTag=="window_capture")static_cast<JPbox_screen*>(app.boxes.boxes[0])->setWindowMode(true);
+            app.boxes.selectOpenBoxByIndex(0);app.boxes.setControllers();
+            if(std::getenv("GUIPPER_CAPTURE_LIVE"))static_cast<JPbox_screen*>(app.boxes.boxes[0])->selectScreen();
+        }
+        ++gFrames;return;
+    }
+
 	if (gTag == "groups") {
 		static bool initialized = false;
 		if (!initialized) {
@@ -925,7 +943,7 @@ void jp_uishot::update(ofApp &app)
 
 void jp_uishot::poisonWindowStateForTest()
 {
-	if (gReleaseOnly || !gActive || gDone || !isWindowLayoutState(kStates[gState].arm)) return;
+	if ((gTag=="screen_capture" || gTag=="window_capture") || gReleaseOnly || !gActive || gDone || !isWindowLayoutState(kStates[gState].arm)) return;
 	// Reproduce the render-sized state that originally escaped an offscreen
 	// pass. This runs after box updates, so the fixture FBO itself stays valid.
 	glViewport(0, 0, jp_constants::renderWidth, jp_constants::renderHeight);
@@ -937,6 +955,32 @@ void jp_uishot::poisonWindowStateForTest()
 void jp_uishot::draw(ofApp &app)
 {
 	if (!gActive || gDone) return;
+    if((gTag=="screen_capture" || gTag=="window_capture")) {
+        if(gFrames<20)return;
+        auto *screen=dynamic_cast<JPbox_screen*>(app.boxes.boxes[0]);
+        if(std::getenv("GUIPPER_CAPTURE_LIVE")) {
+            if(!screen)std::exit(EXIT_FAILURE);
+            auto status=screen->captureStatus();
+            static int lastState=-1;
+            if(lastState!=int(status.state)){lastState=int(status.state);ofLogNotice("capture_live")<<"state="<<lastState<<" "<<screen->statusLabel();}
+            if(status.state==jp_screen::State::Error || status.state==jp_screen::State::Unavailable || gFrames>18000)std::exit(EXIT_FAILURE);
+            if(!status.frame || !screen->transitionReady())return;
+            static int firstFrame=0;
+            if(!firstFrame)firstFrame=gFrames;
+            if(gFrames-firstFrame<180)return;
+            ofPixels output;screen->fbo.readToPixels(output);
+            uint64_t sourceRGB=0,sourceAlpha=0,outputRGB=0,outputAlpha=0;
+            for(size_t i=0;i<status.frame->rgba.size();i+=4){sourceRGB+=status.frame->rgba[i]+status.frame->rgba[i+1]+status.frame->rgba[i+2];sourceAlpha+=status.frame->rgba[i+3];}
+            for(size_t i=0;i<output.size();i+=output.getNumChannels()){outputRGB+=output[i]+output[i+1]+output[i+2];if(output.getNumChannels()==4)outputAlpha+=output[i+3];}
+            ofLogNotice("capture_live")<<"source="<<status.frame->width<<"x"<<status.frame->height<<" rgb="<<sourceRGB<<" alpha="<<sourceAlpha<<" fbo="<<output.getWidth()<<"x"<<output.getHeight()<<" rgb="<<outputRGB<<" alpha="<<outputAlpha;
+            if(!sourceRGB || !outputRGB || (output.getNumChannels()==4 && !outputAlpha))std::exit(EXIT_FAILURE);
+            gDone=true;ofExit();return; // Only pixel totals, never save shared-window contents.
+        }
+        if(!screen || screen->captureStatus().state!=(gTag=="window_capture"?jp_screen::State::Stopped:jp_screen::State::Idle))std::exit(EXIT_FAILURE);
+        ofImage shot;shot.grabScreen(0,0,ofGetWidth(),ofGetHeight());shot.save(shotDir()+"inspector.png");
+        gDone=true;ofExit();return;
+    }
+
 	if (gTag == "groups") {
 		if (gFrames < 8) return;
 		const int expectedDepth = (gState == 2 || gState == 6 || gState == 7) ? 1 : (gState == 3 ? 2 : 0);

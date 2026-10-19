@@ -307,6 +307,7 @@ namespace jp_help
 #ifdef SPOUT
 		E("h", "Spout input", "Entrada Spout", Scope::Nodes, "h"),
 #endif
+		E("Shift+S", "Screen capture: select a monitor in the inspector", "Captura de pantalla: selecciona un monitor en el inspector", Scope::Nodes, "shift+s"),
 		E("Shift+C", "Kinect V2 input", "Entrada Kinect V2", Scope::Nodes, "shift+c"),
 		E("Shift+D", "Camera depth: pseudo-depth from an ordinary camera",
 			"Camera Depth: genera pseudoprofundidad desde una cámara convencional",

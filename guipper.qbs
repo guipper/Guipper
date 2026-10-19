@@ -11,6 +11,15 @@ Project{
     ofApp {
         name: { return FileInfo.baseName(sourceDirectory) }
 
+        Group {
+            condition: qbs.targetOS.contains("macos")
+            files: ['src/JPutils/macos/jp_screen_capture_macos.mm']
+        }
+        Properties {
+            condition: qbs.targetOS.contains("macos")
+            cpp.frameworks: (outer || []).concat(["CoreMedia", "CoreVideo"])
+            cpp.weakFrameworks: (outer || []).concat(["ScreenCaptureKit"])
+        }
         files: [
             'src/defines.h',
             'src/fix_line.cpp',
@@ -18,6 +27,13 @@ Project{
             'src/JPbox/jp_box.h',
             'src/JPbox/jp_box_cam.cpp',
             'src/JPbox/jp_box_cam.h',
+            'src/JPbox/jp_box_screen.cpp',
+            'src/JPbox/jp_box_screen.h',
+            'src/JPutils/jp_screen_capture.h',
+            'src/JPutils/jp_capture_resize.h',
+            'src/JPutils/jp_screen_capture.cpp',
+            'src/JPutils/jp_screen_capture_linux.cpp',
+            'src/JPutils/jp_screen_capture_windows.cpp',
             'src/JPbox/jp_box_pointercloud.cpp',
             'src/JPbox/jp_box_pointercloud.h',
             'src/JPbox/jp_box_framedifference.cpp',

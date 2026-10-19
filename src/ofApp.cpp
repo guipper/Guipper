@@ -6671,6 +6671,12 @@ void ofApp::keyPressed(int key) {
 		if (key == 'b') {
 			boxes.addBox("paint");
 		}
+		if (key == 'S' && !surfaces.modalOpen() && !anyFieldFocused() &&
+			!ofGetKeyPressed(OF_KEY_CONTROL) && !ofGetKeyPressed(OF_KEY_COMMAND) &&
+			!ofGetKeyPressed(OF_KEY_ALT)) {
+			boxes.addBox("screenCapture");
+			return;
+		}
 		if (key == 'c') {
 			// boxes.addCamBox();
 			boxes.addBox("cam");

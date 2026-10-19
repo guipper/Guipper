@@ -59,3 +59,5 @@ tests/appimage_backend_tests
 /tests/build-text/
 
 /tests/transition_tests
+
+/tests/screen_capture_tests
