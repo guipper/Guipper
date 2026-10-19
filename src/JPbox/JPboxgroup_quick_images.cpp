@@ -509,20 +509,20 @@ void JPboxgroup::updateSessionFade()
     }
     if(sessionFadeMixer.state().phase()==jp_transition::Phase::Preparing)sessionFadeMixer.advance();
     const float t = sessionFadeMixer.getLerpValue();
-    sessionFadeOutput.begin();
-    ofPushStyle(); ofSetRectMode(OF_RECTMODE_CORNER);
-    ofEnableBlendMode(OF_BLENDMODE_DISABLED); ofSetColor(255);
-    ofClear(0,0,0,0);
     const float eased = jp_transition::ease(t);
-    if (incoming) {
-        if (!sessionFadeMixer.renderStraightMix(&sessionFadeSnapshot, incoming, eased,
-            sessionFadeOutput.getWidth(), sessionFadeOutput.getHeight()))
-            incoming->draw(0,0,sessionFadeOutput.getWidth(),sessionFadeOutput.getHeight());
-    } else {
-        ofSetColor(255,255,255,int(255*(1.f-eased)));
-        sessionFadeSnapshot.draw(0,0);
+    if (!incoming || !sessionFadeMixer.renderStraightMix(
+        &sessionFadeSnapshot, incoming, eased, sessionFadeOutput)) {
+        sessionFadeOutput.begin();
+        ofPushStyle(); ofSetRectMode(OF_RECTMODE_CORNER);
+        ofEnableBlendMode(OF_BLENDMODE_DISABLED); ofSetColor(255);
+        ofClear(0,0,0,0);
+        if (incoming) incoming->draw(0,0,sessionFadeOutput.getWidth(),sessionFadeOutput.getHeight());
+        else {
+            ofSetColor(255,255,255,int(255*(1.f-eased)));
+            sessionFadeSnapshot.draw(0,0);
+        }
+        ofPopStyle(); sessionFadeOutput.end();
     }
-    ofPopStyle(); sessionFadeOutput.end();
     if (t >= 1.f && appliedTransitionScale >= 1.f) {
         sessionFadeActive = false; sessionFadeStarted = false;
         sessionFadeSnapshot.clear(); sessionFadeOutput.clear();

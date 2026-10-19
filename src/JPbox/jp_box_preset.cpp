@@ -474,27 +474,21 @@ void JPbox_preset::renderActiveRender()
 	// Set here rather than only in the else branch below, so the transition's
 	// fallback draw cannot composite through a stale colour.
 	ofSetColor(255, 255, 255, 255);
-	fbo.begin();
-	ofClear(0, 0, 0, 0);
-	ofEnableBlendMode(OF_BLENDMODE_DISABLED);
-	if (activeRenderTransitionRunning)
-	{
-		float progress = activeRenderTransition.getLerpValue();
-		float easedProgress = progress * progress * (3.0f - 2.0f * progress);
-		if (!activeRenderTransition.renderStraightMix(
-			activeTransitionSnapshot.isAllocated()?&activeTransitionSnapshot:&boxes[lastCompositedActiveRender]->fbo,
-			&boxes[targetIndex]->fbo, easedProgress,
-			fbo.getWidth(), fbo.getHeight()))
-		{
-			boxes[targetIndex]->fbo.draw(0, 0, fbo.getWidth(), fbo.getHeight());
-		}
-	}
-	else
-	{
-		ofSetColor(255, 255, 255, 255);
-		boxes[targetIndex]->fbo.draw(0, 0, fbo.getWidth(), fbo.getHeight());
-	}
-	fbo.end();
+    bool mixed = false;
+    if (activeRenderTransitionRunning) {
+        const float progress = activeRenderTransition.getLerpValue();
+        const float eased = progress * progress * (3.0f - 2.0f * progress);
+        mixed = activeRenderTransition.renderStraightMix(
+            activeTransitionSnapshot.isAllocated()?&activeTransitionSnapshot:&boxes[lastCompositedActiveRender]->fbo,
+            &boxes[targetIndex]->fbo, eased, fbo);
+    }
+    if (!mixed) {
+        fbo.begin();
+        ofClear(0,0,0,0);
+        ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+        boxes[targetIndex]->fbo.draw(0,0,fbo.getWidth(),fbo.getHeight());
+        fbo.end();
+    }
 	ofEnableAlphaBlending();
 	ofPopStyle();
 

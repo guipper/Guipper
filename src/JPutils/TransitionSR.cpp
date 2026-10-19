@@ -73,45 +73,15 @@ float TransitionSR::getDurationMs() const {
 }
 
 void TransitionSR::update(bool advanceClock) {
-	if(advanceClock) advance();
-	ofPushStyle();
-	ofSetColor(255, 255);
-	// Rect mode is global and this runs during UPDATE, so it inherits whatever
-	// the previous frame's draw happened to leave - and JPbox::draw leaves
-	// OF_RECTMODE_CENTER. Both draws below place a rectangle at (0,0) with the
-	// FBO's full size, which under CENTER lands three quarters outside it: the
-	// crossfade ends up painted into the top-left quadrant of `este` alone, and
-	// the live output shows a quarter-filled screen for as long as the fade
-	// lasts. Invisible the rest of the time, because a finished transition is
-	// never the thing drawn - which is exactly why it only ever showed up right
-	// after an undo, a group or an ungroup, the three moments that arm one.
-	//
-	// ofPushStyle covers rectMode, so this is restored on the way out.
-	ofSetRectMode(OF_RECTMODE_CORNER);
-	este.begin();
-	// Transparent pixels must replace the previous frame. Blending a new
-	// transparent frame over the old transition canvas leaves position trails.
-	ofClear(0, 0, 0, 0);
-	ofEnableBlendMode(OF_BLENDMODE_DISABLED);
-	// Smoothstep keeps the crossfade gentle at both ends of the transition.
-	float easedLerpValue = lerpValue * lerpValue * (3.0f - 2.0f * lerpValue);
-	if (!renderStraightMix(fbo1, fbo2, easedLerpValue,
-		este.getWidth(), este.getHeight()) && fbo2 != nullptr)
-	{
-		fbo2->draw(0, 0, este.getWidth(), este.getHeight());
-	}
-	este.end();
-	ofEnableAlphaBlending();
-	ofPopStyle();
-
-	/*lerpValue += 0.02;
-	lerpValue = ofClamp(lerpValue, 0.0, 1.0);
-	ofSetColor(255, 255);
-	este.begin();
-	ofSetColor(255, 200, 100);
-	ofRect(0, 0, este.getWidth(), este.getHeight());
-
-	este.end();*/
+    if (advanceClock) advance();
+    const float eased = lerpValue * lerpValue * (3.0f - 2.0f * lerpValue);
+    if (!renderStraightMix(fbo1, fbo2, eased, este)) {
+        este.begin();
+        ofPushStyle(); ofSetRectMode(OF_RECTMODE_CORNER); ofSetColor(255);
+        ofEnableBlendMode(OF_BLENDMODE_DISABLED); ofClear(0,0,0,0);
+        if (fbo2 != nullptr) fbo2->draw(0,0,este.getWidth(),este.getHeight());
+        ofPopStyle(); este.end();
+    }
 }
 const char *TransitionSR::typeLabel(int type) {
     return jp_transition::catalog[std::clamp(type, 0, TYPE_COUNT-1)].en;
@@ -154,10 +124,13 @@ bool TransitionSR::ensureShader() {
 }
 
 bool TransitionSR::renderStraightMix(ofFbo *first, ofFbo *second,
-	float mixValue, float width, float height)
+	float mixValue, ofFbo &destination)
 {
+	const float width = destination.getWidth(), height = destination.getHeight();
 	if (first == nullptr || second == nullptr || !first->isAllocated() ||
-		!second->isAllocated() || width <= 0.0f || height <= 0.0f ||
+		!second->isAllocated() || !destination.isAllocated() ||
+        first == &destination || second == &destination ||
+        width <= 0.0f || height <= 0.0f ||
 		!ensureShader())
 	{
 		return false;
@@ -192,8 +165,12 @@ bool TransitionSR::renderStraightMix(ofFbo *first, ofFbo *second,
         shader.setUniformTexture("historyTexture", *first, 4);
         ofDrawRectangle(0,0,3,2); shader.end();
         ofPopStyle(); paletteFbo.end();
-        feedbackFrames[next].begin();
     }
+    // ofFbo::end restores window orientation in this OF version. Opening the
+    // destination only after the intermediate pass ends avoids a flipped blit.
+    ofFbo &renderTarget = temporal ? feedbackFrames[next] : destination;
+    renderTarget.begin();
+    ofClear(0,0,0,0);
 	shader.begin();
 	shader.setUniformTexture("textura1", *first, 1);
 	shader.setUniformTexture("textura2", *second, 2);
@@ -221,12 +198,14 @@ bool TransitionSR::renderStraightMix(ofFbo *first, ofFbo *second,
 	ofDrawRectangle(0, 0, width, height);
     ofPopStyle();
 	shader.end();
+    renderTarget.end();
     if (temporal) {
-        feedbackFrames[next].end();
+        destination.begin();
+        ofClear(0,0,0,0);
         ofPushStyle(); ofEnableBlendMode(OF_BLENDMODE_DISABLED); ofSetColor(255);
         ofSetRectMode(OF_RECTMODE_CORNER);
         feedbackFrames[next].draw(0,0,width,height);
-        ofPopStyle();
+        ofPopStyle(); destination.end();
         feedbackIndex=next; feedbackValid=true; feedbackEffect=effect;
         feedbackProgress=mixValue; feedbackTime=now;
     }

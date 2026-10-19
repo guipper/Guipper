@@ -1509,6 +1509,117 @@ namespace
         return passed;
     }
 
+    bool checkTransitionOrientation(ofApp &app) {
+        bool passed = true;
+        auto check = [&](bool ok, const string &why) {
+            if (!ok) ofLogError("transition-orientation") << why;
+            passed = passed && ok;
+        };
+        const auto original = TransitionSR::preferences();
+        const int oldType = app.boxes.getTransitionType();
+        const float oldDuration = app.boxes.getTransitionDurationMs();
+        const string folder = ofToDataPath("uishots/orientation/", true);
+        ofDirectory::createDirectory(folder, true, true);
+        ofPixels pattern; pattern.allocate(80,48,OF_PIXELS_RGBA);
+        for (int y=0;y<48;++y) for (int x=0;x<80;++x)
+            pattern.setColor(x,y,y<24?ofColor(240,10,10,180):ofColor(10,10,240,180));
+        ofSaveImage(pattern,folder+"source.png");
+        ofTexture texture; texture.loadData(pattern);
+        ofFbo source, output; source.allocate(80,48,GL_RGBA); output.allocate(80,48,GL_RGBA);
+        source.begin(); ofPushStyle(); ofSetRectMode(OF_RECTMODE_CORNER);
+        ofSetColor(255); ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+        texture.draw(0,0); ofPopStyle(); source.end();
+        auto oriented = [&](ofFbo *fbo, const string &why) {
+            if (!fbo || !fbo->isAllocated()) { check(false,why+" (missing FBO)"); return; }
+            glFinish(); ofPixels pixels; fbo->readToPixels(pixels);
+            const auto top=pixels.getColor(pixels.getWidth()/2,pixels.getHeight()/4);
+            const auto bottom=pixels.getColor(pixels.getWidth()/2,pixels.getHeight()*3/4);
+            check(top.r>top.b+80 && bottom.b>bottom.r+80,why+" top="+ofToString(top)+" bottom="+ofToString(bottom));
+        };
+        oriented(&source,"uploaded source");
+        for (int effect : {TransitionSR::TYPE_MIX,TransitionSR::TYPE_DITHER,
+            TransitionSR::TYPE_PALETTE_ECHO,TransitionSR::TYPE_PALETTE_MOSH,TransitionSR::TYPE_SPECTRAL_GLITCH}) {
+            for (float intensity : {0.f,.25f}) {
+                TransitionSR::preferences()=jp_transition::Config();
+                TransitionSR::preferences().intensity=intensity;
+                TransitionSR mixer; mixer.setup(&source,&source); mixer.setType(effect);
+                // Repeated progress and a restart exercise temporal feedback.
+                for (float progress : {0.f,.1f,.5f,.5f,.9f,1.f,0.f,.5f,1.f}) {
+                    ofSetRectMode(OF_RECTMODE_CENTER); ofSetColor(12,34,56); ofNoFill();
+                    const auto before=ofGetCurrentMatrix(OF_MATRIX_PROJECTION);
+                    check(mixer.renderStraightMix(&source,&source,progress,output),"mix renders");
+                    check(ofGetStyle().rectMode==OF_RECTMODE_CENTER && !ofGetStyle().bFill,
+                        "mix restores drawing style");
+                    check(ofGetCurrentMatrix(OF_MATRIX_PROJECTION)==before,"mix restores projection");
+                    oriented(&output,"effect "+ofToString(effect)+" progress "+ofToString(progress));
+                }
+                // The node-output wrapper and interruption snapshot use the same contract.
+                mixer.setDurationMs(1000); mixer.setLerpValue(0.f);
+                mixer.advance(.4f); mixer.update(false); oriented(mixer.getOutput(),"node transition");
+                mixer.captureInterruption(); mixer.setLerpValue(0.f);
+                mixer.advance(.4f); mixer.update(false); oriented(mixer.getOutput(),"interrupted transition");
+                mixer.freezeOutgoing(); mixer.advance(.2f); mixer.update(false);
+                oriented(mixer.getOutput(),"frozen outgoing transition");
+            }
+        }
+        ofFill(); ofSetColor(255); ofSetRectMode(OF_RECTMODE_CORNER);
+        auto waitForImages = [&]() {
+            bool ready = false;
+            for (int attempt=0;attempt<500 && !ready;++attempt) {
+                ready = true;
+                for (auto *node : app.boxes.boxes) {
+                    node->setRenderPinned(true); node->setRenderThisFrame(true); node->update();
+                    if (auto *media=dynamic_cast<JPMediaInspectable *>(node)) ready=media->mediaReady() && ready;
+                }
+                if (!ready) ofSleepMillis(2);
+            }
+            check(ready,"image decode completes");
+            app.boxes.update();
+        };
+        app.boxes.clear();
+        auto *image=dynamic_cast<JPbox_image *>(app.boxes.addBox(folder+"source.png",100,100));
+        check(image!=nullptr,"image fixture");
+        if (image) {
+            image->media.fitMode=JPMediaFitMode::Stretch;
+            image->setonoff(true); app.activerender=0; waitForImages();
+            check(app.boxes.save(folder+"scene.xml"),"save orientation scene");
+            for (int effect : {TransitionSR::TYPE_PALETTE_ECHO,TransitionSR::TYPE_PALETTE_MOSH,
+                TransitionSR::TYPE_SPECTRAL_GLITCH}) {
+                app.boxes.clear();
+                TransitionSR::preferences().intensity=0.f;
+                app.boxes.setTransitionType(effect); app.boxes.setTransitionDurationMs(200);
+                // No outgoing scene: this is the first-load path, not a crossfade.
+                check(app.boxes.load(folder+"scene.xml")==JPboxgroup::LoadResult::Success,"first load");
+                waitForImages(); oriented(app.boxes.getActiverender(),"first valid frame");
+                check(app.boxes.load(folder+"scene.xml")==JPboxgroup::LoadResult::Success,"second load");
+                app.boxes.update(); ofSleepMillis(60); app.boxes.update();
+                oriented(app.boxes.getActiverender(),"composition fade");
+                check(app.boxes.load(folder+"scene.xml")==JPboxgroup::LoadResult::Success,"interrupt load");
+                app.boxes.update(); ofSleepMillis(60); app.boxes.update();
+                oriented(app.boxes.getActiverender(),"interrupted composition fade");
+                ofSleepMillis(220); app.boxes.update();
+                oriented(app.boxes.getActiverender(),"completed composition fade");
+                auto *second=dynamic_cast<JPbox_image *>(app.boxes.addBox(folder+"source.png",200,100));
+                if (second) second->media.fitMode=JPMediaFitMode::Stretch;
+                waitForImages();
+                app.boxes.clearSelection(); app.boxes.toggleBoxSelection(0); app.boxes.toggleBoxSelection(1);
+                app.boxes.groupSelectedBoxes();
+                auto *group=app.boxes.boxes.size()==1?dynamic_cast<JPbox_preset *>(app.boxes.boxes[0]):nullptr;
+                check(group && group->boxes.size()==2,"group fixture");
+                if (group && group->boxes.size()==2) {
+                    group->setonoff(true); group->activeRender=0; group->update();
+                    group->activeRender=1; group->update(); ofSleepMillis(60); group->update();
+                    oriented(&group->fbo,"group transition");
+                    ofSleepMillis(220); group->update(); oriented(&group->fbo,"completed group transition");
+                }
+            }
+        }
+        app.boxes.clear(); app.boxes.setTransitionType(oldType); app.boxes.setTransitionDurationMs(oldDuration);
+        TransitionSR::preferences()=original;
+        ofLogNotice("transition-orientation") << (passed?"PASS":"FAIL");
+        return passed;
+    }
+
     bool checkTransitionCatalog(ofApp &app) {
         bool passed=true;
         auto check=[&](bool ok,const string &why){if(!ok)ofLogError("transition-catalog")<<why;passed=ok&&passed;};
@@ -1574,18 +1685,14 @@ namespace
             ofSetDataPathRoot(legacyRoot);
             TransitionSR profileMixer;
             profileMixer.setType(TransitionSR::TYPE_MIX);
-            result.begin();ofPushStyle();ofEnableBlendMode(OF_BLENDMODE_DISABLED);ofSetColor(255);ofClear(0,0,0,0);
-            profileMixer.renderStraightMix(&a,&b,.5f,80,48);
-            ofPopStyle();result.end();
+            profileMixer.renderStraightMix(&a,&b,.5f,result);
             check(profileMixer.shader.getShader(GL_FRAGMENT_SHADER)!=0,"existing profile loads complete internal transition program");
             const auto mixed=pixel(result);
             check(same(mixed,ofColor(112,110,35,145)),"existing profile transition produces the expected RGBA mixture");
             // Even an incomplete installation must reject a vertex-only program
             // and use the remaining legacy crossfade, rather than output black.
             jp::AppPaths::current().bundle=legacyRoot;profileMixer.reload();
-            result.begin();ofPushStyle();ofEnableBlendMode(OF_BLENDMODE_DISABLED);ofSetColor(255);ofClear(0,0,0,0);
-            profileMixer.renderStraightMix(&a,&b,.5f,80,48);
-            ofPopStyle();result.end();
+            profileMixer.renderStraightMix(&a,&b,.5f,result);
             check(profileMixer.shader.getShader(GL_FRAGMENT_SHADER)!=0 &&
                 same(pixel(result),ofColor(112,110,35,145)),"missing catalog uses a complete visible crossfade fallback");
             ofSetDataPathRoot(bundleRoot);jp::AppPaths::current().bundle=previousBundle;
@@ -1594,9 +1701,7 @@ namespace
         for(int effect=0;effect<TransitionSR::TYPE_COUNT;++effect) {
             mixer.setType(effect);
             for(float progress:{0.f,.5f,1.f}) {
-                result.begin(); ofPushStyle();ofSetRectMode(OF_RECTMODE_CORNER);ofEnableBlendMode(OF_BLENDMODE_DISABLED);ofSetColor(255);ofClear(0,0,0,0);
-                check(mixer.renderStraightMix(&a,&b,progress,80,48),"compositor renders "+ofToString(effect));
-                ofPopStyle();result.end();
+                check(mixer.renderStraightMix(&a,&b,progress,result),"compositor renders "+ofToString(effect));
                 if(progress==0)check(same(pixel(result),pixel(a)),"exact A including alpha "+ofToString(effect));
                 if(progress==1)check(same(pixel(result),pixel(b)),"exact B including alpha "+ofToString(effect));
                 if(progress==.5f) {ofPixels pixels;result.readToPixels(pixels);ofSaveImage(pixels,folder+"effect-"+ofToString(effect)+".png");}
@@ -1622,9 +1727,8 @@ namespace
             for(int effect:{TransitionSR::TYPE_PALETTE_ECHO,TransitionSR::TYPE_PALETTE_MOSH,TransitionSR::TYPE_SPECTRAL_GLITCH}) {
                 TransitionSR visual;visual.setType(effect);
                 auto render=[&](TransitionSR &renderer,float p) {
-                    canvas.begin();ofPushStyle();ofEnableBlendMode(OF_BLENDMODE_DISABLED);ofSetColor(255);
-                    check(renderer.renderStraightMix(&colorA,&colorB,p,320,180),"palette compositor renders");
-                    ofPopStyle();canvas.end();glFinish();
+                    check(renderer.renderStraightMix(&colorA,&colorB,p,canvas),"palette compositor renders");
+                    glFinish();
                 };
                 for(int frame=0;frame<=60;++frame) {
                     render(visual,frame/60.f);
@@ -2044,6 +2148,7 @@ bool jp_persistence_test::run(ofApp &app)
 
     if (testMode && string(testMode) == "legacy_composition") return checkLegacyComposition(app);
     if (testMode && string(testMode) == "xml_drop") return checkXmlDrop(app);
+    if (testMode && string(testMode) == "transition_orientation") return checkTransitionOrientation(app);
     if (testMode && string(testMode) == "transition_catalog") return checkTransitionCatalog(app);
     if (testMode && string(testMode) == "session_fade") return checkSessionFade(app);
     if (testMode && string(testMode) == "cue_media") return checkCueMedia(app);
@@ -2529,10 +2634,8 @@ bool jp_persistence_test::run(ofApp &app)
 		clearStraight(mixFirst,ofColor(240,40,180,64));
 		clearStraight(mixSecond,ofColor(40,200,20,192));
 		TransitionSR straightTransition;straightTransition.setup();
-		mixProbe.begin();ofClear(0,0,0,0);ofEnableBlendMode(OF_BLENDMODE_DISABLED);
 		const bool mixed=straightTransition.renderStraightMix(&mixFirst,&mixSecond,
-			0.5f,16,16);
-		mixProbe.end();ofEnableAlphaBlending();
+			0.5f,mixProbe);
 		ofPixels mixedPixels;mixProbe.readToPixels(mixedPixels);
 		if(mixed&&mixedPixels.isAllocated())
 		{

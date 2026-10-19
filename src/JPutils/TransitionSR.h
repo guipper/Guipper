@@ -44,10 +44,10 @@ public:
 	void setType(int _type);
 	int getType() const;
 	static const char *typeLabel(int _type);
-	// Renders a straight-RGBA interpolation into the currently bound target.
-	// The caller owns target clearing and blend state.
+	// Renders straight RGBA into an allocated destination, owning its clear and
+	// begin/end. Call outside any FBO scope: intermediate passes are sequential.
 	bool renderStraightMix(ofFbo *first, ofFbo *second, float mixValue,
-		float width, float height);
+		ofFbo &destination);
 	void setLerpValue(float _val);
 	void setLerpValue();
 	void reload();
