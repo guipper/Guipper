@@ -76,6 +76,13 @@ ifeq ($(shell uname -s),Darwin)
 PROJECT_LDFLAGS += -framework CoreAudio -framework Foundation
 endif
 
+# OF 0.12.1 selects gold on Linux; fall back to BFD when gold is absent.
+ifeq ($(shell uname -s),Linux)
+ifeq ($(shell command -v ld.gold 2>/dev/null),)
+PROJECT_LDFLAGS += -fuse-ld=bfd
+endif
+endif
+
 ################################################################################
 # PROJECT LINKER FLAGS
 #	These flags will be sent to the linker when compiling the executable.
