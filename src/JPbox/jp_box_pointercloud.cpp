@@ -359,6 +359,21 @@ void JPbox_pointercloud::draw()
 	ofSetColor(COL_TEXT_PRIMARY);
 }
 
+void JPbox_pointercloud::setCaptureActive(bool active)
+{
+	if (active)
+	{
+		if (capture || cleared) return;
+		lastFrameVersion = 0;
+		intrinsics = JPbox_kinect2::DepthIntrinsics();
+		capture = JPbox_kinect2::acquireSharedCapture();
+	}
+	else
+	{
+		capture.reset();
+	}
+}
+
 void JPbox_pointercloud::clear()
 {
 	if (cleared) return;

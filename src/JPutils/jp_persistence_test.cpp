@@ -1969,6 +1969,79 @@ namespace
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+	if (testMode && string(testMode) == "capture_lifecycle")
+	{
+		class CaptureProbe : public JPbox_shader
+		{
+		public:
+			bool active = true;
+			int stops = 0, starts = 0;
+			bool *destroyed = nullptr;
+			~CaptureProbe() override { if (destroyed) *destroyed = true; }
+			void setCaptureActive(bool value) override
+			{
+				active = value;
+				if (value) ++starts; else ++stops;
+			}
+		};
+		class CaptureGroup : public JPbox_preset
+		{
+		public:
+			CaptureGroup() { tipo = PRESETBOX; }
+		};
+		bool passed = true;
+		auto check = [&](bool condition, const string &message) {
+			if (!condition) {
+				passed = false;
+				ofLogError("capture_lifecycle") << message;
+			}
+		};
+		for (bool grouped : {false, true})
+		{
+			app.boxes.clear();
+			auto *probe = new CaptureProbe();
+			probe->setup("shaders/imageprocessing/transform.frag", "capture probe");
+			JPbox *root = probe;
+			if (grouped)
+			{
+				// Two levels exercise recursive suspension when a group is deleted.
+				for (int depth = 0; depth < 2; ++depth)
+				{
+					auto *group = new CaptureGroup();
+					group->JPbox::setup("capture-group", "capture group");
+					group->boxes.push_back(root);
+					group->activeRender = 0;
+					root = group;
+				}
+			}
+			app.boxes.boxes.push_back(root);
+			app.activerender = 0;
+			app.boxes.toggleBoxSelection(0);
+			app.boxes.deleteSelectedShader();
+			check(app.boxes.boxes.empty() && !probe->active && probe->stops == 1,
+				"delete did not release the retained box's capture");
+			app.boxes.graphUndoShortcut(false);
+			check(app.boxes.boxes.size() == 1 && app.boxes.boxes[0] == root &&
+				probe->active && probe->starts == 1,
+				"undo did not restore the same box and resume its capture");
+			app.boxes.graphUndoShortcut(true);
+			check(app.boxes.boxes.empty() && !probe->active && probe->stops == 2,
+				"redo did not suspend capture again");
+			app.boxes.clear();
+		}
+		bool destroyed = false;
+		auto *shutdownProbe = new CaptureProbe();
+		shutdownProbe->setup("shaders/imageprocessing/transform.frag", "shutdown probe");
+		shutdownProbe->destroyed = &destroyed;
+		app.boxes.boxes.push_back(shutdownProbe);
+		app.shutdownApp();
+		app.shutdownApp();
+		check(destroyed && app.boxes.boxes.empty(),
+			"shutdown did not destroy the live boxes");
+		ofLogNotice("capture_lifecycle") << (passed ? "PASS" : "FAIL");
+		return passed;
+	}
+
     if (testMode && string(testMode) == "legacy_composition") return checkLegacyComposition(app);
     if (testMode && string(testMode) == "xml_drop") return checkXmlDrop(app);
     if (testMode && string(testMode) == "transition_catalog") return checkTransitionCatalog(app);

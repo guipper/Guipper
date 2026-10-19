@@ -735,6 +735,7 @@ JPGraphDetachedBox JPboxgroup::detachBoxFromView(vector<JPbox *> &list,
 	captureFinalLayersForBox(box, detached.finalLayers);
 
 	list.erase(list.begin() + index);
+	box->setCaptureActive(false);
 
 	// The exposed-parameter arrays run parallel to the box list, so they have to
 	// lose the same slot or every group child past this one shifts by one.
@@ -777,6 +778,7 @@ void JPboxgroup::reattachBoxToView(vector<JPbox *> &list,
 
 	const int index = ofClamp(detached.index, 0, (int)list.size());
 	list.insert(list.begin() + index, box);
+	box->setCaptureActive(true);
 	// The graph owns it again; the history must not free it.
 	detached.box = nullptr;
 

@@ -23,6 +23,8 @@ public:
 	void updateFBO() override;
 	void draw() override;
 	void clear() override;
+	void setCaptureActive(bool active) override;
+	static void shutdownSharedCapture();
 	void saveCustomState(ofXml &boxNode) const override;
 	void loadCustomState(const ofXml &boxNode) override;
 	void copyCustomStateFrom(const JPbox *source) override;

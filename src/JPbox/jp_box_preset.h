@@ -65,6 +65,7 @@ public:
 	void renderActiveRender();
 	void draw();
 	void clear();
+	void setCaptureActive(bool active) override;
 	void addBox(JPbox &_box);
 
 	int activeRender;

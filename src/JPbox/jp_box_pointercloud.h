@@ -24,6 +24,7 @@ public:
 	void updateFBO() override;
 	void draw() override;
 	void clear() override;
+	void setCaptureActive(bool active) override;
 	void setPos(float x, float y) override;
 
 	string getCaptureStatus() const;

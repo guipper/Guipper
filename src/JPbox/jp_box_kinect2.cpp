@@ -48,6 +48,11 @@ public:
 
 	~KinectV2CaptureSource()
 	{
+		stop();
+	}
+
+	void stop()
+	{
 		stopRequested = true;
 		reconnectRequested = true;
 		wake.notify_all();
@@ -543,6 +548,33 @@ void JPbox_kinect2::draw()
 		x - fbowidth / 2.0f + 3.0f,
 		y + padding_top / 2.0f - 3.0f + fboheight - 4.0f);
 	ofPopStyle();
+}
+
+void JPbox_kinect2::shutdownSharedCapture()
+{
+	shared_ptr<KinectV2CaptureSource> source;
+	{
+		lock_guard<mutex> lock(sharedCaptureMutex);
+		source = sharedCapture.lock();
+	}
+	if (source) source->stop();
+}
+
+void JPbox_kinect2::setCaptureActive(bool active)
+{
+	if (active)
+	{
+		if (capture || cleared) return;
+		lastFrameVersion = builtFrameVersion = 0;
+		builtSettingsVersion = 0;
+		capture = acquireSharedCapture();
+	}
+	else
+	{
+		capture.reset();
+		rawColor.reset();
+		rawMono.reset();
+	}
 }
 
 void JPbox_kinect2::clear()

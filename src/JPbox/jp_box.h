@@ -139,6 +139,8 @@ public:
 	void draw_inlet(int index);
 	void draw_inlets();
 	virtual void clear();
+	// History retains deleted boxes; release hardware without losing their state.
+	virtual void setCaptureActive(bool active) {}
 	virtual void saveCustomState(ofXml &boxNode) const;
 	virtual void loadCustomState(const ofXml &boxNode);
 	virtual void copyCustomStateFrom(const JPbox *source);

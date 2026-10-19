@@ -8498,9 +8498,12 @@ void ofApp::shutdownApp() {
 		return;
 	}
 	appShutdownDone = true;
+	// Stop the shared worker even when a preview or undo entry still owns it.
+	JPbox_kinect2::shutdownSharedCapture();
 	jp_audio::shutdown();
 	saveSettings();
 	midiKeymap.exit();
+	boxes.clear();
 	closeAllLiveOutputWindows();
 }
 void ofApp::exit() {

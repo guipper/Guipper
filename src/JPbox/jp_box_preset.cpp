@@ -897,6 +897,12 @@ void JPbox_preset::updateExposedTextureInputNodePositions()
 	}
 }
 
+void JPbox_preset::setCaptureActive(bool active)
+{
+	for (JPbox *box : boxes)
+		if (box != nullptr) box->setCaptureActive(active);
+}
+
 void JPbox_preset::clear()
 {
     childTransitionScale=1.f;
