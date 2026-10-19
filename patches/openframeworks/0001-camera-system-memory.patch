@@ -1,0 +1,19 @@
+--- a/libs/openFrameworks/video/ofGstVideoGrabber.cpp
++++ b/libs/openFrameworks/video/ofGstVideoGrabber.cpp
+@@ -468,6 +468,16 @@
+ 
+ 	num_structures = gst_caps_get_size (&caps);
+ 	for (int i = 0; i < num_structures; i++){
++#if GST_VERSION_MAJOR >= 1
++		// This grabber builds a CPU-memory pipeline and does not preserve caps
++		// features or import DMA buffers. Ignore hardware-memory formats such as
++		// DMA_DRM instead of selecting them ahead of usable camera formats.
++		const GstCapsFeatures *features = gst_caps_get_features(&caps, i);
++		if (!gst_caps_features_is_any(features) &&
++			!gst_caps_features_contains(features, GST_CAPS_FEATURE_MEMORY_SYSTEM_MEMORY)) {
++			continue;
++		}
++#endif
+ 		GstStructure *structure;
+ 		const GValue *width, *height;
+ 		structure = gst_caps_get_structure (&caps, i);

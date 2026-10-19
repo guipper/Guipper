@@ -76,6 +76,16 @@ required by that openFrameworks distribution and place `ofxNDI`, `ofxOsc` and
 `ofxMidi` in its `addons/` directory. NDI also requires the runtime/libraries
 expected by your installed `ofxNDI` addon.
 
+On Linux, apply the camera compatibility patch once to the openFrameworks SDK.
+It excludes hardware-memory formats that the CPU capture pipeline cannot import
+(including `DMA_DRM` advertised by newer GStreamer versions):
+
+```bash
+patch -d ../../.. -p1 --forward < patches/openframeworks/0001-camera-system-memory.patch
+```
+
+If the patch reports that it is already applied, proceed with the build.
+
 From the project directory on Linux:
 
 ```bash
