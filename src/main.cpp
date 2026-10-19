@@ -2,12 +2,19 @@
 #include "ofApp.h"
 #include "JPutils/jp_app_paths.h"
 #include <iostream>
+#ifdef TARGET_LINUX
+#include <GLFW/glfw3.h>
+#endif
 
 //#include "RenderWindowApp.h"
 
 //========================================================================
 int main()
 {
+#if defined(TARGET_LINUX) && defined(GLFW_PLATFORM)
+    // OF 0.12.1 uses native X11 APIs. GLFW 3.4 may otherwise select Wayland.
+    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+#endif
     // Graphics tests run in their own copied data tree, without importing a
     // real user profile. Normal launches never write into the installation.
     if (!std::getenv("GUIPPER_PERSISTENCE_TEST") && !std::getenv("GUIPPER_UISHOT")) {
