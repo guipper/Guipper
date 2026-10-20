@@ -486,14 +486,19 @@
   </ProjectExtensions>
   <ItemGroup>
     <ClCompile Include="src\JPbox\jp_box_youtube.cpp" />
+    <ClCompile Include="src\JPbox\jp_box_text.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\JPbox\jp_box_youtube.h" />
+    <ClInclude Include="src\JPbox\jp_box_text.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\JPutils\jp_youtube.cpp" />
+    <ClCompile Include="src\JPutils\jp_text_render.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\JPutils\jp_youtube.h" />
+    <ClInclude Include="src\JPutils\jp_text_render.h" />
+    <ClInclude Include="src\JPutils\jp_text_layout.h" />
   </ItemGroup>
 </Project>

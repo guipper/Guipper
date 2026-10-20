@@ -1,4 +1,5 @@
 #include "JPboxgroup.h"
+#include "jp_box_text.h"
 
 // Undo/redo for the node graph.
 //
@@ -212,6 +213,7 @@ static string editFocusUid(const JPGraphEdit &edit, bool applying)
 	switch (edit.kind)
 	{
 	case JPGraphEdit::SetParameter:
+	case JPGraphEdit::SetCustomState:
 	case JPGraphEdit::SetBoxState:
 	case JPGraphEdit::SetConnection:
 	case JPGraphEdit::ReorderInput:
@@ -1159,6 +1161,11 @@ bool JPboxgroup::applyGraphEdit(JPGraphEdit &edit)
 		writeParamState(findBoxForEdit(*list, edit.boxUid), edit.paramIndex,
 			edit.paramAfter);
 		break;
+    case JPGraphEdit::SetCustomState: {
+        auto *text=dynamic_cast<JPbox_text *>(findBoxForEdit(*list,edit.boxUid));
+        if(!text)return false;
+        text->restore(edit.customAfter);break;
+    }
 
 	case JPGraphEdit::SetConnection:
 		if (!applyConnectionEdit(*list, edit, edit.producerAfter)) return false;
@@ -1256,6 +1263,11 @@ bool JPboxgroup::revertGraphEdit(JPGraphEdit &edit)
 		writeParamState(findBoxForEdit(*list, edit.boxUid), edit.paramIndex,
 			edit.paramBefore);
 		break;
+    case JPGraphEdit::SetCustomState: {
+        auto *text=dynamic_cast<JPbox_text *>(findBoxForEdit(*list,edit.boxUid));
+        if(!text)return false;
+        text->restore(edit.customBefore);break;
+    }
 
 	case JPGraphEdit::SetConnection:
 		if (!applyConnectionEdit(*list, edit, edit.producerBefore)) return false;

@@ -9,6 +9,9 @@
 #include "../JPbox/jp_box_cam.h"
 #include "../JPbox/jp_box_screen.h"
 #include "../JPbox/jp_box_youtube.h"
+#include "../JPbox/jp_box_text.h"
+#include "jp_font.h"
+#include "jp_text_input.h"
 #include "jp_app_paths.h"
 #include "../JPbox/jp_box_video.h"
 #include "../JPbox/jp_media.h"
@@ -2076,6 +2079,43 @@ namespace
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if (testMode && string(testMode) == "text") {
+        jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true));
+        bool passed=true;auto check=[&](bool ok,const char *label){if(!ok)ofLogError("text-test")<<label;passed=passed&&ok;};
+        app.boxes.clear();app.boxes.addBox("textSource");
+        auto *text=dynamic_cast<JPbox_text*>(app.boxes.boxes.at(0));check(text!=nullptr,"factory");if(!text)return false;
+        text->setDraft("Canción, niño & <texto>\nSegunda linea");text->live=false;text->setDraft("Siguiente frase");
+        text->parameters.setFloatValue(120,0);const auto state=text->snapshot();
+        check(text->published!=text->draft,"manual mode preserves output");
+        const string file=ofToDataPath("text-test.xml",true);check(app.boxes.save(file),"save composition");
+        app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.copySelectedBoxes();app.boxes.pasteBoxes();
+        check(app.boxes.boxes.size()==2,"duplicate");
+        if(app.boxes.boxes.size()==2){auto *copy=dynamic_cast<JPbox_text*>(app.boxes.boxes[1]);check(copy&&copy->snapshot()==state&&copy->uid!=text->uid,"copy includes draft and published text");}
+        app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.deleteSelectedShader();
+        app.boxes.graphUndoShortcut(false);check(text->snapshot()==state,"delete undo retains content");app.boxes.graphUndoShortcut(true);
+        app.boxes.clear();check(app.boxes.load(file)==JPboxgroup::LoadResult::Success,"load");
+        auto *loaded=dynamic_cast<JPbox_text*>(app.boxes.boxes.at(0));check(loaded&&loaded->snapshot()==state&&loaded->parameters.getFloatValue(0)==120,"round trip UTF-8, draft, style");
+        if(loaded){loaded->setonoff(true);loaded->setRenderThisFrame(true);loaded->update();auto n=loaded->renderCount;loaded->update();check(loaded->renderCount==n,"unchanged output is cached");loaded->applyText();loaded->update();check(loaded->renderCount==n+1,"apply renders once");}
+        if(loaded) {
+            JPGraphEdit edit;edit.kind=JPGraphEdit::SetCustomState;edit.boxUid=loaded->uid;edit.customBefore=loaded->snapshot();
+            loaded->setDraft("Cambio de texto");loaded->applyText();edit.customAfter=loaded->snapshot();
+            check(app.boxes.revertGraphEdit(edit)&&loaded->snapshot()==edit.customBefore,"graph undo text state");
+            check(app.boxes.applyGraphEdit(edit)&&loaded->snapshot()==edit.customAfter,"graph redo text state");
+            check(loaded->importFont((jp::AppPaths::current().bundle/jp_font::bodyFace).string()),"font import");
+            const auto imported=loaded->snapshot();loaded->restore(imported);
+            check(loaded->snapshot()==imported,"imported font survives restore");
+            check(std::filesystem::is_regular_file(jp::AppPaths::current().data/"text-fonts"/loaded->fontFile),"font copied into profile");
+            loaded->layoutEditor(10,10,400);auto &ui=jp_text_input::controller();ui.reset();ui.beginFrame();
+            std::string recordedBefore,recordedAfter;
+            loaded->drawEditor([&](const auto &a,const auto &b){recordedBefore=a;recordedAfter=b;});
+            ui.endFrame();check(ui.press(30,70,OF_MOUSE_BUTTON_LEFT),"text editor receives pointer");ui.release();
+            const auto before=loaded->draft;ui.model.selectAll();ofGetWindowPtr()->setClipboardString("niño\ncanción");ui.key('v',OF_KEY_CONTROL);
+            check(loaded->draft=="niño\ncanción","multiline UTF-8 paste");ui.key('z',OF_KEY_CONTROL);check(loaded->draft==before,"local undo");ui.key('y',OF_KEY_CONTROL);
+            const auto count=app.boxes.boxes.size();app.keyPressed('T');ui.endFrame();check(app.boxes.boxes.size()==count,"Shift+T suppressed while typing");
+            ui.key(OF_KEY_RETURN,OF_KEY_CONTROL);check(!recordedAfter.empty()&&recordedBefore!=recordedAfter,"completed editing records graph history");ui.reset();
+        }
+        app.boxes.clear();ofLogNotice("text-test")<<(passed?"PASS":"FAIL");return passed;
+    }
     if (testMode && string(testMode) == "youtube") {
         jp::AppPaths::current() = jp::AppPaths::discover(ofToDataPath("", true));
         bool passed = true;

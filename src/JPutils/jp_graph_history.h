@@ -123,6 +123,7 @@ struct JPGraphEdit
 		SetActiveRender,
 		DeleteBoxes,
 		GroupBoxes,
+        SetCustomState,
 	};
 
 	int kind = MoveBoxes;
@@ -166,6 +167,7 @@ struct JPGraphEdit
 
 	// --- SetParameter / SetConnection / ReorderInput / SetBoxState -------
 	std::string boxUid;
+    std::string customBefore, customAfter;
 
 	int paramIndex = -1;
 	JPGraphParamState paramBefore;

@@ -171,6 +171,50 @@ animated cached playback and a shader connection. Add `--stream --url URL` to
 verify real network streaming followed by optional cache download. Windows and macOS build/runtime
 validation remains pending on their respective machines.
 
+## Text box
+
+Press **Shift+T** on the node canvas to create **TEXTO**. Its transparent output
+connects to shaders, TO OUTPUT and the FINAL stack like other sources.
+
+The inspector provides a multiline UTF-8 editor with selection, clipboard,
+local undo/redo and automatic visual wrapping. Enter adds a line; Ctrl/Cmd+Enter
+finishes editing; Escape restores the text from the start of that edit. Node
+shortcuts are suppressed while a field is focused. Text is limited to 8 KiB.
+
+**En vivo** publishes typing immediately. **Preparar texto** keeps a separate
+draft; **Aplicar cambios** publishes it, and **Descartar borrador** restores the
+current output. This mode applies to the text content; typography controls
+continue to update the output immediately. Both versions and the chosen mode
+survive save/load and duplication. Completed text edits, Apply, font and
+alignment changes participate in graph undo/redo outside the editor.
+
+Choose/search a font or **Importar fuente** (.ttf/.otf, up to 32 MB). Imports
+are copied to the user profile's `data/text-fonts/`; the original can then move.
+These fonts are not embedded in compositions: copy that directory to another
+computer or import the font there. A missing imported font uses a fallback
+and displays a warning. Existing compositions and backups are not migrated.
+
+Controls cover font size/weight, italic, block width, position, horizontal alignment, vertical
+anchor (relative to the position), line and letter spacing, padding, RGB/opacity,
+outline, shadow and optional background. A clipping warning appears when text
+exceeds the canvas. Output is rerendered only when its content, style or render
+resolution changes, on the render thread.
+
+Linux uses Pango/Cairo and Fontconfig for shaping, wrapping and system font
+fallback (development packages: `libpango1.0-dev`, `libcairo2-dev`,
+`libfontconfig1-dev`; already supplied by typical openFrameworks GTK setups).
+The Windows/macOS fallback uses openFrameworks FreeType with imported fonts and
+Latin/Greek/Cyrillic ranges; complex script shaping, synthetic weight/italic, system fallback and soft
+shadows currently require the Linux renderer. Windows/macOS build and runtime
+validation remain pending. Emoji color fonts are not a guaranteed output format.
+
+Validation: `make -C tests text_render_tests && ./tests/text_render_tests` tests
+CPU layout, transparency, styles and resize on Linux.
+`python3 tests/text_graphics_test.py` tests the compiled app using a temporary
+profile and data copy, including persistence, duplication, deletion/undo/redo,
+draft isolation and a shader connection. `tests/run_text_input.py` covers the
+shared keyboard/clipboard routing. Animation and phrase sequences are future work.
+
 ## Installation
 This checkout targets openFrameworks **0.12.1**, C++17 and OpenGL 3.2.
 Place it at `apps/myApps/Guipper` inside an openFrameworks installation:

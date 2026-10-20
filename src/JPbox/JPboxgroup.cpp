@@ -6,6 +6,7 @@
 #include "jp_box_factory.h"
 #include "jp_box_screen.h"
 #include "jp_box_youtube.h"
+#include "jp_box_text.h"
 #include "../JPutils/jp_textwrap.h"
 #include "../JPutils/jp_parameter_xml.h"
 #include "../JPutils/jp_pointer.h"
@@ -401,6 +402,7 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	nombre = nombre.substr(0, nombre.find(".xml"));
 	*/
 	if (directory == "screenCapture") return "PANTALLA";
+	if (directory == "textSource") return "TEXTO";
 	if (directory == "youtubeVideo") return "YOUTUBE";
 	if (directory.find("camdepth") != std::string::npos)
 	{
@@ -3385,6 +3387,14 @@ void JPboxgroup::draw_paramswindow()
 		if (suppressBodyPointer)
 			JPdragobject::setMouseOverride(ofVec2f(-10000.0f, -10000.0f));
 
+        if (auto *text = dynamic_cast<JPbox_text *>(inspectorBox)) {
+            text->drawEditor([this,text](const string &before,const string &after){
+                if(before==after)return;
+                JPGraphEdit edit;edit.kind=JPGraphEdit::SetCustomState;edit.boxUid=text->uid;
+                edit.customBefore=before;edit.customAfter=after;pushEdit(std::move(edit));
+                markCueDraftDirty(cueSelectedIndex());
+            });
+        }
         if (auto *youtube = dynamic_cast<JPbox_youtube *>(inspectorBox)) {
             auto &font = jp_constants::inspector_media_font;
             ofSetColor(COL_TEXT_SECONDARY);
@@ -4761,6 +4771,10 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 	}
 
 	JPbox *inputInspectorBox = getInspectorBox();
+    if(mouseButton==OF_MOUSE_BUTTON_LEFT && inspectorBodyContains(ofGetMouseX(),ofGetMouseY()))
+        if(auto *text=dynamic_cast<JPbox_text *>(inputInspectorBox))
+            if(text->clickEditor(ofGetMouseX(),ofGetMouseY())){setControllers();return;}
+
 	// Left OR right: the media card's loop chip cycles, so it takes a right
 	// click to step back. handleMediaInspectorClick itself decides what a right
 	// click may touch and returns false for everything else.
@@ -6052,6 +6066,11 @@ void JPboxgroup::setControllers(){
 	};
 	float layoutCursor = inspectorBodyViewport.y +
 		inspectorLayout.contentPadding - inspectorScrollY;
+    if(auto *text=dynamic_cast<JPbox_text *>(inspectorBox)) {
+        text->layoutEditor(inspectorBodyViewport.x+inspectorLayout.contentPadding,layoutCursor,
+            inspectorBodyViewport.width-2*inspectorLayout.contentPadding);
+        layoutCursor+=text->editorHeight()+12;
+    }
     youtubeUrlField.set(0,0,0,0); youtubeStreamButton.set(0,0,0,0); youtubeCacheButton.set(0,0,0,0); youtubeStatusRect.set(0,0,0,0);
     if (dynamic_cast<JPbox_youtube *>(inspectorBox)) {
         const float left = inspectorBodyViewport.x + inspectorLayout.contentPadding;

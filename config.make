@@ -185,5 +185,6 @@ PROJECT_AFTER = if [ "`uname -s`" = "Darwin" ]; then cp -r bin/data "bin/$(APPNA
 
 # Linux system-output capture uses the PulseAudio protocol (also PipeWire-Pulse).
 ifeq ($(shell uname -s),Linux)
-PROJECT_LDFLAGS += -lpulse
+PROJECT_LDFLAGS += -lpulse $(shell pkg-config --libs pangocairo fontconfig)
+PROJECT_CFLAGS += $(shell pkg-config --cflags pangocairo fontconfig)
 endif

@@ -842,14 +842,19 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\JPbox\jp_box_youtube.cpp"><Filter>src\JPbox</Filter></ClCompile>
+    <ClCompile Include="src\JPbox\jp_box_text.cpp"><Filter>src\JPbox</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\JPbox\jp_box_youtube.h"><Filter>src\JPbox</Filter></ClInclude>
+    <ClInclude Include="src\JPbox\jp_box_text.h"><Filter>src\JPbox</Filter></ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\JPutils\jp_youtube.cpp"><Filter>src\JPutils</Filter></ClCompile>
+    <ClCompile Include="src\JPutils\jp_text_render.cpp"><Filter>src\JPutils</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\JPutils\jp_youtube.h"><Filter>src\JPutils</Filter></ClInclude>
+    <ClInclude Include="src\JPutils\jp_text_render.h"><Filter>src\JPutils</Filter></ClInclude>
+    <ClInclude Include="src\JPutils\jp_text_layout.h"><Filter>src\JPutils</Filter></ClInclude>
   </ItemGroup>
 </Project>

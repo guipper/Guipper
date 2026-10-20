@@ -203,7 +203,8 @@ public:
 		CAMDEPTHBOX,
 		PAINTBOX,
 		SCREENBOX,
-		YOUTUBEBOX
+		YOUTUBEBOX,
+        TEXTBOX
 	};
 
 	int getTipo();

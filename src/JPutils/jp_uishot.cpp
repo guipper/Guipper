@@ -2,6 +2,7 @@
 #include "jp_text_input.h"
 #include "../JPbox/jp_box_screen.h"
 #include "../JPbox/jp_box_youtube.h"
+#include "../JPbox/jp_box_text.h"
 #include "jp_app_paths.h"
 
 #include "../ofApp.h"
@@ -783,7 +784,7 @@ void jp_uishot::setup(ofApp &app)
 	if (tag == nullptr) return;
 	gActive = true;
 	gTag = tag;
-    if(gTag=="youtube") {jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true)); ofSetWindowShape(1440,900); jp_audio::setEnabled(false); ofDirectory::createDirectory(shotDir(),true,true); return;}
+    if(gTag=="youtube" || gTag=="text") {jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true)); ofSetWindowShape(1440,900); jp_audio::setEnabled(false); ofDirectory::createDirectory(shotDir(),true,true); return;}
     if(gTag=="audio_sources") {ofSetWindowShape(1440,900);jp_audio::setEnabled(false);return;}
     if((gTag=="screen_capture" || gTag=="window_capture")) {
         ofDirectory::createDirectory(shotDir(),true,true);
@@ -826,6 +827,14 @@ void jp_uishot::setup(ofApp &app)
 void jp_uishot::update(ofApp &app)
 {
 	if (!gActive || gDone) return;
+    if(gTag=="text") {
+        if(app.boxes.sessionPreparing())return;
+        if(gFrames==0 && gState==0){app.boxes.clear();app.pantallaActiva=ofApp::NODOS;app.keyPressed('T');
+            if(app.boxes.boxes.size()!=1||!dynamic_cast<JPbox_text*>(app.boxes.boxes[0]))std::exit(EXIT_FAILURE);
+            app.boxes.boxes[0]->setPos(240,180);
+        }
+        ++gFrames;return;
+    }
     if (gTag == "youtube") {
         if (app.boxes.sessionPreparing()) return;
         if (gFrames == 0 && gState == 0) {
@@ -968,6 +977,32 @@ void jp_uishot::poisonWindowStateForTest()
 void jp_uishot::draw(ofApp &app)
 {
 	if (!gActive || gDone) return;
+    if(gTag=="text") {
+        if(gFrames<40)return;
+        auto *text=dynamic_cast<JPbox_text*>(app.boxes.boxes.at(0));
+        ofPixels pixels;text->fbo.readToPixels(pixels);uint64_t alpha=0;for(size_t i=3;i<pixels.size();i+=4)alpha+=pixels[i];
+        if(!alpha||alpha==uint64_t(pixels.getWidth())*pixels.getHeight()*255){ofLogError("text-ui")<<"Expected transparent text";std::exit(EXIT_FAILURE);}
+        ofImage shot;shot.grabScreen(0,0,ofGetWidth(),ofGetHeight());shot.save(shotDir()+"text-"+ofToString(gState)+".png");
+        if(gState==0){
+            text->setDraft("MÚSICA EN VIVO\nCanción, niño & emoción");
+            text->live=false;text->setDraft("Esta frase todavía no sale");
+            text->parameters.setFloatValue(2,text->parameters.indexOfName("outline width"));
+            text->parameters.setFloatValue(.7,text->parameters.indexOfName("shadow opacity"));
+            ofSetWindowShape(1280,800);
+        } else {
+            JPbox_shader shader;shader.setup("shaders/imageprocessing/transform.frag","text transform");
+            const int inlet=shader.fbohandlergroup.findIndexByName("textura1");if(inlet<0)std::exit(EXIT_FAILURE);
+            shader.fbohandlergroup.setFboPointer(&text->fbo,&text->name,inlet);shader.setonoff(true);shader.setRenderThisFrame(true);shader.update();
+            ofPixels output;shader.fbo.readToPixels(output);uint64_t rgb=0;for(size_t i=0;i+2<output.size();i+=output.getNumChannels())rgb+=output[i]+output[i+1]+output[i+2];shader.clear();if(!rgb)std::exit(EXIT_FAILURE);
+            if(gState==1){
+                // Open the font chooser for the confirmation capture.
+                const auto bounds=app.boxes.getInspectorBounds();
+                text->clickEditor(bounds.x+40,bounds.y+302);app.boxes.setControllers();++gState;gFrames=0;return;
+            }
+            ofLogNotice("text-ui")<<"PASS: transparent text, draft isolation and shader output";gDone=true;ofExit();
+        }
+        ++gState;gFrames=0;return;
+    }
     if (gTag == "youtube") {
         if (gFrames < 40) return;
         auto *youtube = dynamic_cast<JPbox_youtube *>(app.boxes.boxes.at(0));

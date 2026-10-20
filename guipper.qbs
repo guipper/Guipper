@@ -13,7 +13,7 @@ Project{
 
         Properties {
             condition: qbs.targetOS.contains("linux")
-            cpp.dynamicLibraries: (outer || []).concat(["pulse"])
+            cpp.dynamicLibraries: (outer || []).concat(["pulse", "pangocairo-1.0", "pango-1.0", "cairo", "fontconfig"])
         }
         Group {
             condition: qbs.targetOS.contains("macos")
@@ -32,9 +32,14 @@ Project{
             'src/JPbox/jp_box_cam.cpp',
             'src/JPbox/jp_box_cam.h',
             'src/JPbox/jp_box_youtube.cpp',
+            'src/JPbox/jp_box_text.cpp',
             'src/JPbox/jp_box_youtube.h',
+            'src/JPbox/jp_box_text.h',
             'src/JPutils/jp_youtube.cpp',
+            'src/JPutils/jp_text_render.cpp',
             'src/JPutils/jp_youtube.h',
+            'src/JPutils/jp_text_render.h',
+            'src/JPutils/jp_text_layout.h',
             'src/JPbox/jp_box_screen.cpp',
             'src/JPbox/jp_box_screen.h',
             'src/JPutils/jp_screen_capture.h',

@@ -63,3 +63,5 @@ tests/appimage_backend_tests
 /tests/screen_capture_tests
 
 /tests/youtube_tests
+
+/tests/text_render_tests

@@ -307,6 +307,7 @@ namespace jp_help
 #ifdef SPOUT
 		E("h", "Spout input", "Entrada Spout", Scope::Nodes, "h"),
 #endif
+        E("Shift+T", "Text: multiline editor, typography and transparent output", "Texto: editor multilinea, tipografia y salida transparente", Scope::Nodes, "shift+t"),
 		E("Shift+Y", "YouTube: stream a video link or download an optional local copy", "YouTube: reproduce un enlace por streaming o descarga en cache", Scope::Nodes, "shift+y"),
 		E("Shift+S", "Screen capture: select a monitor in the inspector", "Captura de pantalla: selecciona un monitor en el inspector", Scope::Nodes, "shift+s"),
 		E("Shift+C", "Kinect V2 input", "Entrada Kinect V2", Scope::Nodes, "shift+c"),
