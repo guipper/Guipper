@@ -12,7 +12,7 @@ namespace
     bool rendersCueDraft(int type)
     {
         return type == JPbox::SHADERBOX || type == JPbox::FRAMEDIFFERENCEBOX ||
-            type == JPbox::TEXTBOX || type == JPbox::PAINTBOX || type == JPbox::IMAGEBOX || type == JPbox::CAMBOX;
+            type == JPbox::ANALOGCOLORBOX || type == JPbox::TEXTBOX || type == JPbox::PAINTBOX || type == JPbox::IMAGEBOX || type == JPbox::CAMBOX;
     }
 	void copyFboStraight(ofFbo &source, ofFbo &destination)
 	{

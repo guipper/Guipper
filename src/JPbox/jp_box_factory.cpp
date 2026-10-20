@@ -11,6 +11,7 @@
 #include "jp_box_screen.h"
 #include "jp_box_youtube.h"
 #include "jp_box_text.h"
+#include "jp_box_analogcolor.h"
 #include "jp_box_framedifference.h"
 #include "jp_box_paint.h"
 #ifdef SPOUT
@@ -37,7 +38,8 @@ namespace
 		case Kind::Kinect2: return contains("kinect2");
 		case Kind::PointerCloud: return contains("pointercloud");
 		case Kind::CameraDepth: return contains("camdepth");
-		case Kind::Text: return directory == "textSource";
+		case Kind::AnalogColor: return directory == "analogColor";
+        case Kind::Text: return directory == "textSource";
         case Kind::Youtube: return directory == "youtubeVideo";
 		case Kind::Screen: return directory == "screenCapture";
 		case Kind::Camera: return contains("cam");
@@ -59,11 +61,11 @@ jp_box_factory::Kind jp_box_factory::classify(const std::string &directory,
 {
 	// Shared matching rules; only legacy precedence depends on the entry path.
 	static constexpr Kind interactive[] = {
-		Kind::Text, Kind::Youtube, Kind::Screen, Kind::Shader, Kind::Image, Kind::Video, Kind::Preset, Kind::Kinect2,
+		Kind::AnalogColor, Kind::Text, Kind::Youtube, Kind::Screen, Kind::Shader, Kind::Image, Kind::Video, Kind::Preset, Kind::Kinect2,
 		Kind::PointerCloud, Kind::CameraDepth, Kind::Camera, Kind::Spout,
 		Kind::FrameDifference, Kind::Paint, Kind::Ndi};
 	static constexpr Kind stored[] = {
-		Kind::Text, Kind::Youtube, Kind::Screen, Kind::Shader, Kind::Image, Kind::Video, Kind::Kinect2,
+		Kind::AnalogColor, Kind::Text, Kind::Youtube, Kind::Screen, Kind::Shader, Kind::Image, Kind::Video, Kind::Kinect2,
 		Kind::PointerCloud, Kind::CameraDepth, Kind::Camera, Kind::Ndi,
 		Kind::Spout, Kind::Preset, Kind::FrameDifference, Kind::Paint};
 	const auto &order = context == Context::Stored ? stored : interactive;
@@ -84,7 +86,8 @@ JPbox *jp_box_factory::create(const std::string &directory, Context context)
 	case Kind::PointerCloud: return new JPbox_pointercloud();
 	case Kind::CameraDepth: return new JPbox_camdepth();
 	case Kind::Camera: return new JPbox_cam();
-	case Kind::Text: return new JPbox_text();
+	case Kind::AnalogColor: return new JPbox_analogcolor();
+    case Kind::Text: return new JPbox_text();
     case Kind::Youtube: return new JPbox_youtube();
 	case Kind::Screen: return new JPbox_screen();
 #ifdef SPOUT

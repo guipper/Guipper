@@ -396,3 +396,19 @@ Escribime al mail : julian.d.puppo@gmail.com
 
 El [backlog actualizado](mds/FEATURE_BACKLOG.md) distingue lo implementado
 de las mejoras propuestas.
+
+## ANALOG COLOR (Shift+R)
+
+Connect an image, camera, screen or video to `imagen`. The embedded GPU effect
+reduces it to 2–16 colors from Analogica, Sepia or Grises palettes. `colors` rounds
+to a whole palette size; a particular image may use fewer colors. `dither` controls
+ordered 4×4 dithering, `grain` adds animated noise before quantization, and `bleed`
+softens horizontal color transitions. Contrast and saturation are applied before
+palette selection. `mix=0` preserves the original; `mix=1` limits RGB to the palette.
+Intermediate mix values intentionally contain additional colors. Source alpha is
+preserved. This is a stylized analog look, not a calibrated hardware emulation.
+
+Settings and the inlet persist through save/load, duplication and undo. No input
+produces a transparent output. The shader is embedded and requires no new runtime
+dependencies. `python3 tests/analogcolor_graphics_test.py` verifies GPU palette
+counts, alpha, bypass orientation, dithering, persistence and the inspector.

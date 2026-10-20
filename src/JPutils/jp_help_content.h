@@ -307,6 +307,7 @@ namespace jp_help
 #ifdef SPOUT
 		E("h", "Spout input", "Entrada Spout", Scope::Nodes, "h"),
 #endif
+        E("Shift+R", "Analog color reduction: palettes, dithering, grain and bleed", "Reduccion analogica de color: paletas, tramado, grano y sangrado", Scope::Nodes, "shift+r"),
         E("Shift+T", "Text: multiline editor, typography and transparent output", "Texto: editor multilinea, tipografia y salida transparente", Scope::Nodes, "shift+t"),
 		E("Shift+Y", "YouTube: stream a video link or download an optional local copy", "YouTube: reproduce un enlace por streaming o descarga en cache", Scope::Nodes, "shift+y"),
 		E("Shift+S", "Screen capture: select a monitor in the inspector", "Captura de pantalla: selecciona un monitor en el inspector", Scope::Nodes, "shift+s"),

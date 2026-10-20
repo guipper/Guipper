@@ -7,6 +7,7 @@
 #include "jp_box_screen.h"
 #include "jp_box_youtube.h"
 #include "jp_box_text.h"
+#include "jp_box_analogcolor.h"
 #include "../JPutils/jp_textwrap.h"
 #include "../JPutils/jp_parameter_xml.h"
 #include "../JPutils/jp_pointer.h"
@@ -402,6 +403,7 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	nombre = nombre.substr(0, nombre.find(".xml"));
 	*/
 	if (directory == "screenCapture") return "PANTALLA";
+	if (directory == "analogColor") return "ANALOG COLOR";
 	if (directory == "textSource") return "TEXTO";
 	if (directory == "youtubeVideo") return "YOUTUBE";
 	if (directory.find("camdepth") != std::string::npos)
@@ -3387,6 +3389,7 @@ void JPboxgroup::draw_paramswindow()
 		if (suppressBodyPointer)
 			JPdragobject::setMouseOverride(ofVec2f(-10000.0f, -10000.0f));
 
+        if (auto *analog=dynamic_cast<JPbox_analogcolor *>(inspectorBox)) analog->drawInspector();
         if (auto *text = dynamic_cast<JPbox_text *>(inspectorBox)) {
             text->drawEditor([this,text](const string &before,const string &after){
                 if(before==after)return;
@@ -4772,6 +4775,10 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 
 	JPbox *inputInspectorBox = getInspectorBox();
     if(mouseButton==OF_MOUSE_BUTTON_LEFT && inspectorBodyContains(ofGetMouseX(),ofGetMouseY()))
+        if(auto *analog=dynamic_cast<JPbox_analogcolor *>(inputInspectorBox))
+            if(analog->clickInspector(ofGetMouseX(),ofGetMouseY())){markCueDraftDirty(cueSelectedIndex());setControllers();return;}
+
+    if(mouseButton==OF_MOUSE_BUTTON_LEFT && inspectorBodyContains(ofGetMouseX(),ofGetMouseY()))
         if(auto *text=dynamic_cast<JPbox_text *>(inputInspectorBox))
             if(text->clickEditor(ofGetMouseX(),ofGetMouseY())){setControllers();return;}
 
@@ -6066,6 +6073,11 @@ void JPboxgroup::setControllers(){
 	};
 	float layoutCursor = inspectorBodyViewport.y +
 		inspectorLayout.contentPadding - inspectorScrollY;
+    if(auto *analog=dynamic_cast<JPbox_analogcolor *>(inspectorBox)) {
+        analog->layoutInspector(inspectorBodyViewport.x+inspectorLayout.contentPadding,layoutCursor,
+            inspectorBodyViewport.width-2*inspectorLayout.contentPadding);
+        layoutCursor+=analog->inspectorHeight();
+    }
     if(auto *text=dynamic_cast<JPbox_text *>(inspectorBox)) {
         text->layoutEditor(inspectorBodyViewport.x+inspectorLayout.contentPadding,layoutCursor,
             inspectorBodyViewport.width-2*inspectorLayout.contentPadding);
@@ -6121,6 +6133,7 @@ void JPboxgroup::setControllers(){
 	*/
 	auto *mediaBox = dynamic_cast<JPMediaInspectable *>(inspectorBox);
 	auto isMediaOwnedParameter = [&](const string &parameterName) {
+        if(dynamic_cast<JPbox_analogcolor *>(inspectorBox)&&parameterName=="palette")return true;
 		if(dynamic_cast<JPbox_screen *>(inspectorBox) && parameterName=="capture window")return true;
 		return mediaBox != nullptr &&
 			(parameterName == "strech" || parameterName == "speed" ||

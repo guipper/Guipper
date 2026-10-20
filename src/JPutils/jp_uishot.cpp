@@ -3,6 +3,8 @@
 #include "../JPbox/jp_box_screen.h"
 #include "../JPbox/jp_box_youtube.h"
 #include "../JPbox/jp_box_text.h"
+#include "jp_image_fixture.h"
+#include "../JPbox/jp_box_analogcolor.h"
 #include "jp_app_paths.h"
 
 #include "../ofApp.h"
@@ -784,7 +786,7 @@ void jp_uishot::setup(ofApp &app)
 	if (tag == nullptr) return;
 	gActive = true;
 	gTag = tag;
-    if(gTag=="youtube" || gTag=="text") {jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true)); ofSetWindowShape(1440,900); jp_audio::setEnabled(false); ofDirectory::createDirectory(shotDir(),true,true); return;}
+    if(gTag=="analogcolor" || gTag=="youtube" || gTag=="text") {jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true)); ofSetWindowShape(1440,900); jp_audio::setEnabled(false); ofDirectory::createDirectory(shotDir(),true,true); return;}
     if(gTag=="audio_sources") {ofSetWindowShape(1440,900);jp_audio::setEnabled(false);return;}
     if((gTag=="screen_capture" || gTag=="window_capture")) {
         ofDirectory::createDirectory(shotDir(),true,true);
@@ -827,6 +829,17 @@ void jp_uishot::setup(ofApp &app)
 void jp_uishot::update(ofApp &app)
 {
 	if (!gActive || gDone) return;
+    if(gTag=="analogcolor") {
+        if(app.boxes.sessionPreparing())return;
+        if(gFrames==0&&gState==0){
+            app.boxes.clear();app.pantallaActiva=ofApp::NODOS;app.boxes.addBox("textSource");app.keyPressed('R');
+            auto *source=app.boxes.boxes[0];auto *effect=dynamic_cast<JPbox_analogcolor*>(app.boxes.boxes[1]);if(!effect)std::exit(EXIT_FAILURE);
+            source->setonoff(false);source->name="IMAGEN";source->setPos(180,220);effect->setPos(450,250);
+            jp_image_fixture::paint(source->fbo);
+            effect->fbohandlergroup.setFboPointer(&source->fbo,&source->name,0);effect->setonoff(true);app.activerender=1;app.boxes.setControllers();
+        }
+        ++gFrames;return;
+    }
     if(gTag=="text") {
         if(app.boxes.sessionPreparing())return;
         if(gFrames==0 && gState==0){app.boxes.clear();app.pantallaActiva=ofApp::NODOS;app.keyPressed('T');
@@ -977,6 +990,12 @@ void jp_uishot::poisonWindowStateForTest()
 void jp_uishot::draw(ofApp &app)
 {
 	if (!gActive || gDone) return;
+    if(gTag=="analogcolor") {
+        if(gFrames<50)return;auto *effect=dynamic_cast<JPbox_analogcolor*>(app.boxes.boxes.at(1));if(!effect||!effect->ready())std::exit(EXIT_FAILURE);
+        ofImage shot;shot.grabScreen(0,0,ofGetWidth(),ofGetHeight());shot.save(shotDir()+"analogcolor-"+ofToString(gState)+".png");
+        if(gState==0){effect->parameters.setFloatValue(1,0);ofSetWindowShape(1280,800);}else {ofLogNotice("analogcolor-ui")<<"PASS";gDone=true;ofExit();}
+        ++gState;gFrames=0;return;
+    }
     if(gTag=="text") {
         if(gFrames<40)return;
         auto *text=dynamic_cast<JPbox_text*>(app.boxes.boxes.at(0));

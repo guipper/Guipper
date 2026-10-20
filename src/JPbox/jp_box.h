@@ -204,7 +204,8 @@ public:
 		PAINTBOX,
 		SCREENBOX,
 		YOUTUBEBOX,
-        TEXTBOX
+        TEXTBOX,
+        ANALOGCOLORBOX = TEXTBOX + 3 // Keep its ID; two retired experimental slots.
 	};
 
 	int getTipo();

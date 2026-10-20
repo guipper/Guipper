@@ -10,6 +10,9 @@
 #include "../JPbox/jp_box_screen.h"
 #include "../JPbox/jp_box_youtube.h"
 #include "../JPbox/jp_box_text.h"
+#include "jp_image_fixture.h"
+#include "../JPbox/jp_box_analogcolor.h"
+#include <set>
 #include "jp_font.h"
 #include "jp_text_input.h"
 #include "jp_app_paths.h"
@@ -2120,6 +2123,37 @@ namespace
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if(testMode && string(testMode)=="analogcolor") {
+        jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true));
+        bool passed=true;auto check=[&](bool ok,const char *label){if(!ok)ofLogError("analogcolor-test")<<label;passed=ok&&passed;};
+        app.boxes.clear();app.boxes.addBox("textSource");app.boxes.addBox("analogColor");
+        auto *source=app.boxes.boxes[0];source->setonoff(false);
+        ofPixels pattern;pattern.allocate(128,96,OF_PIXELS_RGBA);
+        for(int y=0;y<96;++y)for(int x=0;x<128;++x)pattern.setColor(x,y,ofColor(x*2,y*2,(x+y)%256,180));
+        ofTexture texture;texture.loadData(pattern);source->fbo.begin();ofPushStyle();ofSetRectMode(OF_RECTMODE_CORNER);ofDisableBlendMode();ofSetColor(255);texture.draw(0,0,source->fbo.getWidth(),source->fbo.getHeight());ofPopStyle();source->fbo.end();
+        auto *p=dynamic_cast<JPbox_analogcolor*>(app.boxes.boxes[1]);check(p&&p->ready(),"factory and shader");if(!p)return false;
+        p->fbohandlergroup.setFboPointer(&source->fbo,&source->name,0);p->setonoff(true);p->setRenderThisFrame(true);
+        auto set=[&](const char *name,float v){p->parameters.setFloatValue(v,p->parameters.indexOfName(name));};
+        set("mix",0);p->update();ofPixels original,bypass;source->fbo.readToPixels(original);p->fbo.readToPixels(bypass);
+        uint64_t difference=0;for(size_t i=0;i<original.size();++i)difference+=std::abs(int(original[i])-int(bypass[i]));check(difference<original.size(),"mix zero preserves orientation/color/alpha");
+        set("mix",1);set("colors",4);
+        for(int palette=0;palette<3;++palette){set("palette",palette);p->update();ofPixels output;p->fbo.readToPixels(output);std::set<unsigned> colors;bool alpha=true;
+            for(size_t i=0;i+3<output.size();i+=4){colors.insert(unsigned(output[i])<<16|unsigned(output[i+1])<<8|output[i+2]);alpha=alpha&&std::abs(int(output[i+3])-180)<=1;}
+            check(colors.size()<=4&&colors.size()>1,"bounded palette count including grain and dithering");check(alpha,"alpha preserved");}
+        set("grain",0);set("dither",0);p->update();ofPixels clean;p->fbo.readToPixels(clean);set("dither",1);p->update();ofPixels dithered;p->fbo.readToPixels(dithered);check(!std::equal(clean.begin(),clean.end(),dithered.begin()),"dither changes quantization");
+        JPbox_shader downstream;downstream.setup("shaders/imageprocessing/transform.frag","analog output");
+        const int input=downstream.fbohandlergroup.findIndexByName("textura1");check(input>=0,"downstream input");
+        if(input>=0){downstream.fbohandlergroup.setFboPointer(&p->fbo,&p->name,input);downstream.setonoff(true);downstream.setRenderThisFrame(true);downstream.update();ofPixels result;downstream.fbo.readToPixels(result);uint64_t sum=0;for(auto v:result)sum+=v;check(sum>0,"effect feeds downstream shader");}downstream.clear();
+        const auto oldW=jp_constants::renderWidth,oldH=jp_constants::renderHeight;
+        jp_constants::renderWidth=320;jp_constants::renderHeight=180;p->updateFBO();check(p->fbo.getWidth()==320&&p->fbo.getHeight()==180,"resize output");
+        jp_constants::renderWidth=oldW;jp_constants::renderHeight=oldH;p->updateFBO();
+        const string file=ofToDataPath("analogcolor-test.xml",true);check(app.boxes.save(file),"save effect and connection");
+        app.boxes.clearSelection();app.boxes.toggleBoxSelection(1);app.boxes.copySelectedBoxes();app.boxes.pasteBoxes();check(app.boxes.boxes.size()==3,"duplicate");
+        app.boxes.clearSelection();app.boxes.toggleBoxSelection(1);app.boxes.deleteSelectedShader();app.boxes.graphUndoShortcut(false);check(app.boxes.boxes.size()==3,"undo deletion");app.boxes.graphUndoShortcut(true);
+        app.boxes.clear();check(app.boxes.load(file)==JPboxgroup::LoadResult::Success,"reload");
+        check(app.boxes.boxes.size()==2,"restored graph");if(app.boxes.boxes.size()==2){p=dynamic_cast<JPbox_analogcolor*>(app.boxes.boxes[1]);check(p&&p->parameters.getFloatValue(1)==4&&p->fbohandlergroup.getisPointerSet(0),"settings and connection persist");if(p){p->fbohandlergroup.deleteFboPointer(0);p->updateFBO();ofPixels blank;p->fbo.readToPixels(blank);uint64_t total=0;for(auto v:blank)total+=v;check(total==0,"disconnect clears output");}}
+        app.boxes.clear();ofLogNotice("analogcolor-test")<<(passed?"PASS":"FAIL");return passed;
+    }
     if (testMode && string(testMode) == "text") {
         jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true));
         bool passed=true;auto check=[&](bool ok,const char *label){if(!ok)ofLogError("text-test")<<label;passed=passed&&ok;};
