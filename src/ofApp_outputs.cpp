@@ -351,6 +351,21 @@ void ofApp::createLiveOutputWindow(int index)
 		settings.setPosition(ofVec2f(output.config.x, output.config.y));
 	}
 
+	// ofCreateWindow changes both OF's current renderer and the native GL
+	// context. Restore both before loading/updating any more graph resources:
+	// ofFbo retains its allocating renderer, so startup boxes otherwise keep
+	// the output renderer while subsequent draws use the main window's matrices.
+	// In particular, capture textures then render upside down into their FBOs.
+	struct RestoreCallingWindow
+	{
+		std::shared_ptr<ofAppBaseWindow> window = ofGetCurrentWindow();
+		~RestoreCallingWindow()
+		{
+			if (!window) return;
+			ofGetMainLoop()->setCurrentWindow(window);
+			window->makeCurrent();
+		}
+	} restoreCallingWindow;
 	output.window = ofCreateWindow(settings);
 	if (!output.window)
 	{

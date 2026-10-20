@@ -1515,6 +1515,47 @@ namespace
         return passed;
     }
 
+    bool checkStartupCaptureOrientation(ofApp &app) {
+        bool passed=true;
+        auto check=[&](bool ok,const string &why) {
+            if(!ok) ofLogError("startup-orientation") << why;
+            passed=ok && passed;
+        };
+        const auto owner=ofGetCurrentWindow();
+        const auto renderer=ofGetCurrentRenderer();
+        // Reproduce loadSettings opening outputs BEFORE the saved graph is built.
+        for(int pass=0;pass<2;++pass) {
+            ofApp::LiveOutputRuntime output;
+            output.config.enabled=true; output.config.virtualMonitor=true;
+            output.config.width=160; output.config.height=120;
+            app.liveOutputs.push_back(output);
+            const int index=int(app.liveOutputs.size())-1;
+            app.createLiveOutputWindow(index);
+            check(bool(app.liveOutputs[index].window),"output window created");
+            check(ofGetCurrentWindow()==owner && ofGetCurrentRenderer()==renderer,
+                "opening output restores the calling window and renderer");
+            // Camera and Kinect both upload top-down pixels then draw into a
+            // box FBO. Allocate here, exactly where the startup graph does.
+            ofFbo capture; capture.allocate(80,48,GL_RGBA);
+            ofPixels pattern; pattern.allocate(80,48,OF_PIXELS_RGBA);
+            for(int y=0;y<48;++y) for(int x=0;x<80;++x)
+                pattern.setColor(x,y,y<24?ofColor::red:ofColor::blue);
+            ofTexture texture; texture.loadData(pattern);
+            // The main loop selects the main window on the first update.
+            ofGetMainLoop()->setCurrentWindow(owner); owner->makeCurrent();
+            capture.begin(); ofPushStyle(); ofSetRectMode(OF_RECTMODE_CORNER);
+            ofSetColor(255); ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+            ofClear(0,0,0,0); texture.draw(0,0); ofPopStyle(); capture.end();
+            ofPixels pixels; capture.readToPixels(pixels);
+            const auto top=pixels.getColor(40,12), bottom=pixels.getColor(40,36);
+            check(top.r>200 && top.b<20 && bottom.b>200 && bottom.r<20,
+                "first captured frame keeps top and bottom after output creation");
+            app.closeLiveOutputWindow(index,true);
+        }
+        ofLogNotice("startup-orientation") << (passed?"PASS":"FAIL");
+        return passed;
+    }
+
     bool checkTransitionOrientation(ofApp &app) {
         bool passed = true;
         auto check = [&](bool ok, const string &why) {
@@ -2329,6 +2370,7 @@ bool jp_persistence_test::run(ofApp &app)
 
     if (testMode && string(testMode) == "legacy_composition") return checkLegacyComposition(app);
     if (testMode && string(testMode) == "xml_drop") return checkXmlDrop(app);
+    if (testMode && string(testMode) == "startup_orientation") return checkStartupCaptureOrientation(app);
     if (testMode && string(testMode) == "transition_orientation") return checkTransitionOrientation(app);
     if (testMode && string(testMode) == "transition_catalog") return checkTransitionCatalog(app);
     if (testMode && string(testMode) == "session_fade") return checkSessionFade(app);
