@@ -80,6 +80,13 @@ the output to a shader or mark it **TO OUTPUT**, just like a camera box.
 Cancelling keeps the previous selection. While a system picker is pending,
 **Cancelar seleccion** closes it so you can retry without losing the old feed.
 Linux sessions use separate portal connections and attach the picker to Guipper.
+Closed sessions and portal restarts release the pending selector immediately.
+Non-interactive portal replies time out after 15 seconds; an unanswered picker
+closes after two minutes and allows another attempt. You can cancel sooner with
+**Cancelar seleccion**. Cancellation sends Close to the actual request handle
+before disconnecting, including portals that return a different handle.
+If the system portal itself cannot display its dialog, Guipper reports the
+failure and permits retries; it does not restart the desktop's sharing service.
 If a resolution change is followed by two seconds without frames, capture makes
 one reconnect attempt to the same authorized stream. It does not reopen the
 selector or switch sources. Ordinary static windows do not trigger retries.
@@ -109,6 +116,10 @@ Platform requirements:
   CoreVideo. Grant the screen-sharing permission requested by the system.
 
 Tests: `make -C tests run` includes the platform-independent capture state tests.
+On Linux, `make -C tests screen_portal_tests && ./tests/screen_portal_tests` runs
+the real backend against a private mock D-Bus portal: repeated selection,
+non-predicted handles, cancellation, session closure, service restart, timeout,
+and retry. It does not open dialogs or change the desktop portal.
 The `GUIPPER_PERSISTENCE_TEST=screen_capture` graphics test must run from a copy
 of `bin/data`; it tests rendering, serialization, duplicate and delete/undo/redo
 without opening the system picker, including mode changes, stale frames and mode

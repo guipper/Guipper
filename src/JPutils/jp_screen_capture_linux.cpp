@@ -28,17 +28,29 @@ class LinuxCapture final : public Backend {
     int fd = -1;
     guint node=0;
     std::atomic<uint64_t> sourceSize{0};
-    guint closedSubscription = 0;
+    guint closedSubscription = 0, ownerSubscription = 0;
+    bool portalGone = false;
     bool sessionClosed = false;
     bool windowMode = false;
     std::string parentWindow;
-    struct Response { bool done = false; guint code = 2; GVariant *data = nullptr; ~Response(){ if(data) g_variant_unref(data); } };
+    struct Response { std::string path; bool done = false; guint code = 2; GVariant *data = nullptr; ~Response(){ if(data) g_variant_unref(data); } };
     std::string token() { return "guipper_" + std::to_string(getpid()) + "_" + std::to_string(++sequence); }
-    void iterate() { while(g_main_context_pending(context)) g_main_context_iteration(context, false); }
+    void iterate() {
+        // A busy portal must not starve cancellation or timeout checks.
+        for(int i=0;i<64 && g_main_context_pending(context);++i) g_main_context_iteration(context, false);
+    }
+    bool portalClosed() const { return portalGone || g_dbus_connection_is_closed(bus); }
+    void closeRequest(const std::string &path) {
+        // Do not use the cancelled GCancellable: Close must reach the portal
+        // before we drop the connection and allow another selector to open.
+        auto result=g_dbus_connection_call_sync(bus,service,path.c_str(),"org.freedesktop.portal.Request","Close",
+            nullptr,nullptr,G_DBUS_CALL_FLAGS_NO_AUTO_START,1000,nullptr,nullptr);
+        if(result)g_variant_unref(result);
+    }
     GVariant *call(const char *path, const char *interface, const char *method, GVariant *args) {
         GError *error = nullptr;
         auto result = g_dbus_connection_call_sync(bus, service, path, interface, method, args,
-            nullptr, G_DBUS_CALL_FLAGS_NONE, 120000, cancel, &error);
+            nullptr, G_DBUS_CALL_FLAGS_NONE, 15000, cancel, &error);
         if (!result) { std::string message = error ? error->message : "Portal no disponible"; if(error) g_error_free(error); throw std::runtime_error(std::string(method)+": "+message); }
         return result;
     }
@@ -47,33 +59,50 @@ class LinuxCapture final : public Backend {
         g_variant_builder_add(&options,"{sv}","handle_token",g_variant_new_string(t.c_str()));
         std::string sender = g_dbus_connection_get_unique_name(bus); sender.erase(0,1);
         for(char &c:sender) if(c=='.') c='_';
-        const auto path = "/org/freedesktop/portal/desktop/request/" + sender + "/" + t;
         Response response;
-        guint subscription = g_dbus_connection_signal_subscribe(bus,service,"org.freedesktop.portal.Request","Response",path.c_str(),nullptr,G_DBUS_SIGNAL_FLAGS_NONE,
-            [](GDBusConnection*,const gchar*,const gchar*,const gchar*,const gchar*,GVariant *args,gpointer data){
-                auto &r=*static_cast<Response*>(data); g_variant_get(args,"(u@a{sv})",&r.code,&r.data); r.done=true;
+        response.path = "/org/freedesktop/portal/desktop/request/" + sender + "/" + t;
+        // Subscribe before the call, including legacy handles. The worker's
+        // context dispatches queued signals only after the returned path is set.
+        guint subscription = g_dbus_connection_signal_subscribe(bus,service,"org.freedesktop.portal.Request","Response",nullptr,nullptr,G_DBUS_SIGNAL_FLAGS_NONE,
+            [](GDBusConnection*,const gchar*,const gchar *path,const gchar*,const gchar*,GVariant *args,gpointer data){
+                auto &r=*static_cast<Response*>(data);
+                if(r.done || r.path!=path)return;
+                g_variant_get(args,"(u@a{sv})",&r.code,&r.data); r.done=true;
             },&response,nullptr);
         try {
             GVariant *args = withParent ? g_variant_new("(os@a{sv})",session.c_str(),parentWindow.c_str(),g_variant_builder_end(&options)) :
                 withSession ? g_variant_new("(o@a{sv})",session.c_str(),g_variant_builder_end(&options)) :
                 g_variant_new("(@a{sv})",g_variant_builder_end(&options));
-            auto result=call(desktop,screen,method,args); g_variant_unref(result);
-            auto deadline=std::chrono::steady_clock::now()+std::chrono::minutes(5);
-            while(!response.done && !stopping && std::chrono::steady_clock::now()<deadline){ iterate(); std::this_thread::sleep_for(std::chrono::milliseconds(10)); }
-            if(!response.done || response.code != 0) {
-                // Close outstanding selectors before releasing their callback data.
-                g_dbus_connection_call(bus,service,path.c_str(),"org.freedesktop.portal.Request","Close",nullptr,nullptr,G_DBUS_CALL_FLAGS_NONE,1000,nullptr,nullptr,nullptr);
-                if(response.code==1 || stopping) mailbox->state(State::Cancelled);
-                else mailbox->state(State::Error,"No se pudo compartir la pantalla. Volve a seleccionarla.");
+            auto result=call(desktop,screen,method,args);
+            if(!g_variant_is_of_type(result,G_VARIANT_TYPE("(o)"))){g_variant_unref(result);throw std::runtime_error("Respuesta de portal invalida");}
+            const char *actual=nullptr;g_variant_get(result,"(&o)",&actual);response.path=actual;g_variant_unref(result);
+            const auto timeout=withParent ? std::chrono::seconds(120) : std::chrono::seconds(15);
+            const auto deadline=std::chrono::steady_clock::now()+timeout;
+            while(!response.done && !stopping && !sessionClosed && !portalClosed() && std::chrono::steady_clock::now()<deadline){
+                iterate();
+                if(!response.done)std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            if(stopping || !response.done || response.code!=0 || sessionClosed || portalClosed()) {
+                closeRequest(response.path);
+                if(stopping || (response.done && response.code==1))mailbox->state(State::Cancelled);
+                else {
+                    const std::string detail=(sessionClosed || portalClosed()) ?
+                        "El selector se cerro o el servicio se reinicio. Volve a seleccionar la fuente." :
+                        !response.done ? "El selector no respondio. Volve a seleccionar la fuente." :
+                        "No se pudo compartir la fuente. Volve a seleccionarla.";
+                    g_warning("Guipper capture %s: %s",method,detail.c_str());
+                    mailbox->state(State::Error,detail);
+                }
                 g_dbus_connection_signal_unsubscribe(bus,subscription); return nullptr;
             }
             g_dbus_connection_signal_unsubscribe(bus,subscription);
             auto data=response.data; response.data=nullptr; return data;
         } catch(...) {
-            g_dbus_connection_call(bus,service,path.c_str(),"org.freedesktop.portal.Request","Close",nullptr,nullptr,G_DBUS_CALL_FLAGS_NONE,1000,nullptr,nullptr,nullptr);
+            closeRequest(response.path);
             g_dbus_connection_signal_unsubscribe(bus,subscription); throw;
         }
     }
+
     bool setup() {
         GVariantBuilder options;
         g_variant_builder_init(&options,G_VARIANT_TYPE_VARDICT);
@@ -108,7 +137,7 @@ class LinuxCapture final : public Backend {
     bool openStream() {
         GUnixFDList *fds=nullptr; GError *error=nullptr;
         auto result=g_dbus_connection_call_with_unix_fd_list_sync(bus,service,desktop,screen,"OpenPipeWireRemote",
-            g_variant_new("(oa{sv})",session.c_str(),nullptr),G_VARIANT_TYPE("(h)"),G_DBUS_CALL_FLAGS_NONE,120000,nullptr,&fds,cancel,&error);
+            g_variant_new("(oa{sv})",session.c_str(),nullptr),G_VARIANT_TYPE("(h)"),G_DBUS_CALL_FLAGS_NONE,15000,nullptr,&fds,cancel,&error);
         if(!result) { std::string message=error?std::string("OpenPipeWireRemote: ")+error->message:"PipeWire no disponible";if(error)g_error_free(error);throw std::runtime_error(message); }
         gint index;g_variant_get(result,"(h)",&index);g_variant_unref(result);
         fd=g_unix_fd_list_get(fds,index,&error);g_object_unref(fds);
@@ -154,6 +183,12 @@ class LinuxCapture final : public Backend {
             }
             if(!bus){std::string m=error?error->message:"Portal no disponible";if(error)g_error_free(error);throw std::runtime_error(m);}
             g_dbus_connection_set_exit_on_close(bus,false);
+            ownerSubscription=g_dbus_connection_signal_subscribe(bus,"org.freedesktop.DBus","org.freedesktop.DBus","NameOwnerChanged",
+                "/org/freedesktop/DBus",service,G_DBUS_SIGNAL_FLAGS_NONE,
+                [](GDBusConnection*,const gchar*,const gchar*,const gchar*,const gchar*,GVariant *args,gpointer data){
+                    const char *name,*oldOwner,*newOwner;g_variant_get(args,"(&s&s&s)",&name,&oldOwner,&newOwner);
+                    if(*oldOwner && std::string(oldOwner)!=newOwner)static_cast<LinuxCapture*>(data)->portalGone=true;
+                },this,nullptr);
             if(setup()) {
                 auto sink=GST_APP_SINK(gst_bin_get_by_name(GST_BIN(pipeline),"frames"));
                 auto gstbus=gst_element_get_bus(pipeline);
@@ -161,8 +196,9 @@ class LinuxCapture final : public Backend {
                 auto started=std::chrono::steady_clock::now();
                 ResizeRecovery recovery;
                 auto millis=[] {return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();};
-                while(!stopping && !sessionClosed) {
+                while(!stopping && !sessionClosed && !portalClosed()) {
                     iterate();
+                    if(stopping || sessionClosed || portalClosed())break;
                     const auto size=sourceSize.load();
                     recovery.size(int(size>>32),int(uint32_t(size)),millis());
                     if(recovery.reconnect(millis()) && !stopping && !sessionClosed) {
@@ -207,15 +243,19 @@ class LinuxCapture final : public Backend {
                         gst_message_unref(msg);mailbox->state(State::Error,detail);break;
                     }
                 }
-                if(sessionClosed)mailbox->state(State::Error,"Se dejo de compartir la pantalla. Seleccionala nuevamente.");
+                if(sessionClosed || portalClosed())mailbox->state(State::Error,"Se dejo de compartir la pantalla. Seleccionala nuevamente.");
                 if(gstbus)gst_object_unref(gstbus);
                 if(sink)gst_object_unref(sink);
             }
         } catch(const std::exception &e) { if(!stopping)mailbox->state(State::Error,e.what()); }
         closeStream();
         if(bus){
+            if(ownerSubscription)g_dbus_connection_signal_unsubscribe(bus,ownerSubscription);
             if(closedSubscription)g_dbus_connection_signal_unsubscribe(bus,closedSubscription);
-            if(!session.empty())g_dbus_connection_call_sync(bus,service,session.c_str(),"org.freedesktop.portal.Session","Close",nullptr,nullptr,G_DBUS_CALL_FLAGS_NONE,1000,nullptr,nullptr);
+            if(!session.empty()) {
+                auto result=g_dbus_connection_call_sync(bus,service,session.c_str(),"org.freedesktop.portal.Session","Close",nullptr,nullptr,G_DBUS_CALL_FLAGS_NO_AUTO_START,1000,nullptr,nullptr);
+                if(result)g_variant_unref(result);
+            }
             g_dbus_connection_close_sync(bus,nullptr,nullptr);
             g_object_unref(bus);
         }

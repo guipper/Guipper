@@ -116,7 +116,7 @@ tsan:
 	setarch $$(uname -m) -R ./$(AUDIO_TARGET)_tsan
 
 clean:
-	rm -f $(TARGETS) $(AUDIO_TARGET)_tsan
+	rm -f $(TARGETS) screen_portal_tests $(AUDIO_TARGET)_tsan
 
 text_edit_tests: text_edit_tests.cpp ../src/JPutils/jp_text_edit.h ../src/JPbox/jp_media_time.h
 	$(CXX) $(CXXFLAGS) text_edit_tests.cpp -o $@
@@ -129,3 +129,7 @@ youtube_tests: youtube_tests.cpp ../src/JPutils/jp_youtube.cpp ../src/JPutils/jp
 
 text_render_tests: text_render_tests.cpp ../src/JPutils/jp_text_render.cpp ../src/JPutils/jp_text_render.h ../src/JPutils/jp_text_layout.h
 	$(CXX) $(CXXFLAGS) $(shell pkg-config --cflags pangocairo fontconfig) text_render_tests.cpp ../src/JPutils/jp_text_render.cpp $(shell pkg-config --libs pangocairo fontconfig) -o $@
+
+# Linux integration test: private D-Bus portal, never the user's desktop portal.
+screen_portal_tests: screen_portal_tests.cpp ../src/JPutils/jp_screen_capture_linux.cpp ../src/JPutils/jp_screen_capture.h ../src/JPutils/jp_capture_resize.h
+	$(CXX) $(CXXFLAGS) -pthread $(shell pkg-config --cflags gio-unix-2.0 gstreamer-app-1.0 gstreamer-video-1.0) screen_portal_tests.cpp ../src/JPutils/jp_screen_capture_linux.cpp $(shell pkg-config --libs gio-unix-2.0 gstreamer-app-1.0 gstreamer-video-1.0) -o $@
