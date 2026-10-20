@@ -202,7 +202,8 @@ public:
 		POINTERCLOUDBOX,
 		CAMDEPTHBOX,
 		PAINTBOX,
-		SCREENBOX
+		SCREENBOX,
+		YOUTUBEBOX
 	};
 
 	int getTipo();

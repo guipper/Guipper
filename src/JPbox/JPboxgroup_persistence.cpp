@@ -1,4 +1,5 @@
 #include "jp_box_screen.h"
+#include "jp_box_youtube.h"
 #include "../JPutils/jp_storage.h"
 #include "JPboxgroup.h"
 #include "../JPutils/jp_parameter_xml.h"
@@ -531,8 +532,14 @@ void JPboxgroup::pollSessionLoad()
     for(auto it=candidate.nodes.rbegin();it!=candidate.nodes.rend();++it) (*it)->update();
     for(auto state:transports)state.first->setonoff(state.second);
     std::function<void(JPbox *)> inspect=[&](JPbox *node) {
-        if(auto *media=dynamic_cast<JPMediaInspectable *>(node)) if(!media->mediaReady()) { ready=false;candidate.error=node->dir; }
-        if(auto *video=dynamic_cast<JPbox_video *>(node)) if(!video->movie.isLoaded() || !video->movie.getTexture().isAllocated()) {ready=false;candidate.error=node->dir;}
+        // An uncached YouTube source is an explicit transparent placeholder;
+        // loading a composition must not wait for an unsolicited download.
+        auto *youtube = dynamic_cast<JPbox_youtube *>(node);
+        const bool placeholder = youtube && !youtube->hasPreparedSource();
+        if(!placeholder) {
+            if(auto *media=dynamic_cast<JPMediaInspectable *>(node)) if(!media->mediaReady()) { ready=false;candidate.error=node->dir; }
+            if(auto *video=dynamic_cast<JPbox_video *>(node)) if(!video->movie.isLoaded() || !video->movie.getTexture().isAllocated()) {ready=false;candidate.error=node->dir;}
+        }
         if(auto *screen=dynamic_cast<JPbox_screen *>(node)) if(screen->captureStatus().state==jp_screen::State::Selecting && !screen->transitionReady()) {ready=false;candidate.error=node->dir;}
         if(auto *camera=dynamic_cast<JPbox_cam *>(node)) if(!camera->transitionReady()) {ready=false;candidate.error=node->dir;}
         if(auto *group=dynamic_cast<JPbox_preset *>(node)) for(auto *child:group->boxes) inspect(child);

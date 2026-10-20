@@ -1,6 +1,8 @@
 #include "jp_uishot.h"
 #include "jp_text_input.h"
 #include "../JPbox/jp_box_screen.h"
+#include "../JPbox/jp_box_youtube.h"
+#include "jp_app_paths.h"
 
 #include "../ofApp.h"
 #include "jp_audio.h"
@@ -781,6 +783,7 @@ void jp_uishot::setup(ofApp &app)
 	if (tag == nullptr) return;
 	gActive = true;
 	gTag = tag;
+    if(gTag=="youtube") {jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true)); ofSetWindowShape(1440,900); jp_audio::setEnabled(false); ofDirectory::createDirectory(shotDir(),true,true); return;}
     if(gTag=="audio_sources") {ofSetWindowShape(1440,900);jp_audio::setEnabled(false);return;}
     if((gTag=="screen_capture" || gTag=="window_capture")) {
         ofDirectory::createDirectory(shotDir(),true,true);
@@ -823,6 +826,14 @@ void jp_uishot::setup(ofApp &app)
 void jp_uishot::update(ofApp &app)
 {
 	if (!gActive || gDone) return;
+    if (gTag == "youtube") {
+        if (app.boxes.sessionPreparing()) return;
+        if (gFrames == 0 && gState == 0) {
+            app.boxes.clear(); app.pantallaActiva = ofApp::NODOS; app.keyPressed('Y');
+            if (app.boxes.boxes.size() != 1 || !dynamic_cast<JPbox_youtube *>(app.boxes.boxes[0])) std::exit(EXIT_FAILURE);
+        }
+        ++gFrames; return;
+    }
     if(gTag=="audio_sources"){app.pantallaActiva=ofApp::AUDIO_DEBUG;++gFrames;return;}
     if((gTag=="screen_capture" || gTag=="window_capture")) {
         if(app.boxes.sessionPreparing())return;
@@ -945,7 +956,7 @@ void jp_uishot::update(ofApp &app)
 
 void jp_uishot::poisonWindowStateForTest()
 {
-	if (gTag=="audio_sources" || (gTag=="screen_capture" || gTag=="window_capture") || gReleaseOnly || !gActive || gDone || !isWindowLayoutState(kStates[gState].arm)) return;
+	if (gTag=="youtube" || gTag=="audio_sources" || (gTag=="screen_capture" || gTag=="window_capture") || gReleaseOnly || !gActive || gDone || !isWindowLayoutState(kStates[gState].arm)) return;
 	// Reproduce the render-sized state that originally escaped an offscreen
 	// pass. This runs after box updates, so the fixture FBO itself stays valid.
 	glViewport(0, 0, jp_constants::renderWidth, jp_constants::renderHeight);
@@ -957,6 +968,58 @@ void jp_uishot::poisonWindowStateForTest()
 void jp_uishot::draw(ofApp &app)
 {
 	if (!gActive || gDone) return;
+    if (gTag == "youtube") {
+        if (gFrames < 40) return;
+        auto *youtube = dynamic_cast<JPbox_youtube *>(app.boxes.boxes.at(0));
+        const bool streamingTest = std::getenv("GUIPPER_YOUTUBE_STREAM") != nullptr;
+        if (gState >= 2 && (!youtube->mediaReady() || (gState == 3 && !youtube->isUsingCache()))) {
+            if (gFrames > 7200) {ofLogError("youtube-ui") << youtube->statusLabel(); std::exit(EXIT_FAILURE);}
+            return;
+        }
+        if (gState >= 2) {
+            static int firstReady = -1, readyState = -1;
+            if (readyState != gState) {readyState = gState; firstReady = gFrames;}
+            if (gFrames - firstReady < 40) return;
+            if (youtube->movie.getPosition() <= 0) {ofLogError("youtube-ui") << "Playback did not advance"; std::exit(EXIT_FAILURE);}
+        }
+        ofImage shot; shot.grabScreen(0,0,ofGetWidth(),ofGetHeight()); shot.save(shotDir()+"youtube-"+ofToString(gState)+".png");
+        if (gState == 0) {youtube->urlText = "https://example.com/not-youtube"; youtube->playStreaming();}
+        else if (gState == 1) {
+            youtube->urlText = std::getenv("GUIPPER_YOUTUBE_TEST_URL") ? std::getenv("GUIPPER_YOUTUBE_TEST_URL") : "https://youtu.be/BaW_jenozKc";
+            if (streamingTest) youtube->playStreaming(); else youtube->downloadToCache();
+            ofSetWindowShape(1280,800);
+        } else {
+            ofPixels pixels; youtube->fbo.readToPixels(pixels);
+            unsigned long long rgb = 0;
+            for (size_t i = 0; i + 2 < pixels.size(); i += pixels.getNumChannels()) rgb += pixels[i] + pixels[i+1] + pixels[i+2];
+            if (!rgb) {ofLogError("youtube-ui") << "Empty video FBO, stage=" << gState << " position=" << youtube->movie.getPosition() << " scheduled=" << youtube->shouldRenderThisFrame() << " pixels=" << youtube->movie.getPixels().size() << " first=" << (youtube->movie.getPixels().size() ? int(youtube->movie.getPixels()[0]) : -1); std::exit(EXIT_FAILURE);}
+            JPbox_shader effect; effect.setup("shaders/imageprocessing/transform.frag", "youtube transform");
+            const int inlet = effect.fbohandlergroup.findIndexByName("textura1");
+            if (inlet < 0) std::exit(EXIT_FAILURE);
+            effect.fbohandlergroup.setFboPointer(&youtube->fbo, &youtube->name, inlet);
+            effect.setonoff(true); effect.setRenderPinned(true); effect.setRenderThisFrame(true); effect.update();
+            ofPixels transformed; effect.fbo.readToPixels(transformed); unsigned long long sum = 0;
+            for (size_t i=0;i+2<transformed.size();i+=transformed.getNumChannels())sum+=transformed[i]+transformed[i+1]+transformed[i+2];
+            effect.clear(); if (!sum) {ofLogError("youtube-ui") << "Empty shader FBO, stage=" << gState; std::exit(EXIT_FAILURE);}
+            if (streamingTest && gState == 2) {
+                if (youtube->isUsingCache() || youtube->cacheAvailable()) std::exit(EXIT_FAILURE);
+                youtube->media.playing = false;
+                youtube->mediaSeek(0.45f);
+                youtube->downloadToCache();
+                if (!youtube->mediaReady() || youtube->isUsingCache()) std::exit(EXIT_FAILURE);
+                ofLogNotice("youtube-ui") << "Streaming delivers frames without a cached video; download keeps it playing";
+            } else {
+                if (!youtube->isUsingCache()) std::exit(EXIT_FAILURE);
+                if (streamingTest && std::abs(youtube->movie.getPosition() - 0.45f) > 0.03f) {
+                    ofLogError("youtube-ui") << "Cache switch lost playhead: " << youtube->movie.getPosition();
+                    std::exit(EXIT_FAILURE);
+                }
+                ofLogNotice("youtube-ui") << "PASS: empty/error/ready layouts, video texture and shader output";
+                gDone = true; ofExit();
+            }
+        }
+        ++gState; gFrames=0; return;
+    }
     if(gTag=="audio_sources") {
         if(gFrames<30)return;
         ofDirectory::createDirectory(shotDir(),true,true);

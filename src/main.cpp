@@ -11,6 +11,9 @@
 //========================================================================
 int main()
 {
+    // Construct paths before OF registers its exit handlers: graphics tests may
+    // initialize them later, but shutdown still saves preferences through them.
+    auto &paths = jp::AppPaths::current();
 #if defined(TARGET_LINUX) && defined(GLFW_PLATFORM)
     // OF 0.12.1 uses native X11 APIs. GLFW 3.4 may otherwise select Wayland.
     glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
@@ -19,7 +22,6 @@ int main()
     // real user profile. Normal launches never write into the installation.
     if (!std::getenv("GUIPPER_PERSISTENCE_TEST") && !std::getenv("GUIPPER_UISHOT")) {
         try {
-            auto& paths = jp::AppPaths::current();
             paths = jp::AppPaths::discover(ofToDataPath("", true));
             paths.initialize();
             ofSetDataPathRoot(paths.data.string() + "/");

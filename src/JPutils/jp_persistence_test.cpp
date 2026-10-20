@@ -8,6 +8,8 @@
 #include "../JPbox/jp_box_image.h"
 #include "../JPbox/jp_box_cam.h"
 #include "../JPbox/jp_box_screen.h"
+#include "../JPbox/jp_box_youtube.h"
+#include "jp_app_paths.h"
 #include "../JPbox/jp_box_video.h"
 #include "../JPbox/jp_media.h"
 #include "../JPbox/jp_box_paint.h"
@@ -2074,6 +2076,61 @@ namespace
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if (testMode && string(testMode) == "youtube") {
+        jp::AppPaths::current() = jp::AppPaths::discover(ofToDataPath("", true));
+        bool passed = true;
+        auto check = [&](bool ok, const string &message) {if (!ok) ofLogError("youtube-test") << message; passed = passed && ok;};
+        std::atomic<int> calls{0};
+        auto *youtube = new JPbox_youtube([&](const auto &, const auto &, const auto &cancel) {
+            ++calls;
+            while (!cancel) std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            return 0;
+        });
+        app.boxes.clear(); youtube->setup("youtubeVideo", "YOUTUBE");
+        app.boxes.boxes.push_back(youtube); app.activerender = 0;
+        youtube->urlText = "https://youtu.be/abcdefghijk"; youtube->prepare();
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (!calls && std::chrono::steady_clock::now() < deadline) std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        check(calls == 1 && youtube->preparing(), "background preparation starts");
+        youtube->parameters.setFloatValue(.7f, 2); youtube->media.rate = 1.5f;
+        const string path = ofToDataPath("youtube-test.xml", true);
+        check(app.boxes.save(path), "save composition");
+        const auto xml = ofBufferFromFile(path).getText();
+        check(xml.find("youtubeVideo") != string::npos && xml.find("abcdefghijk") != string::npos && xml.find("prepare-") == string::npos, "save URL without temporary resources");
+        app.boxes.clearSelection(); app.boxes.toggleBoxSelection(0); app.boxes.copySelectedBoxes(); app.boxes.pasteBoxes();
+        check(app.boxes.boxes.size() == 2, "duplicate YouTube box");
+        if (app.boxes.boxes.size() == 2) {
+            auto *copy = dynamic_cast<JPbox_youtube *>(app.boxes.boxes[1]);
+            check(copy && !copy->preparing() && copy->urlText == youtube->urlText && std::abs(copy->media.rate - 1.5f) < .001f, "clone retains settings without download");
+        }
+        app.boxes.clearSelection(); app.boxes.toggleBoxSelection(0); app.boxes.deleteSelectedShader();
+        check(!youtube->preparing() && !youtube->mediaReady(), "delete cancels retained operation");
+        app.boxes.graphUndoShortcut(false);
+        check(!youtube->preparing() && calls == 1, "undo does not restart download");
+        app.boxes.graphUndoShortcut(true);
+        check(!youtube->preparing(), "redo stays stopped");
+        app.boxes.clear();
+        check(app.boxes.load(path) == JPboxgroup::LoadResult::Success, "reload composition");
+        if (app.boxes.boxes.size() == 1) {
+            auto *loaded = dynamic_cast<JPbox_youtube *>(app.boxes.boxes[0]);
+            check(loaded && !loaded->preparing() && !loaded->mediaReady() && std::abs(loaded->parameters.getFloatValue(2) - .7f) < .001f, "load keeps transform without network activity");
+        } else check(false, "restored box exists");
+        app.boxes.clear();
+        {
+            JPbox_youtube stream([&](const auto &, const auto &, const auto &cancel) {
+                while (!cancel) std::this_thread::sleep_for(std::chrono::milliseconds(2)); return 0;
+            });
+            stream.setup("youtubeVideo", "stream test"); stream.urlText = "https://youtu.be/abcdefghijk";
+            stream.playStreaming();
+            ofXml saved; auto node = saved.appendChild("box"); stream.saveCustomState(node);
+            check(!node.getChild("youtube").getChild("cache").getBoolValue(), "streaming mode persists");
+            check(saved.toString().find(".m3u8") == string::npos, "temporary streaming URLs are not persisted");
+            stream.suspend(); check(!stream.connecting() && !stream.mediaReady(), "suspend cancels network activity");
+            stream.clear();
+        }
+        ofLogNotice("youtube-test") << (passed ? "PASS" : "FAIL"); return passed;
+    }
+
     if (testMode && string(testMode) == "screen_capture") {
         bool passed=true;
         auto check=[&](bool ok,const string &message){if(!ok)ofLogError("screen_capture")<<message;passed=passed&&ok;};

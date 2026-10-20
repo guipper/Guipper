@@ -50,6 +50,8 @@ public:
 			   string _dir,
 			   string _nombre);
 	void setup(string _dir, string _nombre);
+	// Remote sources initialize the existing media controls before a file is ready.
+	void setupVideo(string directory, string label, bool loadFile);
 	void update();
 	void updateFBO();
 	void draw();

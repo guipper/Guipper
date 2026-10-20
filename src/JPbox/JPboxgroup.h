@@ -952,6 +952,7 @@ private:
 	std::array<ofRectangle, 3> kinectStreamButtons;
 	ofRectangle screenDisplayModeButton, screenWindowModeButton;
 	ofRectangle screenSelectButton, screenStopButton, screenStatusRect;
+	ofRectangle youtubeUrlField, youtubeStreamButton, youtubeCacheButton, youtubeStatusRect;
 	std::vector<ofRectangle> screenMonitorButtons;
 	float inspectorwindow_setactivesize; // Para el size del setactive:
 

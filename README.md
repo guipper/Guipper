@@ -119,6 +119,58 @@ real picker and checks pixel totals in the source and rendered FBO (no shared
 contents are saved); select a visible, nonblack window. Native Windows/macOS builds and permission,
 monitor-removal and multi-monitor checks still require those operating systems.
 
+## YouTube video box
+
+On the node canvas, press **Shift+Y**, paste a single YouTube video URL in the
+inspector and click **Reproducir streaming**. Connection runs in the background
+and can be cancelled. Once ready, connect the box to a shader or use **TO OUTPUT**.
+The existing VIDEO controls provide play/pause, loop, position, speed and fit.
+The default fit preserves proportions; audio starts muted.
+
+Playback uses streaming by default (up to 1080p). **Descargar en cache** optionally
+prepares a local MP4 (H.264/AAC, 2 GB maximum) for unreliable connections. Streaming
+continues during download; once complete, playback switches to the local copy
+while preserving its position. **Usar cache** reuses an existing copy;
+**Reproducir streaming** switches back to the network. Separate HLS audio/video
+tracks are joined using a temporary playlist; a video-only fallback is labelled.
+Audio support for streaming depends on the platform player and codecs.
+It supports ordinary public videos, not live streams,
+playlists, account login or restricted videos. YouTube availability can change;
+a failed connection or download reports an error and can be retried. No browser cookies
+or user yt-dlp configuration are read.
+
+Dependencies: current [yt-dlp](https://github.com/yt-dlp/yt-dlp#installation),
+ffmpeg, and a supported JavaScript runtime (Node.js or Deno; see
+[yt-dlp EJS requirements](https://github.com/yt-dlp/yt-dlp/wiki/EJS)).
+Install/update an official, checksum-verified copy of yt-dlp for Guipper only:
+
+```sh
+python3 scripts/install-youtube-helper.py
+```
+
+The helper lives in Guipper's cache `tools/` directory. Guipper uses it before
+searching `PATH`; `GUIPPER_YTDLP` can select an explicit executable path. The
+installer does not replace the system yt-dlp or install ffmpeg/JavaScript runtimes.
+It requires network access; the app never downloads helper executables itself.
+
+Prepared videos live under Guipper's `cache/youtube/` (normally
+`~/.cache/guipper/youtube` on Linux). Compositions save the canonical URL and
+media/transform settings and the selected playback mode, never signed stream URLs
+or running jobs. Load, duplicate and undo reconnect streaming boxes when enabled;
+local-mode boxes reuse an existing cache entry without starting a download. A
+missing entry requires **Descargar en cache** or switching to streaming.
+Deleting/disabling a box, disabling its parent group or closing the app stops
+playback, cancels background processes and removes temporary files. Prepared entries remain reusable; remove them with Guipper closed to
+reclaim disk space. The cache is local to each computer, not embedded in a composition.
+
+Tests: `make -C tests youtube_tests && ./tests/youtube_tests` checks URL handling,
+cache/error behavior, stream resolution, HLS/audio, cancellation, late results and process cleanup.
+`python3 tests/youtube_graphics_test.py` runs isolated persistence and graphics
+checks against the compiled Linux app, including duplicate/delete/undo/redo,
+animated cached playback and a shader connection. Add `--stream --url URL` to
+verify real network streaming followed by optional cache download. Windows and macOS build/runtime
+validation remains pending on their respective machines.
+
 ## Installation
 This checkout targets openFrameworks **0.12.1**, C++17 and OpenGL 3.2.
 Place it at `apps/myApps/Guipper` inside an openFrameworks installation:

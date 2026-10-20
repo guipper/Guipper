@@ -30,7 +30,7 @@ MAPPING_BOOLEAN_HEADERS := ../src/JPbox/jp_mapping_boolean.h
 UNIFORM_TARGET := uniform_parser_tests
 UNIFORM_SOURCES := uniform_parser_tests.cpp ../src/JPutils/jp_uniform_parser.cpp
 UNIFORM_HEADERS := ../src/JPutils/jp_uniform_parser.h
-TARGETS := screen_capture_tests transition_tests text_edit_tests review_tests toast_tests shader_catalog_tests appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM_TARGET) $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
+TARGETS := youtube_tests screen_capture_tests transition_tests text_edit_tests review_tests toast_tests shader_catalog_tests appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM_TARGET) $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
 
 .PHONY: all run tsan clean
 
@@ -89,6 +89,7 @@ screen_capture_tests: screen_capture_tests.cpp ../src/JPutils/jp_screen_capture.
 	$(CXX) $(CXXFLAGS) -pthread screen_capture_tests.cpp -o $@
 
 run: $(TARGETS)
+	./youtube_tests
 	./screen_capture_tests
 	./transition_tests
 	./text_edit_tests
@@ -122,3 +123,6 @@ text_edit_tests: text_edit_tests.cpp ../src/JPutils/jp_text_edit.h ../src/JPbox/
 
 transition_tests: transition_tests.cpp ../src/JPutils/jp_transition.h
 	$(CXX) $(CXXFLAGS) transition_tests.cpp -o $@
+
+youtube_tests: youtube_tests.cpp ../src/JPutils/jp_youtube.cpp ../src/JPutils/jp_youtube.h
+	$(CXX) $(CXXFLAGS) -pthread youtube_tests.cpp ../src/JPutils/jp_youtube.cpp -o $@

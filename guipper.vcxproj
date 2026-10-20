@@ -484,4 +484,16 @@
       <UserProperties RESOURCE_FILE="icon.rc" />
     </VisualStudio>
   </ProjectExtensions>
+  <ItemGroup>
+    <ClCompile Include="src\JPbox\jp_box_youtube.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\JPbox\jp_box_youtube.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\JPutils\jp_youtube.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\JPutils\jp_youtube.h" />
+  </ItemGroup>
 </Project>

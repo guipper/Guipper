@@ -4,6 +4,9 @@ JPbox_video::JPbox_video() { }
 JPbox_video::~JPbox_video() { }
 
 void JPbox_video::setup(string _dir, string _nombre) {
+	setupVideo(_dir, _nombre, true);
+}
+void JPbox_video::setupVideo(string _dir, string _nombre, bool loadFile) {
 
 	JPbox::setup(_dir, _nombre);
 
@@ -12,7 +15,7 @@ void JPbox_video::setup(string _dir, string _nombre) {
 	dir = _dir;
 	// img.loadImage(_dir);
 	movie.setPixelFormat(OF_PIXELS_RGBA);
-	movie.load(_dir);
+	if (loadFile) movie.load(_dir);
 	movie.setLoopState(OF_LOOP_NORMAL);
 	movie.setVolume(0.0f);
 	// NOT play() here - the load is asynchronous and cannot have finished by
@@ -154,7 +157,9 @@ void JPbox_video::updateFBO() {
 			// The setPaused call below runs later in this same update, so a box
 			// restored in a paused state never advances a frame.
 			if(!playbackStarted && mediaReady()){playbackStarted=true;movie.play();}
-			if(mediaSeekPending){movie.setPosition(media.position);mediaSeekPending=false;}
+			// Async files can report loaded before the duration/seek segment exists.
+            // Keep a restored playhead pending until the backend can seek it.
+            if(mediaSeekPending && sourceDuration > 0){movie.setPosition(media.position);mediaSeekPending=false;}
 			const float legacySpeed=parameters.getFloatValue(5);
 			const float legacyPosition=parameters.getFloatValue(6);
 			const bool legacyPlay=parameters.getBoolValue(7);

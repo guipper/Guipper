@@ -5,6 +5,7 @@
 #include "jp_media.h"
 #include "jp_box_factory.h"
 #include "jp_box_screen.h"
+#include "jp_box_youtube.h"
 #include "../JPutils/jp_textwrap.h"
 #include "../JPutils/jp_parameter_xml.h"
 #include "../JPutils/jp_pointer.h"
@@ -400,6 +401,7 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	nombre = nombre.substr(0, nombre.find(".xml"));
 	*/
 	if (directory == "screenCapture") return "PANTALLA";
+	if (directory == "youtubeVideo") return "YOUTUBE";
 	if (directory.find("camdepth") != std::string::npos)
 	{
 		// Checked first for the same reason the box dispatch is: "camdepth"
@@ -3383,6 +3385,39 @@ void JPboxgroup::draw_paramswindow()
 		if (suppressBodyPointer)
 			JPdragobject::setMouseOverride(ofVec2f(-10000.0f, -10000.0f));
 
+        if (auto *youtube = dynamic_cast<JPbox_youtube *>(inspectorBox)) {
+            auto &font = jp_constants::inspector_media_font;
+            ofSetColor(COL_TEXT_SECONDARY);
+            font.drawString("Enlace de YouTube", youtubeUrlField.x, youtubeUrlField.y - 7);
+            ofSetColor(COL_BG_INPUT); ofDrawRectRounded(youtubeUrlField, 3);
+            ofNoFill(); ofSetColor(youtube->urlFocused ? COL_ACCENT_CYAN : COL_BORDER_MUTED);
+            ofDrawRectRounded(youtubeUrlField, 3); ofFill();
+            auto field = jp_text_input::field("youtube-url-" + youtube->uid, "youtube", youtubeUrlField,
+                font, youtube->urlText, youtube->urlFocused);
+            field.limit = 2048;
+            field.focus = [youtube] { youtube->urlFocused = true; };
+            field.cancel = [youtube] { youtube->urlFocused = false; };
+            field.commit = [youtube] { youtube->urlFocused = false; return true; };
+            jp_text_input::controller().add(std::move(field));
+            if (youtube->urlText.empty() && !youtube->urlFocused) {
+                ofSetColor(COL_TEXT_SECONDARY); font.drawString("Pega el enlace aqui", youtubeUrlField.x + 6, youtubeUrlField.y + 20);
+            }
+            auto sourceButton = [&](const ofRectangle &rect, const string &label, bool primary) {
+                const bool hover = !suppressBodyPointer && rect.inside(ofGetMouseX(), ofGetMouseY());
+                ofSetColor(hover ? COL_BG_HOVER : COL_BG_INPUT); ofDrawRectRounded(rect, 3);
+                ofNoFill(); ofSetColor(primary ? COL_ACCENT_CYAN : COL_BORDER_MUTED); ofDrawRectRounded(rect, 3); ofFill();
+                ofSetColor(COL_TEXT_PRIMARY); font.drawString(label, rect.x + 8, rect.y + 20);
+            };
+            sourceButton(youtubeStreamButton, youtube->connecting() ? "Cancelar conexion" : "Reproducir streaming", !youtube->isUsingCache());
+            sourceButton(youtubeCacheButton, youtube->preparing() ? "Cancelar descarga" :
+                youtube->cacheAvailable() ? (youtube->isUsingCache() ? "Cache en uso" : "Usar cache") : "Descargar en cache", youtube->isUsingCache());
+            ofSetColor(COL_TEXT_SECONDARY);
+            const auto lines = jp_textwrap::wrap([&font](const string &line) { return font.stringWidth(line); },
+                youtube->statusLabel(), youtubeStatusRect.width);
+            float textY = youtubeStatusRect.y + 13;
+            for (const auto &line : lines) { if (textY > youtubeStatusRect.getBottom()) break; font.drawString(line, youtubeStatusRect.x, textY); textY += 17; }
+            jp_tooltip::draw(youtube->statusLabel(), youtubeStatusRect);
+        }
 		drawMediaInspector(dynamic_cast<JPMediaInspectable *>(inspectorBox));
 		drawFinalOverlayInspector(inspectorBox);
 		drawInspectorInputRows(inspectorBox);
@@ -3917,6 +3952,8 @@ void JPboxgroup::update(){
             const auto state=screen->captureStatus().state;
             if(!enabled && (state==jp_screen::State::Selecting || state==jp_screen::State::Streaming || screen->choosingMonitor))screen->stopCapture();
         }
+        if (auto *youtube = dynamic_cast<JPbox_youtube *>(node))
+            if (!enabled) youtube->suspend();
         if(auto *group=dynamic_cast<JPbox_preset *>(node))for(auto *child:group->boxes)stopHiddenScreens(child,enabled);
     };
     for(auto *node:boxes)stopHiddenScreens(node,true);
@@ -5011,6 +5048,17 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			if (isCueDraftMode()) updateCueDraftGraph();
 			return;
 		}
+        if (auto *youtube = dynamic_cast<JPbox_youtube *>(inspectorBox)) {
+            if (mouseButton == OF_MOUSE_BUTTON_LEFT && inspectorBodyViewport.inside(ofGetMouseX(), ofGetMouseY()) &&
+                (youtubeStreamButton.inside(ofGetMouseX(), ofGetMouseY()) || youtubeCacheButton.inside(ofGetMouseX(), ofGetMouseY()))) {
+                if (youtubeStreamButton.inside(ofGetMouseX(), ofGetMouseY())) {
+                    if (youtube->connecting()) youtube->cancelConnection(); else youtube->playStreaming();
+                } else if (youtube->preparing()) youtube->cancelPreparation();
+                else if (!youtube->isUsingCache() || !youtube->cacheAvailable()) youtube->downloadToCache();
+                markCueDraftDirty(cueSelectedIndex());
+                return;
+            }
+        }
         if(auto *screen=dynamic_cast<JPbox_screen *>(inspectorBox)) {
             if(mouseButton==OF_MOUSE_BUTTON_LEFT && inspectorBodyViewport.inside(ofGetMouseX(),ofGetMouseY())) {
                 if(screenDisplayModeButton.inside(ofGetMouseX(),ofGetMouseY())) {screen->setWindowMode(false);setControllers();return;}
@@ -6004,6 +6052,16 @@ void JPboxgroup::setControllers(){
 	};
 	float layoutCursor = inspectorBodyViewport.y +
 		inspectorLayout.contentPadding - inspectorScrollY;
+    youtubeUrlField.set(0,0,0,0); youtubeStreamButton.set(0,0,0,0); youtubeCacheButton.set(0,0,0,0); youtubeStatusRect.set(0,0,0,0);
+    if (dynamic_cast<JPbox_youtube *>(inspectorBox)) {
+        const float left = inspectorBodyViewport.x + inspectorLayout.contentPadding;
+        const float width = inspectorBodyViewport.width - 2 * inspectorLayout.contentPadding;
+        layoutCursor += 18;
+        youtubeUrlField.set(left, layoutCursor, width, 32); layoutCursor += 40;
+        youtubeStreamButton.set(left, layoutCursor, width, 30); layoutCursor += 38;
+        youtubeCacheButton.set(left, layoutCursor, width, 30); layoutCursor += 38;
+        youtubeStatusRect.set(left, layoutCursor, width, 68); layoutCursor += 80;
+    }
 	layoutMediaInspector(dynamic_cast<JPMediaInspectable *>(inspectorBox),
 		layoutCursor);
 	layoutFinalOverlayInspector(inspectorBox, layoutCursor);

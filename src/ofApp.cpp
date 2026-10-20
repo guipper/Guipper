@@ -6683,6 +6683,13 @@ void ofApp::keyPressed(int key) {
 		if (key == 'b') {
 			boxes.addBox("paint");
 		}
+        if (key == 'Y' && !surfaces.modalOpen() && !anyFieldFocused() &&
+            !ofGetKeyPressed(OF_KEY_CONTROL) && !ofGetKeyPressed(OF_KEY_COMMAND) && !ofGetKeyPressed(OF_KEY_ALT)) {
+            boxes.addBox("youtubeVideo");
+            if (!boxes.isGroupViewActive()) boxes.selectOpenBoxByIndex(int(boxes.boxes.size()) - 1);
+            boxes.setControllers();
+            return;
+        }
 		if (key == 'S' && !surfaces.modalOpen() && !anyFieldFocused() &&
 			!ofGetKeyPressed(OF_KEY_CONTROL) && !ofGetKeyPressed(OF_KEY_COMMAND) &&
 			!ofGetKeyPressed(OF_KEY_ALT)) {
