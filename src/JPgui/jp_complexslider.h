@@ -60,6 +60,7 @@ public:
 	// Audio mode. BPM and AUDIO are mutually exclusive, so the source chip
 	// reuses the rate chip's slot and the row keeps its height.
 	JPToogle boton_audio;
+    ofRectangle handButton;
 	// The movtype this row's geometry was built for. setPosAndSize runs only on
 	// a controller rebuild, but several buttons change movtype from inside
 	// draw(), so the row can end up drawn against a layout for another mode.

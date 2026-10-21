@@ -2,6 +2,7 @@
 
 #include "defines.h"
 #include "ofMain.h"
+#include "jp_hand_tracking.h"
 
 class JPParameter
 {
@@ -27,6 +28,7 @@ public:
 		RANDOM,
 		BPM,
 		AUDIO,
+        KINECT,
 	};
 	enum BpmRate
 	{
@@ -36,6 +38,16 @@ public:
 		BPM_RATE_DOUBLE,
 		BPM_RATE_QUADRUPLE,
 	};
+    jp_hand::Binding handBinding;
+    jp_hand::Filter handFilter;
+    struct Lifetime {
+        std::shared_ptr<int> token=std::make_shared<int>(0);
+        Lifetime()=default;
+        Lifetime(const Lifetime&){}
+        Lifetime& operator=(const Lifetime&){token=std::make_shared<int>(0);return *this;}
+    } handLifetime;
+    uint64_t handSession=0;
+    void resetHandRuntime(){handFilter.reset();if(movtype==KINECT)floatValue=floatLerpValue=handBinding.base;}
 	int movtype;
 	// Last non-standard automation mode selected for this parameter. It remains
 	// available while automation is disabled and is persisted with the graph.

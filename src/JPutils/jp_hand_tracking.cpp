@@ -19,7 +19,7 @@ namespace {
 struct Service {
  std::mutex mutex; std::condition_variable wake; std::thread thread;
  std::atomic<uint64_t> generation{0}; std::atomic<int> mode{0};
- std::atomic<bool> closing{false},panel{false},loss{false};std::atomic<double> wanted{0};
+ std::atomic<bool> closing{false},panel{false},loss{false},reconnecting{false};std::atomic<double> wanted{0};
  Snapshot published,current;
  ~Service(){close();}
  void close(){closing=true;++generation;wake.notify_all();if(thread.joinable())thread.join();}
@@ -71,7 +71,7 @@ struct Service {
   Associator assoc;uint64_t serial=0,dropped=0;double last=0;
   while(!cancelled(g)){
    if(!panel&&now()-wanted>.5){lease.reset();source.reset();pause(50);continue;}
-   if(!source){source=JPbox_kinect2::acquireSharedCapture();lease=JPbox_kinect2::handLease(source);serial=0;}
+   if(!source){source=JPbox_kinect2::acquireSharedCapture();if(reconnecting.exchange(false))JPbox_kinect2::reconnectShared(source);lease=JPbox_kinect2::handLease(source);serial=0;}
    auto f=JPbox_kinect2::handFrame(source);
    if(!f||now()-f->captured>1){status("Sin camara: "+JPbox_kinect2::captureStatus(source),g);pause(40);continue;}
    if(f->serial==serial){pause(3);continue;}
@@ -124,8 +124,9 @@ Snapshot simulatedSnapshot(double time,bool lost){
 }
 void start(bool sim){auto &s=service();{std::lock_guard<std::mutex> l(s.mutex);++s.generation;s.mode=sim?2:1;s.published={};s.published.status="Iniciando";s.published.simulated=sim;}if(!s.thread.joinable())s.thread=std::thread([&s]{s.run();});s.wanted=now();s.wake.notify_all();}
 void stop(){auto &s=service();std::lock_guard<std::mutex> l(s.mutex);++s.generation;s.mode=0;s.published={};s.current={};s.wake.notify_all();}
-void reconnect(){start(simulation());}
+void reconnect(){service().reconnecting=true;start(simulation());}
 void shutdown(){service().close();}
+uint64_t session(){return service().generation;}
 void beginFrame(){auto &s=service();std::lock_guard<std::mutex> l(s.mutex);s.current=s.published;if(s.current.captured>0&&now()-s.current.captured>.25)s.current.status="Resultado vencido";}
 void demand(){service().wanted=now();}
 void setPanelVisible(bool value){service().panel=value;}

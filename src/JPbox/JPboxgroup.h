@@ -225,6 +225,7 @@ public:
 
 	bool save(string _diroutput);
 	ofXml snapshotXml();
+    void openKinectBinding(JPParameter *parameter);
 	void load2(string _dirinput);
 	// Preflight failures leave the graph, cue, inspector and history intact.
 	// Success does not yet guarantee all referenced assets were available.

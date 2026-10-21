@@ -1,3 +1,4 @@
+#include "../JPgui/jp_hand_panel.h"
 #include "JPboxgroup.h"
 #include "jp_box_text.h"
 
@@ -1412,4 +1413,24 @@ bool JPboxgroup::mappingUndoShortcut(bool redo)
 	// mapping edit" even at the end of the stack. Falling through to the graph
 	// would undo something the user cannot even see.
 	return true;
+}
+
+void JPboxgroup::openKinectBinding(JPParameter *p)
+{
+    if(!p||p->variabletype!=JPParameter::FLOAT)return;
+    std::weak_ptr<int> life=p->handLifetime.token;
+    jp_hand_ui::Target t;
+    t.valid=[this,p,life]{string uid;int i;return !life.expired()&&resolveParameterOwner(p,uid,i);};
+    t.binding=&p->handBinding;t.filter=&p->handFilter;t.name=p->name;
+    t.active=[p]{return p->movtype==JPParameter::KINECT;};
+    t.activate=[p](bool enabled){p->setAutomationMode(enabled?JPParameter::KINECT:JPParameter::STANDART);};
+    t.low=[p]{return p->effectiveMin();};t.high=[p]{return p->effectiveMax();};t.value=[p]{return p->floatValue;};
+    t.edit=[this,p,life](const std::function<void()> &change){
+        string uid;int index;if(life.expired()||!resolveParameterOwner(p,uid,index))return;
+        auto before=readParamState(p);change();
+        JPGraphEdit edit;edit.kind=JPGraphEdit::SetParameter;edit.boxUid=uid;edit.paramIndex=index;
+        edit.paramBefore=before;edit.paramAfter=readParamState(p);pushEdit(std::move(edit));
+        markCueDraftDirty(cueSelectedIndex());if(isCueDraftMode())updateCueDraftGraph();
+    };
+    jp_hand_ui::open(std::move(t));
 }

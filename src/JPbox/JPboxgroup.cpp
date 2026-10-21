@@ -1,3 +1,4 @@
+#include "../JPgui/jp_hand_panel.h"
 #include "../JPutils/jp_text_input.h"
 #include "jp_media_time.h"
 #include "JPboxgroup.h"
@@ -2892,6 +2893,7 @@ bool JPboxgroup::handleInspectorAutomationClick(int mouseButton)
 		}
 
 		JPParameter *parameter = slider->parameters;
+        if(leftButton&&slider->handButton.inside(mouse)){openKinectBinding(parameter);return true;}
 		if (parameter->bpmEligible &&
 			parameter->movtype == JPParameter::BPM &&
 			slider->boton_bpm.activable2 &&
@@ -7397,6 +7399,7 @@ static bool applyMidiParameterValue(JPParameter *parameter,
 	{
 		return false;
 	}
+	if(parameter->movtype==JPParameter::KINECT)return false;
 	const float normalized = ofClamp(value, 0.0f, 1.0f);
 	if (parameter->variabletype == JPParameter::FLOAT)
 	{

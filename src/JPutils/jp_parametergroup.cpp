@@ -353,6 +353,11 @@ void JPParameter::update()
 					ofClamp(audioAmount, 0.0f, 1.0f));
 			}
 		}
+        if(movtype==KINECT){
+            jp_hand::demand();
+            if(handSession!=jp_hand::session()){handSession=jp_hand::session();handFilter.reset();}
+            floatLerpValue=handFilter.step(jp_hand::sample(jp_hand::snapshot(),handBinding,jp_hand::now()),handBinding,low,high,jp_hand::now());
+        }
 		floatLerpValue = ofClamp(floatLerpValue, low, high);
 	}
 
@@ -419,6 +424,7 @@ JPParameterGroup::JPParameterGroup(const JPParameterGroup& other)
 		if (other.parameters[i] != nullptr)
 		{
 			JPParameter* newParam = new JPParameter(*other.parameters[i]);
+            newParam->resetHandRuntime();
 			parameters.push_back(newParam);
 		}
 	}
@@ -435,6 +441,7 @@ JPParameterGroup& JPParameterGroup::operator=(const JPParameterGroup& other)
 			if (other.parameters[i] != nullptr)
 			{
 				JPParameter* newParam = new JPParameter(*other.parameters[i]);
+            newParam->resetHandRuntime();
 				parameters.push_back(newParam);
 			}
 		}
@@ -502,15 +509,17 @@ void JPParameter::setAutomationMode(int mode)
 	// Load files may contain a newer or ineligible mode. Keeping validation
 	// here ensures every UI, reload and persistence path has the same fallback.
 	int wanted = mode;
-	if (wanted < STANDART || wanted > AUDIO)
+	if (wanted < STANDART || wanted > KINECT)
 	{
 		wanted = STANDART;
 	}
 	if ((wanted == BPM && !bpmEligible) ||
-		(wanted == AUDIO && !audioEligible))
+		(wanted == AUDIO && !audioEligible) || (wanted==KINECT && variabletype!=FLOAT))
 	{
 		wanted = STANDART;
 	}
+    if(wanted==KINECT && movtype!=KINECT){handBinding.base=floatValue;handFilter.reset();handSession=jp_hand::session();}
+    if(wanted!=KINECT && movtype==KINECT){floatLerpValue=floatValue;handFilter.reset();}
 	movtype = wanted;
 	if (wanted != STANDART)
 	{
@@ -521,9 +530,9 @@ void JPParameter::setAutomationMode(int mode)
 void JPParameter::setLastAutomationMode(int mode)
 {
 	int wanted = mode;
-	if (wanted <= STANDART || wanted > AUDIO ||
+	if (wanted <= STANDART || wanted > KINECT ||
 		(wanted == BPM && !bpmEligible) ||
-		(wanted == AUDIO && !audioEligible))
+		(wanted == AUDIO && !audioEligible) || (wanted==KINECT && variabletype!=FLOAT))
 	{
 		wanted = OSC;
 	}
@@ -641,6 +650,7 @@ void JPParameterGroup::setlastmovetype(int _movetype, int _index)
 // SETTERS
 void JPParameterGroup::setFloatValue(float _val, int _index)
 {
+    if(_index<0 || (_index<int(parameters.size())&&parameters[_index]->movtype==JPParameter::KINECT))return;
 	if (_index >= parameters.size())
 		return;
 
@@ -652,6 +662,7 @@ void JPParameterGroup::setFloatValue(float _val, int _index)
 }
 void JPParameterGroup::setFloatLerpValue(float _val, int _index)
 {
+    if(_index<0 || (_index<int(parameters.size())&&parameters[_index]->movtype==JPParameter::KINECT))return;
 	if (_index >= parameters.size())
 		return;
 

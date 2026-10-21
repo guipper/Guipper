@@ -1,3 +1,4 @@
+#include "jp_button.h"
 #include "jp_complexslider.h"
 #include "jp_minislider.h"
 #include "../JPutils/jp_audio.h"
@@ -528,6 +529,8 @@ void JPComplexSlider::draw()
 	}
 	slider_value.draw();
 	boton_collapse.draw();
+    jp_button::draw(handButton,"K",parameters->movtype==JPParameter::KINECT);
+    jp_tooltip::draw("Kinect: vincular mano o dedos y abrir diagnostico",handButton.x,handButton.y,handButton.width,handButton.height);
 	jp_tooltip::draw("Toggle parameter automation",
 		boton_collapse.x - boton_collapse.width / 2.0f,
 		boton_collapse.y - boton_collapse.height / 2.0f,
@@ -560,7 +563,7 @@ void JPComplexSlider::draw()
 		slider_speed.ghostValue =
 			(parameters->audioDrivesSpeed && parameters->isPatternMode()) ?
 				parameters->effectiveSpeed : -1.0f;
-		slider_speed.draw();
+		if(parameters->movtype!=JPParameter::KINECT)slider_speed.draw();
 		speed = slider_speed.value;
 		if (parameters->audioEligible && parameters->isPatternMode())
 		{
@@ -905,7 +908,8 @@ void JPComplexSlider::setPosAndSize()
 		// bands that looked interactive but did nothing.
 		const float sliderLeft =
 			boton_collapse.x + boton_collapse.width * 0.5f + 4.0f;
-		const float sliderRight = x + width * 0.5f - 4.0f;
+		handButton=ofRectangle(x+width*.5f-28,primaryRowY-11,22,22);
+		const float sliderRight = handButton.x - 5.0f;
 		const float slidervaluewidth = std::max(24.0f,
 			sliderRight - sliderLeft);
 		slider_value.setup(sliderLeft + slidervaluewidth * 0.5f,
@@ -947,7 +951,7 @@ void JPComplexSlider::setPosAndSize()
 		const bool hasSpeedAudioButton =
 			hasAudioMode && parameters->isPatternMode();
 		const int modeButtons =
-			1 + (hasBpmMode ? 1 : 0) + (hasAudioMode ? 1 : 0) +
+			2 + (hasBpmMode ? 1 : 0) + (hasAudioMode ? 1 : 0) +
 			(hasSpeedAudioButton ? 1 : 0);
 		const float sliderLeft = boton_collapse.x +
 			boton_collapse.width * 0.5f + 4.0f;
@@ -1018,6 +1022,7 @@ void JPComplexSlider::setPosAndSize()
 			boton_audio.setup(
 				pos, primaryRowY, modeButtonSize, modeButtonSize);
 		}
+		handButton=ofRectangle(pos+modeButtonSize+modeButtonGap-modeButtonSize*.5f,primaryRowY-11,22,22);
 		// One chip slot, shared: a parameter is either in BPM mode or in AUDIO
 		// mode, never both, so the two never need to be on screen together.
 		// Second line: the mode's own controls, left-aligned under the slider
