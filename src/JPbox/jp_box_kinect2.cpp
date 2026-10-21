@@ -18,6 +18,7 @@ using std::unique_lock;
 #include <libfreenect2/frame_listener_impl.h>
 #include <libfreenect2/libfreenect2.hpp>
 #include <libfreenect2/packet_pipeline.h>
+#include <libfreenect2/registration.h>
 #endif
 
 namespace
@@ -37,6 +38,8 @@ namespace
 class KinectV2CaptureSource
 {
 public:
+    std::atomic<unsigned> handUsers{0};
+    std::shared_ptr<const jp_hand::Frame> handSnapshot()const {lock_guard<mutex> lock(dataMutex);return trackingFrame;}
 	KinectV2CaptureSource()
 	{
 #ifdef KINECT2
@@ -138,6 +141,7 @@ private:
 				// intrinsics must not be handed out in the meantime.
 				lock_guard<mutex> lock(dataMutex);
 				irParams = JPbox_kinect2::DepthIntrinsics();
+                trackingFrame.reset();
 			}
 			libfreenect2::Freenect2 context;
 			if (context.enumerateDevices() == 0)
@@ -186,6 +190,9 @@ private:
 				irParams.valid = ir.fx > 0.0f && ir.fy > 0.0f;
 			}
 
+            libfreenect2::Registration registration(device->getIrCameraParams(),device->getColorCameraParams());
+            libfreenect2::Frame undistorted(512,424,4),registered(512,424,4),bigdepth(1920,1082,4);
+            double lastCaptured=0;
 			setStatus("STREAMING");
 			reconnectRequested = false;
 			int consecutiveTimeouts = 0;
@@ -202,6 +209,7 @@ private:
 					continue;
 				}
 				consecutiveTimeouts = 0;
+                const double captured=jp_hand::now();
 				libfreenect2::Frame *color = frames[libfreenect2::Frame::Color];
 				libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
 				libfreenect2::Frame *infrared = frames[libfreenect2::Frame::Ir];
@@ -219,8 +227,21 @@ private:
 						depthData + depth->width * depth->height);
 					auto nextInfrared = std::make_shared<vector<float>>(irData,
 						irData + infrared->width * infrared->height);
+                    std::shared_ptr<jp_hand::Frame> hands;
+                    if(handUsers.load()>0){
+                        hands=std::make_shared<jp_hand::Frame>();hands->captured=captured;hands->serial=frameVersion+1;
+                        hands->captureFps=lastCaptured>0?float(1/(captured-lastCaptured)):0;
+                        hands->rgb.resize(960*540*3);
+                        const bool rgb=color->format==libfreenect2::Frame::RGBX;
+                        for(int y=0;y<540;++y)for(int x=0;x<960;++x){size_t src=(y*2*1920+x*2)*4,dst=(y*960+x)*3;hands->rgb[dst]=color->data[src+(rgb?0:2)];hands->rgb[dst+1]=color->data[src+1];hands->rgb[dst+2]=color->data[src+(rgb?2:0)];}
+                        registration.apply(color,depth,&undistorted,&registered,true,&bigdepth);
+                        const float *metric=reinterpret_cast<const float*>(bigdepth.data)+1920;
+                        hands->depth.assign(metric,metric+1920*1080);
+                    }
+                    lastCaptured=captured;
 					{
 						lock_guard<mutex> lock(dataMutex);
+                        trackingFrame=std::move(hands);
 						colorFrame = std::move(nextColor);
 						depthFrame = std::move(nextDepth);
 						infraredFrame = std::move(nextInfrared);
@@ -262,6 +283,7 @@ private:
 	JPbox_kinect2::DepthIntrinsics irParams;
 	int colorFrameFormat = 0;
 	uint64_t frameVersion = 0;
+    std::shared_ptr<const jp_hand::Frame> trackingFrame;
 };
 
 JPbox_kinect2::JPbox_kinect2() = default;
@@ -690,3 +712,7 @@ int JPbox_kinect2::depthHeight()
 {
 	return kDepthHeight;
 }
+
+std::shared_ptr<void> JPbox_kinect2::handLease(const shared_ptr<KinectV2CaptureSource> &s){if(!s)return {};++s->handUsers;return std::shared_ptr<void>(s.get(),[s](void*){--s->handUsers;});}
+std::shared_ptr<const jp_hand::Frame> JPbox_kinect2::handFrame(const shared_ptr<KinectV2CaptureSource> &s){return s?s->handSnapshot():nullptr;}
+void JPbox_kinect2::reconnectShared(const shared_ptr<KinectV2CaptureSource> &s){if(s)s->reconnect();}

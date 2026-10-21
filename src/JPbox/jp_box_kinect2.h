@@ -2,6 +2,7 @@
 
 #include "ofMain.h"
 #include "jp_box.h"
+#include "../JPutils/jp_hand_tracking.h"
 
 class KinectV2CaptureSource;
 
@@ -69,6 +70,9 @@ public:
 		const shared_ptr<KinectV2CaptureSource> &source);
 	static string captureStatus(
 		const shared_ptr<KinectV2CaptureSource> &source);
+	static std::shared_ptr<void> handLease(const shared_ptr<KinectV2CaptureSource> &source);
+    static std::shared_ptr<const jp_hand::Frame> handFrame(const shared_ptr<KinectV2CaptureSource> &source);
+    static void reconnectShared(const shared_ptr<KinectV2CaptureSource> &source);
 	static int depthWidth();
 	static int depthHeight();
 
