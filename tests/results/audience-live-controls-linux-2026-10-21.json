@@ -1,0 +1,71 @@
+{
+  "results": 7243,
+  "active_seconds_including_startup": 600.001,
+  "results_per_second_including_startup": 12.071646547255755,
+  "valid_motion_results": 7242,
+  "valid_occupancy_results": 7243,
+  "gaps_over_250ms": 0,
+  "result_gap_ms": {
+    "median": 68.00000000004047,
+    "p95": 100.99999999999909,
+    "max": 237.99999999999955
+  },
+  "analysis_ms": {
+    "median": 1.56793,
+    "p95": 1.90944,
+    "max": 5.02292
+  },
+  "age_ms": {
+    "median": 12.9491,
+    "p95": 18.6733,
+    "max": 106.835
+  },
+  "coverage": {
+    "median": 0.779702,
+    "p95": 0.781545,
+    "max": 0.80513
+  },
+  "render_fps_active": {
+    "median": 60.0021,
+    "p95": 60.0038,
+    "max": 106.425
+  },
+  "render_fps_baseline": {
+    "median": 60.0021,
+    "p95": 60.0037,
+    "max": 63.765
+  },
+  "consumer_skipped_frames": 0.0,
+  "notes": [
+    "Age begins at decoded frame receipt, not sensor exposure.",
+    "Consumer skips do not measure USB packet loss.",
+    "Room endurance does not validate response to a real audience.",
+    "Only the initialization result lacked motion.",
+    "The Kinect uses active infrared depth and does not require visible light.",
+    "The 15 results/s target was not reached; no claim that removing IR normalization fixes decoder or USB losses."
+  ],
+  "date": "2026-10-21",
+  "platform": "Linux",
+  "source": "Kinect v2 native depth",
+  "depth_range_m": [
+    3,
+    4.5
+  ],
+  "baseline_seconds": 30,
+  "usb_link_mbps": 5000,
+  "usb_power_control": "on",
+  "driver": "libfreenect2 CpuPacketPipeline",
+  "driver_reported_packet_loss": true,
+  "closed_cleanly": true,
+  "automated_checks": {
+    "release_build": "pass",
+    "crowd_hand_body_history": "pass",
+    "mapping_fps_calibration_presets": "pass",
+    "XML_copy_undo_redo": "pass",
+    "native_ui_presets_reverse_undo_calibration": "pass"
+  },
+  "pending": [
+    "Real audience response and calibration in venue",
+    "Physical USB reconnection with the new depth subscription"
+  ]
+}

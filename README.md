@@ -93,7 +93,16 @@ selector or switch sources. Ordinary static windows do not trigger retries.
 **Detener**, disabling the box or its
 parent group, deleting it, and closing Guipper release capture resources.
 Undo, duplication and loading a saved composition never start sharing: select
-the source again. Transform parameters and the screen/window mode are saved. Screen sources restored
+the source again or use **Reanudar anterior** on Linux. With ScreenCast portal
+version 4 or newer, each box remembers its last monitor and window independently,
+including after reopening Guipper. **Reanudar anterior** requests the previous
+selection; **Seleccionar/Cambiar** always opens a fresh chooser. If the window
+is gone or permission was revoked, the portal may ask you to select again.
+Single-use restore tokens rotate after every successful selection and stay in
+the local private state directory, outside composition XML. Duplicated boxes
+have a new identity and do not inherit permission. The desktop may decline to
+remember a selection; automatic capture at startup remains disabled.
+Transform parameters and the screen/window mode are saved. Screen sources restored
 without a selection are transparent placeholders, so loading does not wait for
 an unsolicited permission dialog.
 
@@ -119,7 +128,9 @@ Tests: `make -C tests run` includes the platform-independent capture state tests
 On Linux, `make -C tests screen_portal_tests && ./tests/screen_portal_tests` runs
 the real backend against a private mock D-Bus portal: repeated selection,
 non-predicted handles, cancellation, session closure, service restart, timeout,
-and retry. It does not open dialogs or change the desktop portal.
+and retry, plus persisted selection, token rotation, cancellation without
+replacing the remembered source, and compatibility with older portals.
+It does not open dialogs or change the desktop portal.
 The `GUIPPER_PERSISTENCE_TEST=screen_capture` graphics test must run from a copy
 of `bin/data`; it tests rendering, serialization, duplicate and delete/undo/redo
 without opening the system picker, including mode changes, stale frames and mode
@@ -428,11 +439,18 @@ rewrite the original XML. Saving the loaded composition omits the unavailable
 boxes. Known missing assets and malformed compositions still report errors.
 Run `python3 tests/missing_boxes_test.py` for isolated regression coverage.
 
-## Kinect hand control (Linux)
+## Audience, hand and body parameter control (Linux)
 
-Numeric parameters have a **K** button for hand/finger control. Open diagnostics
-from that button or **SETTINGS → Kinect**, then explicitly start tracking.
+Numeric parameters have a **person icon** for hand or body control. Open the
+floating editor from that button or **SETTINGS → Seguimiento**, select a camera
+and **Manos**, **Cuerpo RGB**, or **Publico**, then explicitly start tracking.
+**Publico** uses Kinect depth for dark venues, with selectable regions, movement,
+occupancy, centers and median distance. Its initial depth range is 3–4.5 m;
+background learning excludes fixed surfaces. It measures surfaces, not people
+counts, and needs no Python model. Body signals
+include torso X/Y, wrist separation, arm height and individual landmarks.
 A local Python/MediaPipe runtime is installed with
 `./scripts/install_hand_tracking_linux.sh`. Kinect v2 capture is shared; no Kinect
 box is required. Simulation, calibration, mapping, persistence and validation are
-described in [Kinect hands](docs/KINECT_HANDS.md).
+described in [Tracking](docs/KINECT_HANDS.md). RGB webcams are supported; Kinect
+IR hand tracking remains experimental and body tracking requires visible light.

@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-21",
+  "platform": "Linux",
+  "detector": "Pose Landmarker Lite float16/1",
+  "camera": "DJI Osmo Action 5 Pro",
+  "detector_frame": "960x540",
+  "duration_seconds": 90,
+  "baseline_seconds": 30,
+  "parameters": [
+    "analogColor/pixel size: wrist span",
+    "analogColor/mix: torso X",
+    "transform shader: arm height"
+  ],
+  "results": 2654,
+  "results_per_second_including_startup": 29.488888888888887,
+  "body_present": 2598,
+  "valid_signals": {
+    "torso_x": 1082,
+    "wrist_span": 1303,
+    "arm_height": 1062
+  },
+  "capture_fps": {
+    "mean": 31.965028021853804,
+    "median": 32.678200000000004,
+    "p95": 48.9497
+  },
+  "inference_ms": {
+    "mean": 11.992452931424266,
+    "median": 11.86985,
+    "p95": 13.033
+  },
+  "result_age_ms": {
+    "mean": 33.281834400904295,
+    "median": 33.32815,
+    "p95": 41.1759
+  },
+  "render_fps_active": {
+    "mean": 60.36118975131876,
+    "median": 60.0021,
+    "p95": 60.0038
+  },
+  "render_fps_baseline": {
+    "mean": 60.004793614658524,
+    "median": 60.002,
+    "p95": 60.0037
+  },
+  "signal_ranges": {
+    "torso_x": [
+      0.382881,
+      0.5403
+    ],
+    "wrist_span": [
+      0.0150327,
+      10.9789
+    ],
+    "arm_height": [
+      0.155646,
+      1.76853
+    ]
+  },
+  "notes": [
+    "Isolated temporary profile; three parameters share one body inference session.",
+    "The camera image and skeleton were visually inspected.",
+    "Missing/low-confidence required landmarks invalidate the corresponding signal; visible-body intervals were not annotated, so these counts are not accuracy percentages.",
+    "Age starts at decoded frame receipt; not physical end-to-end latency.",
+    "No compilation or regression suites ran during this measurement.",
+    "Short test only: ten-minute endurance, body Kinect RGB anatomical labels and USB reconnection remain unvalidated.",
+    "Interactive movement assessment pending user confirmation.",
+    "Reported capture_fps values are instantaneous reciprocal inter-arrival estimates, not a sustained capture-rate benchmark."
+  ],
+  "automated_checks": {
+    "release_linux": "pass",
+    "body_signal_core": "pass",
+    "hand_regression_core": "pass",
+    "history_core": "pass",
+    "installed_hand_and_pose_models": "pass",
+    "graph_codec_source_isolation_groups_exposed_parameters": "pass",
+    "ui_landmark_selection_reverse_cycle": "pass",
+    "five_second_calibration_undo_redo": "pass"
+  }
+}

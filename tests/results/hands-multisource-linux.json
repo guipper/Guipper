@@ -1,0 +1,24 @@
+{
+  "platform": "Linux",
+  "scope": "Kinect RGB, experimental Kinect IR and PC cameras per parameter",
+  "automated": {
+    "release_build": "pass",
+    "core_mapping_aspect_ir_depth_and_normalization": "pass",
+    "installed_protocol_2_model_smoke": "pass",
+    "source_isolation_persistence_undo_groups_shutdown": "pass",
+    "ui_rgb_ir_camera_and_picker_1440x900_1280x800": "pass"
+  },
+  "real_validation": {
+    "status": "pending",
+    "attempt": "IR diagnostic attempted; another Guipper held Kinect USB (LIBUSB_ERROR_BUSY). Webcam was also in use. A few IR frames are not quality or performance validation.",
+    "darkness_pinch_1_2_to_2_m": "pending",
+    "ten_minute_three_source_benchmark": "pending",
+    "physical_reconnection": "pending",
+    "ir_status": "experimental"
+  },
+  "diagnostic_logs": {
+    "automated_profile": "/tmp/guipper-hands-qvo23agd",
+    "ir_attempt_profile": "/tmp/guipper-hands-xd9xx6fg"
+  },
+  "privacy": "No real camera images recorded. UI captures use synthetic input."
+}

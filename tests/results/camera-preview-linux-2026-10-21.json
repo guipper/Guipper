@@ -1,0 +1,53 @@
+{
+  "platform": "Linux",
+  "changes": [
+    "Explicitly allocate cleared preview and shared camera textures",
+    "Replace unavailable OF bilinear resize with initialized packed RGB resampling",
+    "Separate V4L2 handedness conversion from the existing Kinect convention"
+  ],
+  "automated": {
+    "release_build": "pass",
+    "rgb_resize_aspect_channels_orientation_odd_stride": "pass",
+    "hand_mapping_and_lifecycle": "pass",
+    "rgb_ir_webcam_preview_survives_source_change": "pass"
+  },
+  "hardware": [
+    {
+      "camera": "DJI Osmo Action 5 Pro",
+      "capture": "1280x720 MJPEG, 30 FPS",
+      "detector": "960x540 RGB",
+      "test_seconds": 35,
+      "results": 1016,
+      "results_per_second": 29.82,
+      "result_age_p95_ms": 45.47,
+      "median_inference_ms": 14.61,
+      "frames_with_hands": 520,
+      "profile": "/tmp/guipper-hands-4oto2guu"
+    },
+    {
+      "camera": "Integrated Camera",
+      "capture": "1280x720, 30 FPS",
+      "detector": "960x540 RGB",
+      "test_seconds": 30,
+      "results": 860,
+      "results_per_second": 29.69,
+      "result_age_p95_ms": 46.38,
+      "median_inference_ms": 15.54,
+      "frames_with_hands": 754,
+      "profile": "/tmp/guipper-hands-3834ex5u"
+    }
+  ],
+  "window_restore": {
+    "mock_portal_selection_cancellation_rotation_old_version": "pass",
+    "real_portal_version": 5,
+    "restored_window": "1920x1039",
+    "separate_processes": 3,
+    "second_launch": "User confirmed restoration without selecting again",
+    "third_launch": "Frames received without another selector; returned token written again with permissions 0600",
+    "profile": "/tmp/guipper-window-restore-3wroz72g",
+    "note": "This portal returns the same opaque token value. The original live checker incorrectly required different bytes; a third successful restore verified that persisting each returned token is sufficient."
+  },
+  "observations": "Both previews show real RGB and two hands with anatomical labels; pinch drives pixel size. Cameras tested separately. Result age is measured from CPU capture publication, not sensor-to-display latency.",
+  "limits": "Short regression checks, not a ten-minute simultaneous-source benchmark or a controlled handedness/gesture accuracy measurement. Infrared darkness validation remains pending.",
+  "images": "Temporary local preview screenshots only; no camera images committed."
+}

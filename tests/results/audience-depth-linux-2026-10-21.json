@@ -1,0 +1,103 @@
+{
+  "date": "2026-10-21",
+  "platform": "Linux",
+  "source": "Kinect v2 native depth, no RGB/model inference",
+  "depth_range_m": [
+    3,
+    4.5
+  ],
+  "parameters": [
+    "analogColor pixel size: movement",
+    "analogColor mix: occupancy",
+    "transform shader: center X"
+  ],
+  "automated_checks": {
+    "core": "pass",
+    "hand_body_history_regressions": "pass",
+    "ASan_UBSan": "pass, leak detection disabled because ptrace environment",
+    "graph_codec_copy_delete_undo_redo_group": "pass",
+    "native_ui_roi_background_and_reverse_selection": "pass",
+    "float_XML_precision": "pass",
+    "irregular_capture_cadence": "pass",
+    "calibration_does_not_trigger_loss_release": "pass"
+  },
+  "hardware_runs": [
+    {
+      "role": "initial_hardware_check_before_irregular_cadence_fix",
+      "active_seconds": 90,
+      "baseline_seconds": 30,
+      "results": 1126,
+      "results_per_second_including_startup": 12.511111111111111,
+      "valid_motion_results": 980,
+      "valid_occupancy_results": 1126,
+      "analysis_ms": {
+        "median": 1.60278,
+        "p95": 1.90983
+      },
+      "age_ms": {
+        "median": 9.786555,
+        "p95": 22.3671
+      },
+      "coverage": {
+        "median": 0.786925,
+        "p95": 0.817364
+      },
+      "render_fps_active": {
+        "median": 60.0021,
+        "p95": 60.0038
+      },
+      "render_fps_baseline": {
+        "median": 60.0021,
+        "p95": 60.0037
+      },
+      "motion_range": [
+        0.000156723,
+        0.0579806
+      ]
+    },
+    {
+      "role": "confirmation_after_irregular_cadence_fix",
+      "active_seconds": 60,
+      "baseline_seconds": 30,
+      "results": 667,
+      "results_per_second_including_startup": 11.116666666666667,
+      "valid_motion_results": 666,
+      "valid_occupancy_results": 667,
+      "analysis_ms": {
+        "median": 1.59966,
+        "p95": 1.91688
+      },
+      "age_ms": {
+        "median": 9.34893,
+        "p95": 23.7028
+      },
+      "coverage": {
+        "median": 0.788252,
+        "p95": 0.789652
+      },
+      "render_fps_active": {
+        "median": 60.0024,
+        "p95": 60.004
+      },
+      "render_fps_baseline": {
+        "median": 60.0023,
+        "p95": 60.0037
+      },
+      "driver_reported_packet_loss": true,
+      "first_result_motion_valid": false,
+      "motion_range": [
+        4.37792e-05,
+        0.00223938
+      ]
+    }
+  ],
+  "notes": [
+    "No builds or regression suites ran during the hardware measurement.",
+    "Coverage measures valid depth, not person detection accuracy.",
+    "Age starts at decoded capture receipt; the movement window adds temporal averaging and this is not physical end-to-end latency.",
+    "The first hardware check exposed invalid movement on irregular frame cadence; a regression test and adaptive 80\u2013250 ms reference selection were added.",
+    "Dark venue, actual crowd, 10-minute endurance, physical USB reconnection and real empty-floor learning are not validated by this room test.",
+    "User movement/darkness confirmation pending.",
+    "Confirmation: only the initialization result lacked motion; all later valid-depth results supplied motion. This is signal continuity, not audience-tracking accuracy."
+  ]
+}
