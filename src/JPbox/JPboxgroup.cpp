@@ -2893,7 +2893,7 @@ bool JPboxgroup::handleInspectorAutomationClick(int mouseButton)
 		}
 
 		JPParameter *parameter = slider->parameters;
-        if(leftButton&&slider->handButton.inside(mouse)){openKinectBinding(parameter);return true;}
+        if(leftButton&&(slider->handButton.inside(mouse)||slider->trackingSummary.inside(mouse))){openKinectBinding(parameter);return true;}
 		if (parameter->bpmEligible &&
 			parameter->movtype == JPParameter::BPM &&
 			slider->boton_bpm.activable2 &&

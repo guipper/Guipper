@@ -416,6 +416,7 @@ JPboxgroup::LoadResult JPboxgroup::commitPreparedSession(PreparedSession &candid
         retained->nodes.swap(this->boxes);
         retained->finalLayers = std::move(finalQuickImages);
     }
+    jp_hand::stopAll();
     clear();
     outgoingScene = std::move(retained);
     sessionFadeSnapshot = std::move(outgoing);

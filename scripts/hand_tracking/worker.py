@@ -29,14 +29,14 @@ def main():
         min_hand_detection_confidence=0.6, min_hand_presence_confidence=0.6,
         min_tracking_confidence=0.5)
     with vision.HandLandmarker.create_from_options(options) as detector:
-        emit({"ready": 1, "protocol": 1})
+        emit({"ready": 1, "protocol": 2, "detector": "hands"})
         previous = 0
         while True:
             try:
-                size, stamp = struct.unpack("<IQ", read_exact(12))
-                if size != 960 * 540 * 3:
+                size, width, height, pixel_format, stamp, serial = struct.unpack("<IIIIQQ", read_exact(32))
+                if not (0 < width <= 4096 and 0 < height <= 4096) or pixel_format != 1 or size != width * height * 3:
                     raise ValueError("invalid RGB frame size")
-                rgb = np.frombuffer(read_exact(size), dtype=np.uint8).reshape(540, 960, 3)
+                rgb = np.frombuffer(read_exact(size), dtype=np.uint8).reshape(height, width, 3)
             except EOFError:
                 return
             stamp = max(stamp, previous + 1)
@@ -46,9 +46,12 @@ def main():
             hands = []
             for points, side in zip(result.hand_landmarks, result.handedness):
                 category = side[0]
-                hands.append({"right": category.category_name == "Right", "score": category.score,
+                # MediaPipe's handedness assumes mirrored/selfie input. Kinect
+                # RGB is unmirrored: swap only the label to report the person's
+                # anatomical hand. Keep image/landmark coordinates unchanged.
+                hands.append({"right": category.category_name == "Left", "score": category.score,
                               "points": [[p.x, p.y] for p in points]})
-            emit({"hands": hands, "ms": (time.monotonic() - start) * 1000})
+            emit({"serial": serial, "hands": hands, "ms": (time.monotonic() - start) * 1000})
 
 
 if __name__ == "__main__":

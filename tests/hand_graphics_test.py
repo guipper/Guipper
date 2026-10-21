@@ -15,6 +15,8 @@ env = dict(os.environ, GUIPPER_USER_ROOT=str(work / "profile"),
            __NV_PRIME_RENDER_OFFLOAD="1", __GLX_VENDOR_LIBRARY_NAME="nvidia")
 cases = [("persistence", {"GUIPPER_PERSISTENCE_TEST": "hands"}, "hands-test: PASS"),
          ("ui", {"GUIPPER_UISHOT": "hands"}, "hands-ui: PASS")]
+if "--persistence-only" in sys.argv:
+    cases = cases[:1]
 if "--real" in sys.argv:
     cases = [("real", {"GUIPPER_UISHOT": "hands-real"}, "hands-benchmark:")]
 for name, mode, marker in cases:

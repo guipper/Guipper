@@ -5,6 +5,9 @@
 #include <ctime>
 #include "JPutils/jp_storage.h"
 #include "ofApp.h"
+#ifdef TARGET_LINUX
+#include "ofGstUtils.h"
+#endif
 #include "JPutils/jp_uishot.h"
 #include "JPutils/jp_persistence_test.h"
 #include "JPutils/jp_uniform_parser.h"
@@ -64,6 +67,11 @@ void ofApp::recordProfileValue(float &average, float &peak, float sampleMs)
 
 //--------------------------------------------------------------
 void ofApp::setup() {
+#ifdef TARGET_LINUX
+    // OF's GStreamer singleton initialization uses non-atomic flags. Complete
+    // it before video boxes and the asynchronous camera hub can race to init.
+    { ofGstUtils initializeGstreamer; ofGstUtils::startGstMainLoop(); }
+#endif
     ofSetWindowTitle("Guipper " + std::string(jp::version) + " | F10: Updates / Actualizaciones");
     loadReleasePreferences();
 
@@ -141,7 +149,7 @@ void ofApp::setup() {
 	if (std::getenv("GUIPPER_PERSISTENCE_TEST") != nullptr)
 	{
 		const bool passed = jp_persistence_test::run(*this);
-		jp_audio::shutdown();
+        shutdownApp();
 		std::exit(passed ? EXIT_SUCCESS : EXIT_FAILURE);
 	}
 
@@ -8556,6 +8564,9 @@ void ofApp::shutdownApp() {
 	// Stop the shared worker even when a preview or undo entry still owns it.
 	jp_hand::shutdown();
 	JPbox_kinect2::shutdownSharedCapture();
+#ifdef TARGET_LINUX
+    JPbox_cam::shutdownCameraSources();
+#endif
 	jp_audio::shutdown();
 	saveSettings();
 	midiKeymap.exit();

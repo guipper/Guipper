@@ -268,7 +268,7 @@ float JPComplexSlider::requiredHeight(const JPParameter *parameter,
 	}
 	// A pattern whose speed follows audio needs the same second row: without
 	// the source chip there is no way to say WHICH signal drives it.
-	if (parameter->movtype == JPParameter::BPM || parameter->usesAudioChain())
+	if (parameter->movtype == JPParameter::BPM || parameter->movtype == JPParameter::KINECT || parameter->usesAudioChain())
 		return metrics.modifierHeight;
 	return metrics.automatedHeight;
 }
@@ -529,8 +529,20 @@ void JPComplexSlider::draw()
 	}
 	slider_value.draw();
 	boton_collapse.draw();
-    jp_button::draw(handButton,"K",parameters->movtype==JPParameter::KINECT,true,parameters->movtype==JPParameter::KINECT&&!parameters->handFilter.valid?COL_ACCENT_GOLD:COL_ACCENT_CYAN);
-    jp_tooltip::draw("Kinect: vincular mano o dedos y abrir diagnostico",handButton.x,handButton.y,handButton.width,handButton.height);
+    jp_button::draw(handButton,"",parameters->movtype==JPParameter::KINECT,true,parameters->movtype==JPParameter::KINECT&&!parameters->handFilter.valid?COL_ACCENT_GOLD:COL_ACCENT_CYAN);
+    ofPushStyle();ofSetColor(COL_TEXT_PRIMARY);ofSetLineWidth(1.5f);auto center=handButton.getCenter();ofNoFill();ofDrawCircle(center.x,center.y-5,2);ofDrawLine(center.x,center.y-2,center.x,center.y+3);ofDrawLine(center.x-5,center.y,center.x+5,center.y);ofDrawLine(center.x,center.y+3,center.x-4,center.y+7);ofDrawLine(center.x,center.y+3,center.x+4,center.y+7);ofPopStyle();
+    jp_tooltip::draw("Seguimiento: manos",handButton);
+    trackingSummary={};
+    if(parameters->movtype==JPParameter::KINECT){
+        const auto &b=parameters->handBinding;std::string source=b.source.kind==jp_hand::SourceKind::KinectRGB?"Kinect RGB":b.source.kind==jp_hand::SourceKind::KinectIR?"Kinect IR":"Camara";
+        if(b.source.kind==jp_hand::SourceKind::Camera)for(const auto &entry:jp_hand::sources())if(entry.source.kind==b.source.kind&&entry.source.device==b.source.device){source=entry.label.substr(0,entry.label.find(" ("));break;}
+        std::string detail=(b.right?"Mano derecha":"Mano izquierda")+std::string(" · ")+jp_hand::signalLabel(b.signal);
+        if(b.signal==jp_hand::PositionX||b.signal==jp_hand::PositionY)detail+=" · "+(b.point<0?std::string("palma"):"#"+ofToString(b.point));
+        const std::string summary=detail+" · "+source;
+        trackingSummary={x-width*.5f+14,primaryRowY+layoutMetrics().secondRowOffset-11,width-28,22};
+        jp_button::draw(trackingSummary,jp_tooltip::fit(summary,trackingSummary.width-12,[](const std::string &s){return jp_constants::control_font.stringWidth(s);}),false);
+        jp_tooltip::draw(summary+" · Clic para editar el vinculo",trackingSummary);
+    }
 	jp_tooltip::draw("Toggle parameter automation",
 		boton_collapse.x - boton_collapse.width / 2.0f,
 		boton_collapse.y - boton_collapse.height / 2.0f,
@@ -937,6 +949,7 @@ void JPComplexSlider::setPosAndSize()
 		// rebuildControllersIfLayoutStale() re-runs this whenever movtype
 		// changes - including from the buttons that change it inside draw().
 		const bool secondRow =
+			parameters->movtype == JPParameter::KINECT ||
 			parameters->movtype == JPParameter::BPM ||
 			parameters->usesAudioChain();
 		const float rightPad = automatedInlinePadding;

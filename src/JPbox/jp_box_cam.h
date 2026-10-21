@@ -4,6 +4,7 @@
 #include "jp_box.h"
 #include "jp_media_state.h"
 #include "defines.h"
+#include "../JPutils/jp_hand_tracking.h"
 #include "../JPutils/jp_parametergroup.h"
 #include "../JPutils/jp_fbohandler.h"
 //#include "Shaderrender.h"
@@ -29,11 +30,21 @@ public:
 	const ofTexture &getTexture() const;
 	bool hasTexture() const;
 
+#ifdef TARGET_LINUX
+ struct State;
+ JPCameraCaptureSource(const string &key,int width,int height);
+ std::shared_ptr<const jp_hand::Frame> frame()const;
+ string status()const;
+ void reconnect();
 private:
-	int deviceId = -1;
+ std::shared_ptr<State> state;
+#else
+private:
+ int deviceId = -1;
 	ofVideoGrabber grabber;
 	bool initialized = false;
 	uint64_t lastUpdateFrame;
+#endif
 };
 
 //#include "JPbox/JPboxgroup.h"
@@ -67,6 +78,12 @@ public:
 	static vector<int> availableCameraIds();
 	static string cameraLabel(int deviceId);
 	static uint64_t cameraRescanCount();
+#ifdef TARGET_LINUX
+ static std::shared_ptr<JPCameraCaptureSource> acquireCameraByKey(const string &key,int width=1280,int height=720);
+ static vector<jp_hand::SourceInfo> handCameraSources();
+ static void collectCameraTextures();
+ static void shutdownCameraSources();
+#endif
 
 	// Which /dev/video devices currently have a live capture source, and how
 	// many boxes are sharing each one. Exposed for the debug panel: the pool is

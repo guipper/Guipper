@@ -135,5 +135,5 @@ text_render_tests: text_render_tests.cpp ../src/JPutils/jp_text_render.cpp ../sr
 screen_portal_tests: screen_portal_tests.cpp ../src/JPutils/jp_screen_capture_linux.cpp ../src/JPutils/jp_screen_capture.h ../src/JPutils/jp_capture_resize.h
 	$(CXX) $(CXXFLAGS) -pthread $(shell pkg-config --cflags gio-unix-2.0 gstreamer-app-1.0 gstreamer-video-1.0) screen_portal_tests.cpp ../src/JPutils/jp_screen_capture_linux.cpp $(shell pkg-config --libs gio-unix-2.0 gstreamer-app-1.0 gstreamer-video-1.0) -o $@
 
-hand_tracking_tests: hand_tracking_tests.cpp ../src/JPutils/jp_hand_tracking.h
+hand_tracking_tests: hand_tracking_tests.cpp ../src/JPutils/jp_hand_tracking.h ../src/JPutils/jp_hand_resize.h
 	$(CXX) $(CXXFLAGS) hand_tracking_tests.cpp -o $@

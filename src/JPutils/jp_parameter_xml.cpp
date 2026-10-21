@@ -1,9 +1,18 @@
 #include "jp_parameter_xml.h"
 #include "jp_parametergroup.h"
 #include "ofXml.h"
+#include <limits>
+#include <sstream>
 
 namespace
 {
+    // ofXml::set(float) uses six significant digits. Preserve binary float
+    // round trips for calibrated regions, mapping extremes and the base value.
+    void saveTrackingNumber(ofXml &node,const char *name,float value){
+        std::ostringstream text;text.imbue(std::locale::classic());text.precision(std::numeric_limits<float>::max_digits10);text<<value;
+        node.appendChild(name).set(text.str());
+    }
+
 	void saveParameterUserState(ofXml &node, JPParameter *parameter)
 	{
 		if (parameter == nullptr) return;
@@ -11,11 +20,15 @@ namespace
 		if (parameter->variabletype == JPParameter::FLOAT)
 		{
 			auto hand=node.appendChild("kinect");const auto &b=parameter->handBinding;
-            hand.appendChild("version").set(1);hand.appendChild("right").set(b.right);
+            hand.appendChild("version").set(2);
+            hand.appendChild("detector").set("hands");
+            hand.appendChild("loss").set(int(b.loss));
+            hand.appendChild("source").set(b.source.kind==jp_hand::SourceKind::KinectRGB?"kinect_rgb":b.source.kind==jp_hand::SourceKind::KinectIR?"kinect_ir":b.source.kind==jp_hand::SourceKind::Camera?"camera":"unsupported");
+            hand.appendChild("device").set(b.source.device);hand.appendChild("right").set(b.right);
             hand.appendChild("signal").set(b.signal);hand.appendChild("point").set(b.point);
-            hand.appendChild("inputmin").set(b.inputMin);hand.appendChild("inputmax").set(b.inputMax);
-            hand.appendChild("invert").set(b.invert);hand.appendChild("smoothingms").set(b.smoothingMs);
-            hand.appendChild("deadzone").set(b.deadzone);hand.appendChild("base").set(b.base);
+            saveTrackingNumber(hand,"inputmin",b.inputMin);saveTrackingNumber(hand,"inputmax",b.inputMax);
+            hand.appendChild("invert").set(b.invert);saveTrackingNumber(hand,"smoothingms",b.smoothingMs);
+            saveTrackingNumber(hand,"deadzone",b.deadzone);saveTrackingNumber(hand,"base",b.base);
             node.appendChild("rangeenabled").set(parameter->rangeEnabled);
 			node.appendChild("defaultvalue").set(parameter->defaultFloatValue);
 		}
@@ -36,8 +49,13 @@ namespace
 			auto hand=node.getChild("kinect");auto &b=parameter->handBinding;
             b={};b.base=parameter->floatValue;
             if(hand){
+                auto source=hand.getChild("source");
+                if(source){const auto kind=source.getValue();b.source.kind=kind=="kinect_rgb"?jp_hand::SourceKind::KinectRGB:kind=="kinect_ir"?jp_hand::SourceKind::KinectIR:kind=="camera"?jp_hand::SourceKind::Camera:static_cast<jp_hand::SourceKind>(-1);}
+                b.source.device=hand.getChild("device").getValue();
+                const auto detector=hand.getChild("detector").getValue();b.source.detector=jp_hand::Detector::Hands;
+                b.loss=jp_hand::Loss(std::clamp(hand.getChild("loss").getIntValue(),0,2));
                 b.right=(hand.getChild("right")?hand.getChild("right").getBoolValue():true);
-                b.signal=std::clamp(hand.getChild("signal").getIntValue(),0,4);
+                b.signal=std::clamp(hand.getChild("signal").getIntValue(),0,int(jp_hand::Distance));
                 b.point=std::clamp((hand.getChild("point")?hand.getChild("point").getIntValue():-1),-1,20);
                 auto number=[&](const char *key,float fallback,float lo,float hi){auto v=hand.getChild(key);float value=v?v.getFloatValue():fallback;return std::isfinite(value)?std::clamp(value,lo,hi):fallback;};
                 b.inputMin=number("inputmin",b.signal==jp_hand::Distance?.7f:b.signal==jp_hand::Pinch?.15f:0,-10000,10000);
@@ -45,6 +63,7 @@ namespace
                 if(b.inputMax<=b.inputMin){b.inputMin=0;b.inputMax=1;}
                 b.invert=hand.getChild("invert").getBoolValue();b.smoothingMs=number("smoothingms",100,0,5000);b.deadzone=number("deadzone",.01f,0,.5f);
                 b.base=number("base",parameter->floatValue,parameter->nativeMin,parameter->nativeMax);
+
             }
             parameter->resetHandRuntime();
             auto enabled = node.getChild("rangeenabled");

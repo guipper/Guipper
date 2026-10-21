@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-trap 'echo "No se pudo instalar Kinect manos. Revisá la conexión, Python/venv y el error anterior." >&2' ERR
+trap 'echo "No se pudo instalar Seguimiento. Revisá la conexión, Python/venv y el error anterior." >&2' ERR
 [[ "$(uname -s)" == Linux ]] || { echo 'Disponible solo en Linux.' >&2; exit 1; }
 runtime_dir="${GUIPPER_HAND_RUNTIME:-${XDG_DATA_HOME:-$HOME/.local/share}/Guipper/hand-tracking}"
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,4 +15,4 @@ printf '%s  %s\n' fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cd
 mv "$runtime_dir/hand_landmarker.task.download" "$runtime_dir/hand_landmarker.task"
 cp "$script_dir/hand_tracking/worker.py" "$runtime_dir/worker.py"
 "$runtime_dir/venv/bin/python" -m pip freeze > "$runtime_dir/installed-versions.txt"
-echo "Kinect manos instalado en $runtime_dir. En Guipper: SETTINGS > Kinect > Iniciar seguimiento."
+echo "Seguimiento instalado en $runtime_dir. En Guipper: SETTINGS > Seguimiento > Manos > Iniciar."

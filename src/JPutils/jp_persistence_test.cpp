@@ -2176,11 +2176,15 @@ bool jp_persistence_test::run(ofApp &app)
         writeFixture("/hand_landmarker.task","fixture");
         setenv("GUIPPER_HAND_RUNTIME",fake.c_str(),1);jp_hand::setPanelVisible(true);
         auto provider=[](){return jp_hand::simulatedSnapshot(jp_hand::now()).frame;};
-        writeFixture("/worker.py","import time\nprint('{\"protocol\":1}',flush=True)\ntime.sleep(60)\n");
+        writeFixture("/worker.py","import time\nprint('{\"protocol\":2}',flush=True)\ntime.sleep(60)\n");
         jp_hand::startWithFrameProvider(provider);
-        check(waitFor([]{return jp_hand::snapshot().status.find("bloqueado")!=string::npos;},4500),"blocked subprocess times out");jp_hand::stop();
-        writeFixture("/worker.py","print('{\"protocol\":1}',flush=True)\n");
+        jp_hand::Source isolated{jp_hand::SourceKind::KinectIR,{}};jp_hand::start(true,isolated);
+        check(waitFor([&]{jp_hand::demand(isolated);return !jp_hand::snapshot(isolated).hands.empty();},1000),"blocked process cannot block another source");
+        check(waitFor([&]{jp_hand::demand(isolated);return jp_hand::snapshot().status.find("bloqueado")!=string::npos;},4500),"blocked subprocess times out");jp_hand::stop();jp_hand::stop(isolated);
+        writeFixture("/worker.py","print('{\"protocol\":2}',flush=True)\n");
         jp_hand::startWithFrameProvider(provider);check(waitFor([]{return jp_hand::snapshot().status.find("Error")!=string::npos;},1500),"exited subprocess / broken pipe");jp_hand::stop();
+        writeFixture("/worker.py","import sys,struct,json\nprint('{\"protocol\":2}',flush=True)\nh=struct.unpack(\"<IIIIQQ\",sys.stdin.buffer.read(32))\nsys.stdin.buffer.read(h[0])\nprint(json.dumps({\"serial\":h[5]+1,\"hands\":[],\"ms\":0}),flush=True)\n");
+        jp_hand::startWithFrameProvider(provider);check(waitFor([]{return jp_hand::snapshot().status.find("respuesta invalida")!=string::npos;},1500),"mismatched frame response is rejected");jp_hand::stop();
         writeFixture("/worker.py","import time\ntime.sleep(60)\n");
         jp_hand::startWithFrameProvider(provider);std::this_thread::sleep_for(std::chrono::milliseconds(80));
         double cancelledAt=jp_hand::now();jp_hand::stop();check(jp_hand::now()-cancelledAt<.05,"stop never joins on render thread");
@@ -2188,11 +2192,35 @@ bool jp_persistence_test::run(ofApp &app)
         jp_hand::setPanelVisible(false);
         if(previous)setenv("GUIPPER_HAND_RUNTIME",old.c_str(),1);else unsetenv("GUIPPER_HAND_RUNTIME");
 #endif
+        // Independent source sessions, same-source fanout, source switching,
+        // capability-aware signals and codec compatibility use the real service.
+        jp_hand::Source irSource{jp_hand::SourceKind::KinectIR,{}},cameraSource{jp_hand::SourceKind::Camera,"fixture-camera"};
+        jp_hand::setPanelVisible(false);jp_hand::start(true);jp_hand::start(true,irSource);jp_hand::start(true,cameraSource);
+        check(waitFor([&]{jp_hand::demand();jp_hand::demand(irSource);jp_hand::demand(cameraSource);return !jp_hand::snapshot().hands.empty()&&!jp_hand::snapshot(irSource).hands.empty()&&!jp_hand::snapshot(cameraSource).hands.empty();},1500),"three sources run independently");
+        auto *multi=app.boxes.boxes[0]->parameters.getJParameter(app.boxes.boxes[0]->parameters.indexOfName("pixel size"));
+        multi->handBinding.source=irSource;multi->update();check(multi->handFilter.valid&&jp_hand::snapshot(irSource).frame->width==512,"IR parameter routing and native aspect");
+        uint64_t irSession=jp_hand::session(irSource);jp_hand::stop(cameraSource);multi->update();check(multi->handFilter.valid&&jp_hand::session(irSource)==irSession,"stopping camera preserves IR session and mapping");
+        multi->handBinding.source=cameraSource;multi->update();check(!multi->handFilter.valid&&multi->floatValue==multi->handBinding.base,"switch to stopped source resets only its binding");
+        jp_hand::start(true,cameraSource);check(waitFor([&]{jp_hand::demand(irSource);return !jp_hand::snapshot(cameraSource).hands.empty();},1000),"webcam session restarts");
+        multi->handBinding.signal=jp_hand::Distance;multi->update();check(!multi->handFilter.valid,"webcam never invents metric Z");multi->handBinding.signal=jp_hand::Pinch;multi->update();check(multi->handFilter.valid,"webcam pinch without Z");
+        ofXml sourceXml;auto sourceRoot=sourceXml.appendChild("box");jp_parameter_xml::save(sourceRoot,app.boxes.boxes[0]->parameters);
+        JPParameterGroup sourceCopy=app.boxes.boxes[0]->parameters;jp_parameter_xml::load(sourceRoot,sourceCopy,jp_parameter_xml::LoadContext::Preset);
+        auto *sourceParam=sourceCopy.getJParameter(sourceCopy.indexOfName("pixel size"));check(sourceParam->handBinding.source==cameraSource&&!sourceParam->handFilter.initialized,"source/device round trip and duplicate resets filter");
+        for(auto param:sourceRoot.getChild("parameters").getChildren("param"))if(param.getChild("name").getValue()=="pixel size"){param.getChild("kinect").removeChild("source");param.getChild("kinect").removeChild("device");}
+        jp_parameter_xml::load(sourceRoot,sourceCopy,jp_parameter_xml::LoadContext::Preset);check(sourceParam->handBinding.source==jp_hand::Source{},"legacy links default to Kinect RGB");
+        JPGraphEdit sourceEdit=mapping;sourceEdit.paramBefore.hand=multi->handBinding;sourceEdit.paramAfter=sourceEdit.paramBefore;sourceEdit.paramAfter.hand.source=irSource;
+        check(app.boxes.applyGraphEdit(sourceEdit)&&multi->handBinding.source==irSource,"source edit redo");
+        check(app.boxes.revertGraphEdit(sourceEdit)&&multi->handBinding.source==cameraSource,"source edit undo");
+#ifdef TARGET_LINUX
+        {auto first=JPbox_cam::acquireCameraByKey("fixture-absent-camera",640,480);auto second=JPbox_cam::acquireCameraByKey("fixture-absent-camera",1280,720);check(first==second,"camera boxes and tracking share one device regardless of requested size");}
+#endif
+        jp_hand::setPanelVisible(false);check(waitFor([&]{return jp_hand::snapshot(irSource).captured>0;},500),"last IR result exists");
+        jp_hand::stopAll();check(!jp_hand::running()&&!jp_hand::running(irSource)&&!jp_hand::running(cameraSource),"stop all cancels every source");
         app.boxes.addBox("textSource");app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.toggleBoxSelection(1);app.boxes.groupSelectedBoxes();
         auto *preset=app.boxes.boxes.size()==1?dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]):nullptr;
         check(preset&&preset->boxes.size()==2,"group retains bindings");
         if(preset){int childParam=preset->boxes[0]->parameters.indexOfName("pixel size");check(childParam>=0,"group child parameter");if(childParam>=0){preset->setExposedParam(0,childParam,true);check(preset->boxes[0]->parameters.getJParameter(childParam)->movtype==JPParameter::KINECT,"exposed parameter retains source");}
-            const string groupPath=ofToDataPath("hands-group.xml",true);check(app.boxes.save(groupPath),"save group");app.boxes.clear();check(app.boxes.load(groupPath)==JPboxgroup::LoadResult::Success,"reload group");preset=dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]);check(preset&&preset->boxes[0]->parameters.getJParameter(childParam)->handBinding.inputMax==1.3f,"nested codec restores mapping");}
+            const string groupPath=ofToDataPath("hands-group.xml",true);check(app.boxes.save(groupPath),"save group");app.boxes.clear();check(app.boxes.load(groupPath)==JPboxgroup::LoadResult::Success,"reload group");preset=dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]);check(preset&&preset->boxes[0]->parameters.getJParameter(childParam)->handBinding.inputMax==1.3f&&preset->boxes[0]->parameters.getJParameter(childParam)->handBinding.source==cameraSource,"nested codec restores mapping and source");}
         app.boxes.clear();ofLogNotice("hands-test")<<(passed?"PASS":"FAIL");return passed;
     }
 

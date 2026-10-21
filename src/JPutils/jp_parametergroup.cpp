@@ -354,9 +354,11 @@ void JPParameter::update()
 			}
 		}
         if(movtype==KINECT){
-            jp_hand::demand();
-            if(handSession!=jp_hand::session()){handSession=jp_hand::session();handFilter.reset();}
-            floatLerpValue=handFilter.step(jp_hand::sample(jp_hand::snapshot(),handBinding,jp_hand::now()),handBinding,low,high,jp_hand::now());
+            jp_hand::demand(handBinding.source,this);
+            if(handSession!=jp_hand::session(handBinding.source)){handSession=jp_hand::session(handBinding.source);handFilter.reset();}
+            const auto &tracking=jp_hand::snapshot(handBinding.source);
+            floatLerpValue=handFilter.step(jp_hand::sample(tracking,handBinding,jp_hand::now()),handBinding,low,high,jp_hand::now());
+            if(handFilter.release){floatValue=floatLerpValue;setAutomationMode(STANDART);}
         }
 		floatLerpValue = ofClamp(floatLerpValue, low, high);
 	}
@@ -518,7 +520,7 @@ void JPParameter::setAutomationMode(int mode)
 	{
 		wanted = STANDART;
 	}
-    if(wanted==KINECT && movtype!=KINECT){handBinding.base=floatValue;handFilter.reset();handSession=jp_hand::session();}
+    if(wanted==KINECT && movtype!=KINECT){handBinding.base=floatValue;handFilter.reset();handSession=jp_hand::session(handBinding.source);}
     if(wanted!=KINECT && movtype==KINECT){floatLerpValue=floatValue;handFilter.reset();}
 	movtype = wanted;
 	if (wanted != STANDART)
