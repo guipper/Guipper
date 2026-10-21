@@ -11,7 +11,7 @@ PAINT_SOURCES := paint_core_tests.cpp
 PAINT_HEADERS := ../src/JPbox/jp_paint_doc.h ../src/JPbox/jp_media_state.h
 GRAPH_TARGET := graph_history_tests
 GRAPH_SOURCES := graph_history_tests.cpp
-GRAPH_HEADERS := ../src/JPutils/jp_graph_history.h ../src/JPutils/jp_hand_tracking.h
+GRAPH_HEADERS := ../src/JPutils/jp_graph_history.h ../src/JPutils/jp_hand_tracking.h ../src/JPutils/jp_crowd_tracking.h
 WRAP_TARGET := textwrap_tests
 WRAP_SOURCES := textwrap_tests.cpp
 WRAP_HEADERS := ../src/JPutils/jp_textwrap.h
@@ -32,7 +32,7 @@ UNIFORM_SOURCES := uniform_parser_tests.cpp ../src/JPutils/jp_uniform_parser.cpp
 UNIFORM_HEADERS := ../src/JPutils/jp_uniform_parser.h
 TARGETS := hand_tracking_tests text_render_tests youtube_tests screen_capture_tests transition_tests text_edit_tests review_tests toast_tests shader_catalog_tests appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM_TARGET) $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
 
-TARGETS += tracking_body_tests
+TARGETS += tracking_body_tests crowd_tracking_tests
 .PHONY: all run tsan clean
 
 all: $(TARGETS)
@@ -90,6 +90,7 @@ screen_capture_tests: screen_capture_tests.cpp ../src/JPutils/jp_screen_capture.
 	$(CXX) $(CXXFLAGS) -pthread screen_capture_tests.cpp -o $@
 
 run: $(TARGETS)
+	./crowd_tracking_tests
 	./tracking_body_tests
 	./hand_tracking_tests
 	./youtube_tests
@@ -137,8 +138,11 @@ text_render_tests: text_render_tests.cpp ../src/JPutils/jp_text_render.cpp ../sr
 screen_portal_tests: screen_portal_tests.cpp ../src/JPutils/jp_screen_capture_linux.cpp ../src/JPutils/jp_screen_capture.h ../src/JPutils/jp_capture_resize.h
 	$(CXX) $(CXXFLAGS) -pthread $(shell pkg-config --cflags gio-unix-2.0 gstreamer-app-1.0 gstreamer-video-1.0) screen_portal_tests.cpp ../src/JPutils/jp_screen_capture_linux.cpp $(shell pkg-config --libs gio-unix-2.0 gstreamer-app-1.0 gstreamer-video-1.0) -o $@
 
-hand_tracking_tests: hand_tracking_tests.cpp ../src/JPutils/jp_hand_tracking.h ../src/JPutils/jp_hand_resize.h
+hand_tracking_tests: hand_tracking_tests.cpp ../src/JPutils/jp_hand_tracking.h ../src/JPutils/jp_hand_resize.h ../src/JPutils/jp_crowd_tracking.h
 	$(CXX) $(CXXFLAGS) hand_tracking_tests.cpp -o $@
 
-tracking_body_tests: tracking_body_tests.cpp ../src/JPutils/jp_hand_tracking.h
+tracking_body_tests: tracking_body_tests.cpp ../src/JPutils/jp_hand_tracking.h ../src/JPutils/jp_crowd_tracking.h
 	$(CXX) $(CXXFLAGS) tracking_body_tests.cpp -o $@
+
+crowd_tracking_tests: crowd_tracking_tests.cpp ../src/JPutils/jp_crowd_tracking.h ../src/JPutils/jp_hand_tracking.h
+	$(CXX) $(CXXFLAGS) crowd_tracking_tests.cpp -o $@

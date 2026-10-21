@@ -49,6 +49,7 @@ Project{
             'src/JPgui/jp_hand_panel.h',
             'src/JPutils/jp_hand_tracking.cpp',
             'src/JPutils/jp_hand_tracking.h',
+            'src/JPutils/jp_crowd_tracking.h',
             'src/JPutils/jp_youtube.cpp',
             'src/JPutils/jp_text_render.cpp',
             'src/JPutils/jp_youtube.h',

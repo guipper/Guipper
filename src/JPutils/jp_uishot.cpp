@@ -850,10 +850,14 @@ void jp_uishot::update(ofApp &app)
                 third->handBinding.source=pixel->handBinding.source;jp_hand::setSignal(third->handBinding,jp_hand::TorsoX);
                 for(int i=0;i<shader->parameters.getSize();++i){auto *p=shader->parameters.getJParameter(i);if(p->movtype==JPParameter::KINECT){p->handBinding.source=pixel->handBinding.source;jp_hand::setSignal(p->handBinding,jp_hand::ArmHeight);}}
             }
-
+            if(getenv("GUIPPER_TRACK_CROWD")){
+                pixel->handBinding.source={jp_hand::SourceKind::KinectIR,{},jp_hand::Detector::Crowd};jp_hand::setSignal(pixel->handBinding,jp_hand::CrowdMotion);pixel->handBinding.inputMax=.25f;
+                third->handBinding.source=pixel->handBinding.source;jp_hand::setSignal(third->handBinding,jp_hand::CrowdOccupancy);
+                for(int i=0;i<shader->parameters.getSize();++i){auto *p=shader->parameters.getJParameter(i);if(p->movtype==JPParameter::KINECT){p->handBinding.source=pixel->handBinding.source;jp_hand::setSignal(p->handBinding,jp_hand::CrowdX);}}
+            }
             app.boxes.openKinectBinding(pixel);jp_hand::start(gTag=="hands",pixel->handBinding.source);measured.push_back(pixel->handBinding.source);began=jp_hand::now();
             if(getenv("GUIPPER_HAND_MULTI")){jp_hand::start(gTag=="hands");measured.push_back({});}
-            if(gTag=="hands-real"){metrics.open(ofToDataPath("hands-benchmark.csv",true));metrics<<"elapsed,capture_fps,inference_fps,inference_ms,age_ms,dropped,hands,valid_z,render_fps,tracking,simulated,source,width,height,serial,right_pinch,left_pinch,body,torso_x,wrist_span,arm_height\n";}
+            if(gTag=="hands-real"){metrics.open(ofToDataPath("hands-benchmark.csv",true));metrics<<"elapsed,capture_fps,inference_fps,inference_ms,age_ms,dropped,hands,valid_z,render_fps,tracking,simulated,source,width,height,serial,right_pinch,left_pinch,body,torso_x,wrist_span,arm_height,crowd_motion,crowd_occupancy,crowd_x,crowd_coverage\n";}
         }
         if(gTag=="hands-real"){
             const double elapsed=jp_hand::now()-began;
@@ -872,7 +876,9 @@ void jp_uishot::update(ofApp &app)
                 lastResults[testSource]=snap.captured;double age=(jp_hand::now()-snap.captured)*1000;ages.push_back(age);int z=0;for(auto &h:snap.hands)if(h.depthValid)++z;if(!snap.hands.empty())++withHands;if(z)++withDepth;
                 jp_hand::Binding probe;probe.source=testSource;auto right=jp_hand::sample(snap,probe,jp_hand::now());probe.right=false;auto left=jp_hand::sample(snap,probe,jp_hand::now());
                 probe.signal=jp_hand::TorsoX;auto torso=jp_hand::sample(snap,probe,jp_hand::now());probe.signal=jp_hand::WristSpan;auto wrists=jp_hand::sample(snap,probe,jp_hand::now());probe.signal=jp_hand::ArmHeight;auto arms=jp_hand::sample(snap,probe,jp_hand::now());
-                metrics<<elapsed<<","<<(snap.frame?snap.frame->captureFps:0)<<","<<snap.inferenceFps<<","<<snap.inferenceMs<<","<<age<<","<<snap.dropped<<","<<snap.hands.size()<<","<<z<<","<<ofGetFrameRate()<<",1,"<<snap.simulated<<","<<int(testSource.kind)<<","<<(snap.frame?snap.frame->width:0)<<","<<(snap.frame?snap.frame->height:0)<<","<<(snap.frame?snap.frame->serial:0)<<","<<(right.valid?right.raw:-1)<<","<<(left.valid?left.raw:-1)<<","<<snap.body.present<<","<<(torso.valid?torso.raw:-1)<<","<<(wrists.valid?wrists.raw:-1)<<","<<(arms.valid?arms.raw:-1)<<"\n";metrics.flush();
+                probe.signal=jp_hand::CrowdMotion;auto movement=jp_hand::sample(snap,probe,jp_hand::now());probe.signal=jp_hand::CrowdOccupancy;auto occupancy=jp_hand::sample(snap,probe,jp_hand::now());probe.signal=jp_hand::CrowdX;auto center=jp_hand::sample(snap,probe,jp_hand::now());
+                float coverage=0;if(snap.crowd){auto *r=snap.crowd->find(probe.crowd);if(r)coverage=r->zones[0].coverage;}
+                metrics<<elapsed<<","<<(snap.frame?snap.frame->captureFps:0)<<","<<snap.inferenceFps<<","<<snap.inferenceMs<<","<<age<<","<<snap.dropped<<","<<snap.hands.size()<<","<<z<<","<<ofGetFrameRate()<<",1,"<<snap.simulated<<","<<int(testSource.kind)<<","<<(snap.frame?snap.frame->width:0)<<","<<(snap.frame?snap.frame->height:0)<<","<<(snap.frame?snap.frame->serial:0)<<","<<(right.valid?right.raw:-1)<<","<<(left.valid?left.raw:-1)<<","<<snap.body.present<<","<<(torso.valid?torso.raw:-1)<<","<<(wrists.valid?wrists.raw:-1)<<","<<(arms.valid?arms.raw:-1)<<","<<(movement.valid?movement.raw:-1)<<","<<(occupancy.valid?occupancy.raw:-1)<<","<<(center.valid?center.raw:-1)<<","<<coverage<<"\n";metrics.flush();
             }
             const char *length=getenv("GUIPPER_HAND_BENCH_SECONDS");double duration=length?std::max(10.,atof(length)):600.;
             if(elapsed>duration&&getenv("GUIPPER_HAND_CLOSE_ACTIVE")){ofLogNotice("hands-benchmark")<<"Closing with active capture";metrics.close();gDone=true;ofExit();return;}
@@ -1047,11 +1053,11 @@ void jp_uishot::draw(ofApp &app)
     if(gActive&&gTag=="hands-real"){
         // Optional capture of the actual detector preview during a hardware
         // check, including source changes that previously left its texture black.
-        if((getenv("GUIPPER_HAND_CAMERA"))&&gFrames%600==0){ofImage shot;shot.grabScreen(0,0,ofGetWidth(),ofGetHeight());shot.save(shotDir()+"camera-preview.png");}
+        if((getenv("GUIPPER_HAND_CAMERA")||getenv("GUIPPER_TRACK_CROWD"))&&gFrames%600==0){ofImage shot;shot.grabScreen(0,0,ofGetWidth(),ofGetHeight());shot.save(shotDir()+"camera-preview.png");}
         return;
     }
     if(gActive&&!gDone&&gTag=="hands"){
-        if(gFrames<(gState==7?350:50))return;ofImage shot;shot.grabScreen(0,0,ofGetWidth(),ofGetHeight());shot.save(shotDir()+"hands-"+ofToString(gState)+".png");
+        if(gFrames<(gState==7?350:gState==12?180:50))return;ofImage shot;shot.grabScreen(0,0,ofGetWidth(),ofGetHeight());shot.save(shotDir()+"hands-"+ofToString(gState)+".png");
         // The synthetic input is gray 24. This point is inside every fitted
         // preview, above the skeleton and outside the camera dropdown.
         if(gState<3){auto color=shot.getColor(180,300);if(std::abs(int(color.r)-24)>2||std::abs(int(color.g)-24)>2||std::abs(int(color.b)-24)>2){ofLogError("hands-ui")<<"Preview missing after source/resolution change: "<<color;std::exit(EXIT_FAILURE);}}
@@ -1077,8 +1083,20 @@ void jp_uishot::draw(ofApp &app)
             if(p->handBinding.inputMin!=0||p->handBinding.inputMax!=1){ofLogError("hands-ui")<<"Calibration undo failed";std::exit(EXIT_FAILURE);}
             app.boxes.graphUndoShortcut(true);
             if(p->handBinding.inputMin!=minimum||p->handBinding.inputMax!=maximum){ofLogError("hands-ui")<<"Calibration redo failed";std::exit(EXIT_FAILURE);}
-            ofLogNotice("hands-ui")<<"PASS";gDone=true;ofExit();
+            p->handBinding.source={jp_hand::SourceKind::KinectIR,{},jp_hand::Detector::Crowd};jp_hand::setSignal(p->handBinding,jp_hand::CrowdMotion);jp_hand::start(true,p->handBinding.source);app.boxes.openKinectBinding(p);
         }
+        else if(gState==8){if(!p->handFilter.valid){ofLogError("hands-ui")<<"Audience simulation not valid";std::exit(EXIT_FAILURE);}jp_hand_ui::press(450,448,OF_MOUSE_BUTTON_LEFT);}
+        else if(gState==9){
+            ofRectangle preview(54,245,276,155.25f),image(0,0,512,424);image.scaleTo(preview,OF_SCALEMODE_FIT);
+            jp_hand_ui::press(int(image.x+image.width*.1f),int(image.y+image.height*.1f),OF_MOUSE_BUTTON_LEFT);jp_hand_ui::drag(int(image.x+image.width*.8f),int(image.y+image.height*.9f));jp_hand_ui::release();
+            const auto area=p->handBinding.crowd;
+            if(std::abs(area.left-.1f)>.01f||std::abs(area.right-.8f)>.01f){ofLogError("hands-ui")<<"Depth ROI selection failed";std::exit(EXIT_FAILURE);}
+            app.boxes.graphUndoShortcut(false);if(p->handBinding.crowd.left!=0)std::exit(EXIT_FAILURE);app.boxes.graphUndoShortcut(true);if(!(p->handBinding.crowd==area))std::exit(EXIT_FAILURE);
+        }
+        else if(gState==10){jp_hand_ui::press(400,604,OF_MOUSE_BUTTON_LEFT);}
+        else if(gState==11){if(!p->handBinding.crowd.background)std::exit(EXIT_FAILURE);}
+        else if(gState==12){const auto &snap=jp_hand::snapshot(p->handBinding.source);if(!snap.crowd||snap.crowd->background!=jp_crowd::Background::Ready){ofLogError("hands-ui")<<"Audience background did not complete";std::exit(EXIT_FAILURE);}jp_hand_ui::press(450,448,OF_MOUSE_BUTTON_LEFT);}
+        else{jp_hand_ui::press(450,485,OF_MOUSE_BUTTON_RIGHT);if(p->handBinding.zone!=3)std::exit(EXIT_FAILURE);ofLogNotice("hands-ui")<<"PASS";gDone=true;ofExit();}
         ++gState;gFrames=0;return;
     }
 	if (!gActive || gDone) return;

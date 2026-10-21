@@ -2235,13 +2235,48 @@ bool jp_persistence_test::run(ofApp &app)
         check(waitFor([&]{jp_hand::demand(bodySource);multi->update();return multi->movtype==JPParameter::STANDART;},1500),"loss release returns manual control");
         check(multi->handBinding.source==bodySource,"release retains configured body source");
         multi->setAutomationMode(JPParameter::KINECT);multi->handBinding.loss=jp_hand::Loss::Hold;multi->handBinding.inputMax=3;
+        // Depth-only audience runs without RGB, Python or a body model.
+        jp_hand::Source audience{jp_hand::SourceKind::KinectIR,{},jp_hand::Detector::Crowd};
+        auto depthOnly=[]()->std::shared_ptr<const jp_hand::Frame>{auto f=std::make_shared<jp_hand::Frame>();f->depthWidth=128;f->depthHeight=96;f->captured=jp_hand::now();f->serial=uint64_t(f->captured*30);f->depth.assign(128*96,4000);for(int y=16;y<80;++y)for(int x=16;x<48;++x)f->depth[y*128+x]=2000;return f;};
+        multi->handBinding.source=audience;jp_hand::setSignal(multi->handBinding,jp_hand::CrowdOccupancy);multi->handBinding.zone=1;multi->handBinding.crowd.nearM=.7f;multi->handBinding.crowd.farM=3.2f;
+        jp_hand::startWithFrameProvider(depthOnly,audience);
+        check(waitFor([&]{multi->update();return multi->handFilter.valid;},1500),"depth-only audience delivers valid zone without RGB/model");
+        auto crowdFrame=jp_hand::snapshot(audience).frame;
+        bodySecond->handBinding.source=audience;bodySecond->handBinding.crowd=multi->handBinding.crowd;jp_hand::setSignal(bodySecond->handBinding,jp_hand::CrowdX);bodySecond->update();
+        check(bodySecond->handFilter.valid&&jp_hand::snapshot(audience).frame==crowdFrame,"audience signals share processed depth snapshot");
+        bodySecond->handBinding.crowd.left=.6f;jp_hand::setSignal(bodySecond->handBinding,jp_hand::CrowdOccupancy);
+        check(waitFor([&]{multi->update();bodySecond->update();return bodySecond->handFilter.valid&&multi->handFilter.valid;},1000),"two distinct audience regions processed independently");
+        const auto &audienceSnapshot=jp_hand::snapshot(audience);check(jp_hand::sample(audienceSnapshot,bodySecond->handBinding,jp_hand::now()).raw==0&&jp_hand::sample(audienceSnapshot,multi->handBinding,jp_hand::now()).raw>.1,"ROI does not contaminate another binding");
+        multi->handBinding.crowd.background=true;multi->handBinding.loss=jp_hand::Loss::Release;
+        jp_hand::learnCrowdBackground(audience);
+        check(waitFor([&]{multi->update();return jp_hand::snapshot(audience).crowd&&jp_hand::snapshot(audience).crowd->background==jp_crowd::Background::Ready;},3500),"audience background captured off render thread");
+        check(multi->movtype==JPParameter::KINECT,"explicit background learning does not release a binding");multi->handBinding.loss=jp_hand::Loss::Hold;
+        multi->handBinding.crowd.background=true;
+        check(waitFor([&]{multi->update();return multi->handFilter.valid&&jp_hand::sample(jp_hand::snapshot(audience),multi->handBinding,jp_hand::now()).raw==0;},1000),"learned static surfaces excluded");
+        jp_hand::stop(audience);multi->update();check(!multi->handFilter.valid&&multi->floatValue==multi->handBinding.base,"audience stop invalidates output");
+        jp_hand::startWithFrameProvider(depthOnly,audience);
+        check(waitFor([&]{multi->update();return jp_hand::snapshot(audience).crowd!=nullptr;},1000),"audience restart returns depth");
+        check(jp_hand::snapshot(audience).crowd->background==jp_crowd::Background::None&&!multi->handFilter.valid,"background never crosses sessions");
+        multi->handBinding.crowd.noiseM=.034567891f;multi->handBinding.crowd.speedMps=.54321987f;multi->handBinding.base=12.3456789f;
+        ofXml audienceXml;auto audienceRoot=audienceXml.appendChild("box");jp_parameter_xml::save(audienceRoot,app.boxes.boxes[0]->parameters);
+        JPParameterGroup audienceCopy=app.boxes.boxes[0]->parameters;jp_parameter_xml::load(audienceRoot,audienceCopy,jp_parameter_xml::LoadContext::Preset);
+        auto *audienceParam=audienceCopy.getJParameter(audienceCopy.indexOfName("pixel size"));check(audienceParam->handBinding==multi->handBinding&&!audienceParam->handFilter.initialized,"audience ROI/depth/noise/background preference round trip");
+        sourceEdit.paramBefore.hand=multi->handBinding;sourceEdit.paramAfter=sourceEdit.paramBefore;sourceEdit.paramAfter.hand.crowd.left=.2f;
+        check(app.boxes.applyGraphEdit(sourceEdit)&&multi->handBinding.crowd.left==.2f,"audience area edit redo");check(app.boxes.revertGraphEdit(sourceEdit)&&multi->handBinding.crowd.left==0,"audience area edit undo");
+        app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.copySelectedBoxes();app.boxes.pasteBoxes();
+        check(app.boxes.boxes.size()==2,"audience graph duplicate");
+        if(app.boxes.boxes.size()==2){auto *duplicate=app.boxes.boxes[1]->parameters.getJParameter(app.boxes.boxes[1]->parameters.indexOfName("pixel size"));check(duplicate->handBinding==multi->handBinding&&!duplicate->handFilter.initialized,"audience duplicate keeps area without runtime state");
+            app.boxes.clearSelection();app.boxes.toggleBoxSelection(1);app.boxes.deleteSelectedShader();app.boxes.graphUndoShortcut(false);check(app.boxes.boxes.size()==2&&duplicate->handBinding==multi->handBinding&&!duplicate->handFilter.initialized,"audience delete undo preserves configuration only");app.boxes.graphUndoShortcut(true);check(app.boxes.boxes.size()==1,"audience delete redo");}
+        multi->handBinding.inputMax=1;
+        // Leave an audience binding for nested-group/exposed parameter persistence.
+
         jp_hand::setPanelVisible(false);check(waitFor([&]{return jp_hand::snapshot(irSource).captured>0;},500),"last IR result exists");
         jp_hand::stopAll();check(!jp_hand::running()&&!jp_hand::running(irSource)&&!jp_hand::running(cameraSource),"stop all cancels every source");
         app.boxes.addBox("textSource");app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.toggleBoxSelection(1);app.boxes.groupSelectedBoxes();
         auto *preset=app.boxes.boxes.size()==1?dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]):nullptr;
         check(preset&&preset->boxes.size()==2,"group retains bindings");
         if(preset){int childParam=preset->boxes[0]->parameters.indexOfName("pixel size");check(childParam>=0,"group child parameter");if(childParam>=0){preset->setExposedParam(0,childParam,true);check(preset->boxes[0]->parameters.getJParameter(childParam)->movtype==JPParameter::KINECT,"exposed parameter retains source");}
-            const string groupPath=ofToDataPath("hands-group.xml",true);check(app.boxes.save(groupPath),"save group");app.boxes.clear();check(app.boxes.load(groupPath)==JPboxgroup::LoadResult::Success,"reload group");preset=dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]);check(preset&&preset->boxes[0]->parameters.getJParameter(childParam)->handBinding.inputMax==3&&preset->boxes[0]->parameters.getJParameter(childParam)->handBinding.source==bodySource,"nested codec restores mapping and source");}
+            const string groupPath=ofToDataPath("hands-group.xml",true);check(app.boxes.save(groupPath),"save group");app.boxes.clear();check(app.boxes.load(groupPath)==JPboxgroup::LoadResult::Success,"reload group");preset=dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]);check(preset&&preset->boxes[0]->parameters.getJParameter(childParam)->handBinding.inputMax==1&&preset->boxes[0]->parameters.getJParameter(childParam)->handBinding.source==audience&&preset->boxes[0]->parameters.getJParameter(childParam)->handBinding.crowd.background,"nested codec restores mapping and source");}
         app.boxes.clear();ofLogNotice("hands-test")<<(passed?"PASS":"FAIL");return passed;
     }
 

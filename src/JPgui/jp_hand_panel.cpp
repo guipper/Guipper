@@ -6,6 +6,7 @@
 namespace jp_hand_ui {
 namespace {
 bool opened=false,moving=false,resizing=false,lost=false,choosingCamera=false;
+bool crowdSetup=false,drawingArea=false;ofRectangle depthPreview;jp_hand::Point areaStart,areaEnd;
 bool diagnostics=false,calibrating=false;double calibrationEnd=0,calibrationStamp=0;float calibrationMin=0,calibrationMax=0;int calibrationSamples=0;
 std::string calibrationMessage;jp_hand::Binding calibrationBinding;
 struct LandmarkHit {ofVec2f position;int point;bool right;};std::vector<LandmarkHit> landmarks;
@@ -15,9 +16,10 @@ jp_hand::Source shownSource;uint64_t shownSession=0;
 std::string lastCamera;
 ofRectangle panel(40,65,590,674),settings;ofVec2f offset;
 Target target;jp_hand::Binding local;jp_hand::Filter localFilter;
+ofTexture crowdMask;std::shared_ptr<const jp_crowd::Snapshot> shownCrowd;jp_crowd::Config shownCrowdConfig;
 ofTexture texture;std::shared_ptr<const jp_hand::Frame> displayed;
 struct Button {ofRectangle bounds;std::function<void()> action,backwards;};std::vector<Button> buttons;
-struct Field {std::string text;bool focus=false;};std::array<Field,4> fields;
+struct Field {std::string text;bool focus=false;};std::array<Field,8> fields;
 std::deque<std::array<float,3>> history;double lastHistory=0;
 bool attached(){return target.binding&&target.valid&&target.valid();}
 jp_hand::Binding &binding(){return attached()?*target.binding:local;}
@@ -39,14 +41,15 @@ void field(int i,float x,float y,const std::string &name,float value){
  f.validate=[i](const std::string &s){try{size_t end;float v=std::stof(s,&end);if(end!=s.size()||!std::isfinite(v))throw std::runtime_error("numero");auto &b=binding();
   if((i==0&&v>=b.inputMax)||(i==1&&v<=b.inputMin))return std::string("Minimo debe ser menor que maximo");
   if((i==2&&(v<0||v>5000))||(i==3&&(v<0||v>50)))return std::string("Fuera de rango");
+  if(i>=4){auto c=b.crowd;if(i==4)c.nearM=v;if(i==5)c.farM=v;if(i==6)c.speedMps=v;if(i==7)c.noiseM=v;if(!c.valid())return std::string("Distancia: 0,5 a 4,5 m; velocidad: 0,05 a 5; ruido: 0,005 a 0,2 m");}
   return std::string();}catch(...){return std::string("Ingresar un numero valido");}};
- f.commit=[i]{float v=std::stof(fields[i].text);edit([&]{auto &b=binding();if(i==0)b.inputMin=v;if(i==1)b.inputMax=v;if(i==2)b.smoothingMs=v;if(i==3)b.deadzone=v*.01f;});fields[i].focus=false;calibrating=false;return true;};
+ f.commit=[i]{float v=std::stof(fields[i].text);edit([&]{auto &b=binding();if(i==0)b.inputMin=v;if(i==1)b.inputMax=v;if(i==2)b.smoothingMs=v;if(i==3)b.deadzone=v*.01f;if(i==4)b.crowd.nearM=v;if(i==5)b.crowd.farM=v;if(i==6)b.crowd.speedMps=v;if(i==7)b.crowd.noiseM=v;});fields[i].focus=false;calibrating=false;return true;};
  jp_text_input::controller().add(std::move(f));
 }
 }
-void open(Target t){jp_text_input::controller().finish();target=std::move(t);opened=true;choosingCamera=false;calibrating=false;calibrationMessage.clear();history.clear();displayed.reset();for(auto &f:fields)f.focus=false;jp_hand::setPanelVisible(true,binding().source);jp_hand::refreshSources();}
+void open(Target t){jp_text_input::controller().finish();target=std::move(t);opened=true;crowdSetup=false;drawingArea=false;choosingCamera=false;calibrating=false;calibrationMessage.clear();history.clear();displayed.reset();for(auto &f:fields)f.focus=false;jp_hand::setPanelVisible(true,binding().source);jp_hand::refreshSources();}
 bool visible(){return opened;}bool contains(float x,float y){return opened&&panel.inside(x,y);}
-void beginFrame(){settings={};if(target.binding&&!attached()){jp_text_input::controller().finish(true);target={};choosingCamera=false;calibrating=false;for(auto &f:fields)f.focus=false;history.clear();}jp_hand::setPanelVisible(opened,binding().source);}
+void beginFrame(){settings={};if(target.binding&&!attached()){jp_text_input::controller().finish(true);target={};choosingCamera=false;calibrating=false;for(auto &f:fields)f.focus=false;history.clear();}jp_hand::setPanelVisible(opened,binding().source);if(opened&&binding().source.detector==jp_hand::Detector::Crowd)jp_hand::demandCrowd(binding().source,binding().crowd);}
 bool editing(){for(auto &f:fields)if(f.focus)return true;return false;}
 void settingsButton(const ofRectangle &r){settings=r;jp_button::draw(r,"Seguimiento",opened);}
 void draw(){
@@ -59,12 +62,12 @@ void draw(){
  label("SEGUIMIENTO",x,y+24,COL_TEXT_PRIMARY);label("Arrastrar para mover",x+195,y+24,COL_TEXT_MUTED);
  button(panel.getRight()-80,y+7,66,"Cerrar",[]{jp_text_input::controller().finish(true);opened=false;target={};jp_hand::setPanelVisible(false);});
 
- auto &source=binding().source;
- if(source!=shownSource||shownSession!=jp_hand::session(source)){shownSource=source;shownSession=jp_hand::session(source);resetMapping();displayed.reset();texture.clear();lost=false;}
+ auto &source=binding().source;const bool audience=source.detector==jp_hand::Detector::Crowd;depthPreview={};
+ if(source!=shownSource||shownSession!=jp_hand::session(source)){shownSource=source;shownSession=jp_hand::session(source);resetMapping();displayed.reset();texture.clear();lost=false;drawingArea=false;shownCrowd.reset();}
  auto choose=[&](jp_hand::Source next){jp_text_input::controller().finish();next.detector=binding().source.detector;edit([&]{binding().source=next;});resetMapping();choosingCamera=false;jp_hand::setPanelVisible(true,next);};
- button(x,y+43,136,"Kinect RGB",[choose]{choose({jp_hand::SourceKind::KinectRGB,{}});},source.kind==jp_hand::SourceKind::KinectRGB);
- button(x+144,y+43,194,"Kinect infrarrojo",[choose]{choose({jp_hand::SourceKind::KinectIR,{}});},source.kind==jp_hand::SourceKind::KinectIR);
- button(x+346,y+43,w-346,"Camara de PC",[choose]{choose({jp_hand::SourceKind::Camera,lastCamera});},source.kind==jp_hand::SourceKind::Camera);
+ button(x,y+43,136,"Kinect RGB",[choose]{choose({jp_hand::SourceKind::KinectRGB,{}});},source.kind==jp_hand::SourceKind::KinectRGB,!audience);
+ button(x+144,y+43,194,audience?"Kinect profundidad":"Kinect infrarrojo",[choose]{choose({jp_hand::SourceKind::KinectIR,{}});},source.kind==jp_hand::SourceKind::KinectIR);
+ button(x+346,y+43,w-346,"Camara de PC",[choose]{choose({jp_hand::SourceKind::Camera,lastCamera});},source.kind==jp_hand::SourceKind::Camera,!audience);
  auto available=jp_hand::sources();
  if(source.kind==jp_hand::SourceKind::Camera){
   lastCamera=source.device;std::string name=source.device.empty()?"Elegir camara...":"Camara guardada ausente";
@@ -72,18 +75,20 @@ void draw(){
   deviceButton.set(x,y+76,w-154,26);
   button(x,y+76,w-154,name,[&]{choosingCamera=!choosingCamera;cameraPage=0;},choosingCamera);
   button(x+w-146,y+76,146,"Actualizar camaras",[]{jp_hand::refreshSources();});
- }else label(source.kind==jp_hand::SourceKind::KinectIR?"IR experimental · validar dedos y pinza a 1,2 a 2 m":"RGB + profundidad · necesita luz visible",x,y+94,source.kind==jp_hand::SourceKind::KinectIR?COL_ACCENT_GOLD:COL_TEXT_SECONDARY);
+ }else label(audience?"Publico en oscuridad · profundidad sin RGB":source.kind==jp_hand::SourceKind::KinectIR?"IR experimental · validar dedos y pinza a 1,2 a 2 m":"RGB + profundidad · necesita luz visible",x,y+94,source.kind==jp_hand::SourceKind::KinectIR?COL_ACCENT_GOLD:COL_TEXT_SECONDARY);
  button(x,y+109,152,"Iniciar esta fuente",[]{jp_hand::start(false,binding().source);},jp_hand::running(binding().source)&&!jp_hand::simulation(binding().source),source.kind!=jp_hand::SourceKind::Camera||!source.device.empty());
  button(x+160,y+109,78,"Detener",[]{jp_hand::stop(binding().source);},false,jp_hand::running(binding().source));
  button(x+246,y+109,100,"Reconectar",[]{jp_hand::reconnect(binding().source);},false,source.kind!=jp_hand::SourceKind::Camera||!source.device.empty());
  button(x+354,y+109,100,"Simulacion",[]{jp_hand::start(true,binding().source);},jp_hand::simulation(binding().source));
  if(jp_hand::simulation(binding().source))button(x+462,y+109,w-462,lost?"Volver":"Perder",[]{lost=!lost;jp_hand::simulateLoss(lost,binding().source);},lost);
  auto chooseDetector=[](jp_hand::Detector detector){jp_text_input::controller().finish();edit([detector]{auto &b=binding();
-  b.source.detector=detector;
-  b.point=-1;jp_hand::setSignal(b,detector==jp_hand::Detector::Body?jp_hand::TorsoX:jp_hand::Pinch);
- });resetMapping();jp_hand::setPanelVisible(true,binding().source);};
+  if(detector==jp_hand::Detector::Crowd)b.source={jp_hand::SourceKind::KinectIR,{},detector};
+  else{if(b.source.detector==jp_hand::Detector::Crowd&&detector==jp_hand::Detector::Body)b.source.kind=jp_hand::SourceKind::KinectRGB;b.source.detector=detector;}
+  b.point=-1;jp_hand::setSignal(b,detector==jp_hand::Detector::Crowd?jp_hand::CrowdMotion:detector==jp_hand::Detector::Body?jp_hand::TorsoX:jp_hand::Pinch);
+ });crowdSetup=false;drawingArea=false;resetMapping();jp_hand::setPanelVisible(true,binding().source);};
  button(x,y+145,100,"Manos",[chooseDetector]{chooseDetector(jp_hand::Detector::Hands);},source.detector==jp_hand::Detector::Hands);
- button(x+108,y+145,108,"Cuerpo RGB",[chooseDetector]{chooseDetector(jp_hand::Detector::Body);},source.detector==jp_hand::Detector::Body,source.kind!=jp_hand::SourceKind::KinectIR);
+ button(x+108,y+145,108,"Cuerpo RGB",[chooseDetector]{chooseDetector(jp_hand::Detector::Body);},source.detector==jp_hand::Detector::Body,source.kind!=jp_hand::SourceKind::KinectIR||audience);
+ button(x+224,y+145,108,"Publico",[chooseDetector]{chooseDetector(jp_hand::Detector::Crowd);},audience);
  button(x+340,y+145,w-340,diagnostics?"Ocultar diagnostico":"Diagnostico",[]{diagnostics=!diagnostics;},diagnostics);
  const auto &s=jp_hand::snapshot(binding().source);label(s.status+" · "+ofToString(jp_hand::consumers(binding().source))+" vinculos",x,y+181,jp_hand::simulation(binding().source)?COL_ACCENT_GOLD:COL_TEXT_PRIMARY);
  ofRectangle previewArea(x,y+195,276,155.25f),preview=previewArea;ofSetColor(12);ofDrawRectangle(previewArea);
@@ -95,6 +100,26 @@ void draw(){
  }}
  if(s.frame&&texture.isAllocated()){preview.set(0,0,s.frame->width,s.frame->height);preview.scaleTo(previewArea,OF_SCALEMODE_FIT);ofSetColor(255);texture.draw(preview);}
  auto &b=binding();
+ const auto *crowdResult=s.crowd?s.crowd->find(b.crowd):nullptr;
+ if(audience&&s.frame&&texture.isAllocated()){
+  depthPreview=preview;
+  if(crowdResult&&s.crowd->grid){
+   auto grid=s.crowd->grid;
+   if(shownCrowd!=s.crowd||!(shownCrowdConfig==b.crowd)){
+    shownCrowd=s.crowd;shownCrowdConfig=b.crowd;ofPixels pixels;pixels.allocate(grid->width,grid->height,OF_PIXELS_RGBA);
+    for(size_t i=0;i<crowdResult->mask.size();++i){auto value=crowdResult->mask[i];pixels[i*4]=value==2?240:0;pixels[i*4+1]=value==2?180:190;pixels[i*4+2]=value==2?55:210;pixels[i*4+3]=value?110:0;}
+    if(!crowdMask.isAllocated()||crowdMask.getWidth()!=grid->width||crowdMask.getHeight()!=grid->height)crowdMask.allocate(grid->width,grid->height,GL_RGBA);
+    crowdMask.loadData(pixels);crowdMask.setTextureMinMagFilter(GL_NEAREST,GL_NEAREST);
+   }
+   ofSetColor(255);crowdMask.draw(preview);
+  }
+  auto c=b.crowd;if(drawingArea){c.left=std::min(areaStart.x,areaEnd.x);c.right=std::max(areaStart.x,areaEnd.x);c.top=std::min(areaStart.y,areaEnd.y);c.bottom=std::max(areaStart.y,areaEnd.y);}
+  ofRectangle area(preview.x+c.left*preview.width,preview.y+c.top*preview.height,(c.right-c.left)*preview.width,(c.bottom-c.top)*preview.height);
+  ofSetColor(COL_ACCENT_GOLD);ofNoFill();ofSetLineWidth(1.5);ofDrawRectangle(area);
+  for(int i=1;i<3;++i)ofDrawLine(area.x+area.width*i/3,area.y,area.x+area.width*i/3,area.getBottom());
+  ofFill();
+  if(b.zone>0){ofSetColor(240,190,60,35);ofDrawRectangle(area.x+area.width*(b.zone-1)/3,area.y,area.width/3,area.height);}
+ }
  for(auto &h:s.hands){ofColor c=h.right?ofColor(COL_ACCENT_CYAN):ofColor(COL_ACCENT_GOLD);ofSetColor(c);ofSetLineWidth(1.5);
   auto point=[&](int i){return ofVec2f(preview.x+h.points[i].x*preview.width,preview.y+h.points[i].y*preview.height);};
   for(int finger=0;finger<5;++finger){ofDrawLine(point(0),point(1+finger*4));for(int j=1;j<4;++j)ofDrawLine(point(finger*4+j),point(finger*4+j+1));}
@@ -114,13 +139,34 @@ void draw(){
  auto v=jp_hand::sample(s,b,jp_hand::now());
  float tx=x+290,ty=y+212;
  auto metric=[&](const std::string &t){label(t,tx,ty);ty+=20;};
- if(diagnostics){metric("Captura: "+ofToString(s.frame?s.frame->captureFps:0,1)+" FPS");metric("Detector: "+ofToString(s.inferenceFps,1)+" FPS / "+ofToString(s.inferenceMs,0)+" ms");metric("Edad: "+(s.captured?ofToString((jp_hand::now()-s.captured)*1000,0)+" ms":"--"));metric("Descartes: "+ofToString(s.dropped));}
+ if(diagnostics&&!crowdSetup){metric("Captura: "+ofToString(s.frame?s.frame->captureFps:0,1)+" FPS");metric("Detector: "+ofToString(s.inferenceFps,1)+" FPS / "+ofToString(s.inferenceMs,0)+" ms");metric("Edad: "+(s.captured?ofToString((jp_hand::now()-s.captured)*1000,0)+" ms":"--"));metric((audience&&crowdResult?"Validos: "+ofToString(crowdResult->zones[std::clamp(b.zone,0,3)].coverage*100,0)+"% · ":std::string())+"Descartes: "+ofToString(s.dropped));}
+ else if(audience){metric("Kinect · profundidad");metric(crowdResult?"Datos validos: "+ofToString(crowdResult->zones[std::clamp(b.zone,0,3)].coverage*100,0)+"%":"Esperando datos del area");metric("Cian: ocupado · Oro: movimiento");metric(crowdSetup?"Arrastra para delimitar el area":"Ajustar desde Area y fondo");metric(jp_hand::signalLabel(b.signal));metric("Entrada: "+(v.valid?ofToString(v.raw,3):"sin datos validos"));}
  else {metric(b.source.detector==jp_hand::Detector::Body?"Una persona · luz visible":"Hasta dos manos");metric(s.frame?(s.frame->infrared?"IR ":"RGB ")+ofToString(s.frame->width)+" x "+ofToString(s.frame->height):"Sin imagen");metric("Imagen sin espejo");metric("Clic en un punto para elegirlo");metric(jp_hand::signalLabel(b.signal));metric("Entrada: "+(v.valid?ofToString(v.raw,3):"sin seguimiento"));}
  label(attached()?"Parametro: "+target.name:"Diagnostico · elegir una senal para explorar",x,y+372,COL_TEXT_PRIMARY);
  if(attached())button(x,y+385,158,target.active()?"Vinculo activo":"Activar vinculo",[]{edit([]{target.activate(!target.active());});},target.active());
  else label("Abrir desde el icono de seguimiento de un parametro.",x,y+405);
  button(x+170,y+385,128,b.invert?"Invertir: si":"Invertir: no",[]{edit([]{binding().invert=!binding().invert;});},b.invert);
- if(b.source.detector==jp_hand::Detector::Body){
+ if(audience)button(x+306,y+385,w-306,crowdSetup?"Volver al vinculo":"Area y fondo",[]{jp_text_input::controller().finish();crowdSetup=!crowdSetup;drawingArea=false;},crowdSetup);
+ if(audience&&crowdSetup){
+  field(4,x,y+439,"Dist. minima (m)",b.crowd.nearM);field(5,x+146,y+439,"Dist. maxima (m)",b.crowd.farM);
+  button(x+285,y+439,w-285,"Restablecer area",[]{edit([]{auto &c=binding().crowd;c.left=c.top=0;c.right=c.bottom=1;});resetMapping();});
+  field(6,x,y+493,"Velocidad (m/s)",b.crowd.speedMps);field(7,x+146,y+493,"Ruido (m)",b.crowd.noiseM);
+  label("Menor velocidad = mas sensibilidad",x+285,y+509);
+  jp_tooltip::draw("Desplazamiento de profundidad ignorado en 100 ms. Aumentar si hay ruido con la pista quieta.",ofRectangle(x+146,y+472,123,47));
+  button(x,y+541,w,"Aprender fondo · pista vacia · 2 s",[]{edit([]{binding().crowd.background=true;});jp_hand::learnCrowdBackground(binding().source);},false,jp_hand::running(b.source)&&s.crowd&&s.crowd->background!=jp_crowd::Background::Learning);
+  button(x,y+579,270,b.crowd.background?"Excluir fondo: si":"Excluir fondo: no",[]{edit([]{binding().crowd.background=!binding().crowd.background;});},b.crowd.background);
+  button(x+280,y+579,w-280,"Borrar fondo aprendido",[]{jp_hand::clearCrowdBackground(binding().source);});
+  label("Fondo compartido por los vinculos de Publico.",x,y+630);
+  label("Area, distancias y sensibilidad pertenecen a este vinculo.",x,y+650);
+  label("Cerca claro · Lejos oscuro · Negro sin profundidad",x,y+678);
+  label(s.crowd?jp_crowd::backgroundLabel(s.crowd->background):"Iniciar para ver y delimitar la pista",x,y+711,COL_ACCENT_GOLD);
+  ofPopStyle();return;
+ }
+ if(audience){
+  cycleButton(x,y+423,270,jp_hand::signalLabel(b.signal),[](int step){edit([step]{auto &b=binding();jp_hand::setSignal(b,jp_hand::CrowdMotion+(b.signal-jp_hand::CrowdMotion+step+7)%7);});resetMapping();});
+  const char *zones[]={"Toda el area","Zona izquierda","Zona central","Zona derecha"};
+  cycleButton(x+280,y+423,w-280,zones[std::clamp(b.zone,0,3)],[](int step){edit([step]{auto &b=binding();b.zone=(b.zone+step+4)%4;});resetMapping();});
+ }else if(b.source.detector==jp_hand::Detector::Body){
   cycleButton(x,y+423,270,jp_hand::signalLabel(b.signal),[](int step){edit([step]{auto &b=binding();jp_hand::setSignal(b,jp_hand::TorsoX+(b.signal-jp_hand::TorsoX+step+6)%6);if(b.signal>=jp_hand::BodyPointX&&b.point<0)b.point=0;});resetMapping();});
   cycleButton(x+280,y+423,w-280,b.point<0?"Elegir punto en imagen":bodyNames[std::clamp(b.point,0,32)],[](int step){edit([step]{auto &b=binding();b.point=(b.point+step+33)%33;});resetMapping();},b.signal==jp_hand::BodyPointX||b.signal==jp_hand::BodyPointY);
  }else{
@@ -129,7 +175,7 @@ void draw(){
  const char *points[]={"Muneca","Pulgar base","Pulgar nudillo","Pulgar medio","Pulgar punta","Indice nudillo","Indice medio","Indice distal","Indice punta","Medio nudillo","Medio medio","Medio distal","Medio punta","Anular nudillo","Anular medio","Anular distal","Anular punta","Menique nudillo","Menique medio","Menique distal","Menique punta"};
  cycleButton(x+310,y+423,w-310,b.point<0?"Punto: palma":std::string(points[std::clamp(b.point,0,20)])+" ("+ofToString(b.point)+")",[](int step){edit([step]{binding().point=(binding().point+1+step+22)%22-1;});resetMapping();},b.signal==jp_hand::PositionX||b.signal==jp_hand::PositionY);
  }
- label(b.source.detector==jp_hand::Detector::Body?"Torso: centro · Munecas: ancho de hombros · Brazos: altura torso":"X: derecha · Y: arriba | Pinza relativa al ancho de palma",x,y+466);
+ label(audience?"Superficies y movimiento · No cuenta personas":b.source.detector==jp_hand::Detector::Body?"Torso: centro · Munecas: ancho de hombros · Brazos: altura torso":"X: derecha · Y: arriba | Pinza relativa al ancho de palma",x,y+466);
  if(calibrating&&!(calibrationBinding==b))calibrating=false;
  if(calibrating){if(v.valid&&s.captured!=calibrationStamp){calibrationStamp=s.captured;if(calibrationSamples++==0)calibrationMin=calibrationMax=v.raw;else{calibrationMin=std::min(calibrationMin,v.raw);calibrationMax=std::max(calibrationMax,v.raw);}}if(jp_hand::now()>=calibrationEnd){calibrating=false;if(calibrationSamples>=12&&calibrationMax-calibrationMin>.01f){edit([]{binding().inputMin=calibrationMin;binding().inputMax=calibrationMax;});calibrationMessage="Recorrido aplicado";}else calibrationMessage="Sin recorrido suficiente. Repetir.";}}
  button(x,y+478,178,"Centrar posicion actual",[v]{edit([v]{auto &b=binding();float half=(b.inputMax-b.inputMin)*.5f;b.inputMin=v.raw-half;b.inputMax=v.raw+half;});resetMapping();},false,v.valid&&!calibrating);
@@ -147,7 +193,7 @@ void draw(){
  jp_tooltip::draw("Se aplica tras 0,5 s sin una senal valida. El vinculo se conserva al detener la fuente.",ofRectangle(x,y+626,w,26));
  ofSetColor(COL_BG_INPUT);ofDrawRectangle(x,y+665,w,7);ofSetColor(v.valid?COL_ACCENT_CYAN:COL_ACCENT_GOLD);if(std::isfinite(normalized))ofDrawRectangle(x,y+665,w*normalized,7);
  label("Entrada: "+(v.valid?ofToString(v.raw,3):"--")+"   Mapeada: "+(std::isfinite(normalized)?ofToString(normalized*100,0)+"%":"--")+"   Salida: "+ofToString(attached()?target.value():f.output,3),x,y+690);
- const std::string state=!b.source.hasDepth()&&b.signal==jp_hand::Distance?"Distancia no disponible en esta camara":v.valid?"Seguimiento valido":jp_hand::running(binding().source)?(b.source.detector==jp_hand::Detector::Body?"Sin seguimiento de los puntos elegidos":"Sin seguimiento"):"Detenido · conserva el valor base";
+ const std::string state=audience&&b.crowd.background&&(!s.crowd||s.crowd->background!=jp_crowd::Background::Ready)?"Aprender el fondo desde Area y fondo":audience&&!v.valid&&jp_hand::running(b.source)?(crowdResult&&crowdResult->zones[std::clamp(b.zone,0,3)].valid?(b.signal==jp_hand::CrowdActivityX||b.signal==jp_hand::CrowdActivityY?"Sin movimiento en la zona":"Sin superficies en el rango elegido"):"Sin datos suficientes en la zona elegida"):!b.source.hasDepth()&&b.signal==jp_hand::Distance?"Distancia no disponible en esta camara":v.valid?"Seguimiento valido":jp_hand::running(binding().source)?(b.source.detector==jp_hand::Detector::Body?"Sin seguimiento de los puntos elegidos":"Sin seguimiento"):"Detenido · conserva el valor base";
  label(calibrating?"Move el cuerpo o la mano por todo el recorrido":!calibrationMessage.empty()?calibrationMessage:state,x,y+711,v.valid?COL_ACCENT_CYAN:COL_ACCENT_GOLD);
  if(jp_hand::now()-lastHistory>.033){history.push_back({v.valid?v.raw:NAN,normalized,attached()?target.value():f.output});if(history.size()>240)history.pop_front();lastHistory=jp_hand::now();}
  if(diagnostics){ofRectangle plot(tx,y+288,w-290,62);ofSetColor(COL_BG_INPUT);ofDrawRectangle(plot);const ofColor colors[]={ofColor(COL_ACCENT_GOLD),ofColor(COL_ACCENT_CYAN),ofColor(220)};
@@ -176,7 +222,9 @@ bool press(int x,int y,int mouseButton){
  }
  for(auto it=buttons.rbegin();it!=buttons.rend();++it)if(it->bounds.inside(x,y)){activate(*it);return true;}
  if(mouseButton!=OF_MOUSE_BUTTON_LEFT)return true;
-
+ if(crowdSetup&&binding().source.detector==jp_hand::Detector::Crowd&&depthPreview.inside(x,y)){
+  jp_text_input::controller().finish();drawingArea=true;areaStart=areaEnd={(x-depthPreview.x)/depthPreview.width,(y-depthPreview.y)/depthPreview.height};return true;
+ }
  const auto &snap=jp_hand::snapshot(binding().source);
  if(snap.captured>0&&jp_hand::now()-snap.captured<=.25){const LandmarkHit *nearest=nullptr;float best=12;
   for(const auto &hit:landmarks){float d=hit.position.distance(ofVec2f(x,y));if(d<best){nearest=&hit;best=d;}}
@@ -186,7 +234,7 @@ bool press(int x,int y,int mouseButton){
  if(x>panel.getRight()-12){resizing=true;offset.x=panel.width-x;}
  return true;
 }
-bool drag(int x,int y){if(moving){panel.x=x-offset.x;panel.y=y-offset.y;return true;}if(resizing){panel.width=x+offset.x;return true;}return contains(x,y);}
-bool release(){bool used=moving||resizing;moving=resizing=false;return used;}
-bool key(int key){if(opened&&choosingCamera&&key==OF_KEY_ESC){choosingCamera=false;return true;}if(!opened||key!=OF_KEY_ESC||editing())return false;opened=false;target={};jp_hand::setPanelVisible(false);return true;}
+bool drag(int x,int y){if(drawingArea){areaEnd={std::clamp((x-depthPreview.x)/depthPreview.width,0.f,1.f),std::clamp((y-depthPreview.y)/depthPreview.height,0.f,1.f)};return true;}if(moving){panel.x=x-offset.x;panel.y=y-offset.y;return true;}if(resizing){panel.width=x+offset.x;return true;}return contains(x,y);}
+bool release(){if(drawingArea){drawingArea=false;auto c=binding().crowd;c.left=std::min(areaStart.x,areaEnd.x);c.right=std::max(areaStart.x,areaEnd.x);c.top=std::min(areaStart.y,areaEnd.y);c.bottom=std::max(areaStart.y,areaEnd.y);if(c.valid()){edit([c]{binding().crowd=c;});resetMapping();}return true;}bool used=moving||resizing;moving=resizing=false;return used;}
+bool key(int key){if(drawingArea&&key==OF_KEY_ESC){drawingArea=false;return true;}if(opened&&choosingCamera&&key==OF_KEY_ESC){choosingCamera=false;return true;}if(!opened||key!=OF_KEY_ESC||editing())return false;opened=false;target={};jp_hand::setPanelVisible(false);return true;}
 }

@@ -1,4 +1,5 @@
 #pragma once
+#include "jp_crowd_tracking.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -12,7 +13,7 @@
 namespace jp_hand {
 inline double now(){return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 enum class SourceKind { KinectRGB=0, KinectIR=1, Camera=2 };
-enum class Detector { Hands=0, Body=1 };
+enum class Detector { Hands=0, Body=1, Crowd=2 };
 struct Source {
  SourceKind kind=SourceKind::KinectRGB;
  std::string device;
@@ -53,18 +54,29 @@ struct IRNormalizer {
 };
 struct BodyPoint {Point position;float visibility=0,presence=0;bool valid()const{return visibility>=.6f&&presence>=.6f&&std::isfinite(position.x)&&std::isfinite(position.y)&&position.x>=0&&position.x<=1&&position.y>=0&&position.y<=1;}};
 struct Body {std::array<BodyPoint,33> points{};bool present=false;float aspect=16.f/9.f;};
-struct Snapshot {std::vector<Hand> hands;Body body;std::shared_ptr<const Frame> frame;double captured=0,inferenceMs=0;float inferenceFps=0;uint64_t dropped=0;std::string status="Detenido";bool simulated=false;};
-enum Signal {Pinch,Opening,PositionX,PositionY,Distance,TorsoX,TorsoY,WristSpan,ArmHeight,BodyPointX,BodyPointY};
+struct Snapshot {std::vector<Hand> hands;Body body;std::shared_ptr<const jp_crowd::Snapshot> crowd;std::shared_ptr<const Frame> frame;double captured=0,inferenceMs=0;float inferenceFps=0;uint64_t dropped=0;std::string status="Detenido";bool simulated=false;};
+enum Signal {Pinch,Opening,PositionX,PositionY,Distance,TorsoX,TorsoY,WristSpan,ArmHeight,BodyPointX,BodyPointY,CrowdMotion,CrowdOccupancy,CrowdX,CrowdY,CrowdDistance,CrowdActivityX,CrowdActivityY};
 enum class Loss {Hold=0,ReturnBase=1,Release=2};
-struct Binding {Source source;bool right=true;int signal=Pinch,point=-1;float inputMin=.15f,inputMax=1, smoothingMs=100,deadzone=.01f,base=0;bool invert=false;Loss loss=Loss::Hold;};
-inline bool operator==(const Binding &a,const Binding &b){return a.source==b.source&&a.right==b.right&&a.signal==b.signal&&a.point==b.point&&a.inputMin==b.inputMin&&a.inputMax==b.inputMax&&a.smoothingMs==b.smoothingMs&&a.deadzone==b.deadzone&&a.base==b.base&&a.invert==b.invert&&a.loss==b.loss;}
-inline std::string signalLabel(int signal){const char *names[]={"Pinza","Apertura","Posicion X","Posicion Y","Distancia (m)","Torso X","Torso Y","Separacion munecas","Altura brazos","Punto X","Punto Y"};return names[std::clamp(signal,0,int(BodyPointY))];}
-inline void setSignal(Binding &b,int signal){b.signal=signal;b.inputMin=signal==Pinch?.15f:signal==Distance?.7f:0;b.inputMax=signal==Distance?1.5f:signal==WristSpan?3:signal==ArmHeight?2:1;}
+struct Binding {Source source;bool right=true;int signal=Pinch,point=-1;float inputMin=.15f,inputMax=1, smoothingMs=100,deadzone=.01f,base=0;bool invert=false;Loss loss=Loss::Hold;jp_crowd::Config crowd;int zone=0;};
+inline bool operator==(const Binding &a,const Binding &b){return a.source==b.source&&a.right==b.right&&a.signal==b.signal&&a.point==b.point&&a.inputMin==b.inputMin&&a.inputMax==b.inputMax&&a.smoothingMs==b.smoothingMs&&a.deadzone==b.deadzone&&a.base==b.base&&a.invert==b.invert&&a.loss==b.loss&&a.crowd==b.crowd&&a.zone==b.zone;}
+inline std::string signalLabel(int signal){const char *names[]={"Pinza","Apertura","Posicion X","Posicion Y","Distancia (m)","Torso X","Torso Y","Separacion munecas","Altura brazos","Punto X","Punto Y","Movimiento","Ocupacion","Centro X","Centro Y","Distancia mediana (m)","Actividad X","Actividad Y"};return names[std::clamp(signal,0,int(CrowdActivityY))];}
+inline void setSignal(Binding &b,int signal){b.signal=signal;b.inputMin=signal==CrowdDistance?3:signal==Pinch?.15f:signal==Distance?.7f:0;b.inputMax=signal==CrowdDistance?4.5f:signal==Distance?1.5f:signal==WristSpan?3:signal==ArmHeight?2:1;}
 struct Value {float raw=0;bool valid=false;};
 inline Point palm(const Hand &h){Point p;for(int i:{0,5,9,13,17}){p.x+=h.points[i].x/5;p.y+=h.points[i].y/5;}return p;}
 inline float opening(const Hand &h){float sum=0;for(int i:{6,10,14,18}){Point a{(h.points[i-1].x-h.points[i].x)*h.aspect,h.points[i-1].y-h.points[i].y},b{(h.points[i+2].x-h.points[i].x)*h.aspect,h.points[i+2].y-h.points[i].y};float den=std::hypot(a.x,a.y)*std::hypot(b.x,b.y);if(den<1e-7)return 0;float angle=std::acos(std::clamp((a.x*b.x+a.y*b.y)/den,-1.f,1.f));sum+=std::clamp((angle-1.5707963f)/1.5707963f,0.f,1.f)/4;}return sum;}
 inline Value sample(const Snapshot &s,const Binding &b,double time){
  if(time-s.captured>.25 || time<s.captured)return {};
+ if(b.source.detector==Detector::Crowd){
+  if(b.source.kind!=SourceKind::KinectIR||!s.crowd)return {};
+  const auto *result=s.crowd->find(b.crowd);if(!result)return {};
+  const auto &z=result->zones[std::clamp(b.zone,0,3)];
+  switch(b.signal){
+   case CrowdMotion:return {z.motion,z.motionValid};case CrowdOccupancy:return {z.occupancy,z.valid};
+   case CrowdX:return {z.x,z.positionValid};case CrowdY:return {z.y,z.positionValid};
+   case CrowdDistance:return {z.meters,z.positionValid};
+   case CrowdActivityX:return {z.activityX,z.activityValid};case CrowdActivityY:return {z.activityY,z.activityValid};default:return {};
+  }
+ }
  if(b.source.detector==Detector::Body){
   if(b.source.kind==SourceKind::KinectIR||!s.body.present)return {};
   const auto &body=s.body;auto valid=[&](std::initializer_list<int> ids){for(int i:ids)if(!body.points[i].valid())return false;return true;};
@@ -168,6 +180,8 @@ void start(bool simulation=false,const Source &source={});
 void stop(const Source &source={});void stopAll();void reconnect(const Source &source={});void shutdown();
 uint64_t session(const Source &source={});
 void beginFrame();void demand(const Source &source={},const void *consumer=nullptr);
+void demandCrowd(const Source &source,const jp_crowd::Config &config);
+void learnCrowdBackground(const Source &source);void clearCrowdBackground(const Source &source);
 void setPanelVisible(bool value,const Source &source={});
 const Snapshot &snapshot(const Source &source={});
 bool running(const Source &source={});bool simulation(const Source &source={});

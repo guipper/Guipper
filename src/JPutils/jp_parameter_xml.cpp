@@ -20,8 +20,8 @@ namespace
 		if (parameter->variabletype == JPParameter::FLOAT)
 		{
 			auto hand=node.appendChild("kinect");const auto &b=parameter->handBinding;
-            hand.appendChild("version").set(3);
-            hand.appendChild("detector").set(b.source.detector==jp_hand::Detector::Body?"body":"hands");
+            hand.appendChild("version").set(4);
+            hand.appendChild("detector").set(b.source.detector==jp_hand::Detector::Crowd?"crowd":b.source.detector==jp_hand::Detector::Body?"body":"hands");
             hand.appendChild("loss").set(int(b.loss));
             hand.appendChild("source").set(b.source.kind==jp_hand::SourceKind::KinectRGB?"kinect_rgb":b.source.kind==jp_hand::SourceKind::KinectIR?"kinect_ir":b.source.kind==jp_hand::SourceKind::Camera?"camera":"unsupported");
             hand.appendChild("device").set(b.source.device);hand.appendChild("right").set(b.right);
@@ -29,6 +29,10 @@ namespace
             saveTrackingNumber(hand,"inputmin",b.inputMin);saveTrackingNumber(hand,"inputmax",b.inputMax);
             hand.appendChild("invert").set(b.invert);saveTrackingNumber(hand,"smoothingms",b.smoothingMs);
             saveTrackingNumber(hand,"deadzone",b.deadzone);saveTrackingNumber(hand,"base",b.base);
+            auto crowd=hand.appendChild("crowd");const auto &c=b.crowd;
+            saveTrackingNumber(crowd,"left",c.left);saveTrackingNumber(crowd,"top",c.top);saveTrackingNumber(crowd,"right",c.right);saveTrackingNumber(crowd,"bottom",c.bottom);
+            saveTrackingNumber(crowd,"near",c.nearM);saveTrackingNumber(crowd,"far",c.farM);saveTrackingNumber(crowd,"speed",c.speedMps);saveTrackingNumber(crowd,"noise",c.noiseM);
+            crowd.appendChild("background").set(c.background);crowd.appendChild("zone").set(b.zone);
             node.appendChild("rangeenabled").set(parameter->rangeEnabled);
 			node.appendChild("defaultvalue").set(parameter->defaultFloatValue);
 		}
@@ -52,17 +56,23 @@ namespace
                 auto source=hand.getChild("source");
                 if(source){const auto kind=source.getValue();b.source.kind=kind=="kinect_rgb"?jp_hand::SourceKind::KinectRGB:kind=="kinect_ir"?jp_hand::SourceKind::KinectIR:kind=="camera"?jp_hand::SourceKind::Camera:static_cast<jp_hand::SourceKind>(-1);}
                 b.source.device=hand.getChild("device").getValue();
-                const auto detector=hand.getChild("detector").getValue();b.source.detector=detector=="body"?jp_hand::Detector::Body:jp_hand::Detector::Hands;
+                const auto detector=hand.getChild("detector").getValue();b.source.detector=detector=="crowd"?jp_hand::Detector::Crowd:detector=="body"?jp_hand::Detector::Body:jp_hand::Detector::Hands;
                 b.loss=jp_hand::Loss(std::clamp(hand.getChild("loss").getIntValue(),0,2));
                 b.right=(hand.getChild("right")?hand.getChild("right").getBoolValue():true);
-                b.signal=std::clamp(hand.getChild("signal").getIntValue(),0,int(jp_hand::BodyPointY));
+                b.signal=std::clamp(hand.getChild("signal").getIntValue(),0,int(jp_hand::CrowdActivityY));
                 b.point=std::clamp((hand.getChild("point")?hand.getChild("point").getIntValue():-1),-1,b.source.detector==jp_hand::Detector::Body?32:20);
                 auto number=[&](const char *key,float fallback,float lo,float hi){auto v=hand.getChild(key);float value=v?v.getFloatValue():fallback;return std::isfinite(value)?std::clamp(value,lo,hi):fallback;};
-                b.inputMin=number("inputmin",b.signal==jp_hand::Distance?.7f:b.signal==jp_hand::Pinch?.15f:0,-10000,10000);
-                b.inputMax=number("inputmax",b.signal==jp_hand::Distance?1.5f:b.signal==jp_hand::WristSpan?3:b.signal==jp_hand::ArmHeight?2:1,-10000,10000);
+                b.inputMin=number("inputmin",b.signal==jp_hand::CrowdDistance?3:b.signal==jp_hand::Distance?.7f:b.signal==jp_hand::Pinch?.15f:0,-10000,10000);
+                b.inputMax=number("inputmax",b.signal==jp_hand::CrowdDistance?4.5f:b.signal==jp_hand::Distance?1.5f:b.signal==jp_hand::WristSpan?3:b.signal==jp_hand::ArmHeight?2:1,-10000,10000);
                 if(b.inputMax<=b.inputMin){b.inputMin=0;b.inputMax=1;}
                 b.invert=hand.getChild("invert").getBoolValue();b.smoothingMs=number("smoothingms",100,0,5000);b.deadzone=number("deadzone",.01f,0,.5f);
                 b.base=number("base",parameter->floatValue,parameter->nativeMin,parameter->nativeMax);
+                auto crowd=hand.getChild("crowd");if(crowd){
+                    auto read=[&](const char *name,float fallback){auto child=crowd.getChild(name);return child?child.getFloatValue():fallback;};auto &c=b.crowd;
+                    c.left=read("left",0);c.top=read("top",0);c.right=read("right",1);c.bottom=read("bottom",1);c.nearM=read("near",3.f);c.farM=read("far",4.5f);c.speedMps=read("speed",.5f);c.noiseM=read("noise",.03f);c.background=crowd.getChild("background").getBoolValue();
+                    if(!c.valid()){const bool exclude=c.background;c=jp_crowd::Config{};c.background=exclude;}
+                    b.zone=std::clamp(crowd.getChild("zone").getIntValue(),0,3);
+                }
 
             }
             parameter->resetHandRuntime();

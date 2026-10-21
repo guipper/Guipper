@@ -355,9 +355,16 @@ void JPParameter::update()
 		}
         if(movtype==KINECT){
             jp_hand::demand(handBinding.source,this);
+            if(handBinding.source.detector==jp_hand::Detector::Crowd)jp_hand::demandCrowd(handBinding.source,handBinding.crowd);
             if(handSession!=jp_hand::session(handBinding.source)){handSession=jp_hand::session(handBinding.source);handFilter.reset();}
             const auto &tracking=jp_hand::snapshot(handBinding.source);
-            floatLerpValue=handFilter.step(jp_hand::sample(tracking,handBinding,jp_hand::now()),handBinding,low,high,jp_hand::now());
+            const bool learningBackground=handBinding.source.detector==jp_hand::Detector::Crowd&&tracking.crowd&&tracking.crowd->background==jp_crowd::Background::Learning;
+            if(learningBackground){
+                if(!handFilter.initialized)handFilter.step({},handBinding,low,high,jp_hand::now());
+                // An explicit calibration is not a tracking failure. Hold the
+                // current value without triggering the chosen loss policy.
+                handFilter.valid=false;handFilter.missingSince=0;handFilter.last=jp_hand::now();floatLerpValue=ofClamp(handFilter.output,low,high);
+            }else floatLerpValue=handFilter.step(jp_hand::sample(tracking,handBinding,jp_hand::now()),handBinding,low,high,jp_hand::now());
             if(handFilter.release){floatValue=floatLerpValue;setAutomationMode(STANDART);}
         }
 		floatLerpValue = ofClamp(floatLerpValue, low, high);
