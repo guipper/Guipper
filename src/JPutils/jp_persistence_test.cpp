@@ -2141,6 +2141,15 @@ bool jp_persistence_test::run(ofApp &app)
             for(size_t i=0;i+3<output.size();i+=4){colors.insert(unsigned(output[i])<<16|unsigned(output[i+1])<<8|output[i+2]);alpha=alpha&&std::abs(int(output[i+3])-180)<=1;}
             check(colors.size()<=4&&colors.size()>1,"bounded palette count including grain and dithering");check(alpha,"alpha preserved");}
         set("grain",0);set("dither",0);p->update();ofPixels clean;p->fbo.readToPixels(clean);set("dither",1);p->update();ofPixels dithered;p->fbo.readToPixels(dithered);check(!std::equal(clean.begin(),clean.end(),dithered.begin()),"dither changes quantization");
+        set("pixel size",7);set("grain",1);p->updateFBO();ofPixels pixelated;p->fbo.readToPixels(pixelated);
+        bool uniformBlocks=true;
+        for(int y=0;y<int(pixelated.getHeight());++y)for(int x=0;x<int(pixelated.getWidth());++x)
+            uniformBlocks=uniformBlocks && pixelated.getColor(x,y)==pixelated.getColor((x/7)*7,(y/7)*7);
+        check(uniformBlocks,"resolution reduction keeps entire cells uniform including grain and dithering");
+        check(!std::equal(pixelated.begin(),pixelated.end(),dithered.begin()),"resolution reduction changes the image");
+        set("mix",0);p->updateFBO();ofPixels pixelBypass;p->fbo.readToPixels(pixelBypass);
+        uint64_t bypassDifference=0;for(size_t i=0;i<original.size();++i)bypassDifference+=std::abs(int(original[i])-int(pixelBypass[i]));
+        check(bypassDifference<original.size(),"mix zero bypasses pixelation as well as palette");set("mix",1);
         JPbox_shader downstream;downstream.setup("shaders/imageprocessing/transform.frag","analog output");
         const int input=downstream.fbohandlergroup.findIndexByName("textura1");check(input>=0,"downstream input");
         if(input>=0){downstream.fbohandlergroup.setFboPointer(&p->fbo,&p->name,input);downstream.setonoff(true);downstream.setRenderThisFrame(true);downstream.update();ofPixels result;downstream.fbo.readToPixels(result);uint64_t sum=0;for(auto v:result)sum+=v;check(sum>0,"effect feeds downstream shader");}downstream.clear();
@@ -2151,7 +2160,7 @@ bool jp_persistence_test::run(ofApp &app)
         app.boxes.clearSelection();app.boxes.toggleBoxSelection(1);app.boxes.copySelectedBoxes();app.boxes.pasteBoxes();check(app.boxes.boxes.size()==3,"duplicate");
         app.boxes.clearSelection();app.boxes.toggleBoxSelection(1);app.boxes.deleteSelectedShader();app.boxes.graphUndoShortcut(false);check(app.boxes.boxes.size()==3,"undo deletion");app.boxes.graphUndoShortcut(true);
         app.boxes.clear();check(app.boxes.load(file)==JPboxgroup::LoadResult::Success,"reload");
-        check(app.boxes.boxes.size()==2,"restored graph");if(app.boxes.boxes.size()==2){p=dynamic_cast<JPbox_analogcolor*>(app.boxes.boxes[1]);check(p&&p->parameters.getFloatValue(1)==4&&p->fbohandlergroup.getisPointerSet(0),"settings and connection persist");if(p){p->fbohandlergroup.deleteFboPointer(0);p->updateFBO();ofPixels blank;p->fbo.readToPixels(blank);uint64_t total=0;for(auto v:blank)total+=v;check(total==0,"disconnect clears output");}}
+        check(app.boxes.boxes.size()==2,"restored graph");if(app.boxes.boxes.size()==2){p=dynamic_cast<JPbox_analogcolor*>(app.boxes.boxes[1]);check(p&&p->parameters.getFloatValue(1)==4&&p->parameters.getFloatValue(p->parameters.indexOfName("pixel size"))==7&&p->fbohandlergroup.getisPointerSet(0),"settings and connection persist");if(p){p->fbohandlergroup.deleteFboPointer(0);p->updateFBO();ofPixels blank;p->fbo.readToPixels(blank);uint64_t total=0;for(auto v:blank)total+=v;check(total==0,"disconnect clears output");}}
         app.boxes.clear();ofLogNotice("analogcolor-test")<<(passed?"PASS":"FAIL");return passed;
     }
     if (testMode && string(testMode) == "text") {

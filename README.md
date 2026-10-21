@@ -406,7 +406,11 @@ ordered 4×4 dithering, `grain` adds animated noise before quantization, and `bl
 softens horizontal color transitions. Contrast and saturation are applied before
 palette selection. `mix=0` preserves the original; `mix=1` limits RGB to the palette.
 Intermediate mix values intentionally contain additional colors. Source alpha is
-preserved. This is a stylized analog look, not a calibrated hardware emulation.
+preserved at full resolution. `pixel size` reduces spatial resolution into square
+blocks measured in output pixels (1–64, rounded to an integer); 1 keeps the
+original resolution. Color and alpha are sampled at each block center, and grain
+and dithering operate per block. The output dimensions stay unchanged; `mix=0`
+bypasses pixelation too. This is a stylized analog look, not a calibrated hardware emulation.
 
 Settings and the inlet persist through save/load, duplication and undo. No input
 produces a transparent output. The shader is embedded and requires no new runtime

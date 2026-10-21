@@ -993,7 +993,7 @@ void jp_uishot::draw(ofApp &app)
     if(gTag=="analogcolor") {
         if(gFrames<50)return;auto *effect=dynamic_cast<JPbox_analogcolor*>(app.boxes.boxes.at(1));if(!effect||!effect->ready())std::exit(EXIT_FAILURE);
         ofImage shot;shot.grabScreen(0,0,ofGetWidth(),ofGetHeight());shot.save(shotDir()+"analogcolor-"+ofToString(gState)+".png");
-        if(gState==0){effect->parameters.setFloatValue(1,0);ofSetWindowShape(1280,800);}else {ofLogNotice("analogcolor-ui")<<"PASS";gDone=true;ofExit();}
+        if(gState==0){effect->parameters.setFloatValue(1,0);effect->parameters.setFloatValue(8,effect->parameters.indexOfName("pixel size"));ofSetWindowShape(1280,800);}else {ofLogNotice("analogcolor-ui")<<"PASS";gDone=true;ofExit();}
         ++gState;gFrames=0;return;
     }
     if(gTag=="text") {
