@@ -416,3 +416,14 @@ Settings and the inlet persist through save/load, duplication and undo. No input
 produces a transparent output. The shader is embedded and requires no new runtime
 dependencies. `python3 tests/analogcolor_graphics_test.py` verifies GPU palette
 counts, alpha, bypass orientation, dithering, persistence and the inspector.
+
+## Unavailable box types
+
+Compositions containing unavailable box types still open. Guipper skips those
+boxes, leaves their incoming connections disconnected, and reports the omitted
+names. Surviving connections, active output and exposed group parameters retain
+their original targets. If the active box is omitted, the first surviving box
+is selected; an entirely unavailable composition opens empty. Loading does not
+rewrite the original XML. Saving the loaded composition omits the unavailable
+boxes. Known missing assets and malformed compositions still report errors.
+Run `python3 tests/missing_boxes_test.py` for isolated regression coverage.

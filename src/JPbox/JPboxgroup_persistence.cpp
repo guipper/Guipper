@@ -228,7 +228,14 @@ JPboxgroup::LoadResult JPboxgroup::buildSessionNode(PreparedSession &candidate, 
 
 		JPbox *bx = jp_box_factory::create(directory.getValue(),
 			jp_box_factory::Context::Stored);
-        if (!bx) { candidate.error=directory.getValue(); return LoadResult::AssetError; }
+        if (!bx) {
+            const string skipped=nombre.getValue()+" ("+directory.getValue()+")";
+            candidate.skipped.push_back(skipped);
+            ofLogWarning("session") << "Skipping unavailable box: " << skipped;
+            return LoadResult::Success;
+        }
+        candidate.originalIndices.push_back(int(candidate.cursor)-1);
+        if(group)candidate.skipped.insert(candidate.skipped.end(),group->skipped.begin(),group->skipped.end());
 
         boxes.push_back(bx);
         try {
@@ -288,6 +295,10 @@ JPboxgroup::LoadResult JPboxgroup::buildSessionNode(PreparedSession &candidate, 
 					for (auto &boxNode : boxNodes)
 					{
 						int childIndex = boxNode.getIntValue();
+                        if(group){
+                            const auto found=std::find(group->originalIndices.begin(),group->originalIndices.end(),childIndex);
+                            childIndex=found==group->originalIndices.end()?-1:int(found-group->originalIndices.begin());
+                        }
 						for (auto &paramNode : boxNode.getChildren())
 						{
 							int paramIndex = paramNode.getIntValue();
@@ -373,6 +384,12 @@ void JPboxgroup::linkPreparedSession(PreparedSession &candidate)
 		index1++;
 	}
 
+    // Stored active/exposed indices refer to declarations, not the compacted graph.
+    const int originalActive=candidate.xml.getChild("activerender").getIntValue();
+    const auto active=std::find(candidate.originalIndices.begin(),candidate.originalIndices.end(),originalActive);
+    auto activeNode=candidate.xml.getChild("activerender");
+    if(!activeNode)activeNode=candidate.xml.appendChild("activerender");
+    activeNode.set(active==candidate.originalIndices.end()?0:int(active-candidate.originalIndices.begin()));
     candidate.linked=true;
 }
 JPboxgroup::LoadResult JPboxgroup::commitPreparedSession(PreparedSession &candidate)
@@ -405,6 +422,7 @@ JPboxgroup::LoadResult JPboxgroup::commitPreparedSession(PreparedSession &candid
     sessionFadeActive = sessionFadeSnapshot.isAllocated();
     sessionFadeDurationSeconds = fadeSeconds;
     this->boxes.swap(boxes);
+    loadWarnings=candidate.skipped;
     finalQuickImages = std::move(candidateFinal);
     finalQuickImageHistory.clear();
     finalQuickImageHistoryCursor = 0;

@@ -235,6 +235,7 @@ public:
     bool sessionPreparing() const { return !requestedSessionPath.empty(); }
 
 	string lastLoadErrorDetail;
+    vector<string> loadWarnings;
     static bool validateGroupFile(const string& path, string* errorDetail = nullptr);
 
 	// Returns the box it created (nullptr when the directory maps to no box
@@ -1167,6 +1168,8 @@ private:
         uint64_t ticket = 0;
         ofXml xml;
         vector<ofXml> declarations, loaded;
+        vector<int> originalIndices;
+        vector<string> skipped;
         vector<std::shared_ptr<PreparedSession>> groups;
         bool presetContext = false;
         vector<JPbox *> nodes;

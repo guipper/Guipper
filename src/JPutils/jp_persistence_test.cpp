@@ -2123,6 +2123,35 @@ namespace
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if(testMode && string(testMode)=="missing_boxes") {
+        bool passed=true;auto check=[&](bool ok,const char *why){if(!ok)ofLogError("missing-boxes")<<why;passed=passed&&ok;};
+        ofXml xml;xml.appendChild("guipper_format").set(1);xml.appendChild("activerender").set(2);
+        auto add=[&](const string &dir,const string &name){auto b=xml.appendChild("box");b.appendChild("directory").set(dir);b.appendChild("nombre").set(name);b.appendChild("onoff").set(true);return b;};
+        add("parallaxView","retired");add("textSource","text");
+        auto effect=add("analogColor","effect");effect.appendChild("fboslinks").appendChild("imagen").set("text");
+        const string path=ofToDataPath("missing-boxes-test.xml",true);xml.save(path);
+        check(app.boxes.load(path)==JPboxgroup::LoadResult::Success,"unknown type does not reject composition");
+        check(app.boxes.boxes.size()==2 && app.activerender==1,"active index follows the original surviving box");
+        if(app.boxes.boxes.size()==2)check(app.boxes.boxes[1]->fbohandlergroup.getisPointerSet(0),"surviving connections preserved");
+        check(app.boxes.loadWarnings.size()==1,"omission is reported");
+        effect.getChild("fboslinks").getChild("imagen").set("retired");xml.getChild("activerender").set(0);xml.save(path);
+        check(app.boxes.load(path)==JPboxgroup::LoadResult::Success,"missing active source falls back safely");
+        if(app.boxes.boxes.size()==2)check(!app.boxes.boxes[1]->fbohandlergroup.getisPointerSet(0)&&app.activerender==0,"dangling connections remain disconnected");
+        ofXml child;child.appendChild("guipper_format").set(1);child.appendChild("activerender").set(1);
+        auto missing=child.appendChild("box");missing.appendChild("directory").set("kinectScene3D");missing.appendChild("nombre").set("retired child");
+        auto text=child.appendChild("box");text.appendChild("directory").set("textSource");text.appendChild("nombre").set("child text");
+        const string childPath=ofToDataPath("missing-boxes-child.xml",true);child.save(childPath);
+        ofXml parent;parent.appendChild("activerender").set(0);auto group=parent.appendChild("box");group.appendChild("directory").set(childPath);group.appendChild("nombre").set("group");
+        auto exposed=group.appendChild("exposedParams").appendChild("box");exposed.set(1);exposed.appendChild("param").set(0);parent.save(path);
+        check(app.boxes.load(path)==JPboxgroup::LoadResult::Success,"nested groups tolerate unavailable children");
+        if(app.boxes.boxes.size()==1){auto *preset=dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]);check(preset&&preset->boxes.size()==1&&preset->exposedParams[0][0],"exposed child indices remapped");}
+        check(app.boxes.loadWarnings.size()==1,"nested omission reaches the warning");
+        ofXml onlyMissing;onlyMissing.appendChild("activerender").set(0);auto box=onlyMissing.appendChild("box");box.appendChild("directory").set("futureUnknownBox");box.appendChild("nombre").set("future");onlyMissing.save(path);
+        check(app.boxes.load(path)==JPboxgroup::LoadResult::Success&&app.boxes.boxes.empty(),"all-unavailable composition opens empty");
+        box.getChild("directory").set("does-not-exist.frag");onlyMissing.save(path);
+        check(app.boxes.load(path)==JPboxgroup::LoadResult::AssetError,"known broken assets still report an error");
+        app.boxes.clear();ofLogNotice("missing-boxes")<<(passed?"PASS":"FAIL");return passed;
+    }
     if(testMode && string(testMode)=="analogcolor") {
         jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true));
         bool passed=true;auto check=[&](bool ok,const char *label){if(!ok)ofLogError("analogcolor-test")<<label;passed=ok&&passed;};

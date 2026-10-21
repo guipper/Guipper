@@ -472,6 +472,12 @@ void ofApp::enterScreen(int screen)
 }
 
 void ofApp::update() {
+    if(!boxes.loadWarnings.empty()){
+        jp::Toast notice;notice.id="load-missing-boxes";notice.state=jp::ToastState::Warning;
+        notice.message="Composicion abierta. Cajas no disponibles omitidas: ";
+        for(size_t i=0;i<boxes.loadWarnings.size();++i){if(i)notice.message+=", ";notice.message+=boxes.loadWarnings[i];}
+        toasts.publish(std::move(notice));boxes.loadWarnings.clear();
+    }
     updateReview();
     if (shaderOrderLanguage != language) {
         shaderNameFocused = false;
