@@ -23,13 +23,19 @@ def emit(value):
 
 
 def main():
-    options = vision.HandLandmarkerOptions(
+    body = len(sys.argv) > 2 and sys.argv[2] == "body"
+    options = vision.PoseLandmarkerOptions(
+        base_options=mp.tasks.BaseOptions(model_asset_path=sys.argv[1]),
+        running_mode=vision.RunningMode.VIDEO, num_poses=1,
+        min_pose_detection_confidence=0.6, min_pose_presence_confidence=0.6,
+        min_tracking_confidence=0.5, output_segmentation_masks=False) if body else vision.HandLandmarkerOptions(
         base_options=mp.tasks.BaseOptions(model_asset_path=sys.argv[1]),
         running_mode=vision.RunningMode.VIDEO, num_hands=2,
         min_hand_detection_confidence=0.6, min_hand_presence_confidence=0.6,
         min_tracking_confidence=0.5)
-    with vision.HandLandmarker.create_from_options(options) as detector:
-        emit({"ready": 1, "protocol": 2, "detector": "hands"})
+    implementation = vision.PoseLandmarker if body else vision.HandLandmarker
+    with implementation.create_from_options(options) as detector:
+        emit({"ready": 1, "protocol": 2, "detector": "body" if body else "hands"})
         previous = 0
         while True:
             try:
@@ -43,6 +49,11 @@ def main():
             previous = stamp
             start = time.monotonic()
             result = detector.detect_for_video(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb), stamp)
+            if body:
+                points = result.pose_landmarks[0] if result.pose_landmarks else []
+                emit({"serial": serial, "body": [[p.x, p.y, p.visibility or 0, p.presence or 0] for p in points],
+                      "ms": (time.monotonic() - start) * 1000})
+                continue
             hands = []
             for points, side in zip(result.hand_landmarks, result.handedness):
                 category = side[0]

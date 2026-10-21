@@ -69,3 +69,4 @@ tests/appimage_backend_tests
 /tests/screen_portal_tests
 
 /tests/hand_tracking_tests
+/tests/tracking_body_tests

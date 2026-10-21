@@ -13,6 +13,10 @@ curl --fail --location --retry 3 --output "$runtime_dir/hand_landmarker.task.dow
   https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
 printf '%s  %s\n' fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1 "$runtime_dir/hand_landmarker.task.download" | sha256sum --check
 mv "$runtime_dir/hand_landmarker.task.download" "$runtime_dir/hand_landmarker.task"
+curl --fail --location --retry 3 --output "$runtime_dir/pose_landmarker_lite.task.download" \
+  https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task
+printf '%s  %s\n' 59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a "$runtime_dir/pose_landmarker_lite.task.download" | sha256sum --check
+mv "$runtime_dir/pose_landmarker_lite.task.download" "$runtime_dir/pose_landmarker_lite.task"
 cp "$script_dir/hand_tracking/worker.py" "$runtime_dir/worker.py"
 "$runtime_dir/venv/bin/python" -m pip freeze > "$runtime_dir/installed-versions.txt"
-echo "Seguimiento instalado en $runtime_dir. En Guipper: SETTINGS > Seguimiento > Manos > Iniciar."
+echo "Seguimiento instalado en $runtime_dir. En Guipper: SETTINGS > Seguimiento > Manos o Cuerpo > Iniciar."

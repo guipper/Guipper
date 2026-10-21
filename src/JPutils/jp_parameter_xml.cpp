@@ -20,8 +20,8 @@ namespace
 		if (parameter->variabletype == JPParameter::FLOAT)
 		{
 			auto hand=node.appendChild("kinect");const auto &b=parameter->handBinding;
-            hand.appendChild("version").set(2);
-            hand.appendChild("detector").set("hands");
+            hand.appendChild("version").set(3);
+            hand.appendChild("detector").set(b.source.detector==jp_hand::Detector::Body?"body":"hands");
             hand.appendChild("loss").set(int(b.loss));
             hand.appendChild("source").set(b.source.kind==jp_hand::SourceKind::KinectRGB?"kinect_rgb":b.source.kind==jp_hand::SourceKind::KinectIR?"kinect_ir":b.source.kind==jp_hand::SourceKind::Camera?"camera":"unsupported");
             hand.appendChild("device").set(b.source.device);hand.appendChild("right").set(b.right);
@@ -52,14 +52,14 @@ namespace
                 auto source=hand.getChild("source");
                 if(source){const auto kind=source.getValue();b.source.kind=kind=="kinect_rgb"?jp_hand::SourceKind::KinectRGB:kind=="kinect_ir"?jp_hand::SourceKind::KinectIR:kind=="camera"?jp_hand::SourceKind::Camera:static_cast<jp_hand::SourceKind>(-1);}
                 b.source.device=hand.getChild("device").getValue();
-                const auto detector=hand.getChild("detector").getValue();b.source.detector=jp_hand::Detector::Hands;
+                const auto detector=hand.getChild("detector").getValue();b.source.detector=detector=="body"?jp_hand::Detector::Body:jp_hand::Detector::Hands;
                 b.loss=jp_hand::Loss(std::clamp(hand.getChild("loss").getIntValue(),0,2));
                 b.right=(hand.getChild("right")?hand.getChild("right").getBoolValue():true);
-                b.signal=std::clamp(hand.getChild("signal").getIntValue(),0,int(jp_hand::Distance));
-                b.point=std::clamp((hand.getChild("point")?hand.getChild("point").getIntValue():-1),-1,20);
+                b.signal=std::clamp(hand.getChild("signal").getIntValue(),0,int(jp_hand::BodyPointY));
+                b.point=std::clamp((hand.getChild("point")?hand.getChild("point").getIntValue():-1),-1,b.source.detector==jp_hand::Detector::Body?32:20);
                 auto number=[&](const char *key,float fallback,float lo,float hi){auto v=hand.getChild(key);float value=v?v.getFloatValue():fallback;return std::isfinite(value)?std::clamp(value,lo,hi):fallback;};
                 b.inputMin=number("inputmin",b.signal==jp_hand::Distance?.7f:b.signal==jp_hand::Pinch?.15f:0,-10000,10000);
-                b.inputMax=number("inputmax",b.signal==jp_hand::Distance?1.5f:1,-10000,10000);
+                b.inputMax=number("inputmax",b.signal==jp_hand::Distance?1.5f:b.signal==jp_hand::WristSpan?3:b.signal==jp_hand::ArmHeight?2:1,-10000,10000);
                 if(b.inputMax<=b.inputMin){b.inputMin=0;b.inputMax=1;}
                 b.invert=hand.getChild("invert").getBoolValue();b.smoothingMs=number("smoothingms",100,0,5000);b.deadzone=number("deadzone",.01f,0,.5f);
                 b.base=number("base",parameter->floatValue,parameter->nativeMin,parameter->nativeMax);

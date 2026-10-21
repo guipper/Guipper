@@ -36,14 +36,14 @@ struct Service {
  struct Process {
   pid_t pid=-1;int input=-1,output=-1;std::string pending;
   ~Process(){if(input>=0)::close(input);if(output>=0)::close(output);if(pid>0){kill(pid,SIGKILL);int status;while(waitpid(pid,&status,0)<0&&errno==EINTR){}}}
-  bool launch(const std::string &dir){
+  bool launch(const std::string &dir,bool body){
    int in[2],out[2];if(pipe2(in,O_CLOEXEC))return false;
    if(pipe2(out,O_CLOEXEC)){::close(in[0]);::close(in[1]);return false;}
    posix_spawn_file_actions_t a;posix_spawn_file_actions_init(&a);
    posix_spawn_file_actions_adddup2(&a,in[0],STDIN_FILENO);
    posix_spawn_file_actions_adddup2(&a,out[1],STDOUT_FILENO);
    // stderr remains attached to Guipper's log; never an unread bounded pipe.
-   std::string python=dir+"/venv/bin/python",script=dir+"/worker.py",model=dir+"/hand_landmarker.task",detector="hands";
+   std::string python=dir+"/venv/bin/python",script=dir+"/worker.py",model=dir+(body?"/pose_landmarker_lite.task":"/hand_landmarker.task"),detector=body?"body":"hands";
    char *args[]={const_cast<char*>(python.c_str()),const_cast<char*>(script.c_str()),const_cast<char*>(model.c_str()),const_cast<char*>(detector.c_str()),nullptr};
    int error=posix_spawn(&pid,python.c_str(),&a,nullptr,args,environ);
    posix_spawn_file_actions_destroy(&a);::close(in[0]);::close(out[1]);
@@ -67,13 +67,15 @@ struct Service {
  };
  void real(uint64_t g){
   if(key.kind!=SourceKind::KinectRGB&&key.kind!=SourceKind::KinectIR&&key.kind!=SourceKind::Camera){status("Fuente no compatible. Seleccionar otra fuente.",g);return;}
+  const bool body=key.detector==Detector::Body;
+  if(body&&key.kind==SourceKind::KinectIR){status("Cuerpo necesita Kinect RGB o una camara de PC",g);return;}
   FrameProvider frames;{std::lock_guard<std::mutex> l(mutex);frames=provider;}
   const char *custom=getenv("GUIPPER_HAND_RUNTIME"),*xdg=getenv("XDG_DATA_HOME"),*home=getenv("HOME");
   std::string dir=custom?custom:std::string(xdg?xdg:((std::string(home?home:".")+"/.local/share").c_str()))+"/Guipper/hand-tracking";
-  for(auto file:{"/venv/bin/python","/worker.py","/hand_landmarker.task"})if(access((dir+file).c_str(),R_OK)){status("Runtime ausente: scripts/install_hand_tracking_linux.sh",g);return;}
-  Process process;if(!process.launch(dir)){status("Error al iniciar Python",g);return;}
+  for(auto file:{"/venv/bin/python","/worker.py",body?"/pose_landmarker_lite.task":"/hand_landmarker.task"})if(access((dir+file).c_str(),R_OK)){status("Runtime ausente: scripts/install_hand_tracking_linux.sh",g);return;}
+  Process process;if(!process.launch(dir,body)){status("Error al iniciar Python",g);return;}
   std::string line;if(!process.line(*this,g,line,now()+30)){status("Error: runtime no responde al iniciar",g);return;}
-  try{auto ready=ofJson::parse(line);if(ready.value("protocol",0)!=2||ready.value("detector",std::string("hands"))!="hands")throw std::runtime_error("protocolo");}catch(...){status("Actualizar runtime: scripts/install_hand_tracking_linux.sh",g);return;}
+  try{auto ready=ofJson::parse(line);if(ready.value("protocol",0)!=2||ready.value("detector",std::string("hands"))!=(body?"body":"hands"))throw std::runtime_error("protocolo");}catch(...){status("Actualizar runtime: scripts/install_hand_tracking_linux.sh",g);return;}
   std::shared_ptr<KinectV2CaptureSource> source;std::shared_ptr<void> lease;
   std::shared_ptr<JPCameraCaptureSource> camera;
   Associator assoc;uint64_t serial=0,dropped=0;double last=0;const double started=now();
@@ -104,6 +106,11 @@ struct Service {
    try{
     auto data=ofJson::parse(line);if(data.at("serial").get<uint64_t>()!=serial)throw std::runtime_error("cuadro anterior");std::vector<Hand> detected;
     Snapshot s;s.frame=f;s.captured=f->captured;s.inferenceMs=data.at("ms");s.dropped=dropped;
+    if(body){
+     const auto &points=data.at("body");if(!points.is_array()||(points.size()!=0&&points.size()!=33))throw std::runtime_error("cuerpo");
+     s.body.present=points.size()==33;s.body.aspect=float(f->width)/f->height;
+     for(size_t i=0;i<points.size();++i){if(points[i].size()!=4)throw std::runtime_error("punto corporal");auto &p=s.body.points[i];p.position={points[i][0].get<float>(),points[i][1].get<float>()};p.visibility=points[i][2];p.presence=points[i][3];if(!std::isfinite(p.position.x)||!std::isfinite(p.position.y)||!std::isfinite(p.visibility)||!std::isfinite(p.presence))throw std::runtime_error("coordenadas");}
+    }else{
     if(!data.at("hands").is_array()||data.at("hands").size()>2)throw std::runtime_error("manos");
     for(const auto &item:data.at("hands")){Hand h;h.right=item.at("right");
      // The runtime's existing label convention is calibrated for Kinect's
@@ -114,8 +121,9 @@ struct Service {
      measureDepth(h,*f);detected.push_back(h);
     }
     s.hands=assoc.update(detected,f->captured);
+    }
     double time=now();s.inferenceFps=last>0?float(1/(time-last)):0;last=time;
-    s.status=time-s.captured>.25?"Resultado vencido":(s.hands.empty()?"Buscando mano":"Siguiendo");publish(std::move(s),g);
+    s.status=time-s.captured>.25?"Resultado vencido":body?(s.body.present?"Siguiendo cuerpo":"Buscando cuerpo"):(s.hands.empty()?"Buscando mano":"Siguiendo");publish(std::move(s),g);
    }catch(const std::exception &){status("Error: respuesta invalida del detector",g);return;}
   }
  }
@@ -126,8 +134,8 @@ struct Service {
 #endif
   uint64_t handled=0;
   while(!closing){uint64_t g=generation;if(!panel&&now()-wanted>.5){pause(30);continue;}if(g==handled||mode==0){pause(30);continue;}handled=g;
-   if(mode==2){while(!cancelled(g)){if(!panel&&now()-wanted>.5){pause(50);continue;}Snapshot s=simulatedSnapshot(now(),loss);
-     if(key.kind!=SourceKind::KinectRGB){auto f=std::make_shared<Frame>(*s.frame);f->width=f->nativeWidth=key.kind==SourceKind::KinectIR?512:640;f->height=f->nativeHeight=key.kind==SourceKind::KinectIR?424:480;f->rgb.assign(f->width*f->height*3,24);f->infrared=key.kind==SourceKind::KinectIR;f->depthWidth=f->depthHeight=0;s.frame=f;for(auto &h:s.hands){h.aspect=float(f->width)/f->height;if(key.kind==SourceKind::Camera)h.depthValid=false;}}
+   if(mode==2){while(!cancelled(g)){if(!panel&&now()-wanted>.5){pause(50);continue;}Snapshot s=simulatedSnapshot(now(),loss,key.detector);
+     if(key.kind!=SourceKind::KinectRGB){auto f=std::make_shared<Frame>(*s.frame);f->width=f->nativeWidth=key.kind==SourceKind::KinectIR?512:640;f->height=f->nativeHeight=key.kind==SourceKind::KinectIR?424:480;f->rgb.assign(f->width*f->height*3,24);f->infrared=key.kind==SourceKind::KinectIR;f->depthWidth=f->depthHeight=0;s.frame=f;s.body.aspect=float(f->width)/f->height;for(auto &h:s.hands){h.aspect=float(f->width)/f->height;if(key.kind==SourceKind::Camera)h.depthValid=false;}}
      publish(std::move(s),g);pause(33);}continue;}
 #ifdef __linux__
    dormant=false;real(g);if(dormant)handled=0;

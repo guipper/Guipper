@@ -6,7 +6,7 @@ import struct
 import subprocess
 import time
 runtime = Path(os.environ.get("GUIPPER_HAND_RUNTIME", Path.home()/".local/share/Guipper/hand-tracking"))
-for detector, model, result_key in [("hands", "hand_landmarker.task", "hands")]:
+for detector, model, result_key in [("hands", "hand_landmarker.task", "hands"), ("body", "pose_landmarker_lite.task", "body")]:
     p = subprocess.Popen([str(runtime/"venv/bin/python"), str(runtime/"worker.py"), str(runtime/model), detector], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     try:
         ready = json.loads(p.stdout.readline())

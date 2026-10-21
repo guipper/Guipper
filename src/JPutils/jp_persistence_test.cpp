@@ -2214,13 +2214,34 @@ bool jp_persistence_test::run(ofApp &app)
 #ifdef TARGET_LINUX
         {auto first=JPbox_cam::acquireCameraByKey("fixture-absent-camera",640,480);auto second=JPbox_cam::acquireCameraByKey("fixture-absent-camera",1280,720);check(first==second,"camera boxes and tracking share one device regardless of requested size");}
 #endif
+        // Body and hands share a camera but have independent inference sessions.
+        jp_hand::Source bodySource=cameraSource;bodySource.detector=jp_hand::Detector::Body;
+        jp_hand::start(true,bodySource);
+        check(waitFor([&]{jp_hand::demand(cameraSource);jp_hand::demand(bodySource);return jp_hand::snapshot(bodySource).body.present&&!jp_hand::snapshot(cameraSource).hands.empty();},1000),"body and hands coexist on same physical camera");
+        multi->handBinding.source=bodySource;jp_hand::setSignal(multi->handBinding,jp_hand::WristSpan);multi->handBinding.loss=jp_hand::Loss::ReturnBase;multi->update();
+        check(multi->handFilter.valid&&std::abs(jp_hand::snapshot(bodySource).body.aspect-4.f/3)<.001,"body mapping uses camera aspect");
+        const auto bodyFrame=jp_hand::snapshot(bodySource).frame;
+        auto *bodySecond=app.boxes.boxes[0]->parameters.getJParameter(0);bodySecond->setAutomationMode(JPParameter::KINECT);bodySecond->handBinding.source=bodySource;jp_hand::setSignal(bodySecond->handBinding,jp_hand::TorsoX);bodySecond->update();
+        check(bodySecond->handFilter.valid&&jp_hand::snapshot(bodySource).frame==bodyFrame,"two body bindings share one inference snapshot");
+        multi->setMorph(1,.5);multi->update();check(std::abs(multi->floatValue-(multi->handFilter.output+1)*.5)<.001,"body transition blends emitted output");multi->clearMorph();
+        ofXml bodyXml;auto bodyRoot=bodyXml.appendChild("box");jp_parameter_xml::save(bodyRoot,app.boxes.boxes[0]->parameters);
+        JPParameterGroup bodyCopy=app.boxes.boxes[0]->parameters;jp_parameter_xml::load(bodyRoot,bodyCopy,jp_parameter_xml::LoadContext::Preset);
+        auto *bodyParam=bodyCopy.getJParameter(bodyCopy.indexOfName("pixel size"));check(bodyParam->handBinding==multi->handBinding&&!bodyParam->handFilter.initialized,"body detector, signal and loss policy survive XML and copy");
+        sourceEdit.paramBefore.hand=multi->handBinding;sourceEdit.paramAfter=sourceEdit.paramBefore;sourceEdit.paramAfter.hand.source=cameraSource;jp_hand::setSignal(sourceEdit.paramAfter.hand,jp_hand::Pinch);
+        check(app.boxes.applyGraphEdit(sourceEdit)&&multi->handBinding.source==cameraSource,"body to hand edit redo");
+        check(app.boxes.revertGraphEdit(sourceEdit)&&multi->handBinding.source==bodySource&&multi->handBinding.signal==jp_hand::WristSpan,"body source undo");
+        const auto bodyGeneration=jp_hand::session(bodySource);jp_hand::stop(cameraSource);check(jp_hand::session(bodySource)==bodyGeneration&&jp_hand::running(bodySource),"stopping hands preserves body detector");
+        multi->handBinding.loss=jp_hand::Loss::Release;multi->update();jp_hand::simulateLoss(true,bodySource);
+        check(waitFor([&]{jp_hand::demand(bodySource);multi->update();return multi->movtype==JPParameter::STANDART;},1500),"loss release returns manual control");
+        check(multi->handBinding.source==bodySource,"release retains configured body source");
+        multi->setAutomationMode(JPParameter::KINECT);multi->handBinding.loss=jp_hand::Loss::Hold;multi->handBinding.inputMax=3;
         jp_hand::setPanelVisible(false);check(waitFor([&]{return jp_hand::snapshot(irSource).captured>0;},500),"last IR result exists");
         jp_hand::stopAll();check(!jp_hand::running()&&!jp_hand::running(irSource)&&!jp_hand::running(cameraSource),"stop all cancels every source");
         app.boxes.addBox("textSource");app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.toggleBoxSelection(1);app.boxes.groupSelectedBoxes();
         auto *preset=app.boxes.boxes.size()==1?dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]):nullptr;
         check(preset&&preset->boxes.size()==2,"group retains bindings");
         if(preset){int childParam=preset->boxes[0]->parameters.indexOfName("pixel size");check(childParam>=0,"group child parameter");if(childParam>=0){preset->setExposedParam(0,childParam,true);check(preset->boxes[0]->parameters.getJParameter(childParam)->movtype==JPParameter::KINECT,"exposed parameter retains source");}
-            const string groupPath=ofToDataPath("hands-group.xml",true);check(app.boxes.save(groupPath),"save group");app.boxes.clear();check(app.boxes.load(groupPath)==JPboxgroup::LoadResult::Success,"reload group");preset=dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]);check(preset&&preset->boxes[0]->parameters.getJParameter(childParam)->handBinding.inputMax==1.3f&&preset->boxes[0]->parameters.getJParameter(childParam)->handBinding.source==cameraSource,"nested codec restores mapping and source");}
+            const string groupPath=ofToDataPath("hands-group.xml",true);check(app.boxes.save(groupPath),"save group");app.boxes.clear();check(app.boxes.load(groupPath)==JPboxgroup::LoadResult::Success,"reload group");preset=dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]);check(preset&&preset->boxes[0]->parameters.getJParameter(childParam)->handBinding.inputMax==3&&preset->boxes[0]->parameters.getJParameter(childParam)->handBinding.source==bodySource,"nested codec restores mapping and source");}
         app.boxes.clear();ofLogNotice("hands-test")<<(passed?"PASS":"FAIL");return passed;
     }
 

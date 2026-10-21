@@ -12,7 +12,7 @@
 namespace jp_hand {
 inline double now(){return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 enum class SourceKind { KinectRGB=0, KinectIR=1, Camera=2 };
-enum class Detector { Hands=0 };
+enum class Detector { Hands=0, Body=1 };
 struct Source {
  SourceKind kind=SourceKind::KinectRGB;
  std::string device;
@@ -51,18 +51,30 @@ struct IRNormalizer {
   return out;
  }
 };
-struct Snapshot {std::vector<Hand> hands;std::shared_ptr<const Frame> frame;double captured=0,inferenceMs=0;float inferenceFps=0;uint64_t dropped=0;std::string status="Detenido";bool simulated=false;};
-enum Signal {Pinch,Opening,PositionX,PositionY,Distance};
+struct BodyPoint {Point position;float visibility=0,presence=0;bool valid()const{return visibility>=.6f&&presence>=.6f&&std::isfinite(position.x)&&std::isfinite(position.y)&&position.x>=0&&position.x<=1&&position.y>=0&&position.y<=1;}};
+struct Body {std::array<BodyPoint,33> points{};bool present=false;float aspect=16.f/9.f;};
+struct Snapshot {std::vector<Hand> hands;Body body;std::shared_ptr<const Frame> frame;double captured=0,inferenceMs=0;float inferenceFps=0;uint64_t dropped=0;std::string status="Detenido";bool simulated=false;};
+enum Signal {Pinch,Opening,PositionX,PositionY,Distance,TorsoX,TorsoY,WristSpan,ArmHeight,BodyPointX,BodyPointY};
 enum class Loss {Hold=0,ReturnBase=1,Release=2};
 struct Binding {Source source;bool right=true;int signal=Pinch,point=-1;float inputMin=.15f,inputMax=1, smoothingMs=100,deadzone=.01f,base=0;bool invert=false;Loss loss=Loss::Hold;};
 inline bool operator==(const Binding &a,const Binding &b){return a.source==b.source&&a.right==b.right&&a.signal==b.signal&&a.point==b.point&&a.inputMin==b.inputMin&&a.inputMax==b.inputMax&&a.smoothingMs==b.smoothingMs&&a.deadzone==b.deadzone&&a.base==b.base&&a.invert==b.invert&&a.loss==b.loss;}
-inline std::string signalLabel(int signal){const char *names[]={"Pinza","Apertura","Posicion X","Posicion Y","Distancia (m)"};return names[std::clamp(signal,0,int(Distance))];}
-inline void setSignal(Binding &b,int signal){b.signal=signal;b.inputMin=signal==Pinch?.15f:signal==Distance?.7f:0;b.inputMax=signal==Distance?1.5f:1;}
+inline std::string signalLabel(int signal){const char *names[]={"Pinza","Apertura","Posicion X","Posicion Y","Distancia (m)","Torso X","Torso Y","Separacion munecas","Altura brazos","Punto X","Punto Y"};return names[std::clamp(signal,0,int(BodyPointY))];}
+inline void setSignal(Binding &b,int signal){b.signal=signal;b.inputMin=signal==Pinch?.15f:signal==Distance?.7f:0;b.inputMax=signal==Distance?1.5f:signal==WristSpan?3:signal==ArmHeight?2:1;}
 struct Value {float raw=0;bool valid=false;};
 inline Point palm(const Hand &h){Point p;for(int i:{0,5,9,13,17}){p.x+=h.points[i].x/5;p.y+=h.points[i].y/5;}return p;}
 inline float opening(const Hand &h){float sum=0;for(int i:{6,10,14,18}){Point a{(h.points[i-1].x-h.points[i].x)*h.aspect,h.points[i-1].y-h.points[i].y},b{(h.points[i+2].x-h.points[i].x)*h.aspect,h.points[i+2].y-h.points[i].y};float den=std::hypot(a.x,a.y)*std::hypot(b.x,b.y);if(den<1e-7)return 0;float angle=std::acos(std::clamp((a.x*b.x+a.y*b.y)/den,-1.f,1.f));sum+=std::clamp((angle-1.5707963f)/1.5707963f,0.f,1.f)/4;}return sum;}
 inline Value sample(const Snapshot &s,const Binding &b,double time){
  if(time-s.captured>.25 || time<s.captured)return {};
+ if(b.source.detector==Detector::Body){
+  if(b.source.kind==SourceKind::KinectIR||!s.body.present)return {};
+  const auto &body=s.body;auto valid=[&](std::initializer_list<int> ids){for(int i:ids)if(!body.points[i].valid())return false;return true;};
+  auto p=[&](int i){return body.points[i].position;};
+  if(b.signal==BodyPointX||b.signal==BodyPointY){if(b.point<0||b.point>=33||!body.points[b.point].valid())return {};return {b.signal==BodyPointX?p(b.point).x:1-p(b.point).y,true};}
+  if(b.signal==TorsoX||b.signal==TorsoY){if(!valid({11,12,23,24}))return {};Point center{(p(11).x+p(12).x+p(23).x+p(24).x)/4,(p(11).y+p(12).y+p(23).y+p(24).y)/4};return {b.signal==TorsoX?center.x:1-center.y,true};}
+  if(b.signal==WristSpan){if(!valid({11,12,15,16}))return {};float width=distance(p(11),p(12),body.aspect);return {width>.02f?distance(p(15),p(16),body.aspect)/width:0,width>.02f};}
+  if(b.signal==ArmHeight){if(!valid({11,12,15,16,23,24}))return {};float hip=(p(23).y+p(24).y)*.5f,shoulder=(p(11).y+p(12).y)*.5f,span=hip-shoulder;return {span>.03f?(hip-(p(15).y+p(16).y)*.5f)/span:0,span>.03f};}
+  return {};
+ }
  if(b.signal<Pinch||b.signal>Distance)return {};
  for(const auto &h:s.hands)if(h.right==b.right){
   Point p=b.point>=0&&b.point<21?h.points[b.point]:h.palm;
@@ -133,10 +145,16 @@ inline void measureDepth(Hand &h,const Frame &f){
  if(values[values.size()*9/10]-values[values.size()/10]>100)return;
  h.meters=values[values.size()/2]*.001f;h.depthValid=true;
 }
-inline Snapshot simulatedSnapshot(double time,bool lost=false){
+inline Snapshot simulatedSnapshot(double time,bool lost=false,Detector detector=Detector::Hands){
  Snapshot s;s.simulated=true;s.captured=time;s.inferenceFps=30;s.inferenceMs=0;
  auto f=std::make_shared<Frame>();f->serial=uint64_t(time*30);f->captured=time;f->captureFps=30;f->rgb.resize(960*540*3,24);s.frame=f;
- if(!lost)for(bool right:{false,true}){Hand h;h.right=right;h.sideScore=1;h.id=right?2:1;h.meters=1.1f+.3f*std::sin(time*.5);h.depthValid=true;
+ if(!lost&&detector==Detector::Body){auto &b=s.body;b.present=true;for(auto &p:b.points){p.position={.5f,.2f};p.visibility=p.presence=1;}
+  float x=.5f+.1f*std::sin(time),lift=.25f*std::sin(time*2);
+  b.points[0].position={x,.15f};b.points[11].position={x+.1f,.35f};b.points[12].position={x-.1f,.35f};
+  b.points[13].position={x+.15f,.45f-lift*.5f};b.points[14].position={x-.15f,.45f-lift*.5f};b.points[15].position={x+.2f,.55f-lift};b.points[16].position={x-.2f,.55f-lift};
+  b.points[23].position={x+.08f,.6f};b.points[24].position={x-.08f,.6f};b.points[25].position={x+.08f,.75f};b.points[26].position={x-.08f,.75f};b.points[27].position={x+.08f,.9f};b.points[28].position={x-.08f,.9f};
+ }
+ if(!lost&&detector==Detector::Hands)for(bool right:{false,true}){Hand h;h.right=right;h.sideScore=1;h.id=right?2:1;h.meters=1.1f+.3f*std::sin(time*.5);h.depthValid=true;
   float x=(right?.65f:.3f)+.08f*std::sin(time),y=.65f;h.points[0]={x,y};
   for(int finger=0;finger<5;++finger)for(int joint=0;joint<4;++joint)h.points[1+finger*4+joint]={x+(finger-2)*.035f,y-.045f*(joint+1)};
   h.points[4]={h.points[8].x-.015f-.08f*float((1+std::sin(time*2))/2),h.points[8].y};h.palm=palm(h);s.hands.push_back(h);
