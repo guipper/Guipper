@@ -52,6 +52,12 @@ public:
 };
 std::unique_ptr<Backend> makeBackend(const std::string &monitor);
 std::unique_ptr<Backend> makeWindowBackend(const std::string &window);
+#if defined(__linux__)
+// Restore tokens stay in this machine's private state directory, never in a
+// composition. The portal decides whether the old selection is still valid.
+std::unique_ptr<Backend> makePortalBackend(const std::string &parent, bool window,
+    const std::string &stateDirectory, const std::string &identity, bool resume);
+#endif
 std::vector<Monitor> windows();
 std::vector<Monitor> monitors(); // Windows: an explicit in-app choice; other platforms use a portal/picker.
 using Factory = std::function<std::unique_ptr<Backend>(const std::string &)>;

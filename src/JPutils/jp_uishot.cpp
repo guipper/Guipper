@@ -791,6 +791,7 @@ void jp_uishot::setup(ofApp &app)
     if(gTag=="hands-real" || gTag=="hands" || gTag=="analogcolor" || gTag=="youtube" || gTag=="text") {jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true)); ofSetWindowShape(1440,900); jp_audio::setEnabled(false); ofDirectory::createDirectory(shotDir(),true,true); return;}
     if(gTag=="audio_sources") {ofSetWindowShape(1440,900);jp_audio::setEnabled(false);return;}
     if((gTag=="screen_capture" || gTag=="window_capture")) {
+        jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true));
         ofDirectory::createDirectory(shotDir(),true,true);
         ofSetWindowShape(1440,810);jp_audio::setEnabled(false);return;
     }
@@ -892,8 +893,9 @@ void jp_uishot::update(ofApp &app)
             app.keyPressed('S');
             if(app.boxes.boxes.size()!=1 || !dynamic_cast<JPbox_screen*>(app.boxes.boxes[0]))std::exit(EXIT_FAILURE);
             if(gTag=="window_capture")static_cast<JPbox_screen*>(app.boxes.boxes[0])->setWindowMode(true);
+            if(const char *identity=std::getenv("GUIPPER_CAPTURE_TEST_ID"))app.boxes.boxes[0]->uid=identity;
             app.boxes.selectOpenBoxByIndex(0);app.boxes.setControllers();
-            if(std::getenv("GUIPPER_CAPTURE_LIVE"))static_cast<JPbox_screen*>(app.boxes.boxes[0])->selectScreen();
+            if(std::getenv("GUIPPER_CAPTURE_LIVE"))static_cast<JPbox_screen*>(app.boxes.boxes[0])->selectScreen(std::getenv("GUIPPER_CAPTURE_RESUME")!=nullptr);
         }
         ++gFrames;return;
     }

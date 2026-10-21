@@ -20,9 +20,10 @@ void JPbox_screen::setWindowMode(bool window) {
     if(windowMode()==window)return;
     stopCapture();monitorChoices.clear();parameters.setBoolValue(window,6);
 }
-void JPbox_screen::selectScreen() {
+void JPbox_screen::selectScreen(bool resume) {
     if(retained)return;
     if(capture.snapshot().state==jp_screen::State::Selecting){capture.cancelSelection();return;}
+    resumeSelection=resume;
     setonoff(true);
 #ifdef _WIN32
     monitorChoices=windowMode()?jp_screen::windows():jp_screen::monitors();choosingMonitor=true;

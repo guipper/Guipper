@@ -3456,6 +3456,10 @@ void JPboxgroup::draw_paramswindow()
             button(screenSelectButton, (pending || screen->choosingMonitor) ? "Cancelar seleccion" :
                 status.frame ? (screen->windowMode()?"Cambiar ventana":"Cambiar pantalla") : (screen->windowMode()?"Seleccionar ventana":"Seleccionar pantalla"), true);
             button(screenStopButton, "Detener", pending || status.frame || screen->choosingMonitor);
+            if(!screenResumeButton.isEmpty()){
+                button(screenResumeButton,"Reanudar anterior",!pending&&!screen->choosingMonitor);
+                jp_tooltip::draw("Recupera la seleccion guardada en este equipo. Si ya no esta disponible, abre el selector.",screenResumeButton);
+            }
             for(size_t i=0;i<screenMonitorButtons.size();++i)
                 button(screenMonitorButtons[i],screen->monitorChoices[i].label,true);
             ofSetColor(status.state==jp_screen::State::Error ? COL_ACCENT_GOLD : COL_TEXT_SECONDARY);
@@ -5092,6 +5096,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
                     setControllers();return;
                 }
                 if(screenStopButton.inside(ofGetMouseX(),ofGetMouseY())) {screen->stopCapture();setControllers();return;}
+                if(screenResumeButton.inside(ofGetMouseX(),ofGetMouseY())&&screen->captureStatus().state!=jp_screen::State::Selecting&&!screen->choosingMonitor) {screen->selectScreen(true);setControllers();return;}
                 for(size_t i=0;i<screenMonitorButtons.size();++i)if(screenMonitorButtons[i].inside(ofGetMouseX(),ofGetMouseY())) {
                     screen->selectMonitor(i);setControllers();return;
                 }
@@ -6101,7 +6106,7 @@ void JPboxgroup::setControllers(){
 	layoutFinalOverlayInspector(inspectorBox, layoutCursor);
 	layoutCursor = layoutInspectorInputRows(inspectorBox, layoutCursor);
     screenDisplayModeButton.set(0,0,0,0);screenWindowModeButton.set(0,0,0,0);
-    screenSelectButton.set(0,0,0,0); screenStopButton.set(0,0,0,0); screenStatusRect.set(0,0,0,0);
+    screenSelectButton.set(0,0,0,0); screenResumeButton.set(0,0,0,0); screenStopButton.set(0,0,0,0); screenStatusRect.set(0,0,0,0);
     screenMonitorButtons.clear();
     if(auto *screen=dynamic_cast<JPbox_screen *>(inspectorBox)) {
         const float left=inspectorBodyViewport.x+inspectorLayout.contentPadding;
@@ -6109,6 +6114,9 @@ void JPboxgroup::setControllers(){
         screenDisplayModeButton.set(left,layoutCursor,width,30);layoutCursor+=36;
         screenWindowModeButton.set(left,layoutCursor,width,30);layoutCursor+=36;
         screenSelectButton.set(left,layoutCursor,width,30);layoutCursor+=36;
+#if defined(TARGET_LINUX) && !defined(TARGET_RASPBERRY_PI_LEGACY)
+        screenResumeButton.set(left,layoutCursor,width,30);layoutCursor+=36;
+#endif
         screenStopButton.set(left,layoutCursor,width,30);layoutCursor+=36;
         if(screen->choosingMonitor)for(size_t i=0;i<screen->monitorChoices.size();++i){
             screenMonitorButtons.emplace_back(left,layoutCursor,width,30);layoutCursor+=36;

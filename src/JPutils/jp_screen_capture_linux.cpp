@@ -3,6 +3,7 @@
 #include "jp_capture_resize.h"
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
+#include <glib/gstdio.h>
 #include <gst/app/gstappsink.h>
 #include <gst/video/video.h>
 #include <atomic>
@@ -17,6 +18,7 @@ const char *service = "org.freedesktop.portal.Desktop";
 const char *desktop = "/org/freedesktop/portal/desktop";
 const char *screen = "org.freedesktop.portal.ScreenCast";
 std::atomic<unsigned long> sequence{0};
+std::mutex restoreMutex;
 class LinuxCapture final : public Backend {
     std::atomic<bool> stopping{false};
     GCancellable *cancel = g_cancellable_new();
@@ -33,6 +35,8 @@ class LinuxCapture final : public Backend {
     bool sessionClosed = false;
     bool windowMode = false;
     std::string parentWindow;
+    std::string restoreFile;
+    bool resumeSelection = false;
     struct Response { std::string path; bool done = false; guint code = 2; GVariant *data = nullptr; ~Response(){ if(data) g_variant_unref(data); } };
     std::string token() { return "guipper_" + std::to_string(getpid()) + "_" + std::to_string(++sequence); }
     void iterate() {
@@ -104,6 +108,15 @@ class LinuxCapture final : public Backend {
     }
 
     bool setup() {
+        guint version=0;
+        if(!restoreFile.empty()){
+            try {
+                auto result=call(desktop,"org.freedesktop.DBus.Properties","Get",g_variant_new("(ss)",screen,"version"));
+                GVariant *value=nullptr;g_variant_get(result,"(v)",&value);
+                if(g_variant_is_of_type(value,G_VARIANT_TYPE_UINT32))version=g_variant_get_uint32(value);
+                g_variant_unref(value);g_variant_unref(result);
+            }catch(const std::exception &){/* Older portals can still select normally. */}
+        }
         GVariantBuilder options;
         g_variant_builder_init(&options,G_VARIANT_TYPE_VARDICT);
         const auto st=token();
@@ -119,9 +132,34 @@ class LinuxCapture final : public Backend {
         g_variant_builder_add(&options,"{sv}","types",g_variant_new_uint32(windowMode ? 2 : 1));
         g_variant_builder_add(&options,"{sv}","multiple",g_variant_new_boolean(false));
         g_variant_builder_add(&options,"{sv}","cursor_mode",g_variant_new_uint32(2));
+        if(version>=4){
+            g_variant_builder_add(&options,"{sv}","persist_mode",g_variant_new_uint32(2));
+            if(resumeSelection){
+                std::lock_guard<std::mutex> lock(restoreMutex);
+                gchar *saved=nullptr;gsize size=0;
+                if(g_file_get_contents(restoreFile.c_str(),&saved,&size,nullptr)){
+                    if(size>0&&size<=4096&&g_utf8_validate(saved,size,nullptr))
+                        g_variant_builder_add(&options,"{sv}","restore_token",g_variant_new_string(saved));
+                    g_free(saved);
+                    // Tokens are single-use, including an unsuccessful restore.
+                    g_remove(restoreFile.c_str());
+                }
+            }
+        }
         data=request("SelectSources",options,true); if(!data)return false; g_variant_unref(data);
         g_variant_builder_init(&options,G_VARIANT_TYPE_VARDICT);
         data=request("Start",options,true,true); if(!data)return false;
+        if(version>=4&&!stopping){
+            const char *saved=nullptr;g_variant_lookup(data,"restore_token","&s",&saved);
+            std::lock_guard<std::mutex> lock(restoreMutex);
+            if(saved&&*saved){
+                gchar *directory=g_path_get_dirname(restoreFile.c_str());
+                const bool directoryReady=g_mkdir_with_parents(directory,0700)==0;g_free(directory);
+                if(!directoryReady||!g_file_set_contents_full(restoreFile.c_str(),saved,-1,
+                    GFileSetContentsFlags(G_FILE_SET_CONTENTS_CONSISTENT|G_FILE_SET_CONTENTS_DURABLE),0600,nullptr))
+                    g_warning("Guipper: no se pudo recordar la seleccion de captura");
+            }else g_remove(restoreFile.c_str());
+        }
         auto streams=g_variant_lookup_value(data,"streams",G_VARIANT_TYPE("a(ua{sv})"));
         node=0;
         if(streams && g_variant_n_children(streams)) { auto item=g_variant_get_child_value(streams,0); g_variant_get_child(item,0,"u",&node); g_variant_unref(item); }
@@ -262,13 +300,18 @@ class LinuxCapture final : public Backend {
         g_main_context_pop_thread_default(context);g_main_context_unref(context);
     }
 public:
-    explicit LinuxCapture(bool window = false, std::string parent = {}) : windowMode(window), parentWindow(std::move(parent)) { worker=std::thread([this]{run();}); }
+    explicit LinuxCapture(bool window = false, std::string parent = {},std::string savedFile = {},bool resume = false) : windowMode(window), parentWindow(std::move(parent)),restoreFile(std::move(savedFile)),resumeSelection(resume) { worker=std::thread([this]{run();}); }
     ~LinuxCapture() override { stop();g_object_unref(cancel); }
     void stop() override { stopping=true;g_cancellable_cancel(cancel);if(worker.joinable())worker.join(); }
 };
 }
 std::unique_ptr<Backend> makeBackend(const std::string &parent) { return std::make_unique<LinuxCapture>(false,parent); }
 std::unique_ptr<Backend> makeWindowBackend(const std::string &parent) { return std::make_unique<LinuxCapture>(true,parent); }
+std::unique_ptr<Backend> makePortalBackend(const std::string &parent,bool window,const std::string &directory,const std::string &identity,bool resume){
+    gchar *key=g_compute_checksum_for_string(G_CHECKSUM_SHA256,identity.c_str(),identity.size());
+    std::string path=directory.empty()?std::string():directory+"/screen-selections/"+key+(window?"-window":"-monitor")+".token";
+    g_free(key);return std::make_unique<LinuxCapture>(window,parent,path,resume);
+}
 std::vector<Monitor> windows() { return {}; }
 std::vector<Monitor> monitors() { return {}; }
 }
