@@ -4,6 +4,7 @@ trap 'echo "No se pudo instalar Kinect manos. Revisá la conexión, Python/venv 
 [[ "$(uname -s)" == Linux ]] || { echo 'Disponible solo en Linux.' >&2; exit 1; }
 runtime_dir="${GUIPPER_HAND_RUNTIME:-${XDG_DATA_HOME:-$HOME/.local/share}/Guipper/hand-tracking}"
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,12) else "Se necesita Python 3.12 o posterior para este runtime fijado.")'
 mkdir -p "$runtime_dir"
 python3 -m venv --without-pip "$runtime_dir/venv"
 python3 -m pip --python "$runtime_dir/venv/bin/python" install --index-url https://pypi.org/simple --disable-pip-version-check 'pip==25.3'

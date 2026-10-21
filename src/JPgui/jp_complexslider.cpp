@@ -529,7 +529,7 @@ void JPComplexSlider::draw()
 	}
 	slider_value.draw();
 	boton_collapse.draw();
-    jp_button::draw(handButton,"K",parameters->movtype==JPParameter::KINECT);
+    jp_button::draw(handButton,"K",parameters->movtype==JPParameter::KINECT,true,parameters->movtype==JPParameter::KINECT&&!parameters->handFilter.valid?COL_ACCENT_GOLD:COL_ACCENT_CYAN);
     jp_tooltip::draw("Kinect: vincular mano o dedos y abrir diagnostico",handButton.x,handButton.y,handButton.width,handButton.height);
 	jp_tooltip::draw("Toggle parameter automation",
 		boton_collapse.x - boton_collapse.width / 2.0f,

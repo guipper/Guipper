@@ -67,3 +67,5 @@ tests/appimage_backend_tests
 /tests/text_render_tests
 
 /tests/screen_portal_tests
+
+/tests/hand_tracking_tests

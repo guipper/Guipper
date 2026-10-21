@@ -252,8 +252,9 @@ namespace
 	{
 		JPGraphParamState state;
 		if (parameter == nullptr) return state;
-		state.floatValue = parameter->floatValue;
-		state.lerpValue = parameter->floatLerpValue;
+		state.hand=parameter->handBinding;
+        state.floatValue = parameter->movtype==JPParameter::KINECT?parameter->handBinding.base:parameter->floatValue;
+		state.lerpValue = parameter->movtype==JPParameter::KINECT?parameter->handBinding.base:parameter->floatLerpValue;
 		state.boolValue = parameter->boolValue;
 		state.movtype = parameter->movtype;
 		state.lastMovtype = parameter->lastMovtype;
@@ -284,6 +285,7 @@ namespace
 		parameter->boolValue = state.boolValue;
 		parameter->movtype = state.movtype;
 		parameter->lastMovtype = state.lastMovtype;
+        parameter->handBinding=state.hand;parameter->resetHandRuntime();
 		parameter->bpmRate = state.bpmRate;
 		parameter->speed = state.speed;
 		parameter->min = state.min;
@@ -297,7 +299,7 @@ namespace
 	// Everything except the value itself: automation, range, lock, defaults.
 	bool sameParamSettings(const JPGraphParamState &a, const JPGraphParamState &b)
 	{
-		return a.boolValue == b.boolValue &&
+		return a.hand==b.hand && a.boolValue == b.boolValue &&
 			a.movtype == b.movtype && a.lastMovtype == b.lastMovtype &&
 			a.bpmRate == b.bpmRate && a.speed == b.speed &&
 			a.min == b.min && a.max == b.max &&
@@ -738,6 +740,10 @@ JPGraphDetachedBox JPboxgroup::detachBoxFromView(vector<JPbox *> &list,
 	captureFinalLayersForBox(box, detached.finalLayers);
 
 	list.erase(list.begin() + index);
+    std::function<void(JPbox*)> resetHands=[&](JPbox *b){
+        for(int i=0;i<b->parameters.getSize();++i)b->parameters.getJParameter(i)->resetHandRuntime();
+        if(auto *preset=dynamic_cast<JPbox_preset*>(b))for(auto *child:preset->boxes)resetHands(child);
+    };resetHands(box);
 	box->setCaptureActive(false);
 
 	// The exposed-parameter arrays run parallel to the box list, so they have to

@@ -1,3 +1,4 @@
+#include <fstream>
 #include "../JPgui/jp_hand_panel.h"
 #include "jp_uishot.h"
 #include "jp_text_input.h"
@@ -787,7 +788,7 @@ void jp_uishot::setup(ofApp &app)
 	if (tag == nullptr) return;
 	gActive = true;
 	gTag = tag;
-    if(gTag=="hands" || gTag=="analogcolor" || gTag=="youtube" || gTag=="text") {jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true)); ofSetWindowShape(1440,900); jp_audio::setEnabled(false); ofDirectory::createDirectory(shotDir(),true,true); return;}
+    if(gTag=="hands-real" || gTag=="hands" || gTag=="analogcolor" || gTag=="youtube" || gTag=="text") {jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true)); ofSetWindowShape(1440,900); jp_audio::setEnabled(false); ofDirectory::createDirectory(shotDir(),true,true); return;}
     if(gTag=="audio_sources") {ofSetWindowShape(1440,900);jp_audio::setEnabled(false);return;}
     if((gTag=="screen_capture" || gTag=="window_capture")) {
         ofDirectory::createDirectory(shotDir(),true,true);
@@ -829,7 +830,32 @@ void jp_uishot::setup(ofApp &app)
 
 void jp_uishot::update(ofApp &app)
 {
-    if(gActive&&!gDone&&gTag=="hands"){if(gFrames==0&&gState==0){app.pantallaActiva=ofApp::NODOS;jp_hand_ui::open();jp_hand::start(true);}++gFrames;return;}
+    if(gActive&&!gDone&&(gTag=="hands"||gTag=="hands-real")){
+        static double began=0,lastResult=0;static std::ofstream metrics;static std::vector<double> ages;static int withHands=0,withDepth=0;
+        if(gFrames==0&&gState==0){
+            app.boxes.clear();app.pantallaActiva=ofApp::NODOS;app.boxes.addBox("textSource");app.boxes.addBox("analogColor");app.boxes.addBox("shaders/imageprocessing/transform.frag");
+            auto *source=app.boxes.boxes[0],*effect=app.boxes.boxes[1],*shader=app.boxes.boxes[2];
+            source->setonoff(false);jp_image_fixture::paint(source->fbo);source->setPos(130,170);effect->setPos(350,230);shader->setPos(580,230);
+            effect->fbohandlergroup.setFboPointer(&source->fbo,&source->name,0);int inlet=shader->fbohandlergroup.findIndexByName("textura1");if(inlet>=0)shader->fbohandlergroup.setFboPointer(&effect->fbo,&effect->name,inlet);
+            effect->setonoff(true);shader->setonoff(true);app.activerender=2;app.boxes.openguinumber=1;app.boxes.setControllers();
+            auto *pixel=effect->parameters.getJParameter(effect->parameters.indexOfName("pixel size"));pixel->setRangeStart(1);pixel->setRangeEnd(32);pixel->setRangeEnabled(true);pixel->setAutomationMode(JPParameter::KINECT);
+            auto *third=effect->parameters.getJParameter(effect->parameters.indexOfName("mix"));third->setAutomationMode(JPParameter::KINECT);third->handBinding.signal=jp_hand::PositionX;third->handBinding.inputMin=0;
+            for(int i=0;i<shader->parameters.getSize();++i){auto *p=shader->parameters.getJParameter(i);if(p->variabletype==JPParameter::FLOAT){p->setAutomationMode(JPParameter::KINECT);p->handBinding.signal=jp_hand::PositionY;p->handBinding.inputMin=0;break;}}
+            app.boxes.openKinectBinding(pixel);jp_hand::start(gTag=="hands");began=jp_hand::now();
+            if(gTag=="hands-real"){metrics.open(ofToDataPath("hands-benchmark.csv",true));metrics<<"elapsed,capture_fps,inference_fps,inference_ms,age_ms,dropped,hands,valid_z,render_fps,tracking,simulated\n";}
+        }
+        if(gTag=="hands-real"){
+            const double elapsed=jp_hand::now()-began;const auto &snap=jp_hand::snapshot();
+            if(snap.captured>lastResult){lastResult=snap.captured;double age=(jp_hand::now()-snap.captured)*1000;ages.push_back(age);int z=0;for(auto &h:snap.hands)if(h.depthValid)++z;if(!snap.hands.empty())++withHands;if(z)++withDepth;
+                metrics<<elapsed<<","<<(snap.frame?snap.frame->captureFps:0)<<","<<snap.inferenceFps<<","<<snap.inferenceMs<<","<<age<<","<<snap.dropped<<","<<snap.hands.size()<<","<<z<<","<<ofGetFrameRate()<<",1,"<<snap.simulated<<"\n";metrics.flush();}
+            const char *length=getenv("GUIPPER_HAND_BENCH_SECONDS");double duration=length?std::max(10.,atof(length)):600.;
+            if(elapsed>duration&&getenv("GUIPPER_HAND_CLOSE_ACTIVE")){ofLogNotice("hands-benchmark")<<"Closing with active capture";metrics.close();gDone=true;ofExit();return;}
+            if(elapsed>duration&&jp_hand::running()){jp_hand::stop();metrics.flush();ofLogNotice("hands-benchmark")<<"Tracking phase ended; measuring 30 seconds without tracking";}
+            if(elapsed>duration&&!jp_hand::running())metrics<<elapsed<<",0,0,0,0,0,0,0,"<<ofGetFrameRate()<<",0,0\n";
+            if(elapsed>duration+30){std::sort(ages.begin(),ages.end());ofLogNotice("hands-benchmark")<<"results="<<ages.size()<<" withHands="<<withHands<<" withDepth="<<withDepth<<" age_p95_ms="<<(ages.empty()?0:ages[size_t((ages.size()-1)*.95)]);metrics.close();gDone=true;ofExit();}
+        }
+        ++gFrames;return;
+    }
 	if (!gActive || gDone) return;
     if(gTag=="analogcolor") {
         if(app.boxes.sessionPreparing())return;
@@ -991,6 +1017,7 @@ void jp_uishot::poisonWindowStateForTest()
 
 void jp_uishot::draw(ofApp &app)
 {
+    if(gActive&&gTag=="hands-real")return;
     if(gActive&&!gDone&&gTag=="hands"){if(gFrames<50)return;ofImage shot;shot.grabScreen(0,0,ofGetWidth(),ofGetHeight());shot.save(shotDir()+"hands-"+ofToString(gState)+".png");if(gState==0){ofSetWindowShape(1280,800);jp_hand::simulateLoss(true);}else{ofLogNotice("hands-ui")<<"PASS";gDone=true;ofExit();}++gState;gFrames=0;return;}
 	if (!gActive || gDone) return;
     if(gTag=="analogcolor") {

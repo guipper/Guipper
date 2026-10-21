@@ -1,3 +1,7 @@
+#include <filesystem>
+#include <fstream>
+#include "jp_parameter_xml.h"
+#include <thread>
 #include "jp_persistence_test.h"
 #include "jp_text_input_test.h"
 
@@ -2123,6 +2127,75 @@ namespace
 bool jp_persistence_test::run(ofApp &app)
 {
 	const char *testMode = std::getenv("GUIPPER_PERSISTENCE_TEST");
+    if(testMode&&string(testMode)=="hands") {
+        bool passed=true;auto check=[&](bool ok,const char *label){if(!ok)ofLogError("hands-test")<<label;passed=passed&&ok;};
+        jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true));
+        app.boxes.clear();app.boxes.addBox("analogColor");auto *box=app.boxes.boxes[0];
+        auto *p=box->parameters.getJParameter(box->parameters.indexOfName("pixel size"));
+        p->floatValue=p->floatLerpValue=7;p->setAutomationMode(JPParameter::KINECT);p->handBinding.inputMax=1.3f;p->handBinding.invert=true;p->handBinding.smoothingMs=0;
+        check(p->movtype==7&&p->handBinding.base==7,"append-only mode and base");
+        p->update();check(p->floatValue==7&&!jp_hand::running(),"startup stopped preserves base");
+        auto waitFor=[&](auto predicate,int ms){double deadline=jp_hand::now()+ms*.001;while(jp_hand::now()<deadline){jp_hand::beginFrame();if(predicate())return true;std::this_thread::sleep_for(std::chrono::milliseconds(10));}return false;};
+        jp_hand::start(true);check(waitFor([]{return !jp_hand::snapshot().hands.empty();},1000),"simulation starts");
+        p->update();float held=p->floatValue;check(held!=7&&p->handFilter.valid,"continuous mapping");
+        auto *p2=box->parameters.getJParameter(0);p2->setAutomationMode(JPParameter::KINECT);p2->handBinding.smoothingMs=0;const auto sharedFrame=jp_hand::snapshot().frame;p2->update();
+        check(p2->handFilter.valid&&jp_hand::snapshot().frame==sharedFrame,"multiple bindings share one snapshot");
+        box->parameters.setFloatValue(20,box->parameters.indexOfName("pixel size"));box->parameters.setFloatLerpValue(20,box->parameters.indexOfName("pixel size"));
+        check(p->floatValue==held&&p->floatLerpValue==held,"manual setter exclusion");
+        check(!app.boxes.setBoxParameterAtIndex(box->name,box->parameters.indexOfName("pixel size"),1)&&p->floatValue==held,"MIDI exclusion");
+        p->restoreDefaultValue();check(p->floatValue==held,"manual default reset exclusion");
+        app.boxes.listenToOsc("/"+box->name+"/pixel size",31);check(p->floatValue==held,"OSC exclusion");
+        jp_hand::simulateLoss(true);check(waitFor([]{return jp_hand::snapshot().hands.empty();},500),"loss provider");p->update();check(p->floatValue==held&&p->movtype==JPParameter::KINECT&&!p->handFilter.valid,"loss holds binding and value");
+        p->setMorph(1,.5);p->update();check(std::abs(p->floatValue-(held+1)*.5)<.001,"transition blends emitted output");p->clearMorph();
+        ofXml xml;auto root=xml.appendChild("box");jp_parameter_xml::save(root,box->parameters);
+        JPParameterGroup copy=box->parameters;auto *cp=copy.getJParameter(copy.indexOfName("pixel size"));check(cp->handBinding==p->handBinding&&!cp->handFilter.initialized&&cp->floatValue==7,"copy has configuration and base, no filtered state");
+        jp_parameter_xml::load(root,copy,jp_parameter_xml::LoadContext::Preset);check(cp->handBinding==p->handBinding&&cp->movtype==JPParameter::KINECT&&cp->floatValue==7,"XML round trip");
+        app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.copySelectedBoxes();app.boxes.pasteBoxes();check(app.boxes.boxes.size()==2,"graph duplicate");
+        app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.deleteSelectedShader();check(!p->handFilter.initialized,"undo-retained box resets runtime");app.boxes.graphUndoShortcut(false);check(app.boxes.boxes.size()==2&&p->handBinding.inputMax==1.3f,"delete undo configuration");app.boxes.graphUndoShortcut(true);check(app.boxes.boxes.size()==1,"delete redo");
+        auto *restored=app.boxes.boxes[0]->parameters.getJParameter(app.boxes.boxes[0]->parameters.indexOfName("pixel size"));
+        app.boxes.openKinectBinding(restored);
+        jp_hand::stop();jp_hand::beginFrame();restored->update();check(restored->floatValue==restored->handBinding.base&&!jp_hand::running(),"stop invalidates previous session");
+        jp_hand::simulateLoss(false);jp_hand::start(true);jp_hand::stop();jp_hand::start(true);check(waitFor([]{return jp_hand::snapshot().simulated&&!jp_hand::snapshot().hands.empty();},1000),"late session cannot replace restarted simulation");jp_hand::stop();
+        const string path=ofToDataPath("hands-test.xml",true);check(app.boxes.save(path),"save graph");app.boxes.clear();check(app.boxes.load(path)==JPboxgroup::LoadResult::Success,"load graph");check(!jp_hand::running(),"load never starts hardware");
+        auto *historyParam=app.boxes.boxes[0]->parameters.getJParameter(app.boxes.boxes[0]->parameters.indexOfName("pixel size"));
+        JPGraphEdit mapping;mapping.kind=JPGraphEdit::SetParameter;mapping.boxUid=app.boxes.boxes[0]->uid;mapping.paramIndex=app.boxes.boxes[0]->parameters.indexOfName("pixel size");
+        mapping.paramBefore.movtype=JPParameter::KINECT;mapping.paramBefore.lastMovtype=JPParameter::KINECT;mapping.paramBefore.hand=historyParam->handBinding;
+        mapping.paramAfter=mapping.paramBefore;mapping.paramAfter.hand.inputMax=2;
+        check(app.boxes.applyGraphEdit(mapping)&&historyParam->handBinding.inputMax==2,"mapping edit redo");
+        check(app.boxes.revertGraphEdit(mapping)&&historyParam->handBinding.inputMax==1.3f,"mapping edit undo");
+#ifdef TARGET_LINUX
+        const char *previous=getenv("GUIPPER_HAND_RUNTIME");const string old=previous?previous:"";
+        setenv("GUIPPER_HAND_RUNTIME","/tmp/guipper-runtime-does-not-exist",1);jp_hand::start();
+        check(waitFor([]{return jp_hand::snapshot().status.find("Runtime ausente")!=string::npos;},1000),"missing runtime is readable");jp_hand::stop();
+
+        // Exercise the real subprocess transport with an injected immutable RGB frame.
+        const string fake=ofToDataPath("hand-fake-runtime",true);
+        ofDirectory::createDirectory(fake+"/venv/bin",true,true);
+        std::error_code linkError;std::filesystem::create_symlink("/usr/bin/python3",fake+"/venv/bin/python",linkError);
+        auto writeFixture=[&](const string &name,const string &text){std::ofstream file(fake+name);file<<text;};
+        writeFixture("/hand_landmarker.task","fixture");
+        setenv("GUIPPER_HAND_RUNTIME",fake.c_str(),1);jp_hand::setPanelVisible(true);
+        auto provider=[](){return jp_hand::simulatedSnapshot(jp_hand::now()).frame;};
+        writeFixture("/worker.py","import time\nprint('{\"protocol\":1}',flush=True)\ntime.sleep(60)\n");
+        jp_hand::startWithFrameProvider(provider);
+        check(waitFor([]{return jp_hand::snapshot().status.find("bloqueado")!=string::npos;},4500),"blocked subprocess times out");jp_hand::stop();
+        writeFixture("/worker.py","print('{\"protocol\":1}',flush=True)\n");
+        jp_hand::startWithFrameProvider(provider);check(waitFor([]{return jp_hand::snapshot().status.find("Error")!=string::npos;},1500),"exited subprocess / broken pipe");jp_hand::stop();
+        writeFixture("/worker.py","import time\ntime.sleep(60)\n");
+        jp_hand::startWithFrameProvider(provider);std::this_thread::sleep_for(std::chrono::milliseconds(80));
+        double cancelledAt=jp_hand::now();jp_hand::stop();check(jp_hand::now()-cancelledAt<.05,"stop never joins on render thread");
+        jp_hand::start(true);check(waitFor([]{return jp_hand::snapshot().simulated&&!jp_hand::snapshot().hands.empty();},1500),"restart cancels unresponsive startup and ignores late replies");jp_hand::stop();
+        jp_hand::setPanelVisible(false);
+        if(previous)setenv("GUIPPER_HAND_RUNTIME",old.c_str(),1);else unsetenv("GUIPPER_HAND_RUNTIME");
+#endif
+        app.boxes.addBox("textSource");app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.toggleBoxSelection(1);app.boxes.groupSelectedBoxes();
+        auto *preset=app.boxes.boxes.size()==1?dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]):nullptr;
+        check(preset&&preset->boxes.size()==2,"group retains bindings");
+        if(preset){int childParam=preset->boxes[0]->parameters.indexOfName("pixel size");check(childParam>=0,"group child parameter");if(childParam>=0){preset->setExposedParam(0,childParam,true);check(preset->boxes[0]->parameters.getJParameter(childParam)->movtype==JPParameter::KINECT,"exposed parameter retains source");}
+            const string groupPath=ofToDataPath("hands-group.xml",true);check(app.boxes.save(groupPath),"save group");app.boxes.clear();check(app.boxes.load(groupPath)==JPboxgroup::LoadResult::Success,"reload group");preset=dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]);check(preset&&preset->boxes[0]->parameters.getJParameter(childParam)->handBinding.inputMax==1.3f,"nested codec restores mapping");}
+        app.boxes.clear();ofLogNotice("hands-test")<<(passed?"PASS":"FAIL");return passed;
+    }
+
     if(testMode && string(testMode)=="missing_boxes") {
         bool passed=true;auto check=[&](bool ok,const char *why){if(!ok)ofLogError("missing-boxes")<<why;passed=passed&&ok;};
         ofXml xml;xml.appendChild("guipper_format").set(1);xml.appendChild("activerender").set(2);

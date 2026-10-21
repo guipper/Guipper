@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <functional>
 #include <string>
 #include <vector>
 namespace jp_hand {
@@ -78,7 +79,19 @@ inline void measureDepth(Hand &h,const Frame &f){
  if(values[values.size()*9/10]-values[values.size()/10]>100)return;
  h.meters=values[values.size()/2]*.001f;h.depthValid=true;
 }
-Snapshot simulatedSnapshot(double time,bool lost=false);
+inline Snapshot simulatedSnapshot(double time,bool lost=false){
+ Snapshot s;s.simulated=true;s.captured=time;s.inferenceFps=30;s.inferenceMs=0;
+ auto f=std::make_shared<Frame>();f->serial=uint64_t(time*30);f->captured=time;f->captureFps=30;f->rgb.resize(960*540*3,24);s.frame=f;
+ if(!lost)for(bool right:{false,true}){Hand h;h.right=right;h.sideScore=1;h.id=right?2:1;h.meters=1.1f+.3f*std::sin(time*.5);h.depthValid=true;
+  float x=(right?.65f:.3f)+.08f*std::sin(time),y=.65f;h.points[0]={x,y};
+  for(int finger=0;finger<5;++finger)for(int joint=0;joint<4;++joint)h.points[1+finger*4+joint]={x+(finger-2)*.035f,y-.045f*(joint+1)};
+  h.points[4]={h.points[8].x-.015f-.08f*float((1+std::sin(time*2))/2),h.points[8].y};h.palm=palm(h);s.hands.push_back(h);
+ }s.status=lost?"Simulacion: sin seguimiento":"Simulacion: siguiendo";return s;
+}
+
+using FrameProvider=std::function<std::shared_ptr<const Frame>()>;
+// Injection uses the same process/queue/cancellation path as camera capture. Tests only.
+void startWithFrameProvider(FrameProvider provider);
 void start(bool simulation=false);void stop();void reconnect();void shutdown();
 uint64_t session();
 void beginFrame();void demand();void setPanelVisible(bool value);

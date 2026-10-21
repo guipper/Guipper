@@ -626,7 +626,7 @@ void JPParameter::captureDefaultValue()
 
 void JPParameter::restoreDefaultValue()
 {
-	if (randomLocked) return;
+	if (randomLocked || movtype==KINECT) return;
 	if (variabletype == FLOAT)
 	{
 		floatValue = ofClamp(defaultFloatValue, effectiveMin(), effectiveMax());

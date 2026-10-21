@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../JPbox/jp_media_state.h"
+#include "jp_hand_tracking.h"
 #include <cstddef>
 #include <string>
 #include <utility>
@@ -28,6 +29,7 @@
 // drag ofMain.h in; these are the fields the inspector and the sliders write.
 struct JPGraphParamState
 {
+    jp_hand::Binding hand;
 	float floatValue = 0.0f;
 	float lerpValue = 0.0f;
 	bool boolValue = false;

@@ -167,6 +167,8 @@
       <Filter>src\JPutils</Filter>
     </ClCompile>
     <ClCompile Include="src\JPutils\jp_audio_loopback.cpp"><Filter>src\JPutils</Filter></ClCompile>
+    <ClCompile Include="src\JPutils\jp_hand_tracking.cpp"><Filter>src\JPutils</Filter></ClCompile>
+    <ClCompile Include="src\JPgui\jp_hand_panel.cpp"><Filter>src\JPgui</Filter></ClCompile>
     <ClCompile Include="src\JPutils\jp_audio_analyzer.cpp">
       <Filter>src\JPutils</Filter>
     </ClCompile>
@@ -560,6 +562,8 @@
     <ClInclude Include="src\JPutils\jp_audio_loopback.h"><Filter>src\JPutils</Filter></ClInclude>
     <ClInclude Include="src\JPutils\jp_audio_pcm.h"><Filter>src\JPutils</Filter></ClInclude>
     <ClInclude Include="src\JPutils\jp_audio_device_id.h"><Filter>src\JPutils</Filter></ClInclude>
+    <ClInclude Include="src\JPutils\jp_hand_tracking.h"><Filter>src\JPutils</Filter></ClInclude>
+    <ClInclude Include="src\JPgui\jp_hand_panel.h"><Filter>src\JPgui</Filter></ClInclude>
     <ClInclude Include="src\JPutils\jp_audio_analyzer.h">
       <Filter>src\JPutils</Filter>
     </ClInclude>

@@ -20,7 +20,7 @@ struct Service {
  std::mutex mutex; std::condition_variable wake; std::thread thread;
  std::atomic<uint64_t> generation{0}; std::atomic<int> mode{0};
  std::atomic<bool> closing{false},panel{false},loss{false},reconnecting{false};std::atomic<double> wanted{0};
- Snapshot published,current;
+ Snapshot published,current;FrameProvider provider;
  ~Service(){close();}
  void close(){closing=true;++generation;wake.notify_all();if(thread.joinable())thread.join();}
  bool cancelled(uint64_t g){return closing||generation!=g;}
@@ -61,6 +61,7 @@ struct Service {
   }
  };
  void real(uint64_t g){
+  FrameProvider frames;{std::lock_guard<std::mutex> l(mutex);frames=provider;}
   const char *custom=getenv("GUIPPER_HAND_RUNTIME"),*xdg=getenv("XDG_DATA_HOME"),*home=getenv("HOME");
   std::string dir=custom?custom:std::string(xdg?xdg:((std::string(home?home:".")+"/.local/share").c_str()))+"/Guipper/hand-tracking";
   for(auto file:{"/venv/bin/python","/worker.py","/hand_landmarker.task"})if(access((dir+file).c_str(),R_OK)){status("Runtime ausente: scripts/install_hand_tracking_linux.sh",g);return;}
@@ -71,8 +72,8 @@ struct Service {
   Associator assoc;uint64_t serial=0,dropped=0;double last=0;
   while(!cancelled(g)){
    if(!panel&&now()-wanted>.5){lease.reset();source.reset();pause(50);continue;}
-   if(!source){source=JPbox_kinect2::acquireSharedCapture();if(reconnecting.exchange(false))JPbox_kinect2::reconnectShared(source);lease=JPbox_kinect2::handLease(source);serial=0;}
-   auto f=JPbox_kinect2::handFrame(source);
+   if(!frames&&!source){source=JPbox_kinect2::acquireSharedCapture();if(reconnecting.exchange(false))JPbox_kinect2::reconnectShared(source);lease=JPbox_kinect2::handLease(source);serial=0;}
+   auto f=frames?frames():JPbox_kinect2::handFrame(source);
    if(!f||now()-f->captured>1){status("Sin camara: "+JPbox_kinect2::captureStatus(source),g);pause(40);continue;}
    if(f->serial==serial){pause(3);continue;}
    if(serial&&f->serial>serial+1)dropped+=f->serial-serial-1;serial=f->serial;
@@ -102,7 +103,7 @@ struct Service {
 #endif
   uint64_t handled=0;
   while(!closing){uint64_t g=generation;if(g==handled||mode==0){pause(30);continue;}handled=g;
-   if(mode==2){while(!cancelled(g)){Snapshot s=simulatedSnapshot(now(),loss);publish(std::move(s),g);pause(33);}continue;}
+   if(mode==2){while(!cancelled(g)){if(!panel&&now()-wanted>.5){pause(50);continue;}Snapshot s=simulatedSnapshot(now(),loss);publish(std::move(s),g);pause(33);}continue;}
 #ifdef __linux__
    real(g);
 #else
@@ -113,17 +114,9 @@ struct Service {
 };
 Service &service(){static Service s;return s;}
 }
-Snapshot simulatedSnapshot(double time,bool lost){
- Snapshot s;s.simulated=true;s.captured=time;s.inferenceFps=30;s.inferenceMs=0;
- auto f=std::make_shared<Frame>();f->serial=uint64_t(time*30);f->captured=time;f->captureFps=30;f->rgb.resize(960*540*3,24);s.frame=f;
- if(!lost)for(bool right:{false,true}){Hand h;h.right=right;h.sideScore=1;h.id=right?2:1;h.meters=1.1f+.3f*std::sin(time*.5);h.depthValid=true;
-  float x=(right?.65f:.3f)+.08f*std::sin(time),y=.65f;h.points[0]={x,y};
-  for(int finger=0;finger<5;++finger)for(int joint=0;joint<4;++joint)h.points[1+finger*4+joint]={x+(finger-2)*.035f,y-.045f*(joint+1)};
-  h.points[4]={h.points[8].x-.015f-.08f*float((1+std::sin(time*2))/2),h.points[8].y};h.palm=palm(h);s.hands.push_back(h);
- }s.status=lost?"Simulacion: sin seguimiento":"Simulacion: siguiendo";return s;
-}
+void startWithFrameProvider(FrameProvider provider){auto &s=service();{std::lock_guard<std::mutex> l(s.mutex);s.provider=std::move(provider);}start(false);}
 void start(bool sim){auto &s=service();{std::lock_guard<std::mutex> l(s.mutex);++s.generation;s.mode=sim?2:1;s.published={};s.published.status="Iniciando";s.published.simulated=sim;}if(!s.thread.joinable())s.thread=std::thread([&s]{s.run();});s.wanted=now();s.wake.notify_all();}
-void stop(){auto &s=service();std::lock_guard<std::mutex> l(s.mutex);++s.generation;s.mode=0;s.published={};s.current={};s.wake.notify_all();}
+void stop(){auto &s=service();std::lock_guard<std::mutex> l(s.mutex);++s.generation;s.mode=0;s.provider={};s.published={};s.current={};s.wake.notify_all();}
 void reconnect(){service().reconnecting=true;start(simulation());}
 void shutdown(){service().close();}
 uint64_t session(){return service().generation;}

@@ -427,3 +427,12 @@ is selected; an entirely unavailable composition opens empty. Loading does not
 rewrite the original XML. Saving the loaded composition omits the unavailable
 boxes. Known missing assets and malformed compositions still report errors.
 Run `python3 tests/missing_boxes_test.py` for isolated regression coverage.
+
+## Kinect hand control (Linux)
+
+Numeric parameters have a **K** button for hand/finger control. Open diagnostics
+from that button or **SETTINGS → Kinect**, then explicitly start tracking.
+A local Python/MediaPipe runtime is installed with
+`./scripts/install_hand_tracking_linux.sh`. Kinect v2 capture is shared; no Kinect
+box is required. Simulation, calibration, mapping, persistence and validation are
+described in [Kinect hands](docs/KINECT_HANDS.md).

@@ -10,7 +10,13 @@ namespace
 		node.appendChild("randomlocked").set(parameter->randomLocked);
 		if (parameter->variabletype == JPParameter::FLOAT)
 		{
-			node.appendChild("rangeenabled").set(parameter->rangeEnabled);
+			auto hand=node.appendChild("kinect");const auto &b=parameter->handBinding;
+            hand.appendChild("version").set(1);hand.appendChild("right").set(b.right);
+            hand.appendChild("signal").set(b.signal);hand.appendChild("point").set(b.point);
+            hand.appendChild("inputmin").set(b.inputMin);hand.appendChild("inputmax").set(b.inputMax);
+            hand.appendChild("invert").set(b.invert);hand.appendChild("smoothingms").set(b.smoothingMs);
+            hand.appendChild("deadzone").set(b.deadzone);hand.appendChild("base").set(b.base);
+            node.appendChild("rangeenabled").set(parameter->rangeEnabled);
 			node.appendChild("defaultvalue").set(parameter->defaultFloatValue);
 		}
 		else if (parameter->variabletype == JPParameter::BOOL)
@@ -27,7 +33,21 @@ namespace
 				value.getFloatValue(), parameter->nativeMin, parameter->nativeMax);
 		if (parameter->variabletype == JPParameter::FLOAT)
 		{
-			auto enabled = node.getChild("rangeenabled");
+			auto hand=node.getChild("kinect");auto &b=parameter->handBinding;
+            b={};b.base=parameter->floatValue;
+            if(hand){
+                b.right=(hand.getChild("right")?hand.getChild("right").getBoolValue():true);
+                b.signal=std::clamp(hand.getChild("signal").getIntValue(),0,4);
+                b.point=std::clamp((hand.getChild("point")?hand.getChild("point").getIntValue():-1),-1,20);
+                auto number=[&](const char *key,float fallback,float lo,float hi){auto v=hand.getChild(key);float value=v?v.getFloatValue():fallback;return std::isfinite(value)?std::clamp(value,lo,hi):fallback;};
+                b.inputMin=number("inputmin",b.signal==jp_hand::Distance?.7f:b.signal==jp_hand::Pinch?.15f:0,-10000,10000);
+                b.inputMax=number("inputmax",b.signal==jp_hand::Distance?1.5f:1,-10000,10000);
+                if(b.inputMax<=b.inputMin){b.inputMin=0;b.inputMax=1;}
+                b.invert=hand.getChild("invert").getBoolValue();b.smoothingMs=number("smoothingms",100,0,5000);b.deadzone=number("deadzone",.01f,0,.5f);
+                b.base=number("base",parameter->floatValue,parameter->nativeMin,parameter->nativeMax);
+            }
+            parameter->resetHandRuntime();
+            auto enabled = node.getChild("rangeenabled");
 			// Custom limiting is opt-in. Legacy files keep their remembered
 			// endpoints, but open on the native slider domain.
 			parameter->setRangeEnabled(enabled ? enabled.getBoolValue() : false);
@@ -63,7 +83,7 @@ void jp_parameter_xml::save(ofXml &boxNode, JPParameterGroup &group)
 				// Morph changes only emitted values; snapshots/save/history retain the
                 // destination automation value, never a transition intermediate.
                 auto *valueParameter=group.getJParameter(k);
-                param.appendChild("value").set(valueParameter && valueParameter->isMorphing() ?
+                param.appendChild("value").set(valueParameter && valueParameter->movtype==JPParameter::KINECT ? valueParameter->handBinding.base : valueParameter && valueParameter->isMorphing() ?
                     valueParameter->floatLerpValue : group.getFloatValue(k));
 				param.appendChild("movtype").set(group.getMovType(k));
 				param.appendChild("lastmovtype").set(group.getLastMovType(k));
@@ -109,7 +129,8 @@ void jp_parameter_xml::load(const ofXml &boxNode, JPParameterGroup &group,
 
 		if (group.getType(destinationIndex) == group.FLOAT)
 		{
-			group.setName(param.getChild("name").getValue());
+			group.getJParameter(destinationIndex)->setAutomationMode(JPParameter::STANDART);
+            group.setName(param.getChild("name").getValue());
 			group.setRangeMin(param.getChild("min").getFloatValue(), destinationIndex);
 			group.setRangeMax(param.getChild("max").getFloatValue(), destinationIndex);
 			group.setFloatLerpValue(param.getChild("value").getFloatValue(), destinationIndex);

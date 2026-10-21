@@ -4638,6 +4638,7 @@ void JPboxgroup::update_mouseDragged(int mousebutton)
 				{
 					// Exposed controller: update the value via its internal parameter pointer
 					JPParameter *parameter = controllers[i]->parameters;
+                    if(parameter->movtype==JPParameter::KINECT)continue;
 					if(complex==nullptr)continue;
 					float newVal=complex->valueFromMouse(ofGetMouseX());
 					controllers[i]->value = newVal;
@@ -5008,7 +5009,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 			for (JPParameter *parameter : getInspectorActionParameters())
 			{
 				if (parameter->variabletype == JPParameter::FLOAT &&
-					!parameter->randomLocked)
+					!parameter->randomLocked && parameter->movtype!=JPParameter::KINECT)
 				{
 					parameter->floatValue = ofRandom(parameter->effectiveMin(),
 						parameter->effectiveMax());

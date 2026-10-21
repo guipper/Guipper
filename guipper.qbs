@@ -10,6 +10,13 @@ Project{
 
     ofApp {
         name: { return FileInfo.baseName(sourceDirectory) }
+        property bool kinectAvailable: {
+            if (!qbs.targetOS.contains("linux")) return false;
+            var process = new Process();
+            try { return process.exec("pkg-config", ["--exists", "freenect2"], false) === 0; }
+            catch (error) { return false; }
+            finally { process.close(); }
+        }
 
         Properties {
             condition: qbs.targetOS.contains("linux")
@@ -149,12 +156,12 @@ Project{
         // additional flags for the project. the of module sets some
         // flags by default to add the core libraries, search paths...
         // this flags can be augmented through the following properties:
-        of.pkgConfigs: []       // list of additional system pkgs to include
+        of.pkgConfigs: kinectAvailable ? ["freenect2"] : []       // list of additional system pkgs to include
         of.includePaths: []     // include search paths
         of.cFlags: []           // flags passed to the c compiler
         of.cxxFlags: []         // flags passed to the c++ compiler
         of.linkerFlags: []      // flags passed to the linker
-        of.defines: []          // defines are passed as -D to the compiler
+        of.defines: kinectAvailable ? ["KINECT2"] : []          // defines are passed as -D to the compiler
                                 // and can be checked with #ifdef or #if in the code
         of.frameworks: []       // osx only, additional frameworks to link with the project
         of.staticLibraries: []  // static libraries

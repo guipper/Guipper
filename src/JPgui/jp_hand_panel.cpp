@@ -73,7 +73,8 @@ void draw(){
  const char *names[]={"Pinza","Apertura","Posicion X","Posicion Y","Distancia (m)"};
  button(x,y+330,136,b.right?"Mano derecha":"Mano izquierda",[]{edit([]{binding().right=!binding().right;});});
  button(x+146,y+330,154,names[std::clamp(b.signal,0,4)],[]{edit([]{auto &b=binding();b.signal=(b.signal+1)%5;b.inputMin=b.signal==jp_hand::Pinch?.15f:b.signal==jp_hand::Distance?.7f:0;b.inputMax=b.signal==jp_hand::Distance?1.5f:1;});});
- button(x+310,y+330,w-310,b.point<0?"Punto: palma":"Punto: "+ofToString(b.point),[]{edit([]{binding().point=(binding().point+2)%22-1;});},false,b.signal==jp_hand::PositionX||b.signal==jp_hand::PositionY);
+ const char *points[]={"Muneca","Pulgar base","Pulgar nudillo","Pulgar medio","Pulgar punta","Indice nudillo","Indice medio","Indice distal","Indice punta","Medio nudillo","Medio medio","Medio distal","Medio punta","Anular nudillo","Anular medio","Anular distal","Anular punta","Menique nudillo","Menique medio","Menique distal","Menique punta"};
+ button(x+310,y+330,w-310,b.point<0?"Punto: palma":std::string(points[std::clamp(b.point,0,20)])+" ("+ofToString(b.point)+")",[]{edit([]{binding().point=(binding().point+2)%22-1;});},false,b.signal==jp_hand::PositionX||b.signal==jp_hand::PositionY);
  label("X: derecha · Y: arriba | Pinza relativa al ancho de palma",x,y+378);
  auto v=jp_hand::sample(s,b,jp_hand::now());
  field(0,x,y+403,"Entrada minima",b.inputMin);field(1,x+146,y+403,"Entrada maxima",b.inputMax);
@@ -82,9 +83,10 @@ void draw(){
  field(2,x,y+456,"Suavizado (ms)",b.smoothingMs);field(3,x+146,y+456,"Zona muerta (%)",b.deadzone*100);
  label(attached()?"Salida: "+ofToString(target.low(),2)+" a "+ofToString(target.high(),2):"Salida de prueba: 0 a 1",x+285,y+473);
  jp_hand::Filter &f=attached()?*target.filter:localFilter;if(!attached())f.step(v,b,0,1,jp_hand::now());
- label("Cruda: "+(v.valid?ofToString(v.raw,3):"--")+"   Normalizada: "+ofToString(f.normalized,3)+"   Final: "+ofToString(attached()?target.value():f.output,3),x,y+511);
+ float normalized=v.valid&&b.inputMax>b.inputMin?std::clamp((v.raw-b.inputMin)/(b.inputMax-b.inputMin),0.f,1.f):NAN;if(b.invert)normalized=1-normalized;
+ label("Cruda: "+(v.valid?ofToString(v.raw,3):"--")+"   Normalizada: "+(std::isfinite(normalized)?ofToString(normalized,3):"--")+"   Final: "+ofToString(attached()?target.value():f.output,3),x,y+511);
  label(v.valid?"Seguimiento valido":jp_hand::running()?"Sin seguimiento · mantiene el ultimo valor":"Detenido · conserva el valor base",x,y+532,v.valid?COL_ACCENT_CYAN:COL_ACCENT_GOLD);
- if(jp_hand::now()-lastHistory>.033){history.push_back({v.valid?v.raw:NAN,f.normalized,attached()?target.value():f.output});if(history.size()>240)history.pop_front();lastHistory=jp_hand::now();}
+ if(jp_hand::now()-lastHistory>.033){history.push_back({v.valid?v.raw:NAN,normalized,attached()?target.value():f.output});if(history.size()>240)history.pop_front();lastHistory=jp_hand::now();}
  ofRectangle plot(x,y+549,w,76);ofSetColor(COL_BG_INPUT);ofDrawRectangle(plot);const ofColor colors[]={ofColor(COL_ACCENT_GOLD),ofColor(COL_ACCENT_CYAN),ofColor(220)};
  for(int series=0;series<3;++series){ofSetColor(colors[series]);float lo=series==0?b.inputMin:series==2&&attached()?target.low():0,hi=series==0?b.inputMax:series==2&&attached()?target.high():1;
   for(size_t i=1;i<history.size();++i)if(std::isfinite(history[i-1][series])&&std::isfinite(history[i][series])&&hi>lo){auto yy=[&](float z){return plot.getBottom()-std::clamp((z-lo)/(hi-lo),0.f,1.f)*plot.height;};ofDrawLine(plot.x+(i-1)*plot.width/239,yy(history[i-1][series]),plot.x+i*plot.width/239,yy(history[i][series]));}}

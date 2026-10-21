@@ -91,6 +91,7 @@ void JPSlider::draw()
 	{
 		activeFlag = false;
 	}
+	if(parameters->movtype==JPParameter::KINECT)activeFlag=false;
 	if (activeFlag)
 	{
 		// cout << "MUEVE SLIDER " << endl;
