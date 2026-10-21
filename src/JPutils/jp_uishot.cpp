@@ -1096,7 +1096,19 @@ void jp_uishot::draw(ofApp &app)
         else if(gState==10){jp_hand_ui::press(400,604,OF_MOUSE_BUTTON_LEFT);}
         else if(gState==11){if(!p->handBinding.crowd.background)std::exit(EXIT_FAILURE);}
         else if(gState==12){const auto &snap=jp_hand::snapshot(p->handBinding.source);if(!snap.crowd||snap.crowd->background!=jp_crowd::Background::Ready){ofLogError("hands-ui")<<"Audience background did not complete";std::exit(EXIT_FAILURE);}jp_hand_ui::press(450,448,OF_MOUSE_BUTTON_LEFT);}
-        else{jp_hand_ui::press(450,485,OF_MOUSE_BUTTON_RIGHT);if(p->handBinding.zone!=3)std::exit(EXIT_FAILURE);ofLogNotice("hands-ui")<<"PASS";gDone=true;ofExit();}
+        else if(gState==13){jp_hand_ui::press(450,485,OF_MOUSE_BUTTON_RIGHT);if(p->handBinding.zone!=3)std::exit(EXIT_FAILURE);
+            jp_hand_ui::press(450,540,OF_MOUSE_BUTTON_LEFT);
+            if(!p->handBinding.musical||p->handBinding.inputMax!=.15f)std::exit(EXIT_FAILURE);
+        }
+        else if(gState==14){
+            jp_hand_ui::press(450,540,OF_MOUSE_BUTTON_RIGHT);
+            if(p->handBinding.signal!=jp_hand::CrowdActivityX||p->handBinding.musical)std::exit(EXIT_FAILURE);
+            app.boxes.graphUndoShortcut(false);
+            if(!p->handBinding.musical||p->handBinding.signal!=jp_hand::CrowdMotion)std::exit(EXIT_FAILURE);
+            jp_hand_ui::press(180,540,OF_MOUSE_BUTTON_LEFT);
+        }
+        else if(gState==15){jp_hand_ui::press(180,540,OF_MOUSE_BUTTON_LEFT);}
+        else{ofLogNotice("hands-ui")<<"PASS";gDone=true;ofExit();}
         ++gState;gFrames=0;return;
     }
 	if (!gActive || gDone) return;

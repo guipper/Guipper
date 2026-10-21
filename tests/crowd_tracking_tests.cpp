@@ -5,6 +5,19 @@ using namespace jp_crowd;
 static std::shared_ptr<Grid> grid(double t,float depth=4){auto g=std::make_shared<Grid>();g->width=60;g->height=30;g->captured=t;g->meters.assign(1800,depth);return g;}
 static void person(Grid &g,int start,int end,float z){for(int y=3;y<27;++y)for(int x=start;x<end;++x)g.meters[y*60+x]=z;}
 int main(){
+ // Asymmetric response is time-based and survives stalls/loss without fake zero.
+ auto envelope=[](int fps){jp_hand::Binding b;b.musical=true;b.inputMin=0;b.inputMax=1;b.deadzone=0;b.attackMs=80;b.releaseMs=600;jp_hand::Filter f;f.step({0,true},b,0,1,1);
+  for(int i=1;i<=fps;++i)f.step({1,true},b,0,1,1.+double(i)/fps);
+  float up=f.output;for(int i=1;i<=fps;++i)f.step({0,true},b,0,1,2.+double(i)/fps);
+  assert(up>.99f&&f.output>.18f&&f.output<.20f);float held=f.output;f.step({},b,0,1,4);assert(f.output==held);return f.output;
+ };assert(std::abs(envelope(15)-envelope(60))<.00001);
+ Calibration calibration;calibration.start(10);for(int i=0;i<80;++i)calibration.add(10+i*.1,10+i*.1,i<30?.001f:.1f,true);
+ float lo=0,hi=0;assert(calibration.finish(lo,hi)&&lo==.001f&&hi==.1f);
+ calibration.start(20);for(int i=0;i<80;++i)calibration.add(20+i*.1,20+i*.1,.01f,true);assert(!calibration.finish(lo,hi));
+ calibration.start(30);for(int i=0;i<80;++i)calibration.add(30+i*.1,30,.1f,true);assert(!calibration.finish(lo,hi));
+ assert(quality(true,.3,1)=="Captura interrumpida"&&quality(true,.1,.3)=="Poca profundidad valida"&&quality(true,.1,.8)=="Recibiendo bien");
+ jp_hand::Binding preset;preset.crowd.left=.2f;preset.zone=2;jp_hand::crowdPreset(preset,0);assert(preset.musical&&preset.inputMax==.15f&&preset.zone==2&&preset.crowd.left==.2f);
+ jp_hand::crowdPreset(preset,2);assert(!preset.musical&&preset.signal==jp_hand::CrowdActivityX);
  Config c;c.nearM=.7f;c.farM=3.5f;Engine engine;auto g=grid(1);person(*g,3,15,2);auto s=engine.process(g,{c});auto a=s->results[0].zones;
  assert(a[0].valid&&a[0].positionValid&&!a[0].motionValid&&std::abs(a[0].occupancy-.16)<.001&&a[1].occupancy>.4&&a[2].occupancy==0&&a[3].occupancy==0);
  assert(std::abs(a[0].x-.15)<.001&&std::abs(a[0].y-.5)<.001&&a[0].meters==2);

@@ -57,10 +57,17 @@ struct Body {std::array<BodyPoint,33> points{};bool present=false;float aspect=1
 struct Snapshot {std::vector<Hand> hands;Body body;std::shared_ptr<const jp_crowd::Snapshot> crowd;std::shared_ptr<const Frame> frame;double captured=0,inferenceMs=0;float inferenceFps=0;uint64_t dropped=0;std::string status="Detenido";bool simulated=false;};
 enum Signal {Pinch,Opening,PositionX,PositionY,Distance,TorsoX,TorsoY,WristSpan,ArmHeight,BodyPointX,BodyPointY,CrowdMotion,CrowdOccupancy,CrowdX,CrowdY,CrowdDistance,CrowdActivityX,CrowdActivityY};
 enum class Loss {Hold=0,ReturnBase=1,Release=2};
-struct Binding {Source source;bool right=true;int signal=Pinch,point=-1;float inputMin=.15f,inputMax=1, smoothingMs=100,deadzone=.01f,base=0;bool invert=false;Loss loss=Loss::Hold;jp_crowd::Config crowd;int zone=0;};
-inline bool operator==(const Binding &a,const Binding &b){return a.source==b.source&&a.right==b.right&&a.signal==b.signal&&a.point==b.point&&a.inputMin==b.inputMin&&a.inputMax==b.inputMax&&a.smoothingMs==b.smoothingMs&&a.deadzone==b.deadzone&&a.base==b.base&&a.invert==b.invert&&a.loss==b.loss&&a.crowd==b.crowd&&a.zone==b.zone;}
+struct Binding {Source source;bool right=true;int signal=Pinch,point=-1;float inputMin=.15f,inputMax=1, smoothingMs=100,attackMs=80,releaseMs=600,deadzone=.01f,base=0;bool invert=false,musical=false;Loss loss=Loss::Hold;jp_crowd::Config crowd;int zone=0;};
+inline bool operator==(const Binding &a,const Binding &b){return a.source==b.source&&a.right==b.right&&a.signal==b.signal&&a.point==b.point&&a.inputMin==b.inputMin&&a.inputMax==b.inputMax&&a.smoothingMs==b.smoothingMs&&a.musical==b.musical&&a.attackMs==b.attackMs&&a.releaseMs==b.releaseMs&&a.deadzone==b.deadzone&&a.base==b.base&&a.invert==b.invert&&a.loss==b.loss&&a.crowd==b.crowd&&a.zone==b.zone;}
 inline std::string signalLabel(int signal){const char *names[]={"Pinza","Apertura","Posicion X","Posicion Y","Distancia (m)","Torso X","Torso Y","Separacion munecas","Altura brazos","Punto X","Punto Y","Movimiento","Ocupacion","Centro X","Centro Y","Distancia mediana (m)","Actividad X","Actividad Y"};return names[std::clamp(signal,0,int(CrowdActivityY))];}
 inline void setSignal(Binding &b,int signal){b.signal=signal;b.inputMin=signal==CrowdDistance?3:signal==Pinch?.15f:signal==Distance?.7f:0;b.inputMax=signal==CrowdDistance?4.5f:signal==Distance?1.5f:signal==WristSpan?3:signal==ArmHeight?2:1;}
+// Presets alter only mapping; keep area, device, output range and background.
+inline void crowdPreset(Binding &b,int preset){
+ setSignal(b,preset==1?CrowdOccupancy:preset==2?CrowdActivityX:CrowdMotion);
+ b.invert=false;b.deadzone=.01f;b.loss=Loss::Hold;b.musical=preset!=2;
+ b.attackMs=preset==1?250:80;b.releaseMs=preset==1?1200:600;b.smoothingMs=250;
+ if(preset==0)b.inputMax=.15f;
+}
 struct Value {float raw=0;bool valid=false;};
 inline Point palm(const Hand &h){Point p;for(int i:{0,5,9,13,17}){p.x+=h.points[i].x/5;p.y+=h.points[i].y/5;}return p;}
 inline float opening(const Hand &h){float sum=0;for(int i:{6,10,14,18}){Point a{(h.points[i-1].x-h.points[i].x)*h.aspect,h.points[i-1].y-h.points[i].y},b{(h.points[i+2].x-h.points[i].x)*h.aspect,h.points[i+2].y-h.points[i].y};float den=std::hypot(a.x,a.y)*std::hypot(b.x,b.y);if(den<1e-7)return 0;float angle=std::acos(std::clamp((a.x*b.x+a.y*b.y)/den,-1.f,1.f));sum+=std::clamp((angle-1.5707963f)/1.5707963f,0.f,1.f)/4;}return sum;}
@@ -108,7 +115,7 @@ struct Filter {
   valid=v.valid&&std::isfinite(v.raw)&&std::isfinite(b.inputMin)&&std::isfinite(b.inputMax)&&b.inputMax>b.inputMin;
   if(valid){seenValid=true;missingSince=0;release=false;float target=std::clamp((v.raw-b.inputMin)/(b.inputMax-b.inputMin),0.f,1.f);if(b.invert)target=1-target;
    if(std::abs(target-accepted)>=std::clamp(b.deadzone,0.f,.5f))accepted=target;
-   float alpha=b.smoothingMs<=0?1:1-std::exp(-dt/(b.smoothingMs*.001f));normalized+=alpha*(accepted-normalized);output=lo+(hi-lo)*normalized;
+   float tau=b.musical?(accepted>normalized?b.attackMs:b.releaseMs):b.smoothingMs;float alpha=tau<=0?1:1-std::exp(-dt/(tau*.001f));normalized+=alpha*(accepted-normalized);output=lo+(hi-lo)*normalized;
   }else if(seenValid){
    if(missingSince==0)missingSince=time;
    if(time-missingSince>=.5){

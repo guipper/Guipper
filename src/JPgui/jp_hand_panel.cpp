@@ -6,6 +6,7 @@
 namespace jp_hand_ui {
 namespace {
 bool opened=false,moving=false,resizing=false,lost=false,choosingCamera=false;
+jp_crowd::Calibration quickCalibration;
 bool crowdSetup=false,drawingArea=false;ofRectangle depthPreview;jp_hand::Point areaStart,areaEnd;
 bool diagnostics=false,calibrating=false;double calibrationEnd=0,calibrationStamp=0;float calibrationMin=0,calibrationMax=0;int calibrationSamples=0;
 std::string calibrationMessage;jp_hand::Binding calibrationBinding;
@@ -19,12 +20,12 @@ Target target;jp_hand::Binding local;jp_hand::Filter localFilter;
 ofTexture crowdMask;std::shared_ptr<const jp_crowd::Snapshot> shownCrowd;jp_crowd::Config shownCrowdConfig;
 ofTexture texture;std::shared_ptr<const jp_hand::Frame> displayed;
 struct Button {ofRectangle bounds;std::function<void()> action,backwards;};std::vector<Button> buttons;
-struct Field {std::string text;bool focus=false;};std::array<Field,8> fields;
+struct Field {std::string text;bool focus=false;};std::array<Field,10> fields;
 std::deque<std::array<float,3>> history;double lastHistory=0;
 bool attached(){return target.binding&&target.valid&&target.valid();}
 jp_hand::Binding &binding(){return attached()?*target.binding:local;}
 void edit(const std::function<void()> &f){if(attached()&&target.edit)target.edit(f);else f();}
-void resetMapping(){if(attached())target.filter->reset();else localFilter.reset();calibrating=false;calibrationMessage.clear();history.clear();}
+void resetMapping(){if(attached())target.filter->reset();else localFilter.reset();calibrating=false;quickCalibration.active=false;calibrationMessage.clear();history.clear();}
 void label(const std::string &text,float x,float y,ofColor color=COL_TEXT_SECONDARY){ofSetColor(color);jp_constants::control_font.drawString(text,x,y);}
 void button(float x,float y,float w,const std::string &text,std::function<void()> action,bool on=false,bool enabled=true,std::function<void()> backwards={}){
  ofRectangle r(x,y,w,26);jp_button::draw(r,jp_tooltip::fit(text,w-12,[](const std::string &s){return jp_constants::control_font.stringWidth(s);}),on,enabled);if(enabled)buttons.push_back({r,std::move(action),std::move(backwards)});
@@ -41,13 +42,14 @@ void field(int i,float x,float y,const std::string &name,float value){
  f.validate=[i](const std::string &s){try{size_t end;float v=std::stof(s,&end);if(end!=s.size()||!std::isfinite(v))throw std::runtime_error("numero");auto &b=binding();
   if((i==0&&v>=b.inputMax)||(i==1&&v<=b.inputMin))return std::string("Minimo debe ser menor que maximo");
   if((i==2&&(v<0||v>5000))||(i==3&&(v<0||v>50)))return std::string("Fuera de rango");
-  if(i>=4){auto c=b.crowd;if(i==4)c.nearM=v;if(i==5)c.farM=v;if(i==6)c.speedMps=v;if(i==7)c.noiseM=v;if(!c.valid())return std::string("Distancia: 0,5 a 4,5 m; velocidad: 0,05 a 5; ruido: 0,005 a 0,2 m");}
+  if((i==8||i==9)&&(v<0||v>5000))return std::string("Tiempo: 0 a 5000 ms");
+  if(i>=4&&i<=7){auto c=b.crowd;if(i==4)c.nearM=v;if(i==5)c.farM=v;if(i==6)c.speedMps=v;if(i==7)c.noiseM=v;if(!c.valid())return std::string("Distancia: 0,5 a 4,5 m; velocidad: 0,05 a 5; ruido: 0,005 a 0,2 m");}
   return std::string();}catch(...){return std::string("Ingresar un numero valido");}};
- f.commit=[i]{float v=std::stof(fields[i].text);edit([&]{auto &b=binding();if(i==0)b.inputMin=v;if(i==1)b.inputMax=v;if(i==2)b.smoothingMs=v;if(i==3)b.deadzone=v*.01f;if(i==4)b.crowd.nearM=v;if(i==5)b.crowd.farM=v;if(i==6)b.crowd.speedMps=v;if(i==7)b.crowd.noiseM=v;});fields[i].focus=false;calibrating=false;return true;};
+ f.commit=[i]{float v=std::stof(fields[i].text);edit([&]{auto &b=binding();if(i==0)b.inputMin=v;if(i==1)b.inputMax=v;if(i==2)b.smoothingMs=v;if(i==3)b.deadzone=v*.01f;if(i==4)b.crowd.nearM=v;if(i==5)b.crowd.farM=v;if(i==6)b.crowd.speedMps=v;if(i==7)b.crowd.noiseM=v;if(i==8)b.attackMs=v;if(i==9)b.releaseMs=v;});fields[i].focus=false;calibrating=false;quickCalibration.active=false;return true;};
  jp_text_input::controller().add(std::move(f));
 }
 }
-void open(Target t){jp_text_input::controller().finish();target=std::move(t);opened=true;crowdSetup=false;drawingArea=false;choosingCamera=false;calibrating=false;calibrationMessage.clear();history.clear();displayed.reset();for(auto &f:fields)f.focus=false;jp_hand::setPanelVisible(true,binding().source);jp_hand::refreshSources();}
+void open(Target t){jp_text_input::controller().finish();target=std::move(t);opened=true;quickCalibration.active=false;crowdSetup=false;drawingArea=false;choosingCamera=false;calibrating=false;calibrationMessage.clear();history.clear();displayed.reset();for(auto &f:fields)f.focus=false;jp_hand::setPanelVisible(true,binding().source);jp_hand::refreshSources();}
 bool visible(){return opened;}bool contains(float x,float y){return opened&&panel.inside(x,y);}
 void beginFrame(){settings={};if(target.binding&&!attached()){jp_text_input::controller().finish(true);target={};choosingCamera=false;calibrating=false;for(auto &f:fields)f.focus=false;history.clear();}jp_hand::setPanelVisible(opened,binding().source);if(opened&&binding().source.detector==jp_hand::Detector::Crowd)jp_hand::demandCrowd(binding().source,binding().crowd);}
 bool editing(){for(auto &f:fields)if(f.focus)return true;return false;}
@@ -118,6 +120,13 @@ void draw(){
   ofSetColor(COL_ACCENT_GOLD);ofNoFill();ofSetLineWidth(1.5);ofDrawRectangle(area);
   for(int i=1;i<3;++i)ofDrawLine(area.x+area.width*i/3,area.y,area.x+area.width*i/3,area.getBottom());
   ofFill();
+  for(int i=0;i<3;++i){float zx=area.x+area.width*i/3;const char *names[]={"I","C","D"};
+   label(names[i],zx+3,area.y+13,COL_ACCENT_GOLD);
+   if(crowdResult&&jp_hand::now()-s.captured<=.25){const auto &z=crowdResult->zones[i+1];
+    ofSetColor(COL_BG_INPUT);ofDrawRectangle(zx+2,area.getBottom()-6,std::max(0.f,area.width/3-4),4);
+    if(z.motionValid){ofSetColor(COL_ACCENT_GOLD);ofDrawRectangle(zx+2,area.getBottom()-6,std::max(0.f,area.width/3-4)*std::clamp(z.motion/.15f,0.f,1.f),4);}
+   }
+  }
   if(b.zone>0){ofSetColor(240,190,60,35);ofDrawRectangle(area.x+area.width*(b.zone-1)/3,area.y,area.width/3,area.height);}
  }
  for(auto &h:s.hands){ofColor c=h.right?ofColor(COL_ACCENT_CYAN):ofColor(COL_ACCENT_GOLD);ofSetColor(c);ofSetLineWidth(1.5);
@@ -140,7 +149,7 @@ void draw(){
  float tx=x+290,ty=y+212;
  auto metric=[&](const std::string &t){label(t,tx,ty);ty+=20;};
  if(diagnostics&&!crowdSetup){metric("Captura: "+ofToString(s.frame?s.frame->captureFps:0,1)+" FPS");metric("Detector: "+ofToString(s.inferenceFps,1)+" FPS / "+ofToString(s.inferenceMs,0)+" ms");metric("Edad: "+(s.captured?ofToString((jp_hand::now()-s.captured)*1000,0)+" ms":"--"));metric((audience&&crowdResult?"Validos: "+ofToString(crowdResult->zones[std::clamp(b.zone,0,3)].coverage*100,0)+"% · ":std::string())+"Descartes: "+ofToString(s.dropped));}
- else if(audience){metric("Kinect · profundidad");metric(crowdResult?"Datos validos: "+ofToString(crowdResult->zones[std::clamp(b.zone,0,3)].coverage*100,0)+"%":"Esperando datos del area");metric("Cian: ocupado · Oro: movimiento");metric(crowdSetup?"Arrastra para delimitar el area":"Ajustar desde Area y fondo");metric(jp_hand::signalLabel(b.signal));metric("Entrada: "+(v.valid?ofToString(v.raw,3):"sin datos validos"));}
+ else if(audience){metric(jp_crowd::quality(jp_hand::running(source),jp_hand::now()-s.captured,crowdResult?crowdResult->zones[std::clamp(b.zone,0,3)].coverage:0));metric(crowdResult?"Datos validos: "+ofToString(crowdResult->zones[std::clamp(b.zone,0,3)].coverage*100,0)+"%":"Esperando datos del area");metric("Cian: ocupado · Oro: movimiento");metric(crowdSetup?"Arrastra para delimitar el area":"Ajustar desde Area y fondo");metric(jp_hand::signalLabel(b.signal));metric("Entrada: "+(v.valid?ofToString(v.raw,3):"sin datos validos"));}
  else {metric(b.source.detector==jp_hand::Detector::Body?"Una persona · luz visible":"Hasta dos manos");metric(s.frame?(s.frame->infrared?"IR ":"RGB ")+ofToString(s.frame->width)+" x "+ofToString(s.frame->height):"Sin imagen");metric("Imagen sin espejo");metric("Clic en un punto para elegirlo");metric(jp_hand::signalLabel(b.signal));metric("Entrada: "+(v.valid?ofToString(v.raw,3):"sin seguimiento"));}
  label(attached()?"Parametro: "+target.name:"Diagnostico · elegir una senal para explorar",x,y+372,COL_TEXT_PRIMARY);
  if(attached())button(x,y+385,158,target.active()?"Vinculo activo":"Activar vinculo",[]{edit([]{target.activate(!target.active());});},target.active());
@@ -178,13 +187,37 @@ void draw(){
  label(audience?"Superficies y movimiento · No cuenta personas":b.source.detector==jp_hand::Detector::Body?"Torso: centro · Munecas: ancho de hombros · Brazos: altura torso":"X: derecha · Y: arriba | Pinza relativa al ancho de palma",x,y+466);
  if(calibrating&&!(calibrationBinding==b))calibrating=false;
  if(calibrating){if(v.valid&&s.captured!=calibrationStamp){calibrationStamp=s.captured;if(calibrationSamples++==0)calibrationMin=calibrationMax=v.raw;else{calibrationMin=std::min(calibrationMin,v.raw);calibrationMax=std::max(calibrationMax,v.raw);}}if(jp_hand::now()>=calibrationEnd){calibrating=false;if(calibrationSamples>=12&&calibrationMax-calibrationMin>.01f){edit([]{binding().inputMin=calibrationMin;binding().inputMax=calibrationMax;});calibrationMessage="Recorrido aplicado";}else calibrationMessage="Sin recorrido suficiente. Repetir.";}}
+ if(audience){
+  if(quickCalibration.active&&!(calibrationBinding==b))quickCalibration.active=false;
+  if(quickCalibration.active){
+   quickCalibration.add(jp_hand::now(),s.captured,v.raw,v.valid);
+   if(jp_hand::now()-quickCalibration.started>=8){float lo=0,hi=0;
+    if(quickCalibration.finish(lo,hi)){edit([&]{b.inputMin=lo;b.inputMax=hi;b.musical=true;b.attackMs=80;b.releaseMs=600;b.deadzone=.01f;});calibrationMessage="Calibracion aplicada a este vinculo";}
+    else calibrationMessage="Sin contraste suficiente: repetir quietud y movimiento";
+   }
+  }
+  button(x,y+478,270,quickCalibration.active?"Cancelar calibracion":"Calibrar pista · 8 s",[]{
+   if(quickCalibration.active){quickCalibration.active=false;calibrationMessage="Calibracion cancelada";}
+   else{quickCalibration.start(jp_hand::now());calibrationBinding=binding();calibrationMessage.clear();}
+  },quickCalibration.active,jp_hand::running(source)&&b.signal==jp_hand::CrowdMotion);
+  int selectedPreset=-1;for(int i=0;i<3;++i){auto candidate=b;jp_hand::crowdPreset(candidate,i);if(candidate==b)selectedPreset=i;}
+  cycleButton(x+280,y+478,w-280,"Preset: "+std::string(selectedPreset==0?"Energia":selectedPreset==1?"Ocupacion":selectedPreset==2?"Desplazamiento":"personalizado"),[selectedPreset](int step){int next=selectedPreset<0?(step>0?0:2):(selectedPreset+step+3)%3;edit([next]{jp_hand::crowdPreset(binding(),next);});resetMapping();});
+ }else{
  button(x,y+478,178,"Centrar posicion actual",[v]{edit([v]{auto &b=binding();float half=(b.inputMax-b.inputMin)*.5f;b.inputMin=v.raw-half;b.inputMax=v.raw+half;});resetMapping();},false,v.valid&&!calibrating);
  button(x+186,y+478,w-186,calibrating?"Cancelar medicion ("+ofToString(int(std::ceil(calibrationEnd-jp_hand::now())))+" s)":"Medir mi recorrido · 5 s",[]{calibrating=!calibrating;calibrationEnd=jp_hand::now()+5;calibrationSamples=0;calibrationStamp=0;calibrationBinding=binding();calibrationMessage.clear();},calibrating);
+ }
  field(0,x,y+532,"Entrada minima",b.inputMin);field(1,x+146,y+532,"Entrada maxima",b.inputMax);
  button(x+285,y+532,122,"Tomar minimo",[v]{edit([v]{binding().inputMin=v.raw;});},false,!calibrating&&v.valid&&v.raw<b.inputMax);
  button(x+415,y+532,w-415,"Tomar maximo",[v]{edit([v]{binding().inputMax=v.raw;});},false,!calibrating&&v.valid&&v.raw>b.inputMin);
+ if(audience){
+  button(x,y+584,123,b.musical?"Subida / bajada":"Suavizado",[]{edit([]{binding().musical=!binding().musical;});},b.musical);
+  if(b.musical){field(8,x+140,y+584,"Subida (ms)",b.attackMs);field(9,x+280,y+584,"Bajada (ms)",b.releaseMs);}
+  else field(2,x+140,y+584,"Suavizado (ms)",b.smoothingMs);
+  field(3,x+414,y+584,"Zona muerta (%)",b.deadzone*100);
+ }else{
  field(2,x,y+584,"Suavizado (ms)",b.smoothingMs);field(3,x+146,y+584,"Zona muerta (%)",b.deadzone*100);
  label(attached()?"Salida: "+ofToString(target.low(),2)+" a "+ofToString(target.high(),2):"Salida de prueba: 0 a 1",x+285,y+601);
+ }
 
  jp_hand::Filter &f=attached()?*target.filter:localFilter;if(!attached())f.step(v,b,0,1,jp_hand::now());
  float normalized=v.valid&&b.inputMax>b.inputMin?std::clamp((v.raw-b.inputMin)/(b.inputMax-b.inputMin),0.f,1.f):NAN;if(b.invert)normalized=1-normalized;
@@ -194,7 +227,7 @@ void draw(){
  ofSetColor(COL_BG_INPUT);ofDrawRectangle(x,y+665,w,7);ofSetColor(v.valid?COL_ACCENT_CYAN:COL_ACCENT_GOLD);if(std::isfinite(normalized))ofDrawRectangle(x,y+665,w*normalized,7);
  label("Entrada: "+(v.valid?ofToString(v.raw,3):"--")+"   Mapeada: "+(std::isfinite(normalized)?ofToString(normalized*100,0)+"%":"--")+"   Salida: "+ofToString(attached()?target.value():f.output,3),x,y+690);
  const std::string state=audience&&b.crowd.background&&(!s.crowd||s.crowd->background!=jp_crowd::Background::Ready)?"Aprender el fondo desde Area y fondo":audience&&!v.valid&&jp_hand::running(b.source)?(crowdResult&&crowdResult->zones[std::clamp(b.zone,0,3)].valid?(b.signal==jp_hand::CrowdActivityX||b.signal==jp_hand::CrowdActivityY?"Sin movimiento en la zona":"Sin superficies en el rango elegido"):"Sin datos suficientes en la zona elegida"):!b.source.hasDepth()&&b.signal==jp_hand::Distance?"Distancia no disponible en esta camara":v.valid?"Seguimiento valido":jp_hand::running(binding().source)?(b.source.detector==jp_hand::Detector::Body?"Sin seguimiento de los puntos elegidos":"Sin seguimiento"):"Detenido · conserva el valor base";
- label(calibrating?"Move el cuerpo o la mano por todo el recorrido":!calibrationMessage.empty()?calibrationMessage:state,x,y+711,v.valid?COL_ACCENT_CYAN:COL_ACCENT_GOLD);
+ label(quickCalibration.active?(jp_hand::now()-quickCalibration.started<3?"Quedate quieto · midiendo ruido de la pista":"Move el cuerpo · midiendo respuesta de la pista"):calibrating?"Move el cuerpo o la mano por todo el recorrido":!calibrationMessage.empty()?calibrationMessage:state,x,y+711,v.valid?COL_ACCENT_CYAN:COL_ACCENT_GOLD);
  if(jp_hand::now()-lastHistory>.033){history.push_back({v.valid?v.raw:NAN,normalized,attached()?target.value():f.output});if(history.size()>240)history.pop_front();lastHistory=jp_hand::now();}
  if(diagnostics){ofRectangle plot(tx,y+288,w-290,62);ofSetColor(COL_BG_INPUT);ofDrawRectangle(plot);const ofColor colors[]={ofColor(COL_ACCENT_GOLD),ofColor(COL_ACCENT_CYAN),ofColor(220)};
  for(int series=0;series<3;++series){ofSetColor(colors[series]);float lo=series==0?b.inputMin:series==2&&attached()?target.low():0,hi=series==0?b.inputMax:series==2&&attached()?target.high():1;
@@ -222,6 +255,10 @@ bool press(int x,int y,int mouseButton){
  }
  for(auto it=buttons.rbegin();it!=buttons.rend();++it)if(it->bounds.inside(x,y)){activate(*it);return true;}
  if(mouseButton!=OF_MOUSE_BUTTON_LEFT)return true;
+ if(!crowdSetup&&binding().source.detector==jp_hand::Detector::Crowd&&depthPreview.inside(x,y)){
+  const auto &c=binding().crowd;float px=(x-depthPreview.x)/depthPreview.width,py=(y-depthPreview.y)/depthPreview.height;
+  if(px>=c.left&&px<c.right&&py>=c.top&&py<c.bottom){int zone=1+std::clamp(int(3*(px-c.left)/(c.right-c.left)),0,2);edit([zone]{binding().zone=zone;});resetMapping();}return true;
+ }
  if(crowdSetup&&binding().source.detector==jp_hand::Detector::Crowd&&depthPreview.inside(x,y)){
   jp_text_input::controller().finish();drawingArea=true;areaStart=areaEnd={(x-depthPreview.x)/depthPreview.width,(y-depthPreview.y)/depthPreview.height};return true;
  }

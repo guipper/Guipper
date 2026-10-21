@@ -54,8 +54,8 @@ struct Service {
     else std::fill(mock->depth.begin(),mock->depth.end(),0);f=mock;
    }else if(frames)f=frames();
    else{
-    if(!source){source=JPbox_kinect2::acquireSharedCapture();if(reconnecting.exchange(false))JPbox_kinect2::reconnectShared(source);lease=JPbox_kinect2::handLease(source,true);}
-    f=JPbox_kinect2::handFrame(source,true);
+    if(!source){source=JPbox_kinect2::acquireSharedCapture();if(reconnecting.exchange(false))JPbox_kinect2::reconnectShared(source);lease=JPbox_kinect2::audienceLease(source);}
+    f=JPbox_kinect2::audienceFrame(source);
    }
    if(!f||now()-f->captured>.25){engine.missing();status(simulated?"Simulacion: sin profundidad":"Sin profundidad: "+JPbox_kinect2::captureStatus(source),g,simulated);pause(30);continue;}
    if(f->captured<started||f->serial==serial){pause(3);continue;}

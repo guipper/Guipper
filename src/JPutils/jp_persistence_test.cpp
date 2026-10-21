@@ -2257,6 +2257,7 @@ bool jp_persistence_test::run(ofApp &app)
         jp_hand::startWithFrameProvider(depthOnly,audience);
         check(waitFor([&]{multi->update();return jp_hand::snapshot(audience).crowd!=nullptr;},1000),"audience restart returns depth");
         check(jp_hand::snapshot(audience).crowd->background==jp_crowd::Background::None&&!multi->handFilter.valid,"background never crosses sessions");
+        multi->handBinding.musical=true;multi->handBinding.attackMs=83.123456f;multi->handBinding.releaseMs=729.12345f;
         multi->handBinding.crowd.noiseM=.034567891f;multi->handBinding.crowd.speedMps=.54321987f;multi->handBinding.base=12.3456789f;
         ofXml audienceXml;auto audienceRoot=audienceXml.appendChild("box");jp_parameter_xml::save(audienceRoot,app.boxes.boxes[0]->parameters);
         JPParameterGroup audienceCopy=app.boxes.boxes[0]->parameters;jp_parameter_xml::load(audienceRoot,audienceCopy,jp_parameter_xml::LoadContext::Preset);

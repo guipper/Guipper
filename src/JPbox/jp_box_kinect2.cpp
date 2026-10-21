@@ -38,7 +38,8 @@ namespace
 class KinectV2CaptureSource
 {
 public:
-    std::atomic<unsigned> handUsers{0},irHandUsers{0};
+    std::atomic<unsigned> handUsers{0},irHandUsers{0},audienceUsers{0};
+    std::shared_ptr<const jp_hand::Frame> audienceSnapshot()const {lock_guard<mutex> lock(dataMutex);return audienceTrackingFrame;}
     std::shared_ptr<const jp_hand::Frame> handSnapshot(bool infrared)const {lock_guard<mutex> lock(dataMutex);return infrared?irTrackingFrame:trackingFrame;}
 	KinectV2CaptureSource()
 	{
@@ -141,7 +142,7 @@ private:
 				// intrinsics must not be handed out in the meantime.
 				lock_guard<mutex> lock(dataMutex);
 				irParams = JPbox_kinect2::DepthIntrinsics();
-                trackingFrame.reset();irTrackingFrame.reset();
+                trackingFrame.reset();irTrackingFrame.reset();audienceTrackingFrame.reset();
 			}
 			libfreenect2::Freenect2 context;
 			if (context.enumerateDevices() == 0)
@@ -232,7 +233,16 @@ private:
                         // Native distorted IR and native distorted depth share pixels.
                         if(depth->timestamp==infrared->timestamp)irHands->depth=*nextDepth;
                     }
+                    std::shared_ptr<jp_hand::Frame> audience;
+                    if(audienceUsers.load()>0){
+                        audience=std::make_shared<jp_hand::Frame>();audience->captured=captured;audience->serial=frameVersion+1;
+                        audience->width=audience->nativeWidth=audience->depthWidth=depth->width;
+                        audience->height=audience->nativeHeight=audience->depthHeight=depth->height;
+                        audience->captureFps=lastCaptured>0?float(1/(captured-lastCaptured)):0;
+                        audience->depth=*nextDepth; // Depth alone: no IR tone mapping or RGB dependency.
+                    }
                     {lock_guard<mutex> lock(dataMutex);
+                        audienceTrackingFrame=std::move(audience);
                         irTrackingFrame=std::move(irHands);depthFrame=std::move(nextDepth);infraredFrame=std::move(nextInfrared);
                         ++frameVersion;statusText="STREAMING";
                     }
@@ -292,7 +302,7 @@ private:
 	JPbox_kinect2::DepthIntrinsics irParams;
 	int colorFrameFormat = 0;
 	uint64_t frameVersion = 0;
-    std::shared_ptr<const jp_hand::Frame> trackingFrame,irTrackingFrame;
+    std::shared_ptr<const jp_hand::Frame> trackingFrame,irTrackingFrame,audienceTrackingFrame;
     uint64_t colorVersion=0,trackingColorSerial=0;
     string selectedSerial;
 };
@@ -727,3 +737,6 @@ int JPbox_kinect2::depthHeight()
 std::shared_ptr<void> JPbox_kinect2::handLease(const shared_ptr<KinectV2CaptureSource> &s,bool infrared){if(!s)return {};auto &users=infrared?s->irHandUsers:s->handUsers;++users;return std::shared_ptr<void>(s.get(),[s,infrared](void*){--(infrared?s->irHandUsers:s->handUsers);});}
 std::shared_ptr<const jp_hand::Frame> JPbox_kinect2::handFrame(const shared_ptr<KinectV2CaptureSource> &s,bool infrared){return s?s->handSnapshot(infrared):nullptr;}
 void JPbox_kinect2::reconnectShared(const shared_ptr<KinectV2CaptureSource> &s){if(s)s->reconnect();}
+
+std::shared_ptr<void> JPbox_kinect2::audienceLease(const shared_ptr<KinectV2CaptureSource> &s){if(!s)return {}; ++s->audienceUsers;return std::shared_ptr<void>(s.get(),[s](void*){--s->audienceUsers;});}
+std::shared_ptr<const jp_hand::Frame> JPbox_kinect2::audienceFrame(const shared_ptr<KinectV2CaptureSource> &s){return s?s->audienceSnapshot():nullptr;}

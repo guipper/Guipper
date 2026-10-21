@@ -20,13 +20,14 @@ namespace
 		if (parameter->variabletype == JPParameter::FLOAT)
 		{
 			auto hand=node.appendChild("kinect");const auto &b=parameter->handBinding;
-            hand.appendChild("version").set(4);
+            hand.appendChild("version").set(5);
             hand.appendChild("detector").set(b.source.detector==jp_hand::Detector::Crowd?"crowd":b.source.detector==jp_hand::Detector::Body?"body":"hands");
             hand.appendChild("loss").set(int(b.loss));
             hand.appendChild("source").set(b.source.kind==jp_hand::SourceKind::KinectRGB?"kinect_rgb":b.source.kind==jp_hand::SourceKind::KinectIR?"kinect_ir":b.source.kind==jp_hand::SourceKind::Camera?"camera":"unsupported");
             hand.appendChild("device").set(b.source.device);hand.appendChild("right").set(b.right);
             hand.appendChild("signal").set(b.signal);hand.appendChild("point").set(b.point);
             saveTrackingNumber(hand,"inputmin",b.inputMin);saveTrackingNumber(hand,"inputmax",b.inputMax);
+            hand.appendChild("musical").set(b.musical);saveTrackingNumber(hand,"attackms",b.attackMs);saveTrackingNumber(hand,"releasems",b.releaseMs);
             hand.appendChild("invert").set(b.invert);saveTrackingNumber(hand,"smoothingms",b.smoothingMs);
             saveTrackingNumber(hand,"deadzone",b.deadzone);saveTrackingNumber(hand,"base",b.base);
             auto crowd=hand.appendChild("crowd");const auto &c=b.crowd;
@@ -65,6 +66,7 @@ namespace
                 b.inputMin=number("inputmin",b.signal==jp_hand::CrowdDistance?3:b.signal==jp_hand::Distance?.7f:b.signal==jp_hand::Pinch?.15f:0,-10000,10000);
                 b.inputMax=number("inputmax",b.signal==jp_hand::CrowdDistance?4.5f:b.signal==jp_hand::Distance?1.5f:b.signal==jp_hand::WristSpan?3:b.signal==jp_hand::ArmHeight?2:1,-10000,10000);
                 if(b.inputMax<=b.inputMin){b.inputMin=0;b.inputMax=1;}
+                b.musical=hand.getChild("musical").getBoolValue();b.attackMs=number("attackms",80,0,5000);b.releaseMs=number("releasems",600,0,5000);
                 b.invert=hand.getChild("invert").getBoolValue();b.smoothingMs=number("smoothingms",100,0,5000);b.deadzone=number("deadzone",.01f,0,.5f);
                 b.base=number("base",parameter->floatValue,parameter->nativeMin,parameter->nativeMax);
                 auto crowd=hand.getChild("crowd");if(crowd){

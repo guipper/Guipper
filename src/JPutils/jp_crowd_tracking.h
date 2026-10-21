@@ -43,6 +43,28 @@ inline std::shared_ptr<Grid> prepare(const std::vector<float> &depth,int width,i
   std::sort(local.begin(),local.begin()+count);g->meters[y*g->width+x]=local[count/2]*.001f;
  }return g;
 }
+// Two deliberate phases, bounded samples and robust percentiles. No camera state.
+struct Calibration {
+ double started=0,last=0;bool active=false;std::vector<float> quiet,moving;
+ void start(double time){started=time;last=0;active=true;quiet.clear();moving.clear();}
+ void add(double time,double captured,float value,bool valid){
+  if(!active||!valid||!std::isfinite(value)||captured==last||time-captured>.25||captured<started)return;
+  last=captured;auto &values=time-started<3?quiet:moving;if(values.size()<300)values.push_back(value);
+ }
+ bool finish(float &lo,float &hi){
+  active=false;if(quiet.size()<12||moving.size()<20)return false;
+  std::sort(quiet.begin(),quiet.end());std::sort(moving.begin(),moving.end());
+  float floor=quiet[quiet.size()*95/100],peak=moving[moving.size()*90/100];
+  if(peak-floor<.005f)return false;
+  lo=floor;hi=peak;return true;
+ }
+};
+inline std::string quality(bool running,double age,float coverage){
+ if(!running)return "Detenido";
+ if(age<0||age>.25)return "Captura interrumpida";
+ if(coverage<.5f)return "Poca profundidad valida";
+ return "Recibiendo bien";
+}
 class Engine {
  std::shared_ptr<const Grid> previous;
  std::deque<std::shared_ptr<const Grid>> recent;
