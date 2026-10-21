@@ -1,3 +1,4 @@
+#include "JPgui/jp_hand_panel.h"
 #include "JPutils/jp_textfield.h"
 #include "JPutils/jp_shader_audit.h"
 #include "JPutils/jp_version.h"
@@ -414,6 +415,7 @@ void ofApp::registerSurfaces()
 
 	// One pointer-owner rule for every control that opts into a layer.
 	jp_pointer::setOcclusionTest([this](float x, float y, int order) {
+        if(order<80&&jp_hand_ui::contains(x,y)&&!surfaces.modalOpen())return true;
 		return jp_text_input::controller().gesture() || toastView.captures() || !toastView.hovered(x, y).empty() ||
             (releasePanelOpen && order < jp_pointer::kModal) || surfaces.blockedAt(x, y, order);
 	});
@@ -472,6 +474,8 @@ void ofApp::enterScreen(int screen)
 }
 
 void ofApp::update() {
+    jp_hand::beginFrame();
+    jp_hand_ui::beginFrame();
     if(!boxes.loadWarnings.empty()){
         jp::Toast notice;notice.id="load-missing-boxes";notice.state=jp::ToastState::Warning;
         notice.message="Composicion abierta. Cajas no disponibles omitidas: ";
@@ -752,6 +756,7 @@ void ofApp::draw() {
 
 	drawScreenTabs();
 
+	if (!saveModalActive && !releasePanelOpen) jp_hand_ui::draw();
 	if (saveModalActive || releasePanelOpen) jp_text_input::controller().beginFrame();
 	drawSaveModal();
     jp_text_input::controller().endFrame();
@@ -2555,6 +2560,7 @@ void ofApp::draw_opciones() {
 
 	jp_screen::drawFrame(ofRectangle(panelX, panelY, panelW, panelH),
 		"SETTINGS", "settings.xml");
+    jp_hand_ui::settingsButton(ofRectangle(L.panel.getRight()-112,L.panel.y+8,98,26));
 
 	// Field labels & inputs
 	string labels[FIELD_OSC_IP_OUT] = {
@@ -6507,6 +6513,7 @@ void ofApp::closeShaderEditorToMain()
 
 void ofApp::keyPressed(int key) {
     auto& input = jp_text_input::controller();
+    if (!surfaces.modalOpen() && !releasePanelOpen && !input.focused() && jp_hand_ui::key(key)) return;
     input.consumed = false;
     if (!releasePanelOpen && (!surfaces.modalOpen() || saveModalActive) && !input.focused() &&
         (anyFieldFocused() || midiKeymap.textFocused() || (saveModalActive && saveModalTextFocused)) && key!=OF_KEY_ESC) {
@@ -7024,6 +7031,7 @@ void ofApp::keycodePressed(ofKeyEventArgs & e) {
 	prevKey = e.keycode;
 }
 void ofApp::mouseDragged(int x, int y, int button) {
+    if (!saveModalActive && !releasePanelOpen && jp_hand_ui::drag(x,y)) return;
     if (jp_text_input::controller().drag(x,y)) return;
     if(reviewScrollbarDragging){dragReviewScrollbar(y);return;}
     if (toastView.captures()) return;
@@ -7146,6 +7154,7 @@ void ofApp::mousePressed(int x, int y, int button) {
     if (shaderNameFocused && !toastBlocked() && !getPreviewInspectorLayout().name.inside(x,y)) {
         if (!commitShaderName()) return;
     }
+	if (!surfaces.modalOpen() && !releasePanelOpen && jp_hand_ui::press(x,y,button)) {JPdragobject::notePressOrigin(-10000,-10000);return;}
 	// FIRST, before any early return below: the controls that actuate from
 	// inside draw() ask where the press began, and a press swallowed by a modal
 	// or a panel still has to be recorded or the next one inherits a stale one.
@@ -7623,6 +7632,7 @@ void ofApp::mouseMoved(int x, int y) {
 	}
 }
 void ofApp::mouseReleased(int x, int y, int button) {
+    if (jp_hand_ui::release()) return;
     if (jp_text_input::controller().release(button)) return;
     reviewScrollbarDragging=false;
     if (toastView.release(x, y, button, toastBlocked(), toasts)) {
@@ -7719,6 +7729,7 @@ void ofApp::touchUp(ofTouchEventArgs &touch) {
 }
 
 void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
+    if(jp_hand_ui::contains(x,y)&&!surfaces.modalOpen()) return;
     if (pantallaActiva == NODOS && !releasePanelOpen && !surfaces.modalOpen() && boxes.groupMenuOpen) {
         boxes.groupMenuScroll(scrollY != 0 ? scrollY : -scrollX); return;
     }
@@ -8543,6 +8554,7 @@ void ofApp::shutdownApp() {
 	}
 	appShutdownDone = true;
 	// Stop the shared worker even when a preview or undo entry still owns it.
+	jp_hand::shutdown();
 	JPbox_kinect2::shutdownSharedCapture();
 	jp_audio::shutdown();
 	saveSettings();

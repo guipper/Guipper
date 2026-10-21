@@ -1,3 +1,4 @@
+#include "../JPgui/jp_hand_panel.h"
 #include "jp_uishot.h"
 #include "jp_text_input.h"
 #include "../JPbox/jp_box_screen.h"
@@ -786,7 +787,7 @@ void jp_uishot::setup(ofApp &app)
 	if (tag == nullptr) return;
 	gActive = true;
 	gTag = tag;
-    if(gTag=="analogcolor" || gTag=="youtube" || gTag=="text") {jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true)); ofSetWindowShape(1440,900); jp_audio::setEnabled(false); ofDirectory::createDirectory(shotDir(),true,true); return;}
+    if(gTag=="hands" || gTag=="analogcolor" || gTag=="youtube" || gTag=="text") {jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true)); ofSetWindowShape(1440,900); jp_audio::setEnabled(false); ofDirectory::createDirectory(shotDir(),true,true); return;}
     if(gTag=="audio_sources") {ofSetWindowShape(1440,900);jp_audio::setEnabled(false);return;}
     if((gTag=="screen_capture" || gTag=="window_capture")) {
         ofDirectory::createDirectory(shotDir(),true,true);
@@ -828,6 +829,7 @@ void jp_uishot::setup(ofApp &app)
 
 void jp_uishot::update(ofApp &app)
 {
+    if(gActive&&!gDone&&gTag=="hands"){if(gFrames==0&&gState==0){app.pantallaActiva=ofApp::NODOS;jp_hand_ui::open();jp_hand::start(true);}++gFrames;return;}
 	if (!gActive || gDone) return;
     if(gTag=="analogcolor") {
         if(app.boxes.sessionPreparing())return;
@@ -989,6 +991,7 @@ void jp_uishot::poisonWindowStateForTest()
 
 void jp_uishot::draw(ofApp &app)
 {
+    if(gActive&&!gDone&&gTag=="hands"){if(gFrames<50)return;ofImage shot;shot.grabScreen(0,0,ofGetWidth(),ofGetHeight());shot.save(shotDir()+"hands-"+ofToString(gState)+".png");if(gState==0){ofSetWindowShape(1280,800);jp_hand::simulateLoss(true);}else{ofLogNotice("hands-ui")<<"PASS";gDone=true;ofExit();}++gState;gFrames=0;return;}
 	if (!gActive || gDone) return;
     if(gTag=="analogcolor") {
         if(gFrames<50)return;auto *effect=dynamic_cast<JPbox_analogcolor*>(app.boxes.boxes.at(1));if(!effect||!effect->ready())std::exit(EXIT_FAILURE);

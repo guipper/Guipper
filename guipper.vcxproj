@@ -248,6 +248,8 @@
     <ClCompile Include="src\JPbox\jp_box_spout.cpp" />
     <ClCompile Include="src\JPutils\jp_audio.cpp" />
     <ClCompile Include="src\JPutils\jp_audio_loopback.cpp" />
+    <ClCompile Include="src\JPgui\jp_hand_panel.cpp" />
+    <ClCompile Include="src\JPutils\jp_hand_tracking.cpp" />
     <ClCompile Include="src\JPutils\jp_audio_analyzer.cpp" />
     <ClCompile Include="src\JPutils\jp_persistence_test.cpp" />
     <ClCompile Include="src\JPutils\jp_uishot.cpp" />
@@ -370,6 +372,8 @@
     <ClInclude Include="src\JPutils\jp_audio_loopback.h" />
     <ClInclude Include="src\JPutils\jp_audio_pcm.h" />
     <ClInclude Include="src\JPutils\jp_audio_device_id.h" />
+    <ClInclude Include="src\JPgui\jp_hand_panel.h" />
+    <ClInclude Include="src\JPutils\jp_hand_tracking.h" />
     <ClInclude Include="src\JPutils\jp_audio_analyzer.h" />
     <ClInclude Include="src\JPutils\jp_audio_queue.h" />
     <ClInclude Include="src\JPutils\jp_persistence_test.h" />
