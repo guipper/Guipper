@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-23",
+  "shader": "shaders/generative/soul_torus.frag",
+  "reference": "visual soul relay.mp4, frames at 1 and 4 seconds",
+  "release": "PASS",
+  "native_render": "PASS: compile, default and extrema, 640x360 and 240x320, opaque and transparent background",
+  "visual": "Updated from close-up reference: dark material, localized upper-right softbox, inner/outer silhouette halo; native visual inspection",
+  "artifacts": "/tmp/guipper-soul-torus-5pxzpv4_/data",
+  "performance": "Full-resolution live performance not benchmarked",
+  "active_library": "Updated after matching previous bytes"
+}

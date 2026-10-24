@@ -2374,6 +2374,27 @@ while True:
         check(app.boxes.load(path)==JPboxgroup::LoadResult::AssetError,"known broken assets still report an error");
         app.boxes.clear();ofLogNotice("missing-boxes")<<(passed?"PASS":"FAIL");return passed;
     }
+    if(testMode && string(testMode)=="soul-torus") {
+        bool passed=true;auto check=[&](bool ok,const string& label){if(!ok)ofLogError("soul-torus")<<label;passed&=ok;};
+        const int oldW=jp_constants::renderWidth,oldH=jp_constants::renderHeight;
+        for(const auto size:std::vector<std::pair<int,int>>{{640,360},{240,320}}){
+            jp_constants::renderWidth=size.first;jp_constants::renderHeight=size.second;
+            JPbox_shader effect;effect.setup("shaders/generative/soul_torus.frag","SOUL TORUS");effect.setonoff(true);
+            check(effect.shader.isLoaded(),"shader compiles");
+            const int speed=effect.parameters.indexOfName("speed");check(speed>=0,"speed exposed");
+            auto set=[&](int i,float value){effect.parameters.setFloatValue(value,i);effect.parameters.setFloatLerpValue(value,i);};
+            set(speed,0);
+            for(int pass=0;pass<3;++pass){
+                if(pass>0)for(int i=0;i<effect.parameters.getSize();++i){auto *p=effect.parameters.getJParameter(i);if(p->variabletype==JPParameter::FLOAT)set(i,pass==1?0.f:1.f);else if(p->variabletype==JPParameter::BOOL)p->boolValue=true;}
+                effect.updateFBO();ofPixels pixels;effect.fbo.readToPixels(pixels);
+                int visible=0,clear=0;for(size_t i=0;i<pixels.size();i+=4){visible+=int(pixels[i])+pixels[i+1]+pixels[i+2]>15;clear+=pixels[i+3]==0;}
+                check(visible>100,"visible geometry at defaults and extremes");check(pass==0?clear==0:clear>100,"background alpha mode");
+                ofSaveImage(pixels,ofToDataPath("soul-torus-"+ofToString(size.first)+"-"+ofToString(pass)+".png",true));
+            }
+        }
+        jp_constants::renderWidth=oldW;jp_constants::renderHeight=oldH;
+        ofLogNotice("soul-torus")<<(passed?"PASS":"FAIL");return passed;
+    }
     if(testMode && string(testMode)=="audience-shaders") {
         bool passed=true;auto check=[&](bool ok,const string &label){if(!ok)ofLogError("audience-shaders")<<label;passed&=ok;};
         const int oldW=jp_constants::renderWidth,oldH=jp_constants::renderHeight;

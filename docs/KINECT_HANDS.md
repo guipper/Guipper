@@ -604,3 +604,16 @@ Comenzar con entrada calibrada, suavizado de 150–300 ms y salida 0–1. Para i
 Para una pista oscura donde los esqueletos no se detectan de forma estable, vincular `amount` a **Público → Movimiento** con calibración de pista. Los shaders no mejoran ni validan la precisión de Cuerpo IR. No incluyen estrobo automático ni usan feedback acumulativo. Conservan el alfa de la fuente; las deformaciones y el mosaico desplazan también su transparencia.
 
 Validación inicial de los seis shaders (kaleido retirado posteriormente a pedido del usuario): compilación/render nativos, neutralidad RGBA con amount=0, alfa constante, controles extremos y formatos horizontal/vertical aprobados. Patrón de prueba sintético; sin medición de rendimiento a resolución completa ni prueba con público real. Resultados: [audience-shaders-linux-2026-10-23.json](../tests/results/audience-shaders-linux-2026-10-23.json).
+
+
+## Dona 3D con centro: SOUL TORUS
+
+`shaders/generative/soul_torus.frag` genera una dona tridimensional reflectante y una esfera central, inspiradas en el video de referencia. No necesita entrada de imagen. El texto se añade con TEXTO por separado. El material usa iluminación de estudio procedural sobre fondo negro; `transparent` permite componerlo sobre otra imagen.
+
+Todos los controles numéricos están normalizados a 0–1: `zoom`, `thickness` (grosor), `center_size` (tamaño central, cero lo oculta), `tilt_x`/`tilt_y` (inclinación, 0.5 neutro), `rotation`, `speed` (cero detiene el giro), `deform` (ondulación leve), `light_angle`, `brightness`, `rim`, `hue` y `color_amount` (cero deja el material gris). La esfera central se limita al espacio interior para evitar atravesar el aro.
+
+Vínculos sugeridos: Promedio de altura de brazos → `thickness`; energía corporal → `deform` o `brightness`; Torso X → `tilt_y` con salida acotada, por ejemplo 0.4–0.65. También se pueden asignar P1–P4 a controles independientes. Para inclinación manual o corporal sin giro automático, fijar `speed=0`. La geometría se dibuja con ray marching; medir el rendimiento a la resolución real antes de acumular muchas instancias.
+
+SOUL TORUS validado con compilación y render nativos a 640×360 y 240×320, valores iniciales y extremos, y fondo opaco/transparente. Revisada la imagen inicial; rendimiento a resolución completa pendiente. Resultados: [soul-torus-linux-2026-10-23.json](../tests/results/soul-torus-linux-2026-10-23.json).
+
+Ajuste de SOUL TORUS según la referencia ampliada: cuerpo oscuro, reflejo localizado arriba a la derecha y halo en el borde interior/exterior. Los valores iniciales ahora son tilt_x=0,5, tilt_y=0,52, light_angle=0,5 y speed=0. Los vínculos/composiciones existentes conservan sus valores; ajustar esos controles para reproducir la posición de referencia. El shader activo del equipo fue actualizado sin sobrescribir ediciones distintas.
