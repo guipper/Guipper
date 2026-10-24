@@ -1,4 +1,5 @@
 #include "jp_box_pointercloud.h"
+#include "../JPutils/jp_app_paths.h"
 
 namespace
 {
@@ -6,6 +7,9 @@ namespace
 	// surviving points stay on a regular grid at every setting.
 	constexpr int kMinDensityStep = 1;
 	constexpr int kMaxDensityStep = 12;
+	// Points per depth pixel along each axis. 4 is 16x the vertices: 1.2 M
+	// for the phone's 256x192, 3.5 M for the Kinect's 512x424.
+	constexpr int kMaxUpsample = 4;
 
 	// Union of both devices' usable ranges: the Kinect resolves 500-4500 and
 	// writes 0 outside it, so the wider bounds only matter for the iPhone.
@@ -72,6 +76,11 @@ void JPbox_pointercloud::setup(string directory, string boxName)
 	parameters.addBoolValue(false, "additive");
 	parameters.addBoolValue(true, "mirror");
 	parameters.addBoolValue(false, "flip vertical");
+	// More points than the sensor has pixels, interpolated along surfaces.
+	// Mostly for the iPhone, whose depth is a quarter of the Kinect's.
+	parameters.addFloatValue(1.0f, "detail");
+	parameters.setMin(1.0f, DETAIL);
+	parameters.setMax((float)kMaxUpsample, DETAIL);
 
 	// Inlet names are written straight out as XML element names, so this has
 	// to stay a legal NCName.
@@ -79,12 +88,16 @@ void JPbox_pointercloud::setup(string directory, string boxName)
 	fbohandlergroup.setupdragobjects(x, y, outlet_size, outlet_size);
 	setInletPosition();
 
-	shader.load("shaders/private/pointercloud");
-	if (!shader.isLoaded())
+	// From the executable's own resources, as JPbox_kinectparticles does: a
+	// migrated development profile keeps its copy of this shader forever, and
+	// that copy predates the "detail" upsampling the code now drives.
+	const auto shaderPath =
+		jp::AppPaths::current().bundle / "shaders/private/pointercloud";
+	if (!shader.load(shaderPath.string()))
 	{
 		ofLogError("JPbox_pointercloud")
-			<< "could not load shaders/private/pointercloud - the box will "
-			   "render nothing";
+			<< "could not load " << shaderPath << " - the box will render "
+			   "nothing";
 	}
 
 	ensureRenderTarget();
@@ -120,18 +133,39 @@ void JPbox_pointercloud::releaseDevice()
 
 void JPbox_pointercloud::buildLattice(int width, int height)
 {
-	if (width == latticeWidth && height == latticeHeight && lattice.getNumVertices() > 0) return;
-	latticeWidth = width;	latticeHeight = height;
+	// upsample^2 vertices per depth pixel, each carrying its pixel and its
+	// sub-point index. Rebuilt only when the depth size or the detail changes
+	// - density and clipping are shader side.
+	const int upsample = currentUpsample();
+	if (width == latticeWidth && height == latticeHeight &&
+		upsample == latticeUpsample && lattice.getNumVertices() > 0)
+	{
+		return;
+	}
+	latticeWidth = width;
+	latticeHeight = height;
+	latticeUpsample = upsample;
+	const int subPoints = upsample * upsample;
 	lattice.clear();
 	lattice.setMode(OF_PRIMITIVE_POINTS);
-	lattice.getVertices().reserve((size_t)width * height);
+	lattice.getVertices().reserve((size_t)width * height * subPoints);
 	for (int row = 0; row < height; ++row)
 	{
 		for (int column = 0; column < width; ++column)
 		{
-			lattice.addVertex(glm::vec3((float)column, (float)row, 0.0f));
+			for (int sub = 0; sub < subPoints; ++sub)
+			{
+				lattice.addVertex(glm::vec3((float)column, (float)row,
+					(float)sub));
+			}
 		}
 	}
+}
+
+int JPbox_pointercloud::currentUpsample()
+{
+	return (int)std::round(ofClamp(parameters.getFloatValue(DETAIL), 1.0f,
+		(float)kMaxUpsample));
 }
 
 void JPbox_pointercloud::ensureRenderTarget()
@@ -242,6 +276,11 @@ void JPbox_pointercloud::update()
 
 	if (captureEnabled && !capture && !phone) acquireDevice();
 	uploadDepth();
+	// The detail slider rebuilds the lattice even while no new frame comes.
+	if (latticeWidth > 0 && currentUpsample() != latticeUpsample)
+	{
+		buildLattice(latticeWidth, latticeHeight);
+	}
 	updateFBO();
 }
 
@@ -310,6 +349,7 @@ void JPbox_pointercloud::updateFBO()
 		shader.setUniform1f("nearMm", parameters.getFloatValue(NEAR_MM));
 		shader.setUniform1f("farMm", parameters.getFloatValue(FAR_MM));
 		shader.setUniform1i("densityStep", densityStep);
+		shader.setUniform1i("upsample", latticeUpsample);
 		shader.setUniform1f("pointSize", parameters.getFloatValue(POINT_SIZE));
 		shader.setUniform1f("depthScale", parameters.getFloatValue(DEPTH_SCALE));
 		shader.setUniform1f("rotateX",

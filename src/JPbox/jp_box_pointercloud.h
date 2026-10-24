@@ -49,8 +49,8 @@ public:
 	string getCaptureStatus() const;
 
 private:
-	// Inspector order. Everything must stay within the first 16 rows or it
-	// falls off the end of what MIDI can bind.
+	// Inspector order. The first 16 rows are what MIDI can bind; DETAIL is a
+	// setup choice, not something to play, so it may sit past them.
 	enum ParameterIndex
 	{
 		POINT_SIZE,
@@ -69,6 +69,7 @@ private:
 		ADDITIVE,
 		MIRROR,
 		FLIP_VERTICAL,
+		DETAIL,
 		PARAMETER_COUNT
 	};
 	enum InletIndex
@@ -78,6 +79,7 @@ private:
 
 	void ensureRenderTarget();
 	void buildLattice(int width, int height);
+	int currentUpsample();
 	void uploadDepth();
 	void acquireDevice();
 	void releaseDevice();
@@ -95,6 +97,7 @@ private:
 	uint64_t lastFrameVersion = 0;
 	int latticeWidth = 0;
 	int latticeHeight = 0;
+	int latticeUpsample = 0;
 	int targetWidth = 0;
 	int targetHeight = 0;
 	bool captureEnabled = false;

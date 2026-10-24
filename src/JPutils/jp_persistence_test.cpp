@@ -2547,6 +2547,12 @@ while True:
             cloud->parameters.setFloatValue(1500,cloud->parameters.indexOfName("near mm"));cloud->parameters.setFloatValue(4500,cloud->parameters.indexOfName("far mm"));
             check(waitFor([&]{cloud->update();return lit(cloud->fbo,[](const ofColor &c){return c.r+c.g+c.b>60;})>500;},5),"point cloud renders phone depth: "+cloud->getCaptureStatus());
             ofSaveImage([&]{ofPixels p;cloud->fbo.readToPixels(p);return p;}(),ofToDataPath("iphone-pointcloud.png",true));
+            // Upsampling: denser and still on the surfaces, not between them.
+            cloud->parameters.setFloatValue(1,cloud->parameters.indexOfName("density"));cloud->parameters.setFloatValue(2,cloud->parameters.indexOfName("point size"));
+            size_t sparse=0;check(waitFor([&]{cloud->update();sparse=lit(cloud->fbo,[](const ofColor &c){return c.r+c.g+c.b>60;});return sparse>0;},5),"detail 1 renders");
+            cloud->parameters.setFloatValue(4,cloud->parameters.indexOfName("detail"));
+            size_t dense=0;check(waitFor([&]{cloud->update();dense=lit(cloud->fbo,[](const ofColor &c){return c.r+c.g+c.b>60;});return dense>sparse*2;},5),"detail 4 adds points: "+ofToString(sparse)+" -> "+ofToString(dense));
+            ofSaveImage([&]{ofPixels p;cloud->fbo.readToPixels(p);return p;}(),ofToDataPath("iphone-pointcloud-detail4.png",true));
         }else check(false,"PointerCloud type");
 
         // Quarter turn: the 4:3 sensor picture becomes portrait in the fbo.
@@ -2558,6 +2564,28 @@ while True:
         check(landscape>0&&portrait>0&&portrait<landscape*0.7f,"rotate 90 turns the picture: "+ofToString(landscape)+" -> "+ofToString(portrait));
         ofSaveImage([&]{ofPixels p;phone->fbo.readToPixels(p);return p;}(),ofToDataPath("iphone-rotated.png",true));
         phone->parameters.setBoolValue(false,phone->parameters.indexOfName("rotate 90"));
+
+        // Depth effects, fed by a DEPTH box and a stretched COLOR box.
+        {
+            JPbox_iphonelidar colorBox;colorBox.setup("iphoneLidar","color feed");colorBox.setonoff(true);colorBox.setInspectorChoice(JPbox_iphonelidar::COLOR);
+            JPbox_iphonelidar depthBox;depthBox.setup("iphoneLidar","depth feed");depthBox.setonoff(true);
+            for(auto *box:{&colorBox,&depthBox}){box->parameters.setBoolValue(true,box->parameters.indexOfName("stretch"));box->parameters.setFloatValue(1500,box->parameters.indexOfName("near mm"));box->parameters.setFloatValue(4500,box->parameters.indexOfName("far mm"));}
+            waitFor([&]{colorBox.update();depthBox.update();return lit(colorBox.fbo,[](const ofColor &c){return c.r>180;})>1000&&lit(depthBox.fbo,[](const ofColor &c){return c.r>100;})>1000;},5);
+            for(string effect:{"depth_topo","depth_parallax","depth_echo"}){
+                JPbox_shader shader;shader.setup("shaders/imageprocessing/"+effect+".frag",effect);
+                const int depthInput=shader.fbohandlergroup.findIndexByName("depth"),colorInput=shader.fbohandlergroup.findIndexByName("color");
+                check(depthInput>=0,effect+" has a depth input");
+                if(depthInput>=0)shader.fbohandlergroup.setFboPointer(&depthBox.fbo,&depthBox.name,depthInput);
+                if(colorInput>=0)shader.fbohandlergroup.setFboPointer(&colorBox.fbo,&colorBox.name,colorInput);
+                shader.setonoff(true);
+                for(int frame=0;frame<45;++frame){colorBox.update();depthBox.update();shader.setRenderThisFrame(true);shader.update();std::this_thread::sleep_for(std::chrono::milliseconds(16));}
+                const size_t shown=lit(shader.fbo,[](const ofColor &c){return c.r+c.g+c.b>90;});
+                check(shown>2000,effect+" renders from phone depth: "+ofToString(shown));
+                ofSaveImage([&]{ofPixels p;shader.fbo.readToPixels(p);return p;}(),ofToDataPath("iphone-"+effect+".png",true));
+                shader.clear();
+            }
+            colorBox.clear();depthBox.clear();
+        }
 
         // Publico from the phone.
         jp_hand::Source crowd{jp_hand::SourceKind::IPhoneLidar,{},jp_hand::Detector::Crowd};

@@ -21,6 +21,7 @@ uniform float cy;
 uniform float nearMm;
 uniform float farMm;
 uniform int densityStep;          // keep 1 pixel out of every densityStep
+uniform int upsample;             // points per depth pixel along each axis
 uniform float pointSize;
 uniform float depthScale;
 uniform float rotateX;
@@ -32,7 +33,7 @@ uniform int mirror;
 uniform int flipVertical;
 uniform int hasColor;
 
-in vec4 position;                 // (column, row, 0)
+in vec4 position;                 // (column, row, sub-point index)
 
 out float vDepthNorm;             // 0 at nearMm, 1 at farMm
 out vec3 vColor;
@@ -76,11 +77,42 @@ void reject()
 	vHasColor = 0.0;
 }
 
+// Bilinear between the four surrounding depth pixels, but only across a
+// continuous surface: where they disagree by more than a few percent this is
+// a silhouette edge, and a blend would invent a point floating between the
+// person and the wall - so take the nearest pixel instead. The texture stays
+// GL_NEAREST; filtering here is explicit.
+float sampleDepth(vec2 pixel)
+{
+	ivec2 size = ivec2(depthSize);
+	ivec2 base = ivec2(floor(pixel));
+	vec2 t = pixel - vec2(base);
+	ivec2 p00 = clamp(base, ivec2(0), size - 1);
+	ivec2 p11 = clamp(base + 1, ivec2(0), size - 1);
+	float d00 = texelFetch(depthTexture, p00, 0).r;
+	float d10 = texelFetch(depthTexture, ivec2(p11.x, p00.y), 0).r;
+	float d01 = texelFetch(depthTexture, ivec2(p00.x, p11.y), 0).r;
+	float d11 = texelFetch(depthTexture, p11, 0).r;
+	float lo = min(min(d00, d10), min(d01, d11));
+	float hi = max(max(d00, d10), max(d01, d11));
+	if (lo <= 0.0 || hi - lo > 0.04 * lo + 20.0)
+	{
+		ivec2 nearest = clamp(ivec2(floor(pixel + 0.5)), ivec2(0), size - 1);
+		return texelFetch(depthTexture, nearest, 0).r;
+	}
+	return mix(mix(d00, d10, t.x), mix(d01, d11, t.x), t.y);
+}
+
 void main()
 {
-	vec2 pixel = position.xy;
-	int column = int(pixel.x);
-	int row = int(pixel.y);
+	int column = int(position.x);
+	int row = int(position.y);
+	int sub = int(position.z);
+	int k = max(1, upsample);
+	// Sub-points spread evenly over the pixel; with k = 1 this is the pixel
+	// itself, exactly as before upsampling existed.
+	vec2 pixel = vec2(column, row) +
+		(vec2(sub % k, sub / k) + 0.5) / float(k) - 0.5;
 
 	// Decimation. Dropping whole rows and columns keeps the surviving points
 	// on a regular lattice, which reads far better than a random subset.
@@ -91,10 +123,8 @@ void main()
 		return;
 	}
 
-	// textureLod, not texture: LOD is not implicitly computed outside the
-	// fragment stage.
 	vec2 uv = (pixel + 0.5) / depthSize;
-	float depthMm = textureLod(depthTexture, uv, 0.0).r;
+	float depthMm = sampleDepth(pixel);
 
 	// libfreenect2 writes 0 for pixels it could not resolve.
 	if (depthMm <= 0.0 || depthMm < nearMm || depthMm > farMm)
@@ -136,6 +166,9 @@ void main()
 		1.0);
 
 	// Nearer points are bigger, and points shrink as the cloud recedes.
+	// Not divided by the upsample factor: at the phone's density that makes
+	// sub-pixel points, which alias into a moire of rings. Extra points close
+	// the gaps instead; point size stays the user's.
 	gl_PointSize = max(1.0, pointSize * projected);
 
 	vHasColor = hasColor != 0 ? 1.0 : 0.0;

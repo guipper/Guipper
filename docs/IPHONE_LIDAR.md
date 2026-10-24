@@ -10,7 +10,9 @@ Usos:
   misma convención de grises que la caja Kinect (cerca = brillante). Sirve como
   entrada de cualquier shader de desplazamiento.
 - **PointerCloud**: el selector **KINECT V2 / IPHONE LIDAR** en el inspector
-  elige el dispositivo. Se guarda en la sesión.
+  elige el dispositivo. Se guarda en la sesión. **detail** (1–4) agrega puntos
+  entre los píxeles del sensor, interpolados solo dentro de una misma
+  superficie; con `density` en 1 la nube del iPhone queda continua.
 - **Público**: en el panel de seguimiento, con **Publico** elegido, el tercer
   botón de fuente es **iPhone LiDAR**. Movimiento, ocupación, centros y
   distancia funcionan igual que con la Kinect.
@@ -69,6 +71,20 @@ comparten una sola conexión.
 - La imagen sale en la orientación del sensor. **rotate 90** la gira un cuarto
   de vuelta; con `mirror` y `flip vertical` cubre cualquier montaje. En
   PointerCloud se usa `rotate Z`.
+
+## Efectos con profundidad
+
+Tres shaders en `imageprocessing/`, pensados para la salida DEPTH (sirven igual
+con la Kinect):
+
+| Shader | Entradas | Qué hace |
+| --- | --- | --- |
+| `depth_topo` | `depth` | Curvas de nivel de neón que envuelven el cuerpo y lo atraviesan. |
+| `depth_echo` | `depth` | Siluetas de lo que está cerca, en ecos que se van por un túnel. |
+| `depth_parallax` | `color`, `depth` | La imagen orbita en 3D: cerca y fondo se mueven en sentidos opuestos. |
+
+Para `depth_parallax` usar dos cajas IPHONE LIDAR (una COLOR, otra DEPTH), las
+dos con `stretch`; comparten la conexión.
 
 ## Pruebas
 
