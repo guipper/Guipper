@@ -534,7 +534,7 @@ void JPComplexSlider::draw()
     jp_tooltip::draw("Seguimiento: manos, cuerpo o publico con profundidad Kinect",handButton);
     trackingSummary={};
     if(parameters->movtype==JPParameter::KINECT){
-        const auto &b=parameters->handBinding;std::string source=b.source.kind==jp_hand::SourceKind::KinectRGB?"Kinect RGB":b.source.kind==jp_hand::SourceKind::KinectIR?"Kinect IR":"Camara";
+        const auto &b=parameters->handBinding;std::string source=b.source.kind==jp_hand::SourceKind::KinectRGB?"Kinect RGB":b.source.kind==jp_hand::SourceKind::KinectIR?"Kinect IR":b.source.kind==jp_hand::SourceKind::IPhoneLidar?"iPhone LiDAR":"Camara";
         if(b.source.kind==jp_hand::SourceKind::Camera)for(const auto &entry:jp_hand::sources())if(entry.source.kind==b.source.kind&&entry.source.device==b.source.device){source=entry.label.substr(0,entry.label.find(" ("));break;}
         std::string detail=(b.source.detector==jp_hand::Detector::Crowd?"Publico":b.source.detector==jp_hand::Detector::Body?"Cuerpo":b.right?"Mano derecha":"Mano izquierda")+std::string(" · ")+jp_hand::signalLabel(b.signal);
         if(b.source.detector==jp_hand::Detector::Body){const char *people[]={"Auto centro","Auto cerca","Persona 1","Persona 2","Grupo","Persona 3","Persona 4"};detail=std::string(people[std::clamp(int(b.person),0,6)])+" · "+jp_hand::signalLabel(b.signal);}

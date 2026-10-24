@@ -869,5 +869,8 @@
     <ClCompile Include="src\JPbox\jp_box_kinectparticles.cpp" />
     <ClInclude Include="src\JPbox\jp_box_kinectparticles.h" />
     <ClInclude Include="src\JPbox\jp_kinect_particles.h" />
+    <ClCompile Include="src\JPbox\jp_box_iphonelidar.cpp" />
+    <ClInclude Include="src\JPbox\jp_box_iphonelidar.h" />
+    <ClInclude Include="src\JPbox\jp_record3d_protocol.h" />
   </ItemGroup>
 </Project>

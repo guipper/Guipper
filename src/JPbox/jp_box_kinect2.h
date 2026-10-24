@@ -29,6 +29,10 @@ public:
 	void saveCustomState(ofXml &boxNode) const override;
 	void loadCustomState(const ofXml &boxNode) override;
 	void copyCustomStateFrom(const JPbox *source) override;
+	vector<string> inspectorChoiceLabels() const override;
+	int inspectorChoice() const override;
+	void setInspectorChoice(int choice) override;
+	string inspectorChoiceStatus() const override;
 
 	Stream getStream() const;
 	void setStream(Stream value);

@@ -1,6 +1,7 @@
 #include "jp_hand_tracking.h"
 #include "jp_hand_resize.h"
 #include "../JPbox/jp_box_kinect2.h"
+#include "../JPbox/jp_box_iphonelidar.h"
 #include "../JPbox/jp_box_cam.h"
 #include <map>
 #include <set>
@@ -41,9 +42,10 @@ struct Service {
   return configs;
  }
  void crowd(uint64_t g,bool simulated){
-  if(key.kind!=SourceKind::KinectIR){status("Publico requiere profundidad Kinect",g,simulated);return;}
+  const bool phone=key.kind==SourceKind::IPhoneLidar;
+  if(key.kind!=SourceKind::KinectIR&&!phone){status("Publico requiere profundidad: Kinect o iPhone LiDAR",g,simulated);return;}
   jp_crowd::Engine engine;FrameProvider frames;{std::lock_guard<std::mutex> l(mutex);frames=provider;}
-  std::shared_ptr<KinectV2CaptureSource> source;std::shared_ptr<void> lease;
+  std::shared_ptr<KinectV2CaptureSource> source;std::shared_ptr<IPhoneLidarCaptureSource> phoneSource;std::shared_ptr<void> lease;
   uint64_t serial=0,dropped=0;double last=0,started=now();
   while(!cancelled(g)){
    if(!panel&&now()-wanted>.5){dormant=true;status("En pausa: sin vinculos activos",g,simulated);return;}
@@ -53,11 +55,14 @@ struct Service {
     if(!loss){float center=.5f+.25f*std::sin(mock->captured);for(int y=90;y<380;++y)for(int x=0;x<512;++x)if(std::abs(x/512.f-center)<.12f)mock->depth[y*512+x]=3600+150*std::sin(mock->captured*2);}
     else std::fill(mock->depth.begin(),mock->depth.end(),0);f=mock;
    }else if(frames)f=frames();
-   else{
+   else if(phone){
+    if(!phoneSource){phoneSource=JPbox_iphonelidar::acquireSharedCapture();if(reconnecting.exchange(false))JPbox_iphonelidar::reconnectShared(phoneSource);lease=JPbox_iphonelidar::audienceLease(phoneSource);}
+    f=JPbox_iphonelidar::audienceFrame(phoneSource);
+   }else{
     if(!source){source=JPbox_kinect2::acquireSharedCapture();if(reconnecting.exchange(false))JPbox_kinect2::reconnectShared(source);lease=JPbox_kinect2::audienceLease(source);}
     f=JPbox_kinect2::audienceFrame(source);
    }
-   if(!f||now()-f->captured>.25){engine.missing();status(simulated?"Simulacion: sin profundidad":"Sin profundidad: "+JPbox_kinect2::captureStatus(source),g,simulated);pause(30);continue;}
+   if(!f||now()-f->captured>.25){engine.missing();status(simulated?"Simulacion: sin profundidad":"Sin profundidad: "+(phone?JPbox_iphonelidar::captureStatus(phoneSource):JPbox_kinect2::captureStatus(source)),g,simulated);pause(30);continue;}
    if(f->captured<started||f->serial==serial){pause(3);continue;}
    if(serial&&f->serial>serial+1)dropped+=f->serial-serial-1;serial=f->serial;
    const auto began=now();auto grid=jp_crowd::prepare(f->depth,f->depthWidth,f->depthHeight,f->captured);
@@ -69,7 +74,7 @@ struct Service {
    for(int y=0;y<preview->height;++y)for(int x=0;x<preview->width;++x){float z=grid->meters[(y/4)*grid->width+x/4];auto c=z>0?static_cast<unsigned char>(35+200*std::clamp((4.5f-z)/4,0.f,1.f)):0;size_t i=(y*preview->width+x)*3;preview->rgb[i]=preview->rgb[i+1]=preview->rgb[i+2]=c;}
    Snapshot s;s.frame=preview;s.captured=f->captured;s.crowd=std::move(analysis);s.simulated=simulated;s.dropped=dropped;
    double time=now();s.inferenceMs=(time-began)*1000;s.inferenceFps=last>0?1/(time-last):0;last=time;
-   s.status=simulated?"Simulacion: publico":"Publico: profundidad activa";
+   s.status=simulated?"Simulacion: publico":phone?"Publico: LiDAR del iPhone activo":"Publico: profundidad activa";
    if(s.crowd->background==jp_crowd::Background::Learning)s.status="Aprendiendo fondo · pista vacia";
    publish(std::move(s),g);pause(simulated?33:2);
   }
@@ -109,7 +114,7 @@ struct Service {
   }
  };
  void real(uint64_t g){
-  if(key.kind!=SourceKind::KinectRGB&&key.kind!=SourceKind::KinectIR&&key.kind!=SourceKind::Camera){status("Fuente no compatible. Seleccionar otra fuente.",g);return;}
+  if(key.kind!=SourceKind::KinectRGB&&key.kind!=SourceKind::KinectIR&&key.kind!=SourceKind::Camera){status(key.kind==SourceKind::IPhoneLidar?"iPhone LiDAR solo alimenta Publico":"Fuente no compatible. Seleccionar otra fuente.",g);return;}
   const bool body=key.detector==Detector::Body;
   FrameProvider frames;{std::lock_guard<std::mutex> l(mutex);frames=provider;}
   const char *custom=getenv("GUIPPER_HAND_RUNTIME"),*xdg=getenv("XDG_DATA_HOME"),*home=getenv("HOME");
@@ -212,9 +217,11 @@ void stop(const Source &source){auto &s=service(source);std::lock_guard<std::mut
 void stopAll(){for(auto &entry:registry())stop(entry.first);}
 void reconnect(const Source &source){
  if(source.kind==SourceKind::Camera){std::vector<Source> keys;for(auto &entry:registry())if(entry.first.kind==SourceKind::Camera&&entry.first.device==source.device&&entry.second->mode!=0)keys.push_back(entry.first);if(std::find(keys.begin(),keys.end(),source)==keys.end())keys.push_back(source);for(auto &key:keys){service(key).reconnecting=(key==source);start(simulation(key),key);}return;}
- // Both Kinect modalities share one device reset. Every participating session
- // changes generation first, so no pre-reconnect response can reach a binding.
- std::vector<Source> keys;for(auto &entry:registry())if(entry.first.kind!=SourceKind::Camera&&entry.second->mode!=0)keys.push_back(entry.first);
+ // Both Kinect modalities share one device reset; the iPhone is a device of
+ // its own. Every participating session changes generation first, so no
+ // pre-reconnect response can reach a binding.
+ const bool phone=source.kind==SourceKind::IPhoneLidar;
+ std::vector<Source> keys;for(auto &entry:registry())if(entry.first.kind!=SourceKind::Camera&&(entry.first.kind==SourceKind::IPhoneLidar)==phone&&entry.second->mode!=0)keys.push_back(entry.first);
  if(std::find(keys.begin(),keys.end(),source)==keys.end())keys.push_back(source);
  for(auto &key:keys){service(key).reconnecting=(key==source);start(simulation(key),key);}
 }
@@ -241,7 +248,7 @@ bool simulation(const Source &source){return service(source).mode==2;}
 void simulateLoss(bool v,const Source &source){service(source).loss=v;}
 size_t consumers(const Source &source){return service(source).previousUsers.size();}
 std::vector<SourceInfo> sources(){
- std::vector<SourceInfo> result={{{SourceKind::KinectRGB,{}} ,"Kinect RGB",JPbox_kinect2::isDriverAvailable()},{{SourceKind::KinectIR,{}} ,"Kinect infrarrojo (experimental)",JPbox_kinect2::isDriverAvailable()}};
+ std::vector<SourceInfo> result={{{SourceKind::KinectRGB,{}} ,"Kinect RGB",JPbox_kinect2::isDriverAvailable()},{{SourceKind::KinectIR,{}} ,"Kinect infrarrojo (experimental)",JPbox_kinect2::isDriverAvailable()},{{SourceKind::IPhoneLidar,{}},"iPhone LiDAR (Record3D)",JPbox_iphonelidar::isDriverAvailable()}};
 #ifdef TARGET_LINUX
  auto cameras=JPbox_cam::handCameraSources();result.insert(result.end(),cameras.begin(),cameras.end());
 #endif

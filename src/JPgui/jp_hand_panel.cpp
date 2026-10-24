@@ -70,7 +70,10 @@ void draw(){
  auto choose=[&](jp_hand::Source next){jp_text_input::controller().finish();next.detector=binding().source.detector;edit([&]{binding().source=next;});resetMapping();choosingCamera=false;jp_hand::setPanelVisible(true,next);};
  button(x,y+43,136,"Kinect RGB",[choose]{choose({jp_hand::SourceKind::KinectRGB,{}});},source.kind==jp_hand::SourceKind::KinectRGB,!audience);
  button(x+144,y+43,194,audience?"Kinect profundidad":"Kinect infrarrojo",[choose]{choose({jp_hand::SourceKind::KinectIR,{}});},source.kind==jp_hand::SourceKind::KinectIR);
- button(x+346,y+43,w-346,"Camara de PC",[choose]{choose({jp_hand::SourceKind::Camera,lastCamera});},source.kind==jp_hand::SourceKind::Camera,!audience);
+ // Publico has no use for a PC camera (no depth), so the slot offers the
+ // other depth device instead.
+ if(audience)button(x+346,y+43,w-346,"iPhone LiDAR",[choose]{choose({jp_hand::SourceKind::IPhoneLidar,{}});},source.kind==jp_hand::SourceKind::IPhoneLidar);
+ else button(x+346,y+43,w-346,"Camara de PC",[choose]{choose({jp_hand::SourceKind::Camera,lastCamera});},source.kind==jp_hand::SourceKind::Camera);
  auto available=jp_hand::sources();
  if(source.kind==jp_hand::SourceKind::Camera){
   lastCamera=source.device;std::string name=source.device.empty()?"Elegir camara...":"Camara guardada ausente";
@@ -78,14 +81,15 @@ void draw(){
   deviceButton.set(x,y+76,w-154,26);
   button(x,y+76,w-154,name,[&]{choosingCamera=!choosingCamera;cameraPage=0;},choosingCamera);
   button(x+w-146,y+76,146,"Actualizar camaras",[]{jp_hand::refreshSources();});
- }else label(audience?"Publico en oscuridad · profundidad sin RGB":source.kind==jp_hand::SourceKind::KinectIR?(source.detector==jp_hand::Detector::Body?"Cuerpo IR experimental · hasta 4 personas · validar precision":"IR experimental · validar dedos y pinza a 1,2 a 2 m"):"RGB + profundidad · necesita luz visible",x,y+94,source.kind==jp_hand::SourceKind::KinectIR?COL_ACCENT_GOLD:COL_TEXT_SECONDARY);
+ }else label(audience?(source.kind==jp_hand::SourceKind::IPhoneLidar?"Publico · LiDAR del iPhone por USB (Record3D) · hasta ~5 m":"Publico en oscuridad · profundidad sin RGB"):source.kind==jp_hand::SourceKind::KinectIR?(source.detector==jp_hand::Detector::Body?"Cuerpo IR experimental · hasta 4 personas · validar precision":"IR experimental · validar dedos y pinza a 1,2 a 2 m"):"RGB + profundidad · necesita luz visible",x,y+94,source.kind==jp_hand::SourceKind::KinectIR?COL_ACCENT_GOLD:COL_TEXT_SECONDARY);
  button(x,y+109,152,"Iniciar esta fuente",[]{jp_hand::start(false,binding().source);},jp_hand::running(binding().source)&&!jp_hand::simulation(binding().source),source.kind!=jp_hand::SourceKind::Camera||!source.device.empty());
  button(x+160,y+109,78,"Detener",[]{jp_hand::stop(binding().source);},false,jp_hand::running(binding().source));
  button(x+246,y+109,100,"Reconectar",[]{jp_hand::reconnect(binding().source);},false,source.kind!=jp_hand::SourceKind::Camera||!source.device.empty());
  button(x+354,y+109,100,"Simulacion",[]{jp_hand::start(true,binding().source);},jp_hand::simulation(binding().source));
  if(jp_hand::simulation(binding().source))button(x+462,y+109,w-462,lost?"Volver":"Perder",[]{lost=!lost;jp_hand::simulateLoss(lost,binding().source);},lost);
  auto chooseDetector=[](jp_hand::Detector detector){jp_text_input::controller().finish();edit([detector]{auto &b=binding();
-  if(detector==jp_hand::Detector::Crowd)b.source={jp_hand::SourceKind::KinectIR,{},detector};
+  if(detector==jp_hand::Detector::Crowd)b.source={b.source.kind==jp_hand::SourceKind::IPhoneLidar?jp_hand::SourceKind::IPhoneLidar:jp_hand::SourceKind::KinectIR,{},detector};
+  else if(b.source.kind==jp_hand::SourceKind::IPhoneLidar)b.source={jp_hand::SourceKind::KinectRGB,{},detector}; // depth only: no hands or bodies
   else b.source.detector=detector;
   b.point=-1;jp_hand::setSignal(b,detector==jp_hand::Detector::Crowd?jp_hand::CrowdMotion:detector==jp_hand::Detector::Body?jp_hand::TorsoX:jp_hand::Pinch);
  });crowdSetup=false;drawingArea=false;resetMapping();jp_hand::setPanelVisible(true,binding().source);};

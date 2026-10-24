@@ -312,13 +312,15 @@ namespace jp_help
 		E("Shift+Y", "YouTube: stream a video link or download an optional local copy", "YouTube: reproduce un enlace por streaming o descarga en cache", Scope::Nodes, "shift+y"),
 		E("Shift+S", "Screen capture: select a monitor in the inspector", "Captura de pantalla: selecciona un monitor en el inspector", Scope::Nodes, "shift+s"),
 		E("Shift+C", "Kinect V2 input", "Entrada Kinect V2", Scope::Nodes, "shift+c"),
+		E("Shift+L", "iPhone LiDAR depth via Record3D (USB)",
+			"Profundidad LiDAR del iPhone via Record3D (USB)", Scope::Nodes, "shift+l"),
 		E("Shift+D", "Camera depth: pseudo-depth from an ordinary camera",
 			"Camera Depth: genera pseudoprofundidad desde una cámara convencional",
 			Scope::Nodes, "shift+d"),
         E("Shift+K", "Kinect particles: depth silhouette, time slices and turbulence",
             "Particulas Kinect: silueta de profundidad, retardo por franjas y turbulencia", Scope::Nodes, "shift+k"),
-		E("Shift+P", "PointerCloud: Kinect V2 point cloud",
-			"PointerCloud: nube de puntos del Kinect V2", Scope::Nodes, "shift+p"),
+		E("Shift+P", "PointerCloud: Kinect V2 or iPhone LiDAR point cloud",
+			"PointerCloud: nube de puntos del Kinect V2 o del LiDAR del iPhone", Scope::Nodes, "shift+p"),
 		GAP(),
 
 		// ------------------------------------------------------------------

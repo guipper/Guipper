@@ -26,7 +26,7 @@ namespace
             hand.appendChild("players").set(b.players);
             hand.appendChild("detector").set(b.source.detector==jp_hand::Detector::Crowd?"crowd":b.source.detector==jp_hand::Detector::Body?"body":"hands");
             hand.appendChild("loss").set(int(b.loss));
-            hand.appendChild("source").set(b.source.kind==jp_hand::SourceKind::KinectRGB?"kinect_rgb":b.source.kind==jp_hand::SourceKind::KinectIR?"kinect_ir":b.source.kind==jp_hand::SourceKind::Camera?"camera":"unsupported");
+            hand.appendChild("source").set(b.source.kind==jp_hand::SourceKind::KinectRGB?"kinect_rgb":b.source.kind==jp_hand::SourceKind::KinectIR?"kinect_ir":b.source.kind==jp_hand::SourceKind::Camera?"camera":b.source.kind==jp_hand::SourceKind::IPhoneLidar?"iphone_lidar":"unsupported");
             hand.appendChild("device").set(b.source.device);hand.appendChild("right").set(b.right);
             hand.appendChild("signal").set(b.signal);hand.appendChild("point").set(b.point);
             saveTrackingNumber(hand,"inputmin",b.inputMin);saveTrackingNumber(hand,"inputmax",b.inputMax);
@@ -58,7 +58,7 @@ namespace
             b={};b.base=parameter->floatValue;
             if(hand){
                 auto source=hand.getChild("source");
-                if(source){const auto kind=source.getValue();b.source.kind=kind=="kinect_rgb"?jp_hand::SourceKind::KinectRGB:kind=="kinect_ir"?jp_hand::SourceKind::KinectIR:kind=="camera"?jp_hand::SourceKind::Camera:static_cast<jp_hand::SourceKind>(-1);}
+                if(source){const auto kind=source.getValue();b.source.kind=kind=="kinect_rgb"?jp_hand::SourceKind::KinectRGB:kind=="kinect_ir"?jp_hand::SourceKind::KinectIR:kind=="camera"?jp_hand::SourceKind::Camera:kind=="iphone_lidar"?jp_hand::SourceKind::IPhoneLidar:static_cast<jp_hand::SourceKind>(-1);}
                 b.source.device=hand.getChild("device").getValue();
                 const auto detector=hand.getChild("detector").getValue();b.source.detector=detector=="crowd"?jp_hand::Detector::Crowd:detector=="body"?jp_hand::Detector::Body:jp_hand::Detector::Hands;
                 b.person=jp_hand::BodySelection(std::clamp(hand.getChild("person").getIntValue(),0,6));

@@ -13,7 +13,8 @@
 #include <vector>
 namespace jp_hand {
 inline double now(){return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();}
-enum class SourceKind { KinectRGB=0, KinectIR=1, Camera=2 };
+// Saved by name, not number. IPhoneLidar is depth only: it feeds Publico.
+enum class SourceKind { KinectRGB=0, KinectIR=1, Camera=2, IPhoneLidar=3 };
 enum class Detector { Hands=0, Body=1, Crowd=2 };
 struct Source {
  SourceKind kind=SourceKind::KinectRGB;
@@ -247,7 +248,7 @@ inline const Body *selectedBody(const Snapshot &s,const Binding &b){
 inline Value sample(const Snapshot &s,const Binding &b,double time){
  if(time-s.captured>.25 || time<s.captured)return {};
  if(b.source.detector==Detector::Crowd){
-  if(b.source.kind!=SourceKind::KinectIR||!s.crowd)return {};
+  if((b.source.kind!=SourceKind::KinectIR&&b.source.kind!=SourceKind::IPhoneLidar)||!s.crowd)return {};
   const auto *result=s.crowd->find(b.crowd);if(!result)return {};
   const auto &z=result->zones[std::clamp(b.zone,0,3)];
   switch(b.signal){

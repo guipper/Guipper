@@ -117,6 +117,15 @@ ifeq ($(shell pkg-config --exists freenect2 && echo yes),yes)
 PROJECT_DEFINES += KINECT2
 PROJECT_PKG_CONFIG_LIBRARIES += freenect2
 endif
+# iPhone LiDAR through Record3D: scripts/install_iphone_lidar_linux.sh.
+# Without both libraries the box still exists and says how to enable it.
+ifeq ($(shell uname -s),Linux)
+ifeq ($(shell pkg-config --exists libusbmuxd-2.0 && $(CC) -E -include lzfse.h -x c /dev/null >/dev/null 2>&1 && echo yes),yes)
+PROJECT_DEFINES += IPHONE_LIDAR
+PROJECT_PKG_CONFIG_LIBRARIES += libusbmuxd-2.0
+PROJECT_LDFLAGS += -llzfse
+endif
+endif
 
 #define TEST true
 

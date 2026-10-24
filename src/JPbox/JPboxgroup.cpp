@@ -422,6 +422,10 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	{
 		nombre = "KINECT2";
 	}
+	else if (directory == "iphoneLidar")
+	{
+		nombre = "IPHONE LIDAR";
+	}
 	else if (directory.find("pointercloud") != std::string::npos)
 	{
 		nombre = "PointerCloud";
@@ -3239,7 +3243,8 @@ void JPboxgroup::draw_paramswindow()
 		const bool hasPaintAction = isPaintBox(inspectorBox);
 		const bool hasCameraAction =
 			inspectorBox->getTipo() == inspectorBox->CAMBOX ||
-			inspectorBox->getTipo() == inspectorBox->KINECT2BOX;
+			inspectorBox->getTipo() == inspectorBox->KINECT2BOX ||
+			inspectorBox->getTipo() == inspectorBox->IPHONELIDARBOX;
 		// Square, because these seven carry an icon. TO OUTPUT and FINAL keep
 		// their labels: they are STATES you switch on and off, and a lit word
 		// says which one is on far better than a lit glyph.
@@ -3483,12 +3488,15 @@ void JPboxgroup::draw_paramswindow()
             jp_tooltip::draw("Profundidad compartida. Pausar libera la captura. Delay mezcla cuadros anteriores por franjas.",particlesStatusRect);
         }
 
-		if (auto *kinect = dynamic_cast<JPbox_kinect2 *>(inspectorBox))
+		const vector<string> choiceLabels = inspectorBox->inspectorChoiceLabels();
+		if (!choiceLabels.empty())
 		{
-			const char *labels[] = {"COLOR", "DEPTH", "IR"};
-			for (int i = 0; i < 3; ++i)
+			const int count = std::min<int>(choiceLabels.size(),
+				kinectStreamButtons.size());
+			for (int i = 0; i < count; ++i)
 			{
-				const bool selected = (int)kinect->getStream() == i;
+				const string &label = choiceLabels[i];
+				const bool selected = inspectorBox->inspectorChoice() == i;
 				const bool hovered = kinectStreamButtons[i].inside(
 					ofGetMouseX(), ofGetMouseY());
 				ofSetColor(selected ? COL_ACCENT_CYAN_DIM :
@@ -3499,15 +3507,16 @@ void JPboxgroup::draw_paramswindow()
 				ofDrawRectRounded(kinectStreamButtons[i], 3.0f);
 				ofFill();
 				ofSetColor(selected ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
-				jp_constants::p_font.drawString(labels[i],
+				jp_constants::p_font.drawString(label,
 					kinectStreamButtons[i].getCenter().x -
-						jp_constants::p_font.stringWidth(labels[i]) / 2.0f,
+						jp_constants::p_font.stringWidth(label) / 2.0f,
 					kinectStreamButtons[i].getCenter().y +
-						jp_constants::p_font.stringHeight(labels[i]) / 2.0f - 2.0f);
+						jp_constants::p_font.stringHeight(label) / 2.0f - 2.0f);
 			}
-			ofSetColor(kinect->getCaptureStatus() == "STREAMING" ?
+			const string status = inspectorBox->inspectorChoiceStatus();
+			ofSetColor(status == "STREAMING" ?
 				COL_ACCENT_GREEN : COL_ACCENT_GOLD);
-			jp_constants::p_font.drawString(kinect->getCaptureStatus(),
+			jp_constants::p_font.drawString(status,
 				panelLeft + 12.0f,
 				kinectStreamButtons[0].getBottom() + 16.0f);
 		}
@@ -3852,6 +3861,8 @@ void JPboxgroup::draw_paramswindow()
 			COL_TEXT_SECONDARY, COL_ACCENT_CYAN,
 			inspectorBox->getTipo() == inspectorBox->KINECT2BOX ?
 				"Reconnect the Kinect v2" :
+			inspectorBox->getTipo() == inspectorBox->IPHONELIDARBOX ?
+				"Reconnect the iPhone (Record3D)" :
 				"Rescan cameras connected after startup");
 		drawHeaderIcon(editbutton, ICON_CODE, COL_ACCENT_GOLD_DIM,
 			COL_ACCENT_GOLD, "Edit shader source");
@@ -5129,13 +5140,22 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				kinect->requestReconnect();
 			return;
 		}
-		if (auto *kinect = dynamic_cast<JPbox_kinect2 *>(inspectorBox))
+		if (camerarefreshbutton.mouseGrab() &&
+			inspectorBox->getTipo() == inspectorBox->IPHONELIDARBOX)
 		{
-			for (int i = 0; i < 3; ++i)
+			if (auto *phone = dynamic_cast<JPbox_iphonelidar *>(inspectorBox))
+				phone->requestReconnect();
+			return;
+		}
+		{
+			const int choices = std::min<int>(
+				inspectorBox->inspectorChoiceLabels().size(),
+				kinectStreamButtons.size());
+			for (int i = 0; i < choices; ++i)
 			{
 				if (kinectStreamButtons[i].inside(ofGetMouseX(), ofGetMouseY()))
 				{
-					kinect->setStream((JPbox_kinect2::Stream)i);
+					inspectorBox->setInspectorChoice(i);
 					markCueDraftDirty(cueSelectedIndex());
 					return;
 				}
@@ -6143,21 +6163,22 @@ void JPboxgroup::setControllers(){
             inspectorBodyViewport.width-2*inspectorLayout.contentPadding,40);
         layoutCursor+=48;
     }
-	if (inspectorBox->getTipo() == inspectorBox->KINECT2BOX)
+	for (ofRectangle &button : kinectStreamButtons) button.set(0, 0, 0, 0);
+	const int choiceCount = std::min<int>(
+		inspectorBox->inspectorChoiceLabels().size(),
+		kinectStreamButtons.size());
+	if (choiceCount > 0)
 	{
 		const float left = inspectorBodyViewport.x + inspectorLayout.contentPadding;
 		const float gap = 4.0f;
-		const float width = (inspectorwindow_width - 20.0f - gap * 2.0f) / 3.0f;
-		for (int i = 0; i < 3; ++i)
+		const float width = (inspectorwindow_width - 20.0f -
+			gap * (choiceCount - 1)) / choiceCount;
+		for (int i = 0; i < choiceCount; ++i)
 		{
 			kinectStreamButtons[i].set(left + i * (width + gap),
 				layoutCursor, width, 26.0f);
 		}
 		layoutCursor += 54.0f + controllerRowGap;
-	}
-	else
-	{
-		for (ofRectangle &button : kinectStreamButtons) button.set(0, 0, 0, 0);
 	}
 	/*inspectorwindow_height += inspectorwindow_setactivesize;
 	inspectorwindow_height += inspectorwindow_sepy * 0.5;

@@ -853,6 +853,18 @@ jp_debug::Report ofApp::buildDebugReport()
 			row.live = JPbox_kinect2::isDriverAvailable();
 			report.sources.push_back(row);
 		}
+		else if (box->getTipo() == JPbox::IPHONELIDARBOX)
+		{
+			JPbox_iphonelidar *phone = dynamic_cast<JPbox_iphonelidar *>(box);
+			jp_debug::SourceRow row;
+			row.kind = "IPHONE";
+			row.label = box->name;
+			row.detail = phone != nullptr ? phone->getCaptureStatus() :
+				"NOT AVAILABLE";
+			row.users = -1;
+			row.live = JPbox_iphonelidar::isDriverAvailable();
+			report.sources.push_back(row);
+		}
 #ifdef NDI
 		else if (box->getTipo() == JPbox::NDIBOX)
 		{
@@ -6743,6 +6755,10 @@ void ofApp::keyPressed(int key) {
 		if (key == 'C') {
 			boxes.addBox("kinect2");
 		}
+		// L for LiDAR: the phone is the other metric depth device.
+		if (key == 'L') {
+			boxes.addBox("iphoneLidar");
+		}
 		// Next to c/C, which are the camera and the Kinect - this is the third
 		// source of a depth-ish image.
 		if (key == 'D') {
@@ -8570,6 +8586,7 @@ void ofApp::shutdownApp() {
 	// Stop the shared worker even when a preview or undo entry still owns it.
 	jp_hand::shutdown();
 	JPbox_kinect2::shutdownSharedCapture();
+	JPbox_iphonelidar::shutdownSharedCapture();
 #ifdef TARGET_LINUX
     JPbox_cam::shutdownCameraSources();
 #endif

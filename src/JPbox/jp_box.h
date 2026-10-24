@@ -144,6 +144,13 @@ public:
 	virtual void saveCustomState(ofXml &boxNode) const;
 	virtual void loadCustomState(const ofXml &boxNode);
 	virtual void copyCustomStateFrom(const JPbox *source);
+	// Optional row of up to three exclusive buttons at the top of the
+	// inspector, with a status line under it: the stream of a depth device,
+	// or which device a depth consumer reads. No labels, no row.
+	virtual vector<string> inspectorChoiceLabels() const { return {}; }
+	virtual int inspectorChoice() const { return -1; }
+	virtual void setInspectorChoice(int choice) {}
+	virtual string inspectorChoiceStatus() const { return ""; }
 	void setPos(float _x, float _y)
 	{
 		JPdragobject::setPos(_x, _y);
@@ -207,6 +214,7 @@ public:
         TEXTBOX,
         ANALOGCOLORBOX = TEXTBOX + 3, // Keep its ID; two retired experimental slots.
         KINECTPARTICLESBOX,
+        IPHONELIDARBOX
 	};
 
 	int getTipo();

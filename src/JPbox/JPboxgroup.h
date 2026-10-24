@@ -15,6 +15,7 @@
 #include "jp_box_cam.h"
 #include "jp_box_camdepth.h"
 #include "jp_box_kinect2.h"
+#include "jp_box_iphonelidar.h"
 #include "jp_box_pointercloud.h"
 #include "jp_box_kinectparticles.h"
 

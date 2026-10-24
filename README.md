@@ -454,3 +454,6 @@ A local Python/MediaPipe runtime is installed with
 box is required. Simulation, calibration, mapping, persistence and validation are
 described in [Tracking](docs/KINECT_HANDS.md). RGB webcams are supported; Kinect
 IR hand tracking remains experimental and body tracking requires visible light.
+An iPhone/iPad LiDAR streamed by the Record3D app over USB is a second depth
+device for its own box, PointerCloud and **Publico**; see
+[iPhone LiDAR](docs/IPHONE_LIDAR.md).

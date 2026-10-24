@@ -653,6 +653,26 @@ void JPbox_kinect2::copyCustomStateFrom(const JPbox *source)
 	if (kinect != nullptr) setStream(kinect->getStream());
 }
 
+vector<string> JPbox_kinect2::inspectorChoiceLabels() const
+{
+	return {"COLOR", "DEPTH", "IR"};
+}
+
+int JPbox_kinect2::inspectorChoice() const
+{
+	return (int)stream;
+}
+
+void JPbox_kinect2::setInspectorChoice(int choice)
+{
+	setStream((Stream)choice);
+}
+
+string JPbox_kinect2::inspectorChoiceStatus() const
+{
+	return getCaptureStatus();
+}
+
 JPbox_kinect2::Stream JPbox_kinect2::getStream() const
 {
 	return stream;

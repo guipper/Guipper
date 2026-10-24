@@ -11,6 +11,7 @@ namespace jp_box_factory
 	enum class Kind {
 		Unknown, Shader, Image, Video, Preset, Kinect2, PointerCloud, CameraDepth,
 		Camera, Spout, FrameDifference, Paint, Ndi, Screen, Youtube, Text, AnalogColor, KinectParticles,
+		IPhoneLidar
 	};
 	Kind classify(const std::string &directory, Context context);
 	// Constructs but does not call setup or attach the box to any graph.

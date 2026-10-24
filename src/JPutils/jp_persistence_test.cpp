@@ -16,6 +16,8 @@
 #include "../JPbox/jp_box_text.h"
 #include "jp_image_fixture.h"
 #include "../JPbox/jp_box_analogcolor.h"
+#include "../JPbox/jp_box_iphonelidar.h"
+#include "../JPbox/jp_box_pointercloud.h"
 #include <set>
 #include "jp_font.h"
 #include "jp_text_input.h"
@@ -605,7 +607,7 @@ namespace
 		const std::pair<const char *, Kind> kinds[] = {
 			{"effect.frag", Kind::Shader}, {"photo.png", Kind::Image},
 			{"clip.mp4", Kind::Video}, {"group.xml", Kind::Preset},
-			{"kinectParticles", Kind::KinectParticles}, {"kinect2", Kind::Kinect2}, {"pointercloud", Kind::PointerCloud},
+			{"kinectParticles", Kind::KinectParticles}, {"iphoneLidar", Kind::IPhoneLidar}, {"kinect2", Kind::Kinect2}, {"pointercloud", Kind::PointerCloud},
 			{"camdepth", Kind::CameraDepth}, {"cam", Kind::Camera},
 			{"framedifference", Kind::FrameDifference}, {"paint", Kind::Paint},
 			{"unrecognized", Kind::Unknown}};
@@ -2502,6 +2504,99 @@ while True:
             if(p){p->setonoff(false);p->update();check(p->getCaptureStatus()=="Detenida","pause stops capture");}
         }else check(false,"restored box count");
         app.boxes.clear();ofLogNotice("particles-test")<<(passed?"PASS":"FAIL");return passed;
+    }
+    // Needs a phone or tests/record3d_fake_device.py behind
+    // USBMUXD_SOCKET_ADDRESS; tests/iphone_lidar_test.py starts the fake.
+    if(testMode && string(testMode)=="iphone") {
+        jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true));
+        bool passed=true;auto check=[&](bool ok,const string &label){if(!ok)ofLogError("iphone-test")<<label;passed=ok&&passed;};
+        auto waitFor=[](std::function<bool()> done,double seconds){const double end=ofGetElapsedTimef()+seconds;while(ofGetElapsedTimef()<end){if(done())return true;std::this_thread::sleep_for(std::chrono::milliseconds(16));}return false;};
+        auto lit=[](const ofFbo &fbo,std::function<bool(const ofColor&)> test){ofPixels pixels;fbo.readToPixels(pixels);size_t count=0;for(size_t y=0;y<pixels.getHeight();++y)for(size_t x=0;x<pixels.getWidth();++x)if(test(pixels.getColor(x,y)))++count;return count;};
+        check(JPbox_iphonelidar::isDriverAvailable(),"built with IPHONE_LIDAR");
+        app.boxes.clear();check(app.boxes.addBox("iphoneLidar"),"create iPhone box");
+        auto *phone=dynamic_cast<JPbox_iphonelidar*>(app.boxes.boxes.at(0));
+        check(phone&&phone->getTipo()==JPbox::IPHONELIDARBOX&&phone->getStream()==JPbox_iphonelidar::DEPTH,"factory, type and default stream");if(!phone)return false;
+        phone->setonoff(true);
+        check(waitFor([&]{phone->update();return phone->getCaptureStatus()=="STREAMING";},20),"streams: "+phone->getCaptureStatus());
+
+        // Metric contract shared with PointerCloud and the audience tracker.
+        auto tap=JPbox_iphonelidar::acquireSharedCapture();uint64_t version=0;JPbox_iphonelidar::DepthHandle depth;
+        check(waitFor([&]{depth=JPbox_iphonelidar::acquireDepth(tap,version);return depth!=nullptr;},5),"depth tap");
+        if(depth){
+            check(depth->width==256&&depth->height==192&&depth->millimetres.size()==256u*192u,"depth size");
+            size_t near=0,wall=0,masked=0;for(float mm:depth->millimetres){if(mm>1700&&mm<2400)++near;else if(mm>3450&&mm<4550)++wall;else if(mm==0)++masked;}
+            check(near>3000&&wall>20000,"metres converted to millimetres");
+            check(masked>200,"low-confidence rim removed");
+            check(depth->intrinsics.valid&&std::abs(depth->intrinsics.fx-700*256/960.f)<.01f&&std::abs(depth->intrinsics.cy-360*192/720.f)<.01f,"intrinsics scaled to depth pixels");
+            ofLogNotice("iphone-test")<<"near="<<near<<" wall="<<wall<<" masked="<<masked;
+        }
+        check(waitFor([&]{phone->update();return lit(phone->fbo,[](const ofColor &c){return c.r>150;})>1000;},5),"DEPTH draws near surfaces bright");
+        ofSaveImage([&]{ofPixels p;phone->fbo.readToPixels(p);return p;}(),ofToDataPath("iphone-depth.png",true));
+        phone->setInspectorChoice(JPbox_iphonelidar::COLOR);
+        check(waitFor([&]{phone->update();return lit(phone->fbo,[](const ofColor &c){return c.r>180&&c.g>80&&c.g<160&&c.b<90;})>1000;},5),"COLOR decodes the JPEG");
+        ofSaveImage([&]{ofPixels p;phone->fbo.readToPixels(p);return p;}(),ofToDataPath("iphone-color.png",true));
+        phone->setInspectorChoice(JPbox_iphonelidar::CONFIDENCE);
+        check(waitFor([&]{phone->update();return lit(phone->fbo,[](const ofColor &c){return c.r>240;})>1000;},5),"CONFIDENCE draws high confidence white");
+
+        // PointerCloud switched to the phone, without ever holding the Kinect.
+        check(app.boxes.addBox("pointercloud"),"create PointerCloud");
+        auto *cloud=dynamic_cast<JPbox_pointercloud*>(app.boxes.boxes.back());
+        if(cloud){
+            cloud->setonoff(true);cloud->setInspectorChoice(JPbox_pointercloud::DEVICE_IPHONE_LIDAR);
+            check(cloud->inspectorChoiceLabels().size()==2&&cloud->getDevice()==JPbox_pointercloud::DEVICE_IPHONE_LIDAR,"device choice");
+            cloud->parameters.setFloatValue(1500,cloud->parameters.indexOfName("near mm"));cloud->parameters.setFloatValue(4500,cloud->parameters.indexOfName("far mm"));
+            check(waitFor([&]{cloud->update();return lit(cloud->fbo,[](const ofColor &c){return c.r+c.g+c.b>60;})>500;},5),"point cloud renders phone depth: "+cloud->getCaptureStatus());
+            ofSaveImage([&]{ofPixels p;cloud->fbo.readToPixels(p);return p;}(),ofToDataPath("iphone-pointcloud.png",true));
+        }else check(false,"PointerCloud type");
+
+        // Quarter turn: the 4:3 sensor picture becomes portrait in the fbo.
+        phone->setInspectorChoice(JPbox_iphonelidar::DEPTH);
+        auto litColumns=[&](){ofPixels p;phone->fbo.readToPixels(p);int lo=p.getWidth(),hi=-1;for(size_t y=0;y<p.getHeight();y+=4)for(size_t x=0;x<p.getWidth();++x)if(p.getColor(x,y).r>0){lo=std::min<int>(lo,x);hi=std::max<int>(hi,x);}return hi-lo;};
+        waitFor([&]{phone->update();return litColumns()>0;},5);const int landscape=litColumns();
+        phone->parameters.setBoolValue(true,phone->parameters.indexOfName("rotate 90"));
+        waitFor([&]{phone->update();return false;},.3);const int portrait=litColumns();
+        check(landscape>0&&portrait>0&&portrait<landscape*0.7f,"rotate 90 turns the picture: "+ofToString(landscape)+" -> "+ofToString(portrait));
+        ofSaveImage([&]{ofPixels p;phone->fbo.readToPixels(p);return p;}(),ofToDataPath("iphone-rotated.png",true));
+        phone->parameters.setBoolValue(false,phone->parameters.indexOfName("rotate 90"));
+
+        // Publico from the phone.
+        jp_hand::Source crowd{jp_hand::SourceKind::IPhoneLidar,{},jp_hand::Detector::Crowd};
+        jp_crowd::Config config;config.nearM=1.f;config.farM=3.f;
+        jp_hand::start(false,crowd);
+        check(waitFor([&]{jp_hand::beginFrame();jp_hand::demand(crowd,nullptr);jp_hand::demandCrowd(crowd,config);const auto &s=jp_hand::snapshot(crowd);return s.crowd&&s.crowd->find(config)&&s.status=="Publico: LiDAR del iPhone activo";},8),"audience reads phone depth: "+jp_hand::snapshot(crowd).status);
+        jp_hand::Binding binding;binding.source=crowd;binding.crowd=config;jp_hand::setSignal(binding,jp_hand::CrowdOccupancy);
+        {const auto value=jp_hand::sample(jp_hand::snapshot(crowd),binding,jp_hand::now());check(value.valid&&value.raw>0,"occupancy from phone depth");}
+        jp_hand::stop(crowd);
+
+        // Inspector row and persistence.
+        phone->setInspectorChoice(JPbox_iphonelidar::COLOR);
+        app.boxes.selectOpenBoxByIndex(0);app.boxes.setControllers();
+        ofSetWindowShape(1440,900);app.windowResized(1440,900);
+        jp_gl::resetWindowDrawState(ofGetWidth(),ofGetHeight());ofClear(0);
+        phone->setPos(400,350);if(cloud)cloud->setPos(700,350);app.boxes.draw();
+        ofImage uiImage;uiImage.grabScreen(0,0,ofGetWidth(),ofGetHeight());uiImage.save(ofToDataPath("iphone-inspector.png",true));
+        const string file=ofToDataPath("iphone-test.xml",true);check(app.boxes.save(file),"save");
+        tap.reset();depth.reset();
+        app.boxes.clear();check(app.boxes.load(file)==JPboxgroup::LoadResult::Success,"reload");
+        JPbox_iphonelidar *restoredPhone=nullptr;JPbox_pointercloud *restoredCloud=nullptr;
+        for(auto *box:app.boxes.boxes){if(auto *p=dynamic_cast<JPbox_iphonelidar*>(box))restoredPhone=p;if(auto *c=dynamic_cast<JPbox_pointercloud*>(box))restoredCloud=c;}
+        check(restoredPhone&&restoredPhone->getStream()==JPbox_iphonelidar::COLOR,"stream persisted");
+        check(restoredCloud&&restoredCloud->getDevice()==JPbox_pointercloud::DEVICE_IPHONE_LIDAR,"PointerCloud device persisted");
+        if(restoredCloud)check(waitFor([&]{restoredCloud->update();return restoredCloud->getCaptureStatus()=="STREAMING";},20),"restored PointerCloud reconnects: "+restoredCloud->getCaptureStatus());
+        if(restoredPhone){
+            app.boxes.clearSelection();for(size_t i=0;i<app.boxes.boxes.size();++i)if(app.boxes.boxes[i]==restoredPhone)app.boxes.toggleBoxSelection(i);
+            app.boxes.deleteSelectedShader();check(restoredPhone->getCaptureStatus()=="NOT AVAILABLE","delete releases the phone");
+            app.boxes.graphUndoShortcut(false);check(waitFor([&]{restoredPhone->update();return restoredPhone->getCaptureStatus()=="STREAMING";},20),"undo reacquires the phone");
+        }
+        // The fake stops sending after a while, as Record3D does when recording
+        // is paused: the box must say so rather than keep claiming STREAMING.
+        if(const char *pause=std::getenv("GUIPPER_IPHONE_PAUSE_FILE"); pause&&restoredPhone){
+            ofstream(pause)<<"pause";
+            check(waitFor([&]{restoredPhone->update();return restoredPhone->getCaptureStatus().rfind("PAUSED",0)==0;},5),"pause reported: "+restoredPhone->getCaptureStatus());
+            std::filesystem::remove(pause);
+            check(waitFor([&]{restoredPhone->update();return restoredPhone->getCaptureStatus()=="STREAMING";},5),"resume after pause");
+        }
+        app.boxes.clear();ofLogNotice("iphone-test")<<(passed?"PASS":"FAIL");return passed;
     }
     if(testMode && string(testMode)=="analogcolor") {
         jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true));

@@ -32,7 +32,7 @@ UNIFORM_SOURCES := uniform_parser_tests.cpp ../src/JPutils/jp_uniform_parser.cpp
 UNIFORM_HEADERS := ../src/JPutils/jp_uniform_parser.h
 TARGETS := hand_tracking_tests text_render_tests youtube_tests screen_capture_tests transition_tests text_edit_tests review_tests toast_tests shader_catalog_tests appimage_backend_tests update_service_tests app_paths_tests $(UNIFORM_TARGET) $(AUDIO_TARGET) $(MEDIA_TARGET) $(PAINT_TARGET) $(GRAPH_TARGET) $(WRAP_TARGET) $(KEYMAP_TARGET) $(OSC_TARGET) $(EDITOR_SHORTCUT_TARGET) $(MAPPING_BOOLEAN_TARGET)
 
-TARGETS += kinect_particles_tests tracking_body_tests crowd_tracking_tests
+TARGETS += kinect_particles_tests tracking_body_tests crowd_tracking_tests record3d_protocol_tests
 .PHONY: all run tsan clean
 
 all: $(TARGETS)
@@ -92,8 +92,12 @@ screen_capture_tests: screen_capture_tests.cpp ../src/JPutils/jp_screen_capture.
 kinect_particles_tests: kinect_particles_tests.cpp ../src/JPbox/jp_kinect_particles.h
 	$(CXX) $(CXXFLAGS) kinect_particles_tests.cpp -o $@
 
+record3d_protocol_tests: record3d_protocol_tests.cpp ../src/JPbox/jp_record3d_protocol.h
+	$(CXX) $(CXXFLAGS) record3d_protocol_tests.cpp -o $@
+
 run: $(TARGETS)
 	./kinect_particles_tests
+	./record3d_protocol_tests
 	./crowd_tracking_tests
 	./tracking_body_tests
 	./hand_tracking_tests

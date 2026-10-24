@@ -7,10 +7,13 @@ namespace
 	constexpr int kMinDensityStep = 1;
 	constexpr int kMaxDensityStep = 12;
 
-	// The Kinect's usable range. Same bounds the kinect2 box clamps to, so the
-	// two boxes agree about what "near" and "far" mean.
-	constexpr float kMinRangeMm = 500.0f;
-	constexpr float kMaxRangeMm = 4500.0f;
+	// Union of both devices' usable ranges: the Kinect resolves 500-4500 and
+	// writes 0 outside it, so the wider bounds only matter for the iPhone.
+	constexpr float kMinRangeMm = JPbox_iphonelidar::kMinRangeMm;
+	constexpr float kMaxRangeMm = JPbox_iphonelidar::kMaxRangeMm;
+	// Defaults stay on the Kinect's range, as before the iPhone existed.
+	constexpr float kDefaultNearMm = 500.0f;
+	constexpr float kDefaultFarMm = 4500.0f;
 }
 
 JPbox_pointercloud::~JPbox_pointercloud()
@@ -36,10 +39,10 @@ void JPbox_pointercloud::setup(string directory, string boxName)
 	parameters.addFloatValue(1.0f, "depth scale", true);
 	parameters.setMin(0.0f, DEPTH_SCALE);
 	parameters.setMax(3.0f, DEPTH_SCALE);
-	parameters.addFloatValue(kMinRangeMm, "near mm");
+	parameters.addFloatValue(kDefaultNearMm, "near mm");
 	parameters.setMin(kMinRangeMm, NEAR_MM);
 	parameters.setMax(kMaxRangeMm - 1.0f, NEAR_MM);
-	parameters.addFloatValue(kMaxRangeMm, "far mm");
+	parameters.addFloatValue(kDefaultFarMm, "far mm");
 	parameters.setMin(kMinRangeMm + 1.0f, FAR_MM);
 	parameters.setMax(kMaxRangeMm, FAR_MM);
 	parameters.addFloatValue(0.0f, "rotate X");
@@ -84,18 +87,41 @@ void JPbox_pointercloud::setup(string directory, string boxName)
 			   "render nothing";
 	}
 
-	buildLattice();
 	ensureRenderTarget();
-	capture = JPbox_kinect2::acquireSharedCapture();
 	cleared = false;
+	// The device opens on the first update, not here: a saved session sets
+	// the device after setup, and opening the Kinect only to close it again
+	// would block on its worker thread.
+	captureEnabled = true;
 }
 
-void JPbox_pointercloud::buildLattice()
+void JPbox_pointercloud::acquireDevice()
 {
-	// One vertex per depth pixel, carrying its own pixel coordinate. Built
-	// once and never touched again - density and clipping are shader side.
-	const int width = JPbox_kinect2::depthWidth();
-	const int height = JPbox_kinect2::depthHeight();
+	if (cleared) return;
+	lastFrameVersion = 0;
+	intrinsics = JPbox_kinect2::DepthIntrinsics();
+	if (device == DEVICE_IPHONE_LIDAR)
+	{
+		capture.reset();
+		if (!phone) phone = JPbox_iphonelidar::acquireSharedCapture();
+	}
+	else
+	{
+		phone.reset();
+		if (!capture) capture = JPbox_kinect2::acquireSharedCapture();
+	}
+}
+
+void JPbox_pointercloud::releaseDevice()
+{
+	capture.reset();
+	phone.reset();
+}
+
+void JPbox_pointercloud::buildLattice(int width, int height)
+{
+	if (width == latticeWidth && height == latticeHeight && lattice.getNumVertices() > 0) return;
+	latticeWidth = width;	latticeHeight = height;
 	lattice.clear();
 	lattice.setMode(OF_PRIMITIVE_POINTS);
 	lattice.getVertices().reserve((size_t)width * height);
@@ -139,6 +165,20 @@ void JPbox_pointercloud::ensureRenderTarget()
 
 void JPbox_pointercloud::uploadDepth()
 {
+	if (device == DEVICE_IPHONE_LIDAR)
+	{
+		if (!phone) return;
+		JPbox_iphonelidar::DepthHandle frame =
+			JPbox_iphonelidar::acquireDepth(phone, lastFrameVersion);
+		if (!frame) return;
+		// Per frame, not per device: the phone's resolution is only known
+		// once it streams.
+		intrinsics = frame->intrinsics;
+		uploadMillimetres(frame->millimetres.data(), frame->width,
+			frame->height);
+		return;
+	}
+
 	if (!capture) return;
 	const bool hadIntrinsics = intrinsics.valid;
 	intrinsics = JPbox_kinect2::depthIntrinsics(capture);
@@ -161,7 +201,14 @@ void JPbox_pointercloud::uploadDepth()
 	const int width = JPbox_kinect2::depthWidth();
 	const int height = JPbox_kinect2::depthHeight();
 	if (frame->size() != (size_t)width * height) return;
+	uploadMillimetres(frame->data(), width, height);
+}
 
+bool JPbox_pointercloud::uploadMillimetres(const float *millimetres,
+	int width, int height)
+{
+	if (width <= 0 || height <= 0) return false;
+	buildLattice(width, height);
 	if (!depthTexture.isAllocated() ||
 		depthTexture.getWidth() != (float)width ||
 		depthTexture.getHeight() != (float)height)
@@ -172,7 +219,8 @@ void JPbox_pointercloud::uploadDepth()
 		// in-between points smear the silhouette into the backdrop.
 		depthTexture.setTextureMinMagFilter(GL_NEAREST, GL_NEAREST);
 	}
-	depthTexture.loadData(frame->data(), width, height, GL_RED);
+	depthTexture.loadData(millimetres, width, height, GL_RED);
+	return true;
 }
 
 void JPbox_pointercloud::update()
@@ -192,6 +240,7 @@ void JPbox_pointercloud::update()
 	parameters.setFloatValue(farMm, FAR_MM);
 	parameters.setFloatLerpValue(farMm, FAR_MM);
 
+	if (captureEnabled && !capture && !phone) acquireDevice();
 	uploadDepth();
 	updateFBO();
 }
@@ -251,9 +300,8 @@ void JPbox_pointercloud::updateFBO()
 
 		shader.begin();
 		shader.setUniformTexture("depthTexture", depthTexture, 0);
-		shader.setUniform2f("depthSize",
-			(float)JPbox_kinect2::depthWidth(),
-			(float)JPbox_kinect2::depthHeight());
+		shader.setUniform2f("depthSize", (float)latticeWidth,
+			(float)latticeHeight);
 		shader.setUniform2f("targetSize", fbo.getWidth(), fbo.getHeight());
 		shader.setUniform1f("fx", intrinsics.fx);
 		shader.setUniform1f("fy", intrinsics.fy);
@@ -313,7 +361,9 @@ void JPbox_pointercloud::updateFBO()
 string JPbox_pointercloud::getCaptureStatus() const
 {
 	if (!shader.isLoaded()) return "SHADER FAILED";
-	const string status = JPbox_kinect2::captureStatus(capture);
+	const string status = device == DEVICE_IPHONE_LIDAR ?
+		JPbox_iphonelidar::captureStatus(phone) :
+		JPbox_kinect2::captureStatus(capture);
 	// The stream can be up a frame or two before the intrinsics are read.
 	if (status == "STREAMING" && !intrinsics.valid) return "WAITING FOR DEPTH";
 	return status;
@@ -361,17 +411,67 @@ void JPbox_pointercloud::draw()
 
 void JPbox_pointercloud::setCaptureActive(bool active)
 {
-	if (active)
+	captureEnabled = active;
+	if (!active) releaseDevice();
+}
+
+void JPbox_pointercloud::saveCustomState(ofXml &boxNode) const
+{
+	auto state = boxNode.appendChild("pointercloud");
+	state.appendChild("device").set((int)device);
+}
+
+void JPbox_pointercloud::loadCustomState(const ofXml &boxNode)
+{
+	// Sessions saved before the iPhone existed have no node: Kinect.
+	auto state = boxNode.getChild("pointercloud");
+	if (state)
 	{
-		if (capture || cleared) return;
-		lastFrameVersion = 0;
-		intrinsics = JPbox_kinect2::DepthIntrinsics();
-		capture = JPbox_kinect2::acquireSharedCapture();
+		setDevice((Device)ofClamp(state.getChild("device").getIntValue(), 0, 1));
 	}
-	else
-	{
-		capture.reset();
-	}
+}
+
+void JPbox_pointercloud::copyCustomStateFrom(const JPbox *source)
+{
+	const auto *cloud = dynamic_cast<const JPbox_pointercloud *>(source);
+	if (cloud != nullptr) setDevice(cloud->getDevice());
+}
+
+vector<string> JPbox_pointercloud::inspectorChoiceLabels() const
+{
+	return {"KINECT V2", "IPHONE LIDAR"};
+}
+
+int JPbox_pointercloud::inspectorChoice() const
+{
+	return (int)device;
+}
+
+void JPbox_pointercloud::setInspectorChoice(int choice)
+{
+	setDevice((Device)choice);
+}
+
+string JPbox_pointercloud::inspectorChoiceStatus() const
+{
+	return getCaptureStatus();
+}
+
+JPbox_pointercloud::Device JPbox_pointercloud::getDevice() const
+{
+	return device;
+}
+
+void JPbox_pointercloud::setDevice(Device value)
+{
+	value = (Device)ofClamp((int)value, 0, 1);
+	if (value == device) return;
+	device = value;
+	// update() opens the new one, unless capture is paused.
+	releaseDevice();
+	if (depthTexture.isAllocated()) depthTexture.clear();
+	intrinsics = JPbox_kinect2::DepthIntrinsics();
+	lastFrameVersion = 0;
 }
 
 void JPbox_pointercloud::clear()
@@ -383,7 +483,7 @@ void JPbox_pointercloud::clear()
 	shader.unload();
 	// Dropping the handle lets the shared device close once the last consumer
 	// is gone.
-	capture.reset();
+	releaseDevice();
 	fbohandlergroup.clear();
 	JPbox::clear();
 }

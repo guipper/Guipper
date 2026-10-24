@@ -107,6 +107,8 @@ La simulación está identificada y permite ensayar pérdidas por fuente.
 RGB, Python ni modelos de MediaPipe. Su captura IR/profundidad sigue llegando
 cuando no hay un cuadro RGB nuevo; comparte una sola apertura USB con las cajas
 Kinect y con manos IR. El resultado describe superficies, no personas individuales.
+El LiDAR de un iPhone también puede alimentar Público: ver
+[iPhone LiDAR](IPHONE_LIDAR.md).
 
 1. Abrir el icono de seguimiento de un parámetro y elegir **Publico**.
 2. Activar el vínculo y pulsar **Iniciar esta fuente**. El rango inicial es

@@ -3,12 +3,14 @@
 #include "ofMain.h"
 #include "jp_box.h"
 #include "jp_box_kinect2.h"
+#include "jp_box_iphonelidar.h"
 
 // PointerCloud.
 //
-// Renders a true metric point cloud: it taps the shared Kinect v2 capture for
-// raw depth in millimetres and unprojects it through the IR camera intrinsics
-// into camera-space XYZ, depth tested. It deliberately does not read geometry
+// Renders a true metric point cloud: it taps the shared capture of a depth
+// device - Kinect v2 or an iPhone LiDAR through Record3D - for raw depth in
+// millimetres and unprojects it through that device's depth intrinsics into
+// camera-space XYZ, depth tested. It deliberately does not read geometry
 // from an inlet - an inlet only ever carries the 8 bit visualisation, which is
 // already clipped, gamma'd and quantised.
 //
@@ -26,6 +28,23 @@ public:
 	void clear() override;
 	void setCaptureActive(bool active) override;
 	void setPos(float x, float y) override;
+	void saveCustomState(ofXml &boxNode) const override;
+	void loadCustomState(const ofXml &boxNode) override;
+	void copyCustomStateFrom(const JPbox *source) override;
+	vector<string> inspectorChoiceLabels() const override;
+	int inspectorChoice() const override;
+	void setInspectorChoice(int choice) override;
+	string inspectorChoiceStatus() const override;
+
+	// Saved as an int: append only. Prefixed: KINECT2 and IPHONE_LIDAR are
+	// build defines.
+	enum Device
+	{
+		DEVICE_KINECT2 = 0,
+		DEVICE_IPHONE_LIDAR = 1
+	};
+	Device getDevice() const;
+	void setDevice(Device value);
 
 	string getCaptureStatus() const;
 
@@ -58,17 +77,26 @@ private:
 	};
 
 	void ensureRenderTarget();
-	void buildLattice();
+	void buildLattice(int width, int height);
 	void uploadDepth();
+	void acquireDevice();
+	void releaseDevice();
+	bool uploadMillimetres(const float *millimetres, int width, int height);
 	void setInletPosition();
 
+	Device device = DEVICE_KINECT2;
+	// Only the selected device's handle is held, so the other one can close.
 	shared_ptr<KinectV2CaptureSource> capture;
+	shared_ptr<IPhoneLidarCaptureSource> phone;
 	ofShader shader;
 	ofVboMesh lattice;
 	ofTexture depthTexture;
 	JPbox_kinect2::DepthIntrinsics intrinsics;
 	uint64_t lastFrameVersion = 0;
+	int latticeWidth = 0;
+	int latticeHeight = 0;
 	int targetWidth = 0;
 	int targetHeight = 0;
+	bool captureEnabled = false;
 	bool cleared = false;
 };
