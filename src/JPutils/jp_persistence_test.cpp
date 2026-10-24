@@ -2356,6 +2356,10 @@ while True:
         check(app.boxes.boxes.size()==2 && app.activerender==1,"active index follows the original surviving box");
         if(app.boxes.boxes.size()==2)check(app.boxes.boxes[1]->fbohandlergroup.getisPointerSet(0),"surviving connections preserved");
         check(app.boxes.loadWarnings.size()==1,"omission is reported");
+        xml.getChild("box").getChild("directory").set("missing-audience-kaleido.frag");xml.save(path);
+        check(app.boxes.load(path)==JPboxgroup::LoadResult::Success,"missing shader does not reject composition");
+        check(app.boxes.boxes.size()==2 && app.activerender==1 && app.boxes.loadWarnings.size()==1,"missing shader remaps indices and reports omission");
+        if(app.boxes.boxes.size()==2)check(app.boxes.boxes[1]->fbohandlergroup.getisPointerSet(0),"connections survive missing shader");
         effect.getChild("fboslinks").getChild("imagen").set("retired");xml.getChild("activerender").set(0);xml.save(path);
         check(app.boxes.load(path)==JPboxgroup::LoadResult::Success,"missing active source falls back safely");
         if(app.boxes.boxes.size()==2)check(!app.boxes.boxes[1]->fbohandlergroup.getisPointerSet(0)&&app.activerender==0,"dangling connections remain disconnected");
@@ -2368,10 +2372,20 @@ while True:
         check(app.boxes.load(path)==JPboxgroup::LoadResult::Success,"nested groups tolerate unavailable children");
         if(app.boxes.boxes.size()==1){auto *preset=dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]);check(preset&&preset->boxes.size()==1&&preset->exposedParams[0][0],"exposed child indices remapped");}
         check(app.boxes.loadWarnings.size()==1,"nested omission reaches the warning");
+        missing.getChild("directory").set("missing-nested-shader.frag");child.save(childPath);
+        check(app.boxes.load(path)==JPboxgroup::LoadResult::Success,"nested missing shader does not reject group");
+        if(app.boxes.boxes.size()==1){auto *preset=dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]);check(preset&&preset->boxes.size()==1&&preset->exposedParams[0][0],"missing shader preserves exposed child remapping");}
+        check(app.boxes.loadWarnings.size()==1,"nested missing shader is reported");
+        const string brokenPath=ofToDataPath("empty-existing-shader.frag",true);
+        ofBufferToFile(brokenPath,ofBuffer());
+        missing.getChild("directory").set(brokenPath);child.save(childPath);
+        JPbox* preserved=app.boxes.boxes.empty()?nullptr:app.boxes.boxes[0];
+        check(app.boxes.load(path)==JPboxgroup::LoadResult::AssetError,"existing empty shader still rejects composition");
+        check(preserved&&app.boxes.boxes.size()==1&&app.boxes.boxes[0]==preserved,"invalid existing shader preserves current composition");
         ofXml onlyMissing;onlyMissing.appendChild("activerender").set(0);auto box=onlyMissing.appendChild("box");box.appendChild("directory").set("futureUnknownBox");box.appendChild("nombre").set("future");onlyMissing.save(path);
         check(app.boxes.load(path)==JPboxgroup::LoadResult::Success&&app.boxes.boxes.empty(),"all-unavailable composition opens empty");
         box.getChild("directory").set("does-not-exist.frag");onlyMissing.save(path);
-        check(app.boxes.load(path)==JPboxgroup::LoadResult::AssetError,"known broken assets still report an error");
+        check(app.boxes.load(path)==JPboxgroup::LoadResult::Success&&app.boxes.boxes.empty()&&app.boxes.loadWarnings.size()==1,"all-missing shaders open empty with warning");
         app.boxes.clear();ofLogNotice("missing-boxes")<<(passed?"PASS":"FAIL");return passed;
     }
     if(testMode && string(testMode)=="soul-torus") {

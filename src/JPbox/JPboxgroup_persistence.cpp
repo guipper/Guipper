@@ -11,6 +11,10 @@
 #include <chrono>
 
 namespace {
+bool missingStoredShader(const std::string& source) {
+    return ofToLower(ofFilePath::getFileExt(source)) == "frag"
+        && !ofFile::doesFileExist(source);
+}
 JPboxgroup::LoadResult validateStoredTree(const ofXml& xml, std::set<std::string>& stack, std::string& detail) {
     using Result = JPboxgroup::LoadResult;
     const auto format = xml.getChild("guipper_format");
@@ -22,6 +26,7 @@ JPboxgroup::LoadResult validateStoredTree(const ofXml& xml, std::set<std::string
         if ((jp_media::isImage(source) || jp_media::isVideo(source)) && !ofFile::doesFileExist(source)) {
             detail=source;return Result::AssetError;
         }
+        if (missingStoredShader(source)) continue;
         if (ofToLower(ofFilePath::getFileExt(source)) == "frag") {
             const auto bytes = ofBufferFromFile(source);
             if (bytes.size() == 0 || jp_uniform_parser::parse(bytes.getText()).hasErrors()) {
@@ -226,7 +231,8 @@ JPboxgroup::LoadResult JPboxgroup::buildSessionNode(PreparedSession &candidate, 
 		// cout << "x : " << y.getValue() << endl;
 		// cout << "Directory : " << directory.getValue() << endl;
 
-		JPbox *bx = jp_box_factory::create(directory.getValue(),
+		JPbox *bx = missingStoredShader(jp_normalizePath(directory.getValue())) ? nullptr
+            : jp_box_factory::create(directory.getValue(),
 			jp_box_factory::Context::Stored);
         if (!bx) {
             const string skipped=nombre.getValue()+" ("+directory.getValue()+")";
