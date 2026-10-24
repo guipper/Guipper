@@ -16,6 +16,7 @@
 #include "jp_box_camdepth.h"
 #include "jp_box_kinect2.h"
 #include "jp_box_pointercloud.h"
+#include "jp_box_kinectparticles.h"
 
 class JPShaderEditor; // forward declaration
 
@@ -953,6 +954,7 @@ private:
 	JPBang finaloverlaybutton;           // GO TO FINAL: composites this chain over the final image
 	std::array<ofRectangle, 3> kinectStreamButtons;
 	ofRectangle screenDisplayModeButton, screenWindowModeButton;
+	ofRectangle particlesStatusRect;
 	ofRectangle screenSelectButton, screenResumeButton, screenStopButton, screenStatusRect;
 	ofRectangle youtubeUrlField, youtubeStreamButton, youtubeCacheButton, youtubeStatusRect;
 	std::vector<ofRectangle> screenMonitorButtons;

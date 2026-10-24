@@ -6704,6 +6704,12 @@ void ofApp::keyPressed(int key) {
 		if (key == 'b') {
 			boxes.addBox("paint");
 		}
+        if (key == 'K' && !surfaces.modalOpen() && !anyFieldFocused() &&
+            !ofGetKeyPressed(OF_KEY_CONTROL) && !ofGetKeyPressed(OF_KEY_COMMAND) && !ofGetKeyPressed(OF_KEY_ALT)) {
+            boxes.addBox("kinectParticles");
+            if (!boxes.isGroupViewActive()) boxes.selectOpenBoxByIndex(int(boxes.boxes.size()) - 1);
+            boxes.setControllers();return;
+        }
         if (key == 'R' && !surfaces.modalOpen() && !anyFieldFocused() &&
             !ofGetKeyPressed(OF_KEY_CONTROL) && !ofGetKeyPressed(OF_KEY_COMMAND) && !ofGetKeyPressed(OF_KEY_ALT)) {
             boxes.addBox("analogColor");

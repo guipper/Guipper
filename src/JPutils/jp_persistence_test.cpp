@@ -26,6 +26,7 @@
 #include "../JPbox/jp_quick_image.h"
 #include "../JPbox/jp_graph_walk.h"
 #include "../JPgui/jp_knob.h"
+#include "../JPgui/jp_gl_state.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -604,7 +605,7 @@ namespace
 		const std::pair<const char *, Kind> kinds[] = {
 			{"effect.frag", Kind::Shader}, {"photo.png", Kind::Image},
 			{"clip.mp4", Kind::Video}, {"group.xml", Kind::Preset},
-			{"kinect2", Kind::Kinect2}, {"pointercloud", Kind::PointerCloud},
+			{"kinectParticles", Kind::KinectParticles}, {"kinect2", Kind::Kinect2}, {"pointercloud", Kind::PointerCloud},
 			{"camdepth", Kind::CameraDepth}, {"cam", Kind::Camera},
 			{"framedifference", Kind::FrameDifference}, {"paint", Kind::Paint},
 			{"unrecognized", Kind::Unknown}};
@@ -2309,6 +2310,137 @@ bool jp_persistence_test::run(ofApp &app)
         box.getChild("directory").set("does-not-exist.frag");onlyMissing.save(path);
         check(app.boxes.load(path)==JPboxgroup::LoadResult::AssetError,"known broken assets still report an error");
         app.boxes.clear();ofLogNotice("missing-boxes")<<(passed?"PASS":"FAIL");return passed;
+    }
+    if(testMode && (string(testMode)=="particles" || string(testMode)=="particles-live")) {
+        jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true));
+        bool passed=true;auto check=[&](bool ok,const char *label){if(!ok)ofLogError("particles-test")<<label;passed=ok&&passed;};
+        // Normal startup separates bundled resources from user data. An old
+        // profile can lack this newly introduced private shader entirely.
+        const string previousDataRoot=ofToDataPath("",true);
+        const auto emptyProfile=jp::AppPaths::current().state/"particles-empty-profile";
+        std::filesystem::create_directories(emptyProfile);
+        ofSetDataPathRoot(emptyProfile.string()+"/");
+        {
+            JPbox_kinectparticles probe;probe.setup("kinectParticles","missing profile shader");
+            check(probe.shaderReady(),"internal shader loads with no shaders in user profile");
+            probe.clear();
+        }
+        ofSetDataPathRoot(previousDataRoot);
+        app.boxes.clear();check(app.boxes.addBox("kinectParticles"),"create particles");
+        auto *p=dynamic_cast<JPbox_kinectparticles*>(app.boxes.boxes.at(0));
+        check(p&&p->shaderReady(),"factory and shaders");if(!p)return false;
+        p->setonoff(true);
+        auto set=[&](const char* name,float value){const int i=p->parameters.indexOfName(name);p->parameters.setFloatValue(value,i);p->parameters.setFloatLerpValue(value,i);};
+        set("near m",.7f);set("far m",4.5f);
+        const bool live=string(testMode)=="particles-live";
+        if(live) {
+            const double start=ofGetElapsedTimef();size_t maximum=0;int frames=0;
+            double totalMs=0,maxMs=0;
+            while(ofGetElapsedTimef()-start<20) {
+                const auto before=ofGetElapsedTimeMicros();p->update();
+                const double ms=(ofGetElapsedTimeMicros()-before)*.001;
+                totalMs+=ms;maxMs=std::max(maxMs,ms);++frames;
+                maximum=std::max(maximum,p->particleCount());
+                std::this_thread::sleep_for(std::chrono::milliseconds(16));
+            }
+            check(maximum>0,"real depth emits particles");
+            ofLogNotice("particles-live")<<"maxParticles="<<maximum<<" frames="<<frames<<" meanUpdateMs="<<totalMs/frames<<" maxUpdateMs="<<maxMs<<" status="<<p->getCaptureStatus();
+        } else {
+            for(int frame=0;frame<90;++frame) {
+                auto depth=std::make_shared<std::vector<float>>(512*424,0);
+                // Asymmetric moving depth fixture: body + head + raised left arm.
+                const float shift=35*std::sin(frame*.06f);
+                for(int y=30;y<390;++y)for(int x=60;x<450;++x) {
+                    const float dx=x-256-shift;
+                    const bool body=std::abs(dx)<58 && y>150;
+                    const bool head=dx*dx+(y-110)*(y-110)<36*36;
+                    const bool arm=x>110+shift&&x<205+shift&&y>70&&y<205;
+                    if(body||head||arm) {
+                        float mm=3000+float(y)*.5f+120*dx*dx/(58*58);
+                        if(head) {
+                            mm=3000-150*std::sqrt(std::max(0.f,1-(dx*dx+(y-110)*(y-110))/(36*36)));
+                            if(std::abs(dx)<6 && y>100 && y<120)mm-=30;
+                        }
+                        (*depth)[y*512+x]=mm;
+                    }
+                }
+                p->submitDepth(depth,512,424,frame/60.,{365,365,255.5f,211.5f});
+                p->advanceSimulation(frame/60.,1.f/60);
+            }
+            check(p->particleCount()>5000,"simulation emits from depth fixture");
+        }
+        ofPixels pixels;p->fbo.readToPixels(pixels);size_t lit=0;
+        for(size_t i=0;i+3<pixels.size();i+=4)if(pixels[i]+pixels[i+1]+pixels[i+2]>20)++lit;
+        check(lit>100,"particle render has visible RGB pixels");
+        ofSaveImage(pixels,ofToDataPath(live?"particles-live.png":"particles.png",true));
+        JPbox_shader downstream;downstream.setup("shaders/imageprocessing/transform.frag","particles output");
+        const int input=downstream.fbohandlergroup.findIndexByName("textura1");check(input>=0,"downstream input");
+        if(input>=0) {
+            downstream.fbohandlergroup.setFboPointer(&p->fbo,&p->name,input);
+            downstream.setonoff(true);downstream.setRenderThisFrame(true);downstream.update();
+            ofPixels output;downstream.fbo.readToPixels(output);size_t outputLit=0;
+            for(size_t i=0;i+3<output.size();i+=4)if(output[i]+output[i+1]+output[i+2]>20)++outputLit;
+            check(outputLit>100,"particles feed shader");
+        }downstream.clear();
+        // Asymmetric fixture verifies the texture orientation, not only the CPU axes.
+        JPbox_kinectparticles orientation;orientation.setup("kinectParticles","orientation");orientation.setonoff(true);
+        orientation.parameters.setFloatValue(0,orientation.parameters.indexOfName("density"));
+        orientation.parameters.setFloatValue(0,orientation.parameters.indexOfName("silhouette"));
+        orientation.parameters.setFloatValue(1,orientation.parameters.indexOfName("surface detail"));
+        auto top=std::make_shared<std::vector<float>>(512*424,0);
+        for(int y=60;y<120;++y)for(int x=200;x<310;++x)(*top)[y*512+x]=3500;
+        orientation.submitDepth(top,512,424,0,{365,365,255.5f,211.5f});
+        glEnable(GL_SCISSOR_TEST);glScissor(0,0,2,2);
+        orientation.advanceSimulation(0,0);check(glIsEnabled(GL_SCISSOR_TEST),"restore caller scissor");glDisable(GL_SCISSOR_TEST);
+        ofPixels oriented;orientation.fbo.readToPixels(oriented);size_t topLit=0,bottomLit=0;
+        for(size_t y=0;y<oriented.getHeight();++y)for(size_t x=0;x<oriented.getWidth();++x) {
+            const auto c=oriented.getColor(x,y);
+            if(c.r+c.g+c.b>20){if(y<oriented.getHeight()/2)++topLit;else ++bottomLit;}
+        }
+        check(topLit>100&&bottomLit==0,"detail-only surface stays oriented without plume or delayed silhouette");
+        // Screenshot conditions: brightness 2.5, detail .86, zoom 2.21, big grains.
+        orientation.parameters.setFloatValue(2.5f,orientation.parameters.indexOfName("brightness"));
+        orientation.parameters.setFloatValue(.86f,orientation.parameters.indexOfName("surface detail"));
+        orientation.advanceSimulation(0,0);
+        ofPixels flat;orientation.fbo.readToPixels(flat);int darkest=255,brightest=0,count=0;
+        for(size_t i=0;i<flat.size();i+=4)if(flat[i]>15){darkest=std::min(darkest,int(flat[i]));brightest=std::max(brightest,int(flat[i]));++count;}
+        check(count>100&&brightest-darkest<=2,"flat detail has no overlap grid");
+        check(brightest<245,"surface exposure preserves highlight headroom");orientation.clear();
+        if(!live){set("brightness",2.5f);set("surface detail",.86f);set("point size",16);set("zoom",2.21f);set("silhouette",0);
+            p->advanceSimulation(89/60.,0);ofPixels detailPreview;p->fbo.readToPixels(detailPreview);ofSaveImage(detailPreview,ofToDataPath("particles-detail-high-exposure.png",true));}
+
+        app.boxes.selectOpenBoxByIndex(0);app.boxes.setControllers();
+        ofSetWindowShape(1440,900);app.windowResized(1440,900);
+        jp_gl::resetWindowDrawState(ofGetWidth(),ofGetHeight());ofClear(0);
+        // Draw UI on the window: its scissor coordinates are window-space.
+        p->setPos(400,350);app.boxes.draw();
+        ofImage uiImage;uiImage.grabScreen(0,0,ofGetWidth(),ofGetHeight());uiImage.save(ofToDataPath("particles-inspector.png",true));
+        const auto oldW=jp_constants::renderWidth,oldH=jp_constants::renderHeight;
+        jp_constants::renderWidth=320;jp_constants::renderHeight=180;p->advanceSimulation(100,.016f);
+        check(p->fbo.getWidth()==320&&p->fbo.getHeight()==180,"resize target");
+        jp_constants::renderWidth=oldW;jp_constants::renderHeight=oldH;
+        set("life s",2.7f);set("surface detail",.72f);set("surface contrast",1.3f);set("plume opacity",.4f);const string file=ofToDataPath("particles-test.xml",true);
+        check(app.boxes.save(file),"save particles");
+        app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.copySelectedBoxes();app.boxes.pasteBoxes();
+        check(app.boxes.boxes.size()==2,"duplicate");
+        if(app.boxes.boxes.size()==2) {
+            auto *copy=dynamic_cast<JPbox_kinectparticles*>(app.boxes.boxes[1]);
+            check(copy&&copy->particleCount()==0&&std::abs(copy->parameters.getFloatValue(copy->parameters.indexOfName("life s"))-2.7f)<.001f,"copy settings without live particles");
+            check(copy&&std::abs(copy->parameters.getFloatValue(copy->parameters.indexOfName("surface detail"))-.72f)<.001f,"duplicate surface detail");
+        }
+        app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.deleteSelectedShader();
+        check(p->particleCount()==0,"delete releases particle state while undo retains object");
+        app.boxes.graphUndoShortcut(false);check(app.boxes.boxes.size()==2,"undo deletion");
+        app.boxes.graphUndoShortcut(true);check(app.boxes.boxes.size()==1,"redo deletion");
+        app.boxes.clear();check(app.boxes.load(file)==JPboxgroup::LoadResult::Success,"reload particles");
+        if(app.boxes.boxes.size()==1) {
+            p=dynamic_cast<JPbox_kinectparticles*>(app.boxes.boxes[0]);
+            check(p&&p->particleCount()==0&&std::abs(p->parameters.getFloatValue(p->parameters.indexOfName("life s"))-2.7f)<.001f,"persist settings only");
+            check(p&&std::abs(p->parameters.getFloatValue(p->parameters.indexOfName("surface detail"))-.72f)<.001f,"persist surface detail");
+            check(p&&std::abs(p->parameters.getFloatValue(p->parameters.indexOfName("surface contrast"))-1.3f)<.001f&&std::abs(p->parameters.getFloatValue(p->parameters.indexOfName("plume opacity"))-.4f)<.001f,"persist independent surface/plume controls");
+            if(p){p->setonoff(false);p->update();check(p->getCaptureStatus()=="Detenida","pause stops capture");}
+        }else check(false,"restored box count");
+        app.boxes.clear();ofLogNotice("particles-test")<<(passed?"PASS":"FAIL");return passed;
     }
     if(testMode && string(testMode)=="analogcolor") {
         jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true));

@@ -226,6 +226,7 @@
     <ClCompile Include="src\JPbox\jp_box.cpp" />
     <ClCompile Include="src\JPbox\jp_box_framedifference.cpp" />
     <ClCompile Include="src\fix_line.cpp" />
+    <ClCompile Include="src\JPbox\jp_box_kinectparticles.cpp" />
     <ClCompile Include="src\JPbox\jp_box_pointercloud.cpp" />
     <ClCompile Include="src\JPbox\JPboxgroup_mapping_advanced.cpp" />
     <ClCompile Include="src\JPbox\JPboxgroup_history.cpp" />
@@ -354,6 +355,8 @@
     <ClInclude Include="src\JPbox\jp_paint_doc.h" />
     <ClInclude Include="src\JPbox\jp_box_ndi.h" />
     <ClInclude Include="src\JPbox\jp_box_framedifference.h" />
+    <ClInclude Include="src\JPbox\jp_box_kinectparticles.h" />
+    <ClInclude Include="src\JPbox\jp_kinect_particles.h" />
     <ClInclude Include="src\JPbox\jp_box_pointercloud.h" />
     <ClInclude Include="src\JPbox\jp_box_kinect2.h" />
     <ClInclude Include="src\JPbox\jp_box_sequencer.h" />

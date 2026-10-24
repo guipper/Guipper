@@ -1,0 +1,13 @@
+{
+  "date": "2026-10-23",
+  "release": "PASS",
+  "core": "PASS: current full-resolution surface independent of plume density and delay, expiry and disable",
+  "native": "PASS: render, detail-only orientation, shader chain, resize, persistence, duplicate, delete/undo/redo",
+  "artifacts": "/tmp/guipper-particles-1u2gdap8/data",
+  "cpu_synthetic_surface_ms": {
+    "without_detail": 3.28952,
+    "with_detail": 9.89112,
+    "fixture": "30 fresh flat 512x424 frames, O2, no particle advance, excludes GPU/capture"
+  },
+  "real_face": "PENDING: facial resemblance, motion, noise and full composition frame rate at actual distance"
+}

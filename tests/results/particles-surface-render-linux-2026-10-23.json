@@ -1,0 +1,9 @@
+{
+  "date": "2026-10-23",
+  "release": "PASS",
+  "native": "PASS: flat current surface has <=2 byte luminance variation, brightness 2.5 preserves highlight headroom, detail-only orientation, shader chain, resize, persistence, duplicate and undo/redo",
+  "visual": "Reviewed default and high-exposure/high-zoom fixtures; surface and plume render separately",
+  "artifacts": "/tmp/guipper-particles-zgb134d7/data",
+  "real_face": "PENDING: compare facial definition and motion on Kinect at actual distance",
+  "performance": "No new live/full composition FPS measurement"
+}

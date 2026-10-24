@@ -404,6 +404,7 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	nombre = nombre.substr(0, nombre.find(".xml"));
 	*/
 	if (directory == "screenCapture") return "PANTALLA";
+	if (directory == "kinectParticles") return "PARTICULAS KINECT";
 	if (directory == "analogColor") return "ANALOG COLOR";
 	if (directory == "textSource") return "TEXTO";
 	if (directory == "youtubeVideo") return "YOUTUBE";
@@ -3470,6 +3471,18 @@ void JPboxgroup::draw_paramswindow()
             jp_tooltip::draw(screen->statusLabel(),screenStatusRect.x,screenStatusRect.y,screenStatusRect.width,screenStatusRect.height);
         }
 
+        if (auto *particles = dynamic_cast<JPbox_kinectparticles *>(inspectorBox)) {
+            ofSetColor(COL_TEXT_SECONDARY);
+            auto lines=jp_textwrap::wrap([](const string& text){return jp_constants::inspector_media_font.stringWidth(text);},
+                particles->getCaptureStatus(),particlesStatusRect.width);
+            float y=particlesStatusRect.y+16;
+            for(const auto& line:lines) {
+                if(y>particlesStatusRect.getBottom())break;
+                jp_constants::inspector_media_font.drawString(line,particlesStatusRect.x,y); y+=17;
+            }
+            jp_tooltip::draw("Profundidad compartida. Pausar libera la captura. Delay mezcla cuadros anteriores por franjas.",particlesStatusRect);
+        }
+
 		if (auto *kinect = dynamic_cast<JPbox_kinect2 *>(inspectorBox))
 		{
 			const char *labels[] = {"COLOR", "DEPTH", "IR"};
@@ -3973,6 +3986,7 @@ void JPboxgroup::update(){
         }
         if (auto *youtube = dynamic_cast<JPbox_youtube *>(node))
             if (!enabled) youtube->suspend();
+        if(auto *particles=dynamic_cast<JPbox_kinectparticles *>(node)) particles->setCaptureActive(enabled);
         if(auto *group=dynamic_cast<JPbox_preset *>(node))for(auto *child:group->boxes)stopHiddenScreens(child,enabled);
     };
     for(auto *node:boxes)stopHiddenScreens(node,true);
@@ -6122,6 +6136,12 @@ void JPboxgroup::setControllers(){
             screenMonitorButtons.emplace_back(left,layoutCursor,width,30);layoutCursor+=36;
         }
         screenStatusRect.set(left,layoutCursor,width,52);layoutCursor+=60;
+    }
+    particlesStatusRect.set(0,0,0,0);
+    if(inspectorBox->getTipo()==JPbox::KINECTPARTICLESBOX) {
+        particlesStatusRect.set(inspectorBodyViewport.x+inspectorLayout.contentPadding,layoutCursor,
+            inspectorBodyViewport.width-2*inspectorLayout.contentPadding,40);
+        layoutCursor+=48;
     }
 	if (inspectorBox->getTipo() == inspectorBox->KINECT2BOX)
 	{

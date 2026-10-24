@@ -315,6 +315,8 @@ namespace jp_help
 		E("Shift+D", "Camera depth: pseudo-depth from an ordinary camera",
 			"Camera Depth: genera pseudoprofundidad desde una cámara convencional",
 			Scope::Nodes, "shift+d"),
+        E("Shift+K", "Kinect particles: depth silhouette, time slices and turbulence",
+            "Particulas Kinect: silueta de profundidad, retardo por franjas y turbulencia", Scope::Nodes, "shift+k"),
 		E("Shift+P", "PointerCloud: Kinect V2 point cloud",
 			"PointerCloud: nube de puntos del Kinect V2", Scope::Nodes, "shift+p"),
 		GAP(),

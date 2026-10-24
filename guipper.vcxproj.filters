@@ -865,4 +865,9 @@
     <ClInclude Include="src\JPutils\jp_text_layout.h"><Filter>src\JPutils</Filter></ClInclude>
     <ClInclude Include="src\JPutils\jp_image_fixture.h"><Filter>src\JPutils</Filter></ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\JPbox\jp_box_kinectparticles.cpp" />
+    <ClInclude Include="src\JPbox\jp_box_kinectparticles.h" />
+    <ClInclude Include="src\JPbox\jp_kinect_particles.h" />
+  </ItemGroup>
 </Project>

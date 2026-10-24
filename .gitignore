@@ -71,3 +71,5 @@ tests/appimage_backend_tests
 /tests/hand_tracking_tests
 /tests/tracking_body_tests
 /tests/crowd_tracking_tests
+
+/tests/kinect_particles_tests
