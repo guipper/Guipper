@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-23",
+  "effects": [
+    "waves",
+    "vortex",
+    "rgb_split",
+    "kaleido",
+    "neon",
+    "mosaic"
+  ],
+  "release": "PASS",
+  "native_render": "PASS: six shaders compile in Guipper, amount=0 preserves RGBA, normalized control extrema, constant alpha, visible transformation, 160x96 and 96x160",
+  "artifacts": "/tmp/guipper-audience-shaders-kczzavc0/data",
+  "real_audience": "Not measured; existing tracking bindings available per parameter",
+  "performance": "No full-resolution GPU or audience latency benchmark performed",
+  "subsequent_removal": {
+    "effect": "kaleido",
+    "reason": "Removed at user request after this validation; five effects remain."
+  }
+}

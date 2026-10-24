@@ -2374,6 +2374,36 @@ while True:
         check(app.boxes.load(path)==JPboxgroup::LoadResult::AssetError,"known broken assets still report an error");
         app.boxes.clear();ofLogNotice("missing-boxes")<<(passed?"PASS":"FAIL");return passed;
     }
+    if(testMode && string(testMode)=="audience-shaders") {
+        bool passed=true;auto check=[&](bool ok,const string &label){if(!ok)ofLogError("audience-shaders")<<label;passed&=ok;};
+        const int oldW=jp_constants::renderWidth,oldH=jp_constants::renderHeight;
+        for(const auto dimensions:std::vector<std::pair<int,int>>{{160,96},{96,160}}){
+            jp_constants::renderWidth=dimensions.first;jp_constants::renderHeight=dimensions.second;
+            ofFbo input;input.allocate(dimensions.first,dimensions.second,GL_RGBA);string sourceName="audience-fixture";
+            input.begin();ofClear(0,0,0,128);ofPushStyle();ofDisableAlphaBlending();
+            for(int y=0;y<dimensions.second;y+=8)for(int x=0;x<dimensions.first;x+=8){ofSetColor(x*255/dimensions.first,y*255/dimensions.second,((x/8+y/8)%2)*220,128);ofDrawRectangle(x,y,8,8);}
+            ofPopStyle();input.end();ofPixels source;input.readToPixels(source);
+            for(const string name:{"waves","vortex","rgb_split","neon","mosaic"}){
+                JPbox_shader effect;effect.setup("shaders/imageprocessing/audience_"+name+".frag",name);effect.setonoff(true);
+                check(effect.shader.isLoaded(),name+" compiles");
+                effect.fbohandlergroup.setFboPointer(&input,&sourceName,0);
+                const int amount=effect.parameters.indexOfName("amount");check(amount>=0,name+" exposes amount");if(amount<0)continue;
+                auto set=[&](int index,float value){effect.parameters.setFloatValue(value,index);effect.parameters.setFloatLerpValue(value,index);};
+                set(amount,0);effect.updateFBO();ofPixels neutral;effect.fbo.readToPixels(neutral);
+                int error=0;for(size_t i=0;i<source.size();++i)error=std::max(error,std::abs(int(source[i])-int(neutral[i])));
+                check(error<=2,name+" amount zero preserves RGBA");
+                for(float extreme:{0.f,.5f,1.f}){
+                    for(int i=0;i<effect.parameters.getSize();++i)if(effect.parameters.getJParameter(i)->variabletype==JPParameter::FLOAT)set(i,extreme);
+                    set(amount,1);effect.updateFBO();ofPixels output;effect.fbo.readToPixels(output);
+                    int changed=0;for(size_t i=0;i<output.size();i+=4){check(std::abs(int(output[i+3])-128)<=2,name+" preserves constant alpha");for(int c=0;c<3;++c)changed+=std::abs(int(output[i+c])-int(source[i+c]))>3;}
+                    if(extreme==1)check(changed>100,name+" visibly modifies input");
+                    if(extreme==.5f&&dimensions.first>dimensions.second)ofSaveImage(output,ofToDataPath("audience_"+name+".png",true));
+                }
+            }
+        }
+        jp_constants::renderWidth=oldW;jp_constants::renderHeight=oldH;
+        ofLogNotice("audience-shaders")<<(passed?"PASS":"FAIL");return passed;
+    }
     if(testMode && (string(testMode)=="particles" || string(testMode)=="particles-live")) {
         jp::AppPaths::current()=jp::AppPaths::discover(ofToDataPath("",true));
         bool passed=true;auto check=[&](bool ok,const char *label){if(!ok)ofLogError("particles-test")<<label;passed=ok&&passed;};

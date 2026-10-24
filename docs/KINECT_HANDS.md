@@ -583,3 +583,24 @@ La asociación compara globalmente las asignaciones de hasta cuatro poses, conse
 El runtime instalado debe actualizarse con `scripts/install_hand_tracking_linux.sh`; un worker antiguo genera la indicación de actualizar en lugar de simular soporte para cuatro. No se agregaron dependencias ni modelos. La simulación del diagnóstico muestra cuatro personas y permite verificar selección, exclusión y reactivación sin cámara.
 
 Validación de cuatro personas: Release, pruebas de asociación/mapeo, runtime instalado, transporte de cuatro poses, XML de P4/máscara, undo/redo e interfaz aprobados. La prueba visual usa cuatro esqueletos simulados; no acredita rendimiento ni precisión con cuatro personas reales. Quedan pendientes oscuridad a 3–4,5 m, oclusiones y métricas de latencia/FPS. Resultados: [body-four-players-linux-2026-10-23.json](../tests/results/body-four-players-linux-2026-10-23.json).
+
+
+## Cinco efectos de imagen para el público
+
+En `shaders/imageprocessing`, buscar `audience_`. Conectar una imagen, video, cámara o salida de otra caja a `textura1`. Todos exponen `amount` (0–1): cero conserva la imagen original. Se pueden encadenar. No requieren Kinect para funcionar; cualquier parámetro admite los modos habituales de automatización.
+
+| Shader | Efecto | Vínculo corporal sugerido |
+| --- | --- | --- |
+| `audience_waves` | Ondas radiales desde un centro desplazable | Altura brazos → amount; Torso X/Y → center_x/center_y |
+| `audience_vortex` | Remolino localizado | Altura brazos → amount; Desplazamiento X/s → twist |
+| `audience_rgb_split` | Separación de canales RGB direccional o radial | Energía corporal → amount; Torso X → direction |
+| `audience_neon` | Contornos coloreados sobre la imagen | Energía corporal → amount; Altura brazos → hue |
+| `audience_mosaic` | Bloques cuadrados, reducción de colores y trama | Altura brazos → block_size; Energía corporal → amount |
+
+Para combinar personas: abrir el vínculo del parámetro, elegir Cuerpo IR o RGB, seleccionar la señal y **Promedio**, incluir P1–P4 e iniciar la fuente. También se pueden repartir controles entre personas, por ejemplo P1 → centro X, P2 → centro Y, P3 → intensidad y P4 → color. X crece hacia la derecha, Y hacia arriba; la imagen no se espeja automáticamente.
+
+Comenzar con entrada calibrada, suavizado de 150–300 ms y salida 0–1. Para intensidad basada en movimiento, usar la envolvente de Energía corporal. Para Altura brazos, usar el recorrido propio de cada instalación; la señal inicial va de 0 a 2. `twist=0.5` es neutro; por debajo gira hacia un lado y por encima hacia el otro. En mosaico, `color_steps` alto conserva más colores. `speed=0` detiene la animación propia de las ondas.
+
+Para una pista oscura donde los esqueletos no se detectan de forma estable, vincular `amount` a **Público → Movimiento** con calibración de pista. Los shaders no mejoran ni validan la precisión de Cuerpo IR. No incluyen estrobo automático ni usan feedback acumulativo. Conservan el alfa de la fuente; las deformaciones y el mosaico desplazan también su transparencia.
+
+Validación inicial de los seis shaders (kaleido retirado posteriormente a pedido del usuario): compilación/render nativos, neutralidad RGBA con amount=0, alfa constante, controles extremos y formatos horizontal/vertical aprobados. Patrón de prueba sintético; sin medición de rendimiento a resolución completa ni prueba con público real. Resultados: [audience-shaders-linux-2026-10-23.json](../tests/results/audience-shaders-linux-2026-10-23.json).
