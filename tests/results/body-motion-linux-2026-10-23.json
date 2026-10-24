@@ -1,0 +1,34 @@
+{
+  "feature": "Body motion signals for parameter automation",
+  "date": "2026-10-23",
+  "platform": "Linux",
+  "signals": [
+    "BodyEnergy",
+    "BodyVelocityX",
+    "BodyVelocityY",
+    "BodyActivityX",
+    "BodyActivityY"
+  ],
+  "aggregation": "Per-person first; group averages valid tracked people (maximum two); activity center is energy-weighted; horizontal third-zone filtering.",
+  "automated": {
+    "release": "PASS",
+    "tracking_body_tests": "PASS: constant translation at 15/30/60 FPS, quiet jitter, history warmup/gaps/aspect changes, low confidence, group magnitude vs signed direction, activity weighting, empty zones, stale results, reacquisition",
+    "hand_tracking_tests": "PASS",
+    "graphics_persistence": "PASS: energy maps into a parameter; group/zone/envelope XML roundtrip and zone undo/redo, existing lifecycle regressions",
+    "graphics_ui": "PASS: group energy, left-zone selection, reverse cycle, group selector, activity center, velocity range and envelope state; existing controls regressions"
+  },
+  "artifacts": {
+    "build_log": "/tmp/guipper-body-motion-final-build.log",
+    "graphics": "/tmp/guipper-hands-5sjenaft",
+    "graphics_log": "/tmp/guipper-body-motion-graphics.log"
+  },
+  "visual_review": "PASS: bounded native UI review of group energy, selected zone and activity center; established controls preserved.",
+  "real_validation": "PENDING: no new live benchmark or audience calibration. Prior live attempt found another Guipper instance occupying the Kinect; no user process stopped.",
+  "limitations": [
+    "IR pose accuracy remains experimental",
+    "Two skeletons do not represent a whole crowd",
+    "Measures physical image motion, not enjoyment/emotion",
+    "Real noise floor, distance, occlusion and sustained performance require calibration/measurement"
+  ],
+  "data_safety": "Harness ran in temporary profiles; existing compositions and backups untouched."
+}

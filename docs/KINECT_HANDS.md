@@ -380,8 +380,8 @@ esos intervalos no están anotados y sus recuentos no miden precisión.
 
 Es una prueba corta, no una validación de diez minutos. Quedan pendientes esa
 prueba prolongada, reconexión USB con cuerpo, lateralidad corporal de Kinect RGB
-y la confirmación del usuario sobre respuesta al movimiento. Cuerpo RGB no se
-ofrece en infrarrojo ni se presenta como reconstrucción 3D. Medidas y condiciones:
+y la confirmación del usuario sobre respuesta al movimiento. En esa validación Cuerpo RGB todavía no se
+ofrecía en infrarrojo; no se presenta como reconstrucción 3D. Medidas y condiciones:
 [body-rgb-linux-2026-10-21.json](../tests/results/body-rgb-linux-2026-10-21.json).
 
 ## Validación de Público — 21 de octubre de 2026
@@ -499,3 +499,85 @@ estabilidad en el equipo, no la respuesta y calibración con público real. Púb
 usa infrarrojo activo para medir profundidad y no necesita luz visible.
 
 Resultado completo: [audience-live-controls-linux-2026-10-21.json](../tests/results/audience-live-controls-linux-2026-10-21.json).
+
+## Cuerpo con Kinect infrarrojo — 23 de octubre de 2026
+
+Esta sección registra la primera validación con una persona. La ampliación posterior a dos personas se describe en el apartado siguiente.
+
+En el vínculo de un parámetro o en el panel de seguimiento, elegir **Kinect infrarrojo → Cuerpo IR → Iniciar esta fuente**. Entrega las mismas señales que Cuerpo RGB: torso X/Y, separación de muñecas, altura de brazos y los 33 puntos X/Y de una persona. No añade distancia corporal en metros ni seguimiento de varias personas.
+
+Usa el cuadro IR normalizado de 512×424, convertido a tres canales para el Pose Landmarker Lite existente. La previsualización y el esqueleto conservan el aspecto de ese cuadro. No espera un cuadro RGB, no sustituye IR por RGB y comparte la apertura USB con los demás consumidores Kinect. Cuerpo IR, Cuerpo RGB, Manos IR y Público tienen identidades de sesión independientes. Pasar de Público a Cuerpo conserva la selección IR.
+
+Se conserva el vencimiento de 250 ms, los umbrales de confianza, las opciones de pérdida y el mapeo habitual. XML guarda `source=kinect_ir` y `detector=body`, sin cambiar los identificadores de automatización. No requiere otro modelo ni instalar un runtime diferente si ya funciona Cuerpo RGB.
+
+**Experimental:** ejecutar Pose Landmarker sobre IR no demuestra precisión en oscuridad. Falta validar articulaciones, oclusiones, lateralidad y pérdidas con una persona real, particularmente a 3–4,5 m. Público por profundidad sigue siendo la opción existente para medir movimiento/ocupación sin depender de un esqueleto.
+
+Validación local: compilación Release, `tracking_body_tests`, `hand_tracking_tests` y harness gráfico de persistencia aprobados. La simulación comprueba formato IR 512×424, vínculo/XML y aislamiento al detener Cuerpo IR mientras sigue Cuerpo RGB. Prueba real de 30 segundos con tres parámetros vinculados: 266 muestras con cuadros IR, 130 con cuerpo presente; captura mediana 9,97 FPS, inferencia 9,98 FPS, tiempo de inferencia p95 19,43 ms, edad del resultado p95 36,72 ms y render mediano 60 FPS. La edad mide el timestamp publicado por captura, no latencia física de extremo a extremo. El log registra pérdidas de paquetes de profundidad; no se alcanzaron 15 resultados/s. Cerró correctamente con captura activa. Artefactos temporales: `/tmp/guipper-hands-t57fzb2q`.
+
+La proporción de muestras con cuerpo no mide precisión: no hubo anotación de presencia, distancia, iluminación ni movimientos. La captura de diagnóstico confirma imagen IR y overlay, pero quedan pendientes exactitud del esqueleto, falsos positivos, lateralidad, reconexión y prueba prolongada en las condiciones de la fiesta. Las pruebas usaron una copia temporal de los datos, sin modificar composiciones ni respaldos.
+
+## Dos personas por fuente y selección de players — 23 de octubre de 2026
+
+Cuerpo RGB y Cuerpo IR ahora solicitan **hasta dos poses** al detector, en una sola inferencia por fuente. Cuerpo IR conserva su carácter experimental. Los vínculos existentes se cargan con **Auto: más centrada**; no se inicia captura al cargar. Cada vínculo permite elegir:
+
+- **Auto: más centrada:** el torso más próximo al centro horizontal de la imagen. Puede cambiar de persona deliberadamente según su posición.
+- **Auto: más cercana:** menor distancia medida en el interior del torso con profundidad Kinect. Si falta profundidad válida no inventa una distancia ni utiliza el Z del modelo. No se ofrece al recorrer opciones en webcam; una configuración cargada se conserva y muestra la limitación.
+- **Persona 1 / Persona 2:** conservan el número durante la sesión y no pasan a la otra persona cuando falta la elegida. El tratamiento del valor al perder señal sigue la opción del vínculo.
+
+El diagnóstico dibuja ambos esqueletos en cian y oro, con etiquetas **P1/P2** y distancia si está disponible. Clic en la etiqueta selecciona la persona sin cambiar la señal; clic en una articulación selecciona esa persona y ese punto. El selector admite clic izquierdo para avanzar y derecho para retroceder. La elección se guarda por parámetro (`kinect/person`, versión 6; `movtype=7` intacto), incluida copia e historial. Los números son locales a cada fuente/sesión: P1 de RGB no identifica necesariamente a P1 de IR. No son los IDs del SDK oficial de Kinect ni reconocimiento de identidad personal.
+
+La asociación usa torso, desplazamiento reciente y profundidad cuando existe; no usa el orden de las poses que devuelve Python. Inicialmente numera de izquierda a derecha las personas detectadas juntas. Conserva posiciones durante pérdidas de hasta dos segundos. Un cruce sin asociación clara suspende las asignaciones. Tras dos segundos sin una asociación válida, libera los lugares y vuelve a detectar automáticamente, reiniciando el historial de movimiento. No garantiza conservar el número de una persona que sale y vuelve. **Reasignar personas** reinicia solo el detector de esa fuente y vuelve a asignar números para todos sus vínculos. No reinicia USB ni afecta otras fuentes. Si no quedan vínculos activos ni diagnóstico abierto, la inferencia corporal se detiene; hay que iniciarla de nuevo para asignar identidades, evitando una reasignación automática oculta al restaurar objetos.
+
+El runtime mantiene el protocolo de cuadros RGB8 existente y añade capacidad `max_bodies=2` y resultados `bodies` (máximo dos arrays de 33 puntos). Un runtime antiguo se rechaza con una indicación de actualización. `scripts/install_hand_tracking_linux.sh` instala el worker actualizado usando el mismo modelo fijado; en este equipo se actualizó únicamente `worker.py`, sin descargar modelos.
+
+Limitaciones: la asociación es geométrica y conservadora, no garantiza identidad ante oclusiones prolongadas o movimientos muy rápidos. Las opciones automáticas pueden cambiar de sujeto; para control individual usar Persona 1/2. Dos poses configuradas no demuestran que se detecten correctamente dos personas en IR, especialmente con público superpuesto a 3–4,5 m. La validación real de ese escenario y de su rendimiento queda separada de las pruebas simuladas.
+
+Validación de esta ampliación: Release compilado; pruebas de señales/asociación, regresión de manos, modelos/protocolo instalado, persistencia y UI aprobadas. El harness verificó dos personas simuladas controlando distintos vínculos, arrays de dos cuerpos a través de un proceso real de prueba, rechazo de runtime antiguo, cierre sin consumidores, selección por punto, recorrido inverso del selector, compatibilidad XML, copia y delete/undo/redo. La revisión visual final confirmó el espacio entre controles y la selección visible en el resumen del parámetro.
+
+La prueba real de RGB+IR simultáneos de 30 s **no valida captura ni rendimiento**: otra instancia de Guipper tenía abierta la Kinect (`LIBUSB_ERROR_BUSY`). Se recibieron solo tres resultados IR, sin cuerpos, y ninguno RGB; no son una muestra útil para medir precisión o FPS. Se dejó esa instancia abierta. Quedan pendientes dos personas reales, cruces/oclusiones, oscuridad a 3–4,5 m, reconexión y medición prolongada. No se modificaron las composiciones ni los respaldos existentes. Detalle: [body-multiperson-linux-2026-10-23.json](../tests/results/body-multiperson-linux-2026-10-23.json).
+
+## Energía y desplazamiento corporal para controlar efectos
+
+Además de posiciones y gestos, Cuerpo RGB/IR ofrece cinco señales continuas:
+
+- **Energía corporal:** velocidad media de hombros, codos, muñecas, caderas, rodillas y tobillos válidos, relativa al ancho de hombros. Detecta tanto desplazamiento general como movimiento de extremidades; no mide emociones ni demuestra que el público disfrute. Entrada inicial 0–1,5 anchos de hombros/s, ajustable.
+- **Desplazamiento X/s / Y/s:** desplazamiento medio de puntos válidos del torso por segundo, en fracciones de la imagen. X positivo hacia la derecha; Y positivo hacia arriba. Rango inicial −0,5 a +0,5; quietud en cero. No es velocidad física en metros.
+- **Centro de actividad X / Y:** posición de las articulaciones que se mueven, ponderada por su actividad, entre 0 y 1. Se señala con una cruz blanca en la imagen. Sin movimiento no entrega una posición inventada.
+
+El selector de personas añade **Promedio del grupo**: usa las personas rastreadas con señal válida, como máximo dos. La energía promedia magnitudes; las velocidades promedian dirección (movimientos opuestos pueden cancelarse). El centro de actividad del grupo pondera cada persona por su energía. Se puede limitar a **toda la imagen / izquierda / centro / derecha**, según dónde cae el centro del torso. Las regiones son tercios horizontales de la imagen sin espejo, y la seleccionada se resalta. Un punto individual usa su selección de articulación y no aplica el filtro de zona.
+
+El cálculo conserva un historial acotado por persona y compara con una posición interpolada 150 ms antes; no depende de la frecuencia de render. Rechaza puntos sin confianza, cambios fuertes de escala/aspecto y saltos de pose; descuenta un margen pequeño de ruido relativo al ancho de hombros. Tras pérdida, cambio de sesión o huecos de más de 250 ms vuelve a reunir historial, sin derivar velocidades entre identidades o cuadros separados por la pérdida. Es una estimación visual: su ruido y sensibilidad necesitan calibración con la cámara y distancia reales.
+
+**Ejemplo de intensidad:** abrir el vínculo del parámetro `mix` de un efecto, elegir **Cuerpo IR → Energía corporal → Promedio del grupo → toda la imagen**, e iniciar. Ajustar la entrada con **Medir mi recorrido · 5 s**, alternando quietud y movimiento; mantener la salida propia del parámetro, por ejemplo 0–1. Energía activa por defecto la envolvente con subida de 100 ms y bajada de 800 ms; se pueden ajustar o cambiar a suavizado simple. Para regresar al aspecto base cuando no haya personas, elegir **Al perder: volver suavemente al valor base**. La composición no se altera automáticamente.
+
+Para una pista oscura con más gente a 3–4,5 m, usar el modo existente **Público → preset Energía → Calibrar pista** y ajustar el área/distancias. Trabaja con profundidad y no depende de obtener esqueletos. Sus señales Movimiento/Actividad X/Y también pueden alimentar intensidad o posición. El promedio de dos esqueletos no representa a toda una multitud; IR corporal sigue experimental. Estas señales automatizan parámetros, no cambian automáticamente de caja, shader o composición.
+
+Persistencia: se añaden señales al final de la enumeración y `Promedio del grupo` al final de la selección de personas. XML de seguimiento versión 7 guarda `bodyzone`, señal, grupo y envolvente sin guardar historial de movimiento. Los archivos anteriores mantienen los mismos identificadores y zona completa por defecto.
+
+La interfaz conserva las filas y botones nativos existentes: cian para estados activos, dorado para la zona y el aviso experimental, blanco para el centro de actividad.
+
+Validación local de movimiento: Release, pruebas de cálculo, regresión de manos, persistencia y UI aprobadas. Se verificaron traslación constante a 15/30/60 FPS, quietud con ruido pequeño, pérdidas, historial, confianza, promedio del grupo, zonas vacías, selección inversa y envolvente. El harness usó un perfil temporal y dos personas simuladas; no valida precisión ni fluidez con público real. Quedan pendientes calibración en pista, oscuridad a 3–4,5 m, oclusiones y medición prolongada. Detalle: [body-motion-linux-2026-10-23.json](../tests/results/body-motion-linux-2026-10-23.json).
+
+
+## Promedio y exclusión de personas
+
+Los vínculos nuevos usan **Promedio** por defecto; los ya guardados conservan su selección. Elegir Promedio en el selector de personas para combinar P1 y P2. Se limita cada contribución al rango de entrada antes de promediar: brazos abajo (0 %) y arriba (100 %) producen 50 %. Solo participan señales válidas de personas incluidas y dentro de la zona. Si falta una, la otra aporta el resultado completo; si no queda ninguna, rige la política de pérdida. El centro de actividad conserva su ponderación por energía.
+
+**P1 activo/excluido** y **P2 activo/excluido** permiten anular y reactivar cada lugar por parámetro, incluso cuando no está visible. No detienen la captura ni cambian otros vínculos. XML versión 8 guarda la máscara `players` (ambos incluidos por defecto en archivos antiguos), con copia y undo/redo. La exclusión corresponde al lugar, no a una identidad biométrica: tras una ausencia prolongada puede ocuparlo otra persona.
+
+La interfaz conserva botones nativos, cian para incluidos y texto explícito para excluidos. Máximo actual: dos poses por fuente RGB o IR; Público sigue siendo la opción de movimiento global sin identificar personas. La recuperación y mezcla se prueban automáticamente; precisión y recuperación con personas reales quedan pendientes de comprobar con la Kinect.
+
+Validación de promedio y exclusión: Release, pruebas de cálculo/manos, persistencia y prueba gráfica aprobadas; revisión visual sin recortes ni superposiciones. La prueba verifica 0 % + 100 % = 50 %, exclusión/reactivación, ambos excluidos y recuperación tras ausencia prolongada/cruce en simulación. Resultados: [body-players-linux-2026-10-23.json](../tests/results/body-players-linux-2026-10-23.json).
+
+
+## Cuatro personas por fuente
+
+Cuerpo RGB e IR ahora solicitan **hasta cuatro poses** al único worker de cada fuente. El número es una capacidad configurada, no una garantía de detección: IR sigue experimental, especialmente a 3–4,5 m con oclusiones. Manos mantiene su límite de dos manos; Público no cambia.
+
+El selector permite Persona 1–4 y Promedio. Los cuatro botones **P1–P4 activo/fuera** controlan la inclusión por parámetro; el tooltip explica su alcance. La previsualización usa cuatro colores y etiquetas compactas cuando hay más de dos personas. Los vínculos nuevos incluyen las cuatro; los antiguos conservan su máscara y, si no la tenían, incluyen P1/P2. Activar P3/P4 explícitamente para ampliar un vínculo anterior. Los números son lugares locales, no identidades biométricas ni IDs compartidos entre RGB e IR.
+
+La asociación compara globalmente las asignaciones de hasta cuatro poses, conserva reservas de dos segundos y rechaza alternativas ambiguas. La inferencia sigue compartida entre parámetros; cada jugador tiene su historial de movimiento. P3/P4 se añaden al final de la enumeración sin cambiar Group=4 ni Persona 1/2. XML versión 9 admite la máscara de cuatro bits y selección individual de P3/P4, sin guardar estado de seguimiento.
+
+El runtime instalado debe actualizarse con `scripts/install_hand_tracking_linux.sh`; un worker antiguo genera la indicación de actualizar en lugar de simular soporte para cuatro. No se agregaron dependencias ni modelos. La simulación del diagnóstico muestra cuatro personas y permite verificar selección, exclusión y reactivación sin cámara.
+
+Validación de cuatro personas: Release, pruebas de asociación/mapeo, runtime instalado, transporte de cuatro poses, XML de P4/máscara, undo/redo e interfaz aprobados. La prueba visual usa cuatro esqueletos simulados; no acredita rendimiento ni precisión con cuatro personas reales. Quedan pendientes oscuridad a 3–4,5 m, oclusiones y métricas de latencia/FPS. Resultados: [body-four-players-linux-2026-10-23.json](../tests/results/body-four-players-linux-2026-10-23.json).

@@ -2190,6 +2190,28 @@ bool jp_persistence_test::run(ofApp &app)
         jp_hand::startWithFrameProvider(provider);std::this_thread::sleep_for(std::chrono::milliseconds(80));
         double cancelledAt=jp_hand::now();jp_hand::stop();check(jp_hand::now()-cancelledAt<.05,"stop never joins on render thread");
         jp_hand::start(true);check(waitFor([]{return jp_hand::snapshot().simulated&&!jp_hand::snapshot().hands.empty();},1500),"restart cancels unresponsive startup and ignores late replies");jp_hand::stop();
+        jp_hand::Source fixtureBody{jp_hand::SourceKind::KinectIR,{},jp_hand::Detector::Body};
+        writeFixture("/pose_landmarker_lite.task","fixture");
+        writeFixture("/worker.py","print('{\"protocol\":2,\"detector\":\"body\"}',flush=True)\n");
+        jp_hand::setPanelVisible(true,fixtureBody);jp_hand::startWithFrameProvider(provider,fixtureBody);
+        check(waitFor([&]{return jp_hand::snapshot(fixtureBody).status.find("Actualizar runtime")!=string::npos;},1500),"old single-body runtime requests explicit update");jp_hand::stop(fixtureBody);
+        writeFixture("/worker.py",R"PY(import sys,struct,json
+print('{"protocol":2,"detector":"body","max_bodies":4}',flush=True)
+while True:
+ h=sys.stdin.buffer.read(32)
+ if len(h)!=32: break
+ size,w,height,fmt,stamp,serial=struct.unpack('<IIIIQQ',h)
+ data=sys.stdin.buffer.read(size)
+ if len(data)!=size: break
+ poses=[[[x,.5,1,1] for i in range(33)] for x in [.12,.37,.62,.87]]
+ print(json.dumps({'serial':serial,'bodies':poses,'ms':1}),flush=True)
+)PY");
+        jp_hand::startWithFrameProvider(provider,fixtureBody);
+        check(waitFor([&]{return jp_hand::snapshot(fixtureBody).bodies.size()==4;},1500),"binary frame transport parses four body landmark arrays");
+        jp_hand::Binding fixtureBinding;fixtureBinding.source=fixtureBody;fixtureBinding.person=jp_hand::BodySelection::Player4;fixtureBinding.players=15;fixtureBinding.signal=jp_hand::TorsoX;
+        check(std::abs(jp_hand::sample(jp_hand::snapshot(fixtureBody),fixtureBinding,jp_hand::now()).raw-.87f)<.001f,"fourth parsed body controls its own binding");
+        jp_hand::setPanelVisible(false);
+        check(waitFor([&]{return !jp_hand::running(fixtureBody);},1500),"unused body inference stops without silently reassigning identities");jp_hand::stop(fixtureBody);
         jp_hand::setPanelVisible(false);
         if(previous)setenv("GUIPPER_HAND_RUNTIME",old.c_str(),1);else unsetenv("GUIPPER_HAND_RUNTIME");
 #endif
@@ -2218,16 +2240,23 @@ bool jp_persistence_test::run(ofApp &app)
         // Body and hands share a camera but have independent inference sessions.
         jp_hand::Source bodySource=cameraSource;bodySource.detector=jp_hand::Detector::Body;
         jp_hand::start(true,bodySource);
-        check(waitFor([&]{jp_hand::demand(cameraSource);jp_hand::demand(bodySource);return jp_hand::snapshot(bodySource).body.present&&!jp_hand::snapshot(cameraSource).hands.empty();},1000),"body and hands coexist on same physical camera");
-        multi->handBinding.source=bodySource;jp_hand::setSignal(multi->handBinding,jp_hand::WristSpan);multi->handBinding.loss=jp_hand::Loss::ReturnBase;multi->update();
-        check(multi->handFilter.valid&&std::abs(jp_hand::snapshot(bodySource).body.aspect-4.f/3)<.001,"body mapping uses camera aspect");
+        check(waitFor([&]{jp_hand::demand(cameraSource);jp_hand::demand(bodySource);return !jp_hand::snapshot(bodySource).bodies.empty()&&!jp_hand::snapshot(cameraSource).hands.empty();},1000),"body and hands coexist on same physical camera");
+        multi->handBinding.source=bodySource;multi->handBinding.person=jp_hand::BodySelection::Player1;jp_hand::setSignal(multi->handBinding,jp_hand::WristSpan);multi->handBinding.loss=jp_hand::Loss::ReturnBase;multi->update();
+        check(multi->handFilter.valid&&std::abs(jp_hand::snapshot(bodySource).bodies.front().aspect-4.f/3)<.001,"body mapping uses camera aspect");
         const auto bodyFrame=jp_hand::snapshot(bodySource).frame;
-        auto *bodySecond=app.boxes.boxes[0]->parameters.getJParameter(0);bodySecond->setAutomationMode(JPParameter::KINECT);bodySecond->handBinding.source=bodySource;jp_hand::setSignal(bodySecond->handBinding,jp_hand::TorsoX);bodySecond->update();
+        auto *bodySecond=app.boxes.boxes[0]->parameters.getJParameter(0);bodySecond->setAutomationMode(JPParameter::KINECT);bodySecond->handBinding.source=bodySource;bodySecond->handBinding.person=jp_hand::BodySelection::Player2;jp_hand::setSignal(bodySecond->handBinding,jp_hand::TorsoX);bodySecond->update();
         check(bodySecond->handFilter.valid&&jp_hand::snapshot(bodySource).frame==bodyFrame,"two body bindings share one inference snapshot");
+        check(jp_hand::snapshot(bodySource).bodies.size()==4&&jp_hand::selectedBody(jp_hand::snapshot(bodySource),multi->handBinding)->player==1&&jp_hand::selectedBody(jp_hand::snapshot(bodySource),bodySecond->handBinding)->player==2,"two parameters select different people from one inference");
+        auto personEdit=mapping;personEdit.paramBefore.hand=multi->handBinding;personEdit.paramAfter=personEdit.paramBefore;personEdit.paramAfter.hand.person=jp_hand::BodySelection::Player2;
+        check(app.boxes.applyGraphEdit(personEdit)&&multi->handBinding.person==jp_hand::BodySelection::Player2,"person selection redo");
+        check(app.boxes.revertGraphEdit(personEdit)&&multi->handBinding.person==jp_hand::BodySelection::Player1,"person selection undo");
         multi->setMorph(1,.5);multi->update();check(std::abs(multi->floatValue-(multi->handFilter.output+1)*.5)<.001,"body transition blends emitted output");multi->clearMorph();
         ofXml bodyXml;auto bodyRoot=bodyXml.appendChild("box");jp_parameter_xml::save(bodyRoot,app.boxes.boxes[0]->parameters);
         JPParameterGroup bodyCopy=app.boxes.boxes[0]->parameters;jp_parameter_xml::load(bodyRoot,bodyCopy,jp_parameter_xml::LoadContext::Preset);
         auto *bodyParam=bodyCopy.getJParameter(bodyCopy.indexOfName("pixel size"));check(bodyParam->handBinding==multi->handBinding&&!bodyParam->handFilter.initialized,"body detector, signal and loss policy survive XML and copy");
+        for(auto param:bodyRoot.getChild("parameters").getChildren("param"))param.getChild("kinect").removeChild("person");
+        jp_parameter_xml::load(bodyRoot,bodyCopy,jp_parameter_xml::LoadContext::Preset);
+        check(bodyParam->handBinding.person==jp_hand::BodySelection::Centered,"legacy body links use automatic centered selection");
         sourceEdit.paramBefore.hand=multi->handBinding;sourceEdit.paramAfter=sourceEdit.paramBefore;sourceEdit.paramAfter.hand.source=cameraSource;jp_hand::setSignal(sourceEdit.paramAfter.hand,jp_hand::Pinch);
         check(app.boxes.applyGraphEdit(sourceEdit)&&multi->handBinding.source==cameraSource,"body to hand edit redo");
         check(app.boxes.revertGraphEdit(sourceEdit)&&multi->handBinding.source==bodySource&&multi->handBinding.signal==jp_hand::WristSpan,"body source undo");
@@ -2236,6 +2265,38 @@ bool jp_persistence_test::run(ofApp &app)
         check(waitFor([&]{jp_hand::demand(bodySource);multi->update();return multi->movtype==JPParameter::STANDART;},1500),"loss release returns manual control");
         check(multi->handBinding.source==bodySource,"release retains configured body source");
         multi->setAutomationMode(JPParameter::KINECT);multi->handBinding.loss=jp_hand::Loss::Hold;multi->handBinding.inputMax=3;
+        jp_hand::Source irBody{jp_hand::SourceKind::KinectIR,{},jp_hand::Detector::Body};
+        jp_hand::start(true,irBody);multi->handBinding.source=irBody;jp_hand::setSignal(multi->handBinding,jp_hand::TorsoX);
+        check(waitFor([&]{multi->update();return multi->handFilter.valid;},1000),"IR body controls parameter");
+        const auto irBodyFrame=jp_hand::snapshot(irBody).frame;
+        check(irBodyFrame&&irBodyFrame->infrared&&irBodyFrame->width==512&&irBodyFrame->height==424,"IR body preserves native format and source");
+        ofXml irXml;auto irRoot=irXml.appendChild("box");jp_parameter_xml::save(irRoot,app.boxes.boxes[0]->parameters);
+        JPParameterGroup irCopy=app.boxes.boxes[0]->parameters;jp_parameter_xml::load(irRoot,irCopy,jp_parameter_xml::LoadContext::Preset);
+        check(irCopy.getJParameter(irCopy.indexOfName("pixel size"))->handBinding.source==irBody,"IR body XML and copy retain source/detector");
+        const auto originalBodyBinding=multi->handBinding;
+        multi->handBinding.person=jp_hand::BodySelection::Group;multi->handBinding.players=1;multi->handBinding.bodyZone=1;jp_hand::setSignal(multi->handBinding,jp_hand::BodyEnergy);
+        check(waitFor([&]{multi->update();return multi->handFilter.valid;},1000),"group energy reaches parameter after temporal warmup");
+        ofXml motionXml;auto motionRoot=motionXml.appendChild("box");jp_parameter_xml::save(motionRoot,app.boxes.boxes[0]->parameters);
+        JPParameterGroup motionCopy=app.boxes.boxes[0]->parameters;jp_parameter_xml::load(motionRoot,motionCopy,jp_parameter_xml::LoadContext::Preset);
+        const auto *motionParam=motionCopy.getJParameter(motionCopy.indexOfName("pixel size"));
+        check(motionParam->handBinding==multi->handBinding&&!motionParam->handFilter.initialized,"group, energy, zone and attack/release persist without temporal state");
+        auto motionEdit=mapping;motionEdit.paramBefore.hand=multi->handBinding;motionEdit.paramAfter=motionEdit.paramBefore;motionEdit.paramAfter.hand.bodyZone=3;motionEdit.paramAfter.hand.players=12;motionEdit.paramAfter.hand.person=jp_hand::BodySelection::Player4;
+        check(app.boxes.applyGraphEdit(motionEdit)&&multi->handBinding.bodyZone==3&&multi->handBinding.players==12&&multi->handBinding.person==jp_hand::BodySelection::Player4,"body motion zone and players redo");
+        ofXml fourXml;auto fourRoot=fourXml.appendChild("box");jp_parameter_xml::save(fourRoot,app.boxes.boxes[0]->parameters);
+        JPParameterGroup fourCopy=app.boxes.boxes[0]->parameters;jp_parameter_xml::load(fourRoot,fourCopy,jp_parameter_xml::LoadContext::Preset);
+        auto *fourParam=fourCopy.getJParameter(fourCopy.indexOfName("pixel size"));
+        check(fourParam->handBinding.person==jp_hand::BodySelection::Player4&&fourParam->handBinding.players==12,"P4 selection and P3/P4 mask roundtrip");
+        check(app.boxes.revertGraphEdit(motionEdit)&&multi->handBinding.bodyZone==1&&multi->handBinding.players==1,"body motion zone and players undo");
+        multi->handBinding=originalBodyBinding;
+        jp_hand::stop(irBody);check(jp_hand::running(bodySource),"stopping IR body preserves other body session");
+        app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.copySelectedBoxes();app.boxes.pasteBoxes();
+        check(app.boxes.boxes.size()==2,"multi-person graph duplicate");
+        if(app.boxes.boxes.size()==2){auto *duplicate=app.boxes.boxes[1]->parameters.getJParameter(app.boxes.boxes[1]->parameters.indexOfName("pixel size"));
+            check(duplicate->handBinding.person==jp_hand::BodySelection::Player1&&duplicate->handBinding.source==irBody&&!duplicate->handFilter.initialized,"duplicate preserves person/source without identity runtime");
+            app.boxes.clearSelection();app.boxes.toggleBoxSelection(1);app.boxes.deleteSelectedShader();app.boxes.graphUndoShortcut(false);
+            check(app.boxes.boxes.size()==2&&duplicate->handBinding.person==jp_hand::BodySelection::Player1&&!duplicate->handFilter.initialized,"body delete undo retains selected person");app.boxes.graphUndoShortcut(true);
+            check(app.boxes.boxes.size()==1,"body delete redo");}
+
         // Depth-only audience runs without RGB, Python or a body model.
         jp_hand::Source audience{jp_hand::SourceKind::KinectIR,{},jp_hand::Detector::Crowd};
         auto depthOnly=[]()->std::shared_ptr<const jp_hand::Frame>{auto f=std::make_shared<jp_hand::Frame>();f->depthWidth=128;f->depthHeight=96;f->captured=jp_hand::now();f->serial=uint64_t(f->captured*30);f->depth.assign(128*96,4000);for(int y=16;y<80;++y)for(int x=16;x<48;++x)f->depth[y*128+x]=2000;return f;};

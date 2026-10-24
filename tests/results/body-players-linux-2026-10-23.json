@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-23",
+  "platform": "Linux",
+  "release": "PASS",
+  "core": [
+    "tracking_body_tests PASS",
+    "hand_tracking_tests PASS"
+  ],
+  "integration": "hands-test PASS: XML, copies, graph lifecycle, player mask, undo/redo",
+  "ui": "hands-ui PASS: cycle selection, exclude P1/P2, both excluded, reactivate",
+  "visual_review": "PASS: readable native controls, no clipping or overlap",
+  "artifacts": "/tmp/guipper-hands-shktr8b4",
+  "real_camera": "PENDING: long absence/reentry, ambiguity recovery and averaging with two real people",
+  "semantics": "Two slots per source; reservations expire after two seconds. Exclusions are per binding and slot, not biometric identities."
+}

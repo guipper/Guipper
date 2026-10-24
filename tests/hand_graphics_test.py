@@ -17,6 +17,8 @@ cases = [("persistence", {"GUIPPER_PERSISTENCE_TEST": "hands"}, "hands-test: PAS
          ("ui", {"GUIPPER_UISHOT": "hands"}, "hands-ui: PASS")]
 if "--persistence-only" in sys.argv:
     cases = cases[:1]
+if "--ui-only" in sys.argv:
+    cases = cases[1:]
 if "--real" in sys.argv:
     cases = [("real", {"GUIPPER_UISHOT": "hands-real"}, "hands-benchmark:")]
 for name, mode, marker in cases:

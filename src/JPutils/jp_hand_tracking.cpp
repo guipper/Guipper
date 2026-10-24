@@ -111,20 +111,23 @@ struct Service {
  void real(uint64_t g){
   if(key.kind!=SourceKind::KinectRGB&&key.kind!=SourceKind::KinectIR&&key.kind!=SourceKind::Camera){status("Fuente no compatible. Seleccionar otra fuente.",g);return;}
   const bool body=key.detector==Detector::Body;
-  if(body&&key.kind==SourceKind::KinectIR){status("Cuerpo necesita Kinect RGB o una camara de PC",g);return;}
   FrameProvider frames;{std::lock_guard<std::mutex> l(mutex);frames=provider;}
   const char *custom=getenv("GUIPPER_HAND_RUNTIME"),*xdg=getenv("XDG_DATA_HOME"),*home=getenv("HOME");
   std::string dir=custom?custom:std::string(xdg?xdg:((std::string(home?home:".")+"/.local/share").c_str()))+"/Guipper/hand-tracking";
   for(auto file:{"/venv/bin/python","/worker.py",body?"/pose_landmarker_lite.task":"/hand_landmarker.task"})if(access((dir+file).c_str(),R_OK)){status("Runtime ausente: scripts/install_hand_tracking_linux.sh",g);return;}
   Process process;if(!process.launch(dir,body)){status("Error al iniciar Python",g);return;}
   std::string line;if(!process.line(*this,g,line,now()+30)){status("Error: runtime no responde al iniciar",g);return;}
-  try{auto ready=ofJson::parse(line);if(ready.value("protocol",0)!=2||ready.value("detector",std::string("hands"))!=(body?"body":"hands"))throw std::runtime_error("protocolo");}catch(...){status("Actualizar runtime: scripts/install_hand_tracking_linux.sh",g);return;}
+  try{auto ready=ofJson::parse(line);if(ready.value("protocol",0)!=2||ready.value("detector",std::string("hands"))!=(body?"body":"hands")||(body&&ready.value("max_bodies",0)!=MaxBodies))throw std::runtime_error("protocolo");}catch(...){status("Actualizar runtime: scripts/install_hand_tracking_linux.sh",g);return;}
   std::shared_ptr<KinectV2CaptureSource> source;std::shared_ptr<void> lease;
   std::shared_ptr<JPCameraCaptureSource> camera;
-  Associator assoc;uint64_t serial=0,dropped=0;double last=0;const double started=now();
+  Associator assoc;BodyAssociator bodyAssoc;uint64_t serial=0,dropped=0;double last=0;const double started=now();
   const bool infrared=key.kind==SourceKind::KinectIR;
   while(!cancelled(g)){
-   if(!panel&&now()-wanted>.5){dormant=true;status("En pausa: sin vinculos activos",g);return;}
+   if(!panel&&now()-wanted>.5){
+    if(body){{std::lock_guard<std::mutex> l(mutex);if(!cancelled(g))mode=0;}status("Detenido: sin vinculos activos. Iniciar para reasignar.",g);}
+    else{dormant=true;status("En pausa: sin vinculos activos",g);}
+    return;
+   }
    if(!frames){
     if(key.kind==SourceKind::Camera){
      if(!camera){camera=JPbox_cam::acquireCameraByKey(key.device);if(camera&&reconnecting.exchange(false))camera->reconnect();}
@@ -150,9 +153,14 @@ struct Service {
     auto data=ofJson::parse(line);if(data.at("serial").get<uint64_t>()!=serial)throw std::runtime_error("cuadro anterior");std::vector<Hand> detected;
     Snapshot s;s.frame=f;s.captured=f->captured;s.inferenceMs=data.at("ms");s.dropped=dropped;
     if(body){
-     const auto &points=data.at("body");if(!points.is_array()||(points.size()!=0&&points.size()!=33))throw std::runtime_error("cuerpo");
-     s.body.present=points.size()==33;s.body.aspect=float(f->width)/f->height;
-     for(size_t i=0;i<points.size();++i){if(points[i].size()!=4)throw std::runtime_error("punto corporal");auto &p=s.body.points[i];p.position={points[i][0].get<float>(),points[i][1].get<float>()};p.visibility=points[i][2];p.presence=points[i][3];if(!std::isfinite(p.position.x)||!std::isfinite(p.position.y)||!std::isfinite(p.visibility)||!std::isfinite(p.presence))throw std::runtime_error("coordenadas");}
+     const auto &poses=data.at("bodies");if(!poses.is_array()||poses.size()>MaxBodies)throw std::runtime_error("cuerpos");
+     std::vector<Body> bodies;
+     for(const auto &points:poses){
+      if(!points.is_array()||points.size()!=33)throw std::runtime_error("cuerpo");Body b;b.present=true;b.aspect=float(f->width)/f->height;
+      for(size_t i=0;i<points.size();++i){if(points[i].size()!=4)throw std::runtime_error("punto corporal");auto &p=b.points[i];p.position={points[i][0].get<float>(),points[i][1].get<float>()};p.visibility=points[i][2];p.presence=points[i][3];if(!std::isfinite(p.position.x)||!std::isfinite(p.position.y)||!std::isfinite(p.visibility)||!std::isfinite(p.presence))throw std::runtime_error("coordenadas");}
+      measureBodyDepth(b,*f);bodies.push_back(b);
+     }
+     s.bodies=bodyAssoc.update(std::move(bodies),f->captured);s.bodyNeedsReassign=bodyAssoc.needsReassign;
     }else{
     if(!data.at("hands").is_array()||data.at("hands").size()>2)throw std::runtime_error("manos");
     for(const auto &item:data.at("hands")){Hand h;h.right=item.at("right");
@@ -166,7 +174,7 @@ struct Service {
     s.hands=assoc.update(detected,f->captured);
     }
     double time=now();s.inferenceFps=last>0?float(1/(time-last)):0;last=time;
-    s.status=time-s.captured>.25?"Resultado vencido":body?(s.body.present?"Siguiendo cuerpo":"Buscando cuerpo"):(s.hands.empty()?"Buscando mano":"Siguiendo");publish(std::move(s),g);
+    s.status=time-s.captured>.25?"Resultado vencido":body?(s.bodyNeedsReassign?"Cruce ambiguo: recuperando personas":s.bodies.empty()?"Buscando personas":"Siguiendo "+std::to_string(s.bodies.size())+" persona(s)"):(s.hands.empty()?"Buscando mano":"Siguiendo");publish(std::move(s),g);
    }catch(const std::exception &){status("Error: respuesta invalida del detector",g);return;}
   }
  }
@@ -178,8 +186,10 @@ struct Service {
   uint64_t handled=0;
   while(!closing){uint64_t g=generation;if(!panel&&now()-wanted>.5){pause(30);continue;}if(g==handled||mode==0){pause(30);continue;}handled=g;
    if(key.detector==Detector::Crowd){dormant=false;crowd(g,mode==2);if(dormant)handled=0;continue;}
-   if(mode==2){while(!cancelled(g)){if(!panel&&now()-wanted>.5){pause(50);continue;}Snapshot s=simulatedSnapshot(now(),loss,key.detector);
-     if(key.kind!=SourceKind::KinectRGB){auto f=std::make_shared<Frame>(*s.frame);f->width=f->nativeWidth=key.kind==SourceKind::KinectIR?512:640;f->height=f->nativeHeight=key.kind==SourceKind::KinectIR?424:480;f->rgb.assign(f->width*f->height*3,24);f->infrared=key.kind==SourceKind::KinectIR;f->depthWidth=f->depthHeight=0;s.frame=f;s.body.aspect=float(f->width)/f->height;for(auto &h:s.hands){h.aspect=float(f->width)/f->height;if(key.kind==SourceKind::Camera)h.depthValid=false;}}
+   if(mode==2){std::array<BodyMotion,MaxBodies> simulatedMotion;while(!cancelled(g)){if(!panel&&now()-wanted>.5){pause(50);continue;}Snapshot s=simulatedSnapshot(now(),loss,key.detector,MaxBodies);
+     if(key.kind!=SourceKind::KinectRGB){auto f=std::make_shared<Frame>(*s.frame);f->width=f->nativeWidth=key.kind==SourceKind::KinectIR?512:640;f->height=f->nativeHeight=key.kind==SourceKind::KinectIR?424:480;f->rgb.assign(f->width*f->height*3,24);f->infrared=key.kind==SourceKind::KinectIR;f->depthWidth=f->depthHeight=0;s.frame=f;for(auto &b:s.bodies){b.aspect=float(f->width)/f->height;if(key.kind==SourceKind::Camera)b.depthValid=false;}for(auto &h:s.hands){h.aspect=float(f->width)/f->height;if(key.kind==SourceKind::Camera)h.depthValid=false;}}
+     for(auto &b:s.bodies)simulatedMotion[b.player-1].update(b,s.captured);
+     if(s.bodies.empty())for(auto &motion:simulatedMotion)motion.clear();
      publish(std::move(s),g);pause(33);}continue;}
 #ifdef __linux__
    dormant=false;real(g);if(dormant)handled=0;

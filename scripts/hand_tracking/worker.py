@@ -7,6 +7,8 @@ import numpy as np
 import mediapipe as mp
 from mediapipe.tasks.python import vision
 
+MAX_BODIES = 4
+
 
 def read_exact(n):
     data = bytearray()
@@ -22,11 +24,16 @@ def emit(value):
     print(json.dumps(value, allow_nan=False, separators=(",", ":")), flush=True)
 
 
+def body_points(poses):
+    return [[[p.x, p.y, p.visibility or 0, p.presence or 0] for p in points]
+            for points in poses[:MAX_BODIES]]
+
+
 def main():
     body = len(sys.argv) > 2 and sys.argv[2] == "body"
     options = vision.PoseLandmarkerOptions(
         base_options=mp.tasks.BaseOptions(model_asset_path=sys.argv[1]),
-        running_mode=vision.RunningMode.VIDEO, num_poses=1,
+        running_mode=vision.RunningMode.VIDEO, num_poses=MAX_BODIES,
         min_pose_detection_confidence=0.6, min_pose_presence_confidence=0.6,
         min_tracking_confidence=0.5, output_segmentation_masks=False) if body else vision.HandLandmarkerOptions(
         base_options=mp.tasks.BaseOptions(model_asset_path=sys.argv[1]),
@@ -35,7 +42,7 @@ def main():
         min_tracking_confidence=0.5)
     implementation = vision.PoseLandmarker if body else vision.HandLandmarker
     with implementation.create_from_options(options) as detector:
-        emit({"ready": 1, "protocol": 2, "detector": "body" if body else "hands"})
+        emit({"ready": 1, "protocol": 2, "detector": "body" if body else "hands", "max_bodies": MAX_BODIES})
         previous = 0
         while True:
             try:
@@ -50,8 +57,8 @@ def main():
             start = time.monotonic()
             result = detector.detect_for_video(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb), stamp)
             if body:
-                points = result.pose_landmarks[0] if result.pose_landmarks else []
-                emit({"serial": serial, "body": [[p.x, p.y, p.visibility or 0, p.presence or 0] for p in points],
+                poses = body_points(result.pose_landmarks)
+                emit({"serial": serial, "bodies": poses,
                       "ms": (time.monotonic() - start) * 1000})
                 continue
             hands = []

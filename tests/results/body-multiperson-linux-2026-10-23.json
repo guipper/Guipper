@@ -1,0 +1,39 @@
+{
+  "feature": "Two body poses per RGB/IR source with per-parameter player selection",
+  "date": "2026-10-23",
+  "platform": "Linux / Kinect v2",
+  "automatic": {
+    "release_build": "PASS",
+    "tracking_body_tests": "PASS: signals, two-person association independent of result order, brief loss, ambiguous crossing rejection, distinct depth, expired identity reservation, separate source trackers, nearest/centered/fixed selection, missing depth",
+    "hand_tracking_tests": "PASS",
+    "hand_worker_test": "PASS: installed pinned models; protocol capability and empty outputs at 960x540, 640x480, 512x424",
+    "graphics_persistence": "PASS: simulated two-body routing, real subprocess fixture, old-runtime rejection, idle shutdown, XML compatibility, copy, selection undo/redo, delete undo/redo and existing group/transition regressions",
+    "graphics_ui": "PASS: point/person selection, forward/reverse person cycle, calibration, existing tracking controls; final UI run after spacing and summary fixes"
+  },
+  "artifacts": {
+    "graphics": "/tmp/guipper-hands-bw20q370",
+    "ui_final": "/tmp/guipper-hands-sqgr0f5i",
+    "live_attempt": "/tmp/guipper-hands-eadd6zfb"
+  },
+  "real_capture": {
+    "status": "BLOCKED for simultaneous capture/performance validation",
+    "reason": "Kinect USB interface occupied by another running Guipper instance (LIBUSB_ERROR_BUSY). Left that process running.",
+    "duration_requested_s": 30,
+    "ir_result_samples": 3,
+    "rgb_result_samples": 0,
+    "detected_bodies_in_samples": 0,
+    "performance_conclusion": null
+  },
+  "pending": [
+    "Two actual people in RGB and IR",
+    "Anatomical landmark accuracy and false positives",
+    "Identity stability during crossings/occlusions in real use",
+    "Darkness at 3–4.5 m",
+    "Sustained simultaneous RGB/IR performance and USB reconnection"
+  ],
+  "limitations": [
+    "IR remains experimental",
+    "Player numbers are local to source/session, not official Kinect SDK IDs or persistent personal identity",
+    "Ambiguous or expired identities require explicit reassignment; automatic selectors may intentionally change person"
+  ]
+}

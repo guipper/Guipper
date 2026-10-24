@@ -1,0 +1,13 @@
+{
+  "date": "2026-10-23",
+  "platform": "Linux",
+  "capacity_per_source": 4,
+  "release": "PASS",
+  "core": "PASS: four-slot permutations, individual selection, averaging, exclusions, reacquisition; existing hands/body regressions",
+  "runtime": "PASS: installed worker matches source, four distinct synthetic poses serialized, pinned hands/body models and variable frame formats",
+  "integration": "PASS: four-pose subprocess transport, P4 and mask XML roundtrip, copy and graph undo/redo",
+  "ui": "PASS: four simulated bodies, P3/P4 selection, exclusion and reactivation of all four",
+  "artifacts": "/tmp/guipper-hands-bgdek3oy",
+  "real_validation": "PENDING: four people in RGB/IR, occlusions, darkness at 3–4.5 m, latency and sustained FPS",
+  "compatibility": "Group remains 4, P3/P4 appended; old masks preserved, missing mask retains P1/P2"
+}
