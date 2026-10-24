@@ -10,17 +10,17 @@ void JPbox_kinectparticles::setup(string directory,string boxName) {
         parameters.addFloatValue(value,label);
         parameters.setMin(lo,i); parameters.setMax(hi,i);
     };
-    add(1.f,"density",0,1); add(3,"point size",1,16);
-    add(1.6f,"life s",.1f,8); add(.35f,"turbulence",0,2);
-    add(.36f,"rise m/s",-1,1); add(.35f,"spread",0,1.5f);
+    add(1.f,"density",0,1); add(1.2f,"point size",1,16);
+    add(2.4f,"life s",.1f,8); add(.22f,"turbulence",0,2);
+    add(.45f,"rise m/s",-1,1); add(.08f,"spread",0,1.5f);
     add(.65f,"delay s",0,2); add(15,"time stripes",1,40);
-    add(1.f,"silhouette",0,1); add(3,"near m",.5f,4.49f);
+    add(1.f,"silhouette",0,1); add(.5f,"near m",.5f,4.49f);
     add(4.5f,"far m",.51f,4.5f); add(1,"zoom",.25f,3);
     add(0,"color cycle",0,1); add(1,"brightness",0,3);
     parameters.addBoolValue(true,"mirror"); parameters.addBoolValue(false,"additive");
-    add(.85f,"surface detail",0,1); // Append: preserve saved parameter indices.
+    add(1.f,"surface detail",0,1); // Append: preserve saved parameter indices.
     add(1.f,"surface contrast",0,2);
-    add(.6f,"plume opacity",0,1);
+    add(.8f,"plume opacity",0,1);
     // Private renderer resources belong to this executable. A previously
     // migrated development profile does not receive new bundled files.
     const auto shaderPath = jp::AppPaths::current().bundle / "shaders/private/kinectparticles";

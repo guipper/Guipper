@@ -607,7 +607,7 @@ namespace
 		const std::pair<const char *, Kind> kinds[] = {
 			{"effect.frag", Kind::Shader}, {"photo.png", Kind::Image},
 			{"clip.mp4", Kind::Video}, {"group.xml", Kind::Preset},
-			{"kinectParticles", Kind::KinectParticles}, {"iphoneLidar", Kind::IPhoneLidar}, {"kinect2", Kind::Kinect2}, {"pointercloud", Kind::PointerCloud},
+			{"sarv", Kind::Sarv}, {"kinectParticles", Kind::KinectParticles}, {"iphoneLidar", Kind::IPhoneLidar}, {"kinect2", Kind::Kinect2}, {"pointercloud", Kind::PointerCloud},
 			{"camdepth", Kind::CameraDepth}, {"cam", Kind::Camera},
 			{"framedifference", Kind::FrameDifference}, {"paint", Kind::Paint},
 			{"unrecognized", Kind::Unknown}};

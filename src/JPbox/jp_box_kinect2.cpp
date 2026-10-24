@@ -14,7 +14,9 @@ using std::mutex;
 using std::thread;
 using std::unique_lock;
 
-#ifdef KINECT2
+#if defined(GUIPPER_KINECT_SDK)
+#include "../JPutils/jp_kinect_sdk.h"
+#elif defined(KINECT2)
 #include <libfreenect2/frame_listener_impl.h>
 #include <libfreenect2/libfreenect2.hpp>
 #include <libfreenect2/packet_pipeline.h>
@@ -43,7 +45,7 @@ public:
     std::shared_ptr<const jp_hand::Frame> handSnapshot(bool infrared)const {lock_guard<mutex> lock(dataMutex);return infrared?irTrackingFrame:trackingFrame;}
 	KinectV2CaptureSource()
 	{
-#ifdef KINECT2
+#if defined(GUIPPER_KINECT_SDK) || defined(KINECT2)
 		worker = thread(&KinectV2CaptureSource::run, this);
 #else
 		setStatus("INSTALL LIBFREENECT2");
@@ -131,7 +133,90 @@ private:
 		statusText = value;
 	}
 
-#ifdef KINECT2
+#if defined(GUIPPER_KINECT_SDK)
+	void run()
+	{
+		while (!stopRequested)
+		{
+			reconnectRequested = false;
+			{
+				lock_guard<mutex> lock(dataMutex);
+				irParams = JPbox_kinect2::DepthIntrinsics();
+				trackingFrame.reset(); irTrackingFrame.reset(); audienceTrackingFrame.reset();
+			}
+			{
+				jp_kinect_sdk::Capture device;
+				if (device.open())
+				{
+					double lastCaptured = 0, lastColorCaptured = 0;
+					double lastFrame = jp_hand::now();
+					jp_hand::IRNormalizer normalizer;
+					while (!stopRequested && !reconnectRequested)
+					{
+						if (!device.read())
+						{
+							if (jp_hand::now() - lastFrame > 1.0) setStatus(device.status);
+							if (jp_hand::now() - lastFrame > 10.0) break;
+							unique_lock<mutex> lock(waitMutex);
+							wake.wait_for(lock, std::chrono::milliseconds(5), [this] { return stopRequested.load() || reconnectRequested.load(); });
+							continue;
+						}
+						const double captured = jp_hand::now();
+						lastFrame = captured;
+						auto nextDepth = std::make_shared<vector<float>>(device.depth.begin(), device.depth.end());
+						auto nextIR = std::make_shared<vector<float>>(device.infrared.begin(), device.infrared.end());
+						std::shared_ptr<jp_hand::Frame> irHands, audience, hands;
+						auto monoFrame = [&]() {
+							auto f = std::make_shared<jp_hand::Frame>();
+							f->captured = captured; f->serial = frameVersion + 1;
+							f->width = f->nativeWidth = f->depthWidth = kDepthWidth;
+							f->height = f->nativeHeight = f->depthHeight = kDepthHeight;
+							f->captureFps = lastCaptured > 0 ? float(1 / (captured - lastCaptured)) : 0;
+							f->depth = *nextDepth;
+							return f;
+						};
+						if (irHandUsers.load() > 0) {
+							irHands = monoFrame(); irHands->infrared = true;
+							irHands->rgb = normalizer.convert(nextIR->data(), nextIR->size(), captured);
+						}
+						if (audienceUsers.load() > 0) audience = monoFrame();
+						std::shared_ptr<vector<unsigned char>> nextColor;
+						if (device.newColor) {
+							nextColor = std::make_shared<vector<unsigned char>>(device.color);
+							if (handUsers.load() > 0) {
+								hands = std::make_shared<jp_hand::Frame>();
+								hands->captured = captured; hands->serial = ++trackingColorSerial;
+								hands->captureFps = lastColorCaptured > 0 ? float(1 / (captured - lastColorCaptured)) : 0;
+								hands->rgb.resize(960 * 540 * 3);
+								for (int y = 0; y < 540; ++y) for (int x = 0; x < 960; ++x) {
+									size_t src = (y * 2 * 1920 + x * 2) * 4, dst = (y * 960 + x) * 3;
+									std::copy_n(device.color.data() + src, 3, hands->rgb.data() + dst);
+								}
+								hands->depth = device.colorDepth();
+							}
+							lastColorCaptured = captured;
+						}
+						{
+							lock_guard<mutex> lock(dataMutex);
+							irParams.fx = device.intrinsics.FocalLengthX; irParams.fy = device.intrinsics.FocalLengthY;
+							irParams.cx = device.intrinsics.PrincipalPointX; irParams.cy = device.intrinsics.PrincipalPointY;
+							irParams.valid = irParams.fx > 0 && irParams.fy > 0;
+							depthFrame = std::move(nextDepth); infraredFrame = std::move(nextIR);
+							irTrackingFrame = std::move(irHands); audienceTrackingFrame = std::move(audience);
+							++frameVersion; statusText = "STREAMING";
+							if (nextColor) {
+								colorFrame = std::move(nextColor); colorFrameFormat = 0;
+								colorVersion = frameVersion; trackingFrame = std::move(hands);
+							}
+						}
+						lastCaptured = captured;
+					}
+				} else setStatus(device.status);
+			} // Release all SDK interfaces before retrying.
+			if (!stopRequested) waitBeforeRetry();
+		}
+	}
+#elif defined(KINECT2)
 	void run()
 	{
 		while (!stopRequested)
@@ -278,6 +363,7 @@ private:
 		}
 	}
 
+#endif
 	void waitBeforeRetry()
 	{
 		unique_lock<mutex> lock(waitMutex);
@@ -286,7 +372,6 @@ private:
 		});
 		reconnectRequested = false;
 	}
-#endif
 
 	mutable mutex dataMutex;
 	mutex waitMutex;
@@ -425,7 +510,7 @@ void JPbox_kinect2::updateSourceTexture()
 			sourceTexture.allocate(kColorWidth, kColorHeight, GL_RGB);
 		}
 		int glFormat = GL_RGBA;
-#ifdef KINECT2
+#if defined(KINECT2) && !defined(GUIPPER_KINECT_SDK)
 		if (colorFormat == (int)libfreenect2::Frame::BGRX) glFormat = GL_BGRA;
 #endif
 		sourceTexture.loadData(rawColor->data(), kColorWidth, kColorHeight,
@@ -708,7 +793,7 @@ void JPbox_kinect2::requestReconnect()
 
 bool JPbox_kinect2::isDriverAvailable()
 {
-#ifdef KINECT2
+#if defined(GUIPPER_KINECT_SDK) || defined(KINECT2)
 	return true;
 #else
 	return false;

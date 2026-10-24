@@ -404,6 +404,7 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	nombre = nombre.substr(0, nombre.find(".xml"));
 	*/
 	if (directory == "screenCapture") return "PANTALLA";
+	if (directory == "sarv") return "SARV";
 	if (directory == "kinectParticles") return "PARTICULAS KINECT";
 	if (directory == "analogColor") return "ANALOG COLOR";
 	if (directory == "textSource") return "TEXTO";

@@ -28,12 +28,12 @@ public:
     // A spatial field shared by all particles: nearby material follows the
     // same flow, instead of independent random phases tearing a plume apart.
     static Point flow(Point p,float time) {
-        return {std::sin(p.z*3+time*.6f)+std::cos(p.y*3-time*.4f)
-                    +.25f*(std::sin(p.z*9-time)+std::cos(p.y*9+time)),
-                std::sin(p.x*3+time*.4f)+std::cos(p.z*3+time*.6f)
-                    +.25f*(std::sin(p.x*9+time)+std::cos(p.z*9-time)),
-                std::sin(p.y*3-time*.4f)+std::cos(p.x*3+time*.4f)
-                    +.25f*(std::sin(p.y*9-time)+std::cos(p.x*9+time))};
+        // Curl of a smooth vector potential, stretched vertically so nearby
+        // grains travel together in rising filaments rather than a wide spray.
+        const float x=p.x*4.f+time*.18f,y=p.y*2.f-time*.32f,z=p.z*4.f;
+        return {.5f*std::sin(x)*std::cos(y)-std::cos(z)*std::sin(x),
+                std::sin(y)*std::cos(z)-std::cos(x)*std::sin(y),
+                std::sin(z)*std::cos(x)-.5f*std::cos(y)*std::sin(z)};
     }
     void reset() { history.clear(); silhouette.clear(); detailSurface.clear(); particles.clear(); credit=0; clock=0; sourceBuilt=false; }
     void submit(Depth frame, int w, int h, double time, Intrinsics camera) {
@@ -119,10 +119,19 @@ public:
         if(!fresh) history.clear(); // Do not keep emitting from a disconnected camera.
         for(auto& p:particles) {
             p.age+=dt;
-            const Point v=flow(p.position,clock);
-            p.position.x+=(v.x*s.turbulence+p.position.x*s.spread)*dt;
-            p.position.y+=(v.y*s.turbulence+s.drift+p.position.y*s.spread)*dt;
-            p.position.z+=(v.z*s.turbulence-.6f*s.drift)*dt;
+            auto velocity=[&](Point at,float time) {
+                const Point f=flow(at,time);
+                return Point{f.x*s.turbulence+at.x*s.spread*.2f,
+                    f.y*s.turbulence+s.drift,
+                    -std::abs(f.z)*s.turbulence*.35f-.3f*std::abs(s.drift)};
+            };
+            // Midpoint integration follows curved streamlines without expanding
+            // the entire source surface away from the camera origin.
+            const Point v=velocity(p.position,clock-dt);
+            Point middle=p.position;
+            middle.x+=v.x*dt*.5f;middle.y+=v.y*dt*.5f;middle.z+=v.z*dt*.5f;
+            const Point next=velocity(middle,clock-dt*.5f);
+            p.position.x+=next.x*dt;p.position.y+=next.y*dt;p.position.z+=next.z*dt;
         }
         particles.erase(std::remove_if(particles.begin(),particles.end(),[](const Particle& p){
             return p.age>=p.lifetime;

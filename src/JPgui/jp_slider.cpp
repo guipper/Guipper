@@ -127,7 +127,7 @@ void JPSlider::draw()
 			const bool integerMillimeters =
 				name == "near mm" || name == "far mm";
 			string valueStr = ofToString(
-				parameters->floatValue, integerMillimeters ? 0 : 2);
+				parameters->floatValue, integerMillimeters ? 0 : ((name == "min_points_scale" || name == "max_points_scale") ? 4 : 2));
 			if (name == "blendmode")
 			{
 				valueStr = blendModeNameFromValue(parameters->floatValue);

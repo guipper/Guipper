@@ -17,19 +17,19 @@ void main() {
     gl_Position=vec4(p.x*1.9*zoom/aspect,-p.y*1.9*zoom,
         ((10.1/9.9)*distance-2./9.9),distance);
     // Fine plume grains should not inflate into discs as they approach the camera.
-    gl_PointSize=clamp(pointSize*.8,1.,8.);
+    gl_PointSize=clamp(pointSize,1.,8.);
     sourceLayer=color.g;
     if(sourceLayer>.5)
         gl_PointSize=clamp(pointSize*.7*3.5/distance,1.,8.);
     // A native depth pixel has a distance-independent projected footprint.
-    // Slight overlap closes sampling gaps without giant blurred point sprites.
+    // Separate grains retain the fine point-cloud texture.
     if(sourceLayer>.5 && sourceLayer<.9)
-        gl_PointSize=clamp(targetSize.y*.95*zoom/max(depthFocalY,1.)*1.3,1.,12.);
+        gl_PointSize=clamp(targetSize.y*.95*zoom/max(depthFocalY,1.)*.7*pointSize/1.2,1.,12.);
     float age=color.r;
     // Reference: a luminous white depth silhouette with red detached material.
     // The hue control rotates only the plume, preserving the white source.
     vec3 hue=clamp(abs(fract(vec3(0.,2./3.,1./3.)+colorCycle)*6.-3.)-1.,0.,1.);
-    vec3 plume=mix(vec3(1.),mix(vec3(.035),vec3(1.),hue),smoothstep(.04,.35,age));
+    vec3 plume=mix(vec3(.85),mix(vec3(.012),vec3(1.),hue),smoothstep(0.,.06,age));
     vec3 palette=sourceLayer>.5?vec3(color.b):plume;
     if(sourceLayer>.5 && sourceLayer<.9){
         // Apply detail strength once, as luminance, not alpha per overlapping
@@ -38,6 +38,7 @@ void main() {
         float exposed=1.-exp(-shaped*max(brightness,0.)*1.4);
         particleColor=vec4(vec3(exposed*color.a),1.);
     }else{
-        particleColor=vec4(palette*brightness,color.a*(sourceLayer<.5?plumeOpacity:1.));
+        float alpha=sourceLayer<.5?sqrt(max(0.,color.a))*plumeOpacity:color.a;
+        particleColor=vec4(palette*brightness,alpha);
     }
 }

@@ -47,6 +47,18 @@ int main() {
     const auto v=Engine::flow({.3f,.2f,2.f},1);
     const auto n=Engine::flow({.3001f,.2001f,2.0001f},1);
     assert(std::abs(v.x-n.x)+std::abs(v.y-n.y)+std::abs(v.z-n.z)<.01f);
+    // Flow must not inflate/implode the plume; divergence of curl is zero.
+    const float eps=.001f;
+    float divergence=(Engine::flow({.3f+eps,.2f,2},1).x-Engine::flow({.3f-eps,.2f,2},1).x
+        +Engine::flow({.3f,.2f+eps,2},1).y-Engine::flow({.3f,.2f-eps,2},1).y
+        +Engine::flow({.3f,.2f,2+eps},1).z-Engine::flow({.3f,.2f,2-eps},1).z)/(2*eps);
+    assert(std::abs(divergence)<.002f);
+    Engine slow,fast;Settings smoke;smoke.life=8;smoke.density=0;
+    slow.particles.push_back({{.3f,.2f,2},0,8,0});fast.particles=slow.particles;
+    for(int i=0;i<30;++i)slow.update((i+1)/30.,1.f/30,smoke);
+    for(int i=0;i<60;++i)fast.update((i+1)/60.,1.f/60,smoke);
+    auto p30=slow.particles.front().position,p60=fast.particles.front().position;
+    assert(std::abs(p30.x-p60.x)+std::abs(p30.y-p60.y)+std::abs(p30.z-p60.z)<.002f);
     Engine lighting;auto ramp=std::make_shared<std::vector<float>>(32*24);
     for(int y=0;y<24;++y)for(int x=0;x<32;++x)(*ramp)[y*32+x]=2000+x*5;
     s.density=1;s.nearM=1;s.farM=4;s.delay=0;

@@ -226,6 +226,7 @@
     <ClCompile Include="src\JPbox\jp_box.cpp" />
     <ClCompile Include="src\JPbox\jp_box_framedifference.cpp" />
     <ClCompile Include="src\fix_line.cpp" />
+    <ClCompile Include="src\JPbox\jp_box_sarv.cpp" />
     <ClCompile Include="src\JPbox\jp_box_kinectparticles.cpp" />
     <ClCompile Include="src\JPbox\jp_box_iphonelidar.cpp" />
     <ClCompile Include="src\JPbox\jp_box_pointercloud.cpp" />
@@ -487,6 +488,12 @@
       <AdditionalLibraryDirectories>$(GUIPPER_WINSPARKLE_SDK)\x64\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>WinSparkle.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Platform)'=='x64' and Exists('$(KINECTSDK20_DIR)inc\Kinect.h')">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(KINECTSDK20_DIR)inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>GUIPPER_KINECT_SDK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ProjectExtensions>

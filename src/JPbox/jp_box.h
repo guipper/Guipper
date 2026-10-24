@@ -214,7 +214,7 @@ public:
         TEXTBOX,
         ANALOGCOLORBOX = TEXTBOX + 3, // Keep its ID; two retired experimental slots.
         KINECTPARTICLESBOX,
-        IPHONELIDARBOX
+        IPHONELIDARBOX, SARVBOX
 	};
 
 	int getTipo();
