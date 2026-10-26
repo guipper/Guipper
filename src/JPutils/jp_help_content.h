@@ -307,6 +307,7 @@ namespace jp_help
 #ifdef SPOUT
 		E("h", "Spout input", "Entrada Spout", Scope::Nodes, "h"),
 #endif
+        E("Shift+B", "DVD bounce: move the connected image and bounce at the edges", "DVD: mueve la imagen conectada y rebota en los bordes", Scope::Nodes, "shift+b"),
         E("Shift+R", "Analog color reduction: palettes, dithering, grain and bleed", "Reduccion analogica de color: paletas, tramado, grano y sangrado", Scope::Nodes, "shift+r"),
         E("Shift+T", "Text: multiline editor, typography and transparent output", "Texto: editor multilinea, tipografia y salida transparente", Scope::Nodes, "shift+t"),
 		E("Shift+Y", "YouTube: stream a video link or download an optional local copy", "YouTube: reproduce un enlace por streaming o descarga en cache", Scope::Nodes, "shift+y"),

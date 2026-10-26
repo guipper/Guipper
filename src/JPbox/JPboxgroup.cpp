@@ -406,6 +406,7 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	if (directory == "screenCapture") return "PANTALLA";
 	if (directory == "sarv") return "SARV";
 	if (directory == "kinectParticles") return "PARTICULAS KINECT";
+	if (directory == "dvdBounce") return "DVD BOUNCE";
 	if (directory == "analogColor") return "ANALOG COLOR";
 	if (directory == "textSource") return "TEXTO";
 	if (directory == "youtubeVideo") return "YOUTUBE";

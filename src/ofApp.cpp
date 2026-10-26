@@ -6728,6 +6728,12 @@ void ofApp::keyPressed(int key) {
             if (!boxes.isGroupViewActive()) boxes.selectOpenBoxByIndex(int(boxes.boxes.size()) - 1);
             boxes.setControllers();return;
         }
+        if (key == 'B' && !surfaces.modalOpen() && !anyFieldFocused() &&
+            !ofGetKeyPressed(OF_KEY_CONTROL) && !ofGetKeyPressed(OF_KEY_COMMAND) && !ofGetKeyPressed(OF_KEY_ALT)) {
+            boxes.addBox("dvdBounce");
+            if (!boxes.isGroupViewActive()) boxes.selectOpenBoxByIndex(int(boxes.boxes.size()) - 1);
+            boxes.setControllers();return;
+        }
         if (key == 'R' && !surfaces.modalOpen() && !anyFieldFocused() &&
             !ofGetKeyPressed(OF_KEY_CONTROL) && !ofGetKeyPressed(OF_KEY_COMMAND) && !ofGetKeyPressed(OF_KEY_ALT)) {
             boxes.addBox("analogColor");

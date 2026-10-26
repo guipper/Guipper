@@ -505,11 +505,13 @@
     <ClCompile Include="src\JPbox\jp_box_youtube.cpp" />
     <ClCompile Include="src\JPbox\jp_box_text.cpp" />
     <ClCompile Include="src\JPbox\jp_box_analogcolor.cpp" />
+    <ClCompile Include="src\JPbox\jp_box_dvd.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\JPbox\jp_box_youtube.h" />
     <ClInclude Include="src\JPbox\jp_box_text.h" />
     <ClInclude Include="src\JPbox\jp_box_analogcolor.h" />
+    <ClInclude Include="src\JPbox\jp_box_dvd.h" />
     <ClInclude Include="src\JPbox\jp_analogcolor_shaders.h" />
   </ItemGroup>
   <ItemGroup>

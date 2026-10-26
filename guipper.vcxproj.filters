@@ -848,11 +848,13 @@
     <ClCompile Include="src\JPbox\jp_box_youtube.cpp"><Filter>src\JPbox</Filter></ClCompile>
     <ClCompile Include="src\JPbox\jp_box_text.cpp"><Filter>src\JPbox</Filter></ClCompile>
     <ClCompile Include="src\JPbox\jp_box_analogcolor.cpp"><Filter>src\JPbox</Filter></ClCompile>
+    <ClCompile Include="src\JPbox\jp_box_dvd.cpp"><Filter>src\JPbox</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\JPbox\jp_box_youtube.h"><Filter>src\JPbox</Filter></ClInclude>
     <ClInclude Include="src\JPbox\jp_box_text.h"><Filter>src\JPbox</Filter></ClInclude>
     <ClInclude Include="src\JPbox\jp_box_analogcolor.h"><Filter>src\JPbox</Filter></ClInclude>
+    <ClInclude Include="src\JPbox\jp_box_dvd.h"><Filter>src\JPbox</Filter></ClInclude>
     <ClInclude Include="src\JPbox\jp_analogcolor_shaders.h"><Filter>src\JPbox</Filter></ClInclude>
   </ItemGroup>
   <ItemGroup>

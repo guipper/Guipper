@@ -9,6 +9,7 @@
 #include "jp_box_pointercloud.h"
 #include "jp_box_kinectparticles.h"
 #include "jp_box_sarv.h"
+#include "jp_box_dvd.h"
 #include "jp_box_camdepth.h"
 #include "jp_box_cam.h"
 #include "jp_box_screen.h"
@@ -42,7 +43,8 @@ namespace
 		case Kind::PointerCloud: return contains("pointercloud");
 		case Kind::CameraDepth: return contains("camdepth");
 		case Kind::KinectParticles: return directory == "kinectParticles";
-		case Kind::Sarv: return directory == "sarv";
+		case Kind::Dvd: return directory == "dvdBounce";
+        case Kind::Sarv: return directory == "sarv";
 		case Kind::IPhoneLidar: return directory == "iphoneLidar";
 		case Kind::AnalogColor: return directory == "analogColor";
         case Kind::Text: return directory == "textSource";
@@ -67,11 +69,11 @@ jp_box_factory::Kind jp_box_factory::classify(const std::string &directory,
 {
 	// Shared matching rules; only legacy precedence depends on the entry path.
 	static constexpr Kind interactive[] = {
-		Kind::Sarv, Kind::IPhoneLidar, Kind::KinectParticles, Kind::AnalogColor, Kind::Text, Kind::Youtube, Kind::Screen, Kind::Shader, Kind::Image, Kind::Video, Kind::Preset, Kind::Kinect2,
+		Kind::Dvd, Kind::Sarv, Kind::IPhoneLidar, Kind::KinectParticles, Kind::AnalogColor, Kind::Text, Kind::Youtube, Kind::Screen, Kind::Shader, Kind::Image, Kind::Video, Kind::Preset, Kind::Kinect2,
 		Kind::PointerCloud, Kind::CameraDepth, Kind::Camera, Kind::Spout,
 		Kind::FrameDifference, Kind::Paint, Kind::Ndi};
 	static constexpr Kind stored[] = {
-		Kind::Sarv, Kind::IPhoneLidar, Kind::KinectParticles, Kind::AnalogColor, Kind::Text, Kind::Youtube, Kind::Screen, Kind::Shader, Kind::Image, Kind::Video, Kind::Kinect2,
+		Kind::Dvd, Kind::Sarv, Kind::IPhoneLidar, Kind::KinectParticles, Kind::AnalogColor, Kind::Text, Kind::Youtube, Kind::Screen, Kind::Shader, Kind::Image, Kind::Video, Kind::Kinect2,
 		Kind::PointerCloud, Kind::CameraDepth, Kind::Camera, Kind::Ndi,
 		Kind::Spout, Kind::Preset, Kind::FrameDifference, Kind::Paint};
 	const auto &order = context == Context::Stored ? stored : interactive;
@@ -93,6 +95,7 @@ JPbox *jp_box_factory::create(const std::string &directory, Context context)
 	case Kind::CameraDepth: return new JPbox_camdepth();
 	case Kind::Camera: return new JPbox_cam();
 	case Kind::KinectParticles: return new JPbox_kinectparticles();
+	case Kind::Dvd: return new JPbox_dvd();
 	case Kind::Sarv: return new JPbox_sarv();
 	case Kind::IPhoneLidar: return new JPbox_iphonelidar();
 	case Kind::AnalogColor: return new JPbox_analogcolor();

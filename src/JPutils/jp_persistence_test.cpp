@@ -19,6 +19,7 @@
 #include "../JPbox/jp_box_iphonelidar.h"
 #include "../JPgui/jp_hand_panel.h"
 #include "../JPbox/jp_box_pointercloud.h"
+#include "../JPbox/jp_box_dvd.h"
 #include <set>
 #include "jp_font.h"
 #include "jp_text_input.h"
@@ -2388,6 +2389,33 @@ while True:
         box.getChild("directory").set("does-not-exist.frag");onlyMissing.save(path);
         check(app.boxes.load(path)==JPboxgroup::LoadResult::Success&&app.boxes.boxes.empty()&&app.boxes.loadWarnings.size()==1,"all-missing shaders open empty with warning");
         app.boxes.clear();ofLogNotice("missing-boxes")<<(passed?"PASS":"FAIL");return passed;
+    }
+    if(testMode && string(testMode)=="dvd") {
+        bool passed=true;auto check=[&](bool ok,const char* why){if(!ok)ofLogError("dvd-test")<<why;passed&=ok;};
+        const int oldW=jp_constants::renderWidth,oldH=jp_constants::renderHeight;
+        jp_constants::renderWidth=320;jp_constants::renderHeight=180;
+        ofFbo source;source.allocate(128,64,GL_RGBA);source.begin();ofClear(255,80,20,255);source.end();
+        app.boxes.clear();check(app.boxes.addBox("dvdBounce"),"factory creates DVD");
+        auto* box=dynamic_cast<JPbox_dvd*>(app.boxes.boxes.back());
+        if(box){
+            string sourceName="fixture";box->fbohandlergroup.setFboPointer(&source,&sourceName,0);box->setonoff(true);
+            auto bounds=[&](){box->updateFBO();ofPixels pixels;box->fbo.readToPixels(pixels);int loX=pixels.getWidth(),loY=pixels.getHeight(),hiX=-1,hiY=-1;
+                for(int y=0;y<int(pixels.getHeight());++y)for(int x=0;x<int(pixels.getWidth());++x){auto c=pixels.getColor(x,y);if(c.a>0){loX=std::min(loX,x);hiX=std::max(hiX,x);loY=std::min(loY,y);hiY=std::max(hiY,y);}}
+                return ofRectangle(loX,loY,hiX-loX+1,hiY-loY+1);};
+            auto start=bounds();ofPixels preview;box->fbo.readToPixels(preview);ofSaveImage(preview,ofToDataPath("dvd-preview.png",true));check(std::abs(start.width-80)<=1&&std::abs(start.height-40)<=1,"aspect and size preserved");
+            box->parameters.setBoolValue(true,box->parameters.indexOfName("pause"));
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));auto paused=bounds();check(paused.x==start.x&&paused.y==start.y,"pause holds position");
+            box->parameters.setBoolValue(false,box->parameters.indexOfName("pause"));
+            box->parameters.setFloatValue(1,box->parameters.indexOfName("speed x"));box->parameters.setFloatValue(-1,box->parameters.indexOfName("speed y"));
+            float previous=start.x;bool forward=false,backward=false;
+            for(int i=0;i<90;++i){std::this_thread::sleep_for(std::chrono::milliseconds(20));auto r=bounds();forward|=r.x>previous;backward|=r.x<previous;previous=r.x;check(r.x>=0&&r.y>=0&&r.getRight()<=320&&r.getBottom()<=180,"sprite remains within canvas");}
+            check(forward&&backward,"motion reverses at boundary");
+            jp_constants::renderWidth=180;jp_constants::renderHeight=320;auto portrait=bounds();check(portrait.getRight()<=180&&portrait.getBottom()<=320&&std::abs(portrait.width-2*portrait.height)<=2,"portrait resize preserves aspect and bounds");
+            box->fbohandlergroup.deleteFboPointer(0);
+            const string path=ofToDataPath("dvd-test.xml",true);check(app.boxes.save(path),"save DVD");app.boxes.clear();check(app.boxes.load(path)==JPboxgroup::LoadResult::Success,"reload DVD");
+            auto* restored=app.boxes.boxes.empty()?nullptr:dynamic_cast<JPbox_dvd*>(app.boxes.boxes.front());check(restored&&restored->parameters.getFloatValue(restored->parameters.indexOfName("speed y"))==-1,"speed persists");
+        }else check(false,"DVD type");
+        app.boxes.clear();jp_constants::renderWidth=oldW;jp_constants::renderHeight=oldH;ofLogNotice("dvd-test")<<(passed?"PASS":"FAIL");return passed;
     }
     if(testMode && string(testMode)=="soul-torus") {
         bool passed=true;auto check=[&](bool ok,const string& label){if(!ok)ofLogError("soul-torus")<<label;passed&=ok;};
