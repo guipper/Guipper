@@ -4,6 +4,7 @@
 #include "jp_box.h"
 #include "jp_box_kinect2.h"
 #include "jp_box_iphonelidar.h"
+#include "jp_depth_filter.h"
 
 // PointerCloud.
 //
@@ -49,8 +50,9 @@ public:
 	string getCaptureStatus() const;
 
 private:
-	// Inspector order. The first 16 rows are what MIDI can bind; DETAIL is a
-	// setup choice, not something to play, so it may sit past them.
+	// Inspector order. The first 16 rows are what MIDI can bind; DETAIL and
+	// the depth cleanup are setup choices, not something to play, so they may
+	// sit past them.
 	enum ParameterIndex
 	{
 		POINT_SIZE,
@@ -70,6 +72,8 @@ private:
 		MIRROR,
 		FLIP_VERTICAL,
 		DETAIL,
+		SMOOTH,
+		FILL_HOLES,
 		PARAMETER_COUNT
 	};
 	enum InletIndex
@@ -98,6 +102,8 @@ private:
 	int latticeWidth = 0;
 	int latticeHeight = 0;
 	int latticeUpsample = 0;
+	jp_depth_filter::Filter depthFilter;
+	vector<float> filteredDepth;
 	int targetWidth = 0;
 	int targetHeight = 0;
 	bool captureEnabled = false;

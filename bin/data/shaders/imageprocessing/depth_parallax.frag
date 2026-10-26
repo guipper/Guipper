@@ -29,9 +29,18 @@ uniform float fog = 0.0;
 
 const int STEPS = 32;
 
+// Reads the plain grey of a DEPTH box and also its "16 bit depth" output, where
+// red is the coarse value and green the fraction between two greys. On plain
+// grey, green equals red and adds at most 1/255.
+float depthAt(vec2 uv)
+{
+	vec4 c = texture(depth, uv);
+	return min(1.0, c.r + c.g / 255.0);
+}
+
 float sceneDepth(vec2 uv)
 {
-	float d = texture(depth, clamp(uv, 0.0, 1.0)).r;
+	float d = depthAt(clamp(uv, 0.0, 1.0));
 	if (layers > 0.0)
 	{
 		float cards = mix(12.0, 3.0, layers);

@@ -74,3 +74,4 @@ tests/appimage_backend_tests
 
 /tests/kinect_particles_tests
 /tests/record3d_protocol_tests
+/tests/depth_filter_tests

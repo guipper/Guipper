@@ -2652,6 +2652,13 @@ while True:
             colorBox.clear();depthBox.clear();
         }
 
+        // 16 bit depth: red stays the usual grey, green carries the fraction.
+        phone->setInspectorChoice(JPbox_iphonelidar::DEPTH);
+        phone->parameters.setBoolValue(true,phone->parameters.indexOfName("16 bit depth"));
+        check(waitFor([&]{phone->update();ofPixels p;phone->fbo.readToPixels(p);size_t mixed=0;
+            for(size_t i=0;i+3<p.size();i+=4)if(p[i]>0&&p[i+1]!=p[i])++mixed;return mixed>1000;},5),"16 bit depth encodes a fraction in green");
+        phone->parameters.setBoolValue(false,phone->parameters.indexOfName("16 bit depth"));
+
         // Publico from the phone.
         jp_hand::Source crowd{jp_hand::SourceKind::IPhoneLidar,{},jp_hand::Detector::Crowd};
         jp_crowd::Config config;config.nearM=1.f;config.farM=3.f;

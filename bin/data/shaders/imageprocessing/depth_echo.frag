@@ -25,6 +25,15 @@ uniform float outline = 0.0;
 // Live figure brightness on top of the trails.
 uniform float live = 0.8;
 
+// Reads the plain grey of a DEPTH box and also its "16 bit depth" output, where
+// red is the coarse value and green the fraction between two greys. On plain
+// grey, green equals red and adds at most 1/255.
+float depthAt(vec2 uv)
+{
+	vec4 c = texture(depth, uv);
+	return min(1.0, c.r + c.g / 255.0);
+}
+
 void main()
 {
 	vec2 uv = gl_FragCoord.xy / resolution;
@@ -44,7 +53,7 @@ void main()
 		previous = mix(old, old.gbr, 0.04) * mix(0.8, 0.995, decay);
 	}
 
-	float d = texture(depth, uv).r;
+	float d = depthAt(uv);
 	float figure = smoothstep(threshold - 0.015, threshold + 0.015, d);
 	float edge = clamp(fwidth(figure) * 3.0, 0.0, 1.0);
 	float stamp = mix(figure, edge, outline);

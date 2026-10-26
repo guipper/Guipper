@@ -13,6 +13,7 @@ Usos:
   elige el dispositivo. Se guarda en la sesión. **detail** (1–4) agrega puntos
   entre los píxeles del sensor, interpolados solo dentro de una misma
   superficie; con `density` en 1 la nube del iPhone queda continua.
+  **smooth** y **fill holes** limpian la profundidad (también la de la Kinect).
 - **Público**: en el panel de seguimiento, con **Publico** elegido, el tercer
   botón de fuente es **iPhone LiDAR**. Movimiento, ocupación, centros y
   distancia funcionan igual que con la Kinect.
@@ -68,6 +69,15 @@ comparten una sola conexión.
   baja en negro, media en gris y alta en blanco.
 - El LiDAR es un sensor activo y funciona sin luz, igual que la Kinect.
 - El color solo se decodifica mientras alguna caja muestra COLOR.
+- **smooth** (0–1) suaviza en el tiempo solo los cambios chicos, que son ruido;
+  un salto grande (alguien que se mueve, un borde) pasa al instante, así que no
+  deja estela. **fill holes** mantiene unos cuadros el último valor de un punto
+  que se pierde y rellena huecos rodeados por una misma superficie; los huecos
+  en un borde quedan vacíos.
+- **16 bit depth** reparte la profundidad en dos canales: rojo es el gris de
+  siempre y verde la fracción entre dos grises (65.536 niveles en vez de 256).
+  Los shaders que leen solo rojo ven lo mismo; los `depth_` aprovechan los dos y
+  sus curvas y relieves pierden los escalones. La miniatura se ve verdosa.
 - La imagen sale en la orientación del sensor. **rotate 90** la gira un cuarto
   de vuelta; con `mirror` y `flip vertical` cubre cualquier montaje. En
   PointerCloud se usa `rotate Z`.
@@ -84,7 +94,8 @@ con la Kinect):
 | `depth_parallax` | `color`, `depth` | La imagen orbita en 3D: cerca y fondo se mueven en sentidos opuestos. |
 
 Para `depth_parallax` usar dos cajas IPHONE LIDAR (una COLOR, otra DEPTH), las
-dos con `stretch`; comparten la conexión.
+dos con `stretch`; comparten la conexión. Con **16 bit depth** activado en la
+caja DEPTH los tres se ven más suaves.
 
 ## Pruebas
 

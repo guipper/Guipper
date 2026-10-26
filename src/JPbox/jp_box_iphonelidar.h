@@ -3,6 +3,7 @@
 #include "ofMain.h"
 #include "jp_box.h"
 #include "jp_box_kinect2.h"
+#include "jp_depth_filter.h"
 #include "../JPutils/jp_hand_tracking.h"
 
 class IPhoneLidarCaptureSource;
@@ -96,7 +97,10 @@ private:
 		FLIP_VERTICAL,
 		GAMMA,
 		// Appended: saved sessions address parameters by position.
-		ROTATE_90
+		ROTATE_90,
+		SMOOTH,
+		FILL_HOLES,
+		PRECISE
 	};
 
 	void updateSourceTexture();
@@ -113,6 +117,11 @@ private:
 	ofTexture sourceTexture;
 	ofPixels monoPixels;
 	DepthHandle rawDepth;
+	// The DEPTH picture is drawn from this, not from rawDepth directly; it is
+	// what "smooth" and "fill holes" produce.
+	jp_depth_filter::Filter depthFilter;
+	vector<float> filteredDepth;
+	int textureChannels = 0;
 	unsigned char toneCurve[kToneCurveSize] = {0};
 	float toneCurveGamma = -1.0f;
 	bool toneCurveInvert = false;

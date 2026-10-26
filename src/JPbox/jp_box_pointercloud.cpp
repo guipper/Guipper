@@ -81,6 +81,12 @@ void JPbox_pointercloud::setup(string directory, string boxName)
 	parameters.addFloatValue(1.0f, "detail");
 	parameters.setMin(1.0f, DETAIL);
 	parameters.setMax((float)kMaxUpsample, DETAIL);
+	// Same cleanup as the iPhone box, for either device: steadier surfaces
+	// at range without trails behind anyone moving.
+	parameters.addFloatValue(0.3f, "smooth");
+	parameters.setMin(0.0f, SMOOTH);
+	parameters.setMax(1.0f, SMOOTH);
+	parameters.addBoolValue(true, "fill holes");
 
 	// Inlet names are written straight out as XML element names, so this has
 	// to stay a legal NCName.
@@ -242,6 +248,11 @@ bool JPbox_pointercloud::uploadMillimetres(const float *millimetres,
 	int width, int height)
 {
 	if (width <= 0 || height <= 0) return false;
+	jp_depth_filter::Settings filter;
+	filter.smooth = parameters.getFloatValue(SMOOTH);
+	filter.fillHoles = parameters.getBoolValue(FILL_HOLES);
+	depthFilter.apply(millimetres, width, height, filter, filteredDepth);
+	millimetres = filteredDepth.data();
 	buildLattice(width, height);
 	if (!depthTexture.isAllocated() ||
 		depthTexture.getWidth() != (float)width ||
@@ -510,6 +521,7 @@ void JPbox_pointercloud::setDevice(Device value)
 	// update() opens the new one, unless capture is paused.
 	releaseDevice();
 	if (depthTexture.isAllocated()) depthTexture.clear();
+	depthFilter.reset();
 	intrinsics = JPbox_kinect2::DepthIntrinsics();
 	lastFrameVersion = 0;
 }

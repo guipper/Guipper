@@ -7,9 +7,9 @@
 // wrap around a body like a topographic map and, with speed, travel through
 // it front to back. Works in the dark: it never looks at colour.
 //
-// The input is 8 bit and upscaled from a small sensor, so it arrives as wide
-// flat terraces. A blur about one sensor pixel wide (the iPhone gives 256
-// across) turns them back into slopes the lines can follow.
+// Plain grey depth has only 256 steps, which arrive as wide flat terraces; turn
+// on "16 bit depth" in the iPhone box for smooth lines. A blur about one sensor
+// pixel wide (the iPhone gives 256 across) also softens what is left.
 
 uniform sampler2D depth;
 // Number of lines across the near..far range of the depth box, 4 to 60.
@@ -26,6 +26,15 @@ uniform float fill = 0.12;
 // Previous frames left behind as the lines move. 0 none.
 uniform float trails = 0.0;
 
+// Reads the plain grey of a DEPTH box and also its "16 bit depth" output, where
+// red is the coarse value and green the fraction between two greys. On plain
+// grey, green equals red and adds at most 1/255.
+float depthAt(vec2 uv)
+{
+	vec4 c = texture(depth, uv);
+	return min(1.0, c.r + c.g / 255.0);
+}
+
 float smoothedDepth(vec2 uv)
 {
 	vec2 texel = vec2(1.0 / 256.0);
@@ -35,7 +44,7 @@ float smoothedDepth(vec2 uv)
 	{
 		for (int x = -1; x <= 1; ++x)
 		{
-			float d = texture(depth, uv + vec2(x, y) * texel).r;
+			float d = depthAt(uv + vec2(x, y) * texel);
 			// Holes are absence, not "very far": averaging them in would pull
 			// every silhouette edge towards the back.
 			if (d > 0.004) { sum += d; weight += 1.0; }
@@ -53,7 +62,7 @@ void main()
 	// In band units, not pixels: on terraced input the screen-space slope is
 	// zero on every terrace and the lines would vanish.
 	float width = mix(0.02, 0.2, thickness);
-	if (texture(depth, uv).r <= 0.004 || d <= 0.0)
+	if (depthAt(uv) <= 0.004 || d <= 0.0)
 	{
 		fragColor = vec4(previous, 1.0);
 		return;

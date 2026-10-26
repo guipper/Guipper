@@ -410,6 +410,14 @@ void JPbox_iphonelidar::setup(string directory, string boxName)
 	// The phone streams in the sensor's orientation; held the other way the
 	// picture arrives on its side.
 	parameters.addBoolValue(false, "rotate 90");
+	parameters.addFloatValue(0.4f, "smooth");
+	parameters.setMin(0.0f, SMOOTH);
+	parameters.setMax(1.0f, SMOOTH);
+	parameters.addBoolValue(true, "fill holes");
+	// Splits the depth over two channels: red is the usual grey, green the
+	// fraction between two greys - 65536 steps instead of 256. Shaders that
+	// read only red see the same picture; the depth_ shaders decode both.
+	parameters.addBoolValue(false, "16 bit depth");
 	capture = IPhoneLidarCaptureSource::acquire();
 	cleared = false;
 	updateColorLease();
@@ -437,7 +445,8 @@ void JPbox_iphonelidar::update()
 		(uint64_t)(farMm) * 10007u +
 		(uint64_t)(gamma * 1000.0f) * 13u +
 		(parameters.getBoolValue(INVERT) ? 2u : 0u) +
-		(parameters.getBoolValue(CLIP_DEPTH) ? 4u : 0u);
+		(parameters.getBoolValue(CLIP_DEPTH) ? 4u : 0u) +
+		(parameters.getBoolValue(PRECISE) ? 8u : 0u);
 	if (settingsHash != settingsVersion) settingsVersion = settingsHash;
 
 	updateSourceTexture();
@@ -496,8 +505,15 @@ void JPbox_iphonelidar::updateSourceTexture()
 	if (auto frame = capture->acquireDepth(lastFrameVersion))
 	{
 		rawDepth = std::move(frame);
+		// Once per phone frame, never on a settings repaint: the filter is
+		// temporal, and running it twice on one frame would double-smooth.
+		jp_depth_filter::Settings filter;
+		filter.smooth = parameters.getFloatValue(SMOOTH);
+		filter.fillHoles = parameters.getBoolValue(FILL_HOLES);
+		depthFilter.apply(rawDepth->millimetres.data(), rawDepth->width,
+			rawDepth->height, filter, filteredDepth);
 	}
-	if (!rawDepth || rawDepth->millimetres.empty()) return;
+	if (!rawDepth || filteredDepth.empty()) return;
 	if (lastFrameVersion == builtFrameVersion &&
 		settingsVersion == builtSettingsVersion &&
 		textureStream == (int)DEPTH)
@@ -512,25 +528,46 @@ void JPbox_iphonelidar::updateSourceTexture()
 	if (textureStream != (int)DEPTH) sourceTexture.clear();
 	textureStream = (int)DEPTH;
 
-	monoPixels.allocate(rawDepth->width, rawDepth->height, OF_PIXELS_GRAY);
+	const bool precise = parameters.getBoolValue(PRECISE);
+	const int channels = precise ? 3 : 1;
+	// A grey texture cannot take RGB data in place, nor the other way round.
+	if (textureChannels != channels) sourceTexture.clear();
+	textureChannels = channels;
+	monoPixels.allocate(rawDepth->width, rawDepth->height,
+		precise ? OF_PIXELS_RGB : OF_PIXELS_GRAY);
 	const float nearMm = parameters.getFloatValue(NEAR_MM);
 	const float farMm = std::max(nearMm + 1.0f, parameters.getFloatValue(FAR_MM));
 	const bool clipDepth = parameters.getBoolValue(CLIP_DEPTH);
 	const float scale = 1.0f / (farMm - nearMm);
+	const float exponent = 1.0f / toneCurveGamma;
 	constexpr float lastEntry = (float)(kToneCurveSize - 1);
-	const vector<float> &source = rawDepth->millimetres;
+	const vector<float> &source = filteredDepth;
 	for (size_t i = 0; i < source.size(); ++i)
 	{
 		const float mm = source[i];
 		if (mm <= 0.0f || (clipDepth && (mm < nearMm || mm > farMm)))
 		{
-			monoPixels[i] = 0;
+			for (int c = 0; c < channels; ++c) monoPixels[i * channels + c] = 0;
 			continue;
 		}
 		// Near = bright, like the Kinect DEPTH stream, so the two boxes are
 		// interchangeable in front of a displacement shader.
 		const float value = 1.0f - ofClamp((mm - nearMm) * scale, 0.0f, 1.0f);
-		monoPixels[i] = toneCurve[(int)(value * lastEntry + 0.5f)];
+		if (!precise)
+		{
+			monoPixels[i] = toneCurve[(int)(value * lastEntry + 0.5f)];
+			continue;
+		}
+		// Same curve as the table, computed exactly: the table itself only
+		// holds 8 bit results.
+		float toned = toneCurveInvert ? 1.0f - value : value;
+		toned = std::pow(ofClamp(toned, 0.0f, 1.0f), exponent) * 255.0f;
+		const float coarse = std::floor(toned);
+		const unsigned char high = (unsigned char)std::min(255.0f, coarse);
+		monoPixels[i * 3] = high;
+		monoPixels[i * 3 + 1] = (unsigned char)std::lround(
+			ofClamp(toned - coarse, 0.0f, 1.0f) * 255.0f);
+		monoPixels[i * 3 + 2] = high;
 	}
 	sourceTexture.loadData(monoPixels);
 }
@@ -642,6 +679,7 @@ void JPbox_iphonelidar::setCaptureActive(bool active)
 		colorLease.reset();
 		capture.reset();
 		rawDepth.reset();
+		depthFilter.reset();
 	}
 	updateColorLease();
 }
