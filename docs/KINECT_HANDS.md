@@ -618,6 +618,8 @@ SOUL TORUS validado con compilación y render nativos a 640×360 y 240×320, val
 
 Ajuste de SOUL TORUS según la referencia ampliada: cuerpo oscuro, reflejo localizado arriba a la derecha y halo en el borde interior/exterior. Los valores iniciales ahora son tilt_x=0,5, tilt_y=0,52, light_angle=0,5 y speed=0. Los vínculos/composiciones existentes conservan sus valores; ajustar esos controles para reproducir la posición de referencia. El shader activo del equipo fue actualizado sin sobrescribir ediciones distintas.
 
+Para girar continuamente sobre el eje X propio del aro, usar `spin_x` (0 detiene, 1 da una vuelta en aproximadamente 5,24 s). `reverse_x` invierte el sentido. Mantener `tilt_x` fijo como ángulo inicial: automatizar su posición con una onda de ida y vuelta produce oscilación. `speed` conserva el giro Y existente; ponerlo en 0 para aislar el giro X. Los controles nuevos se agregan al final para conservar los índices guardados.
+
 ## Mano izquierda sobre un ojo → celeste
 
 Añadir `imageprocessing/audience_celeste.frag` al final de la cadena de imagen

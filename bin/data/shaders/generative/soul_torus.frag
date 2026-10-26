@@ -14,12 +14,16 @@ uniform float rim=0.45;
 uniform float hue=0.6;
 uniform float color_amount=0.0;
 uniform bool transparent=false;
+// Continuous local X rotation: 0 stops, 1 completes a turn in ~5.24 s.
+// Keep these controls appended so existing parameter indices stay stable.
+uniform float spin_x=0.0;
+uniform bool reverse_x=false;
 
 mat2 soulTurn(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
 vec3 soulLocal(vec3 p){
  p.xy=soulTurn((rotation-.5)*6.2831853)*p.xy;
  p.xz=soulTurn((tilt_y-.5)*6.2831853+time*speed*1.2)*p.xz;
- p.yz=soulTurn((tilt_x-.5)*6.2831853)*p.yz;
+ p.yz=soulTurn((tilt_x-.5)*6.2831853+time*spin_x*1.2*(reverse_x?-1.0:1.0))*p.yz;
  return p;
 }
 vec2 soulScene(vec3 p){
