@@ -15,7 +15,9 @@ namespace jp_hand {
 inline double now(){return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 // Saved by name, not number. IPhoneLidar is depth only: it feeds Publico.
 enum class SourceKind { KinectRGB=0, KinectIR=1, Camera=2, IPhoneLidar=3 };
-enum class Detector { Hands=0, Body=1, Crowd=2 };
+// Pose: the iPhone's own tilt and position (ARKit, via Record3D), the phone
+// used as a controller. Appended; saved by name.
+enum class Detector { Hands=0, Body=1, Crowd=2, Pose=3 };
 struct Source {
  SourceKind kind=SourceKind::KinectRGB;
  std::string device;
@@ -194,17 +196,41 @@ public:
   return out;
  }
 };
-struct Snapshot {std::vector<Hand> hands;std::vector<Body> bodies;bool bodyNeedsReassign=false;std::shared_ptr<const jp_crowd::Snapshot> crowd;std::shared_ptr<const Frame> frame;double captured=0,inferenceMs=0;float inferenceFps=0;uint64_t dropped=0;std::string status="Detenido";bool simulated=false;};
-enum Signal {Pinch,Opening,PositionX,PositionY,Distance,TorsoX,TorsoY,WristSpan,ArmHeight,BodyPointX,BodyPointY,CrowdMotion,CrowdOccupancy,CrowdX,CrowdY,CrowdDistance,CrowdActivityX,CrowdActivityY,BodyEnergy,BodyVelocityX,BodyVelocityY,BodyActivityX,BodyActivityY};
+// Angles in degrees, position in metres from where the Record3D session
+// started. Tilt X: clockwise roll; tilt Y: nose up; turn: to the right.
+struct PhonePose {float tiltX=0,tiltY=0,turn=0,x=0,y=0,z=0;bool valid=false;};
+// From the camera-to-world quaternion and translation ARKit reports (camera
+// looks down -Z, Y up, world Y against gravity).
+inline PhonePose phonePose(float qx,float qy,float qz,float qw,float tx,float ty,float tz){
+ PhonePose p;const float n=std::sqrt(qx*qx+qy*qy+qz*qz+qw*qw);
+ if(!std::isfinite(n)||n<.5f||n>1.5f||!std::isfinite(tx)||!std::isfinite(ty)||!std::isfinite(tz))return p;
+ qx/=n;qy/=n;qz/=n;qw/=n;
+ // Rotation matrix entries used: forward is -column 2, right column 0, up column 1.
+ const float r10=2*(qx*qy+qz*qw),r11=1-2*(qx*qx+qz*qz);
+ const float r02=2*(qx*qz+qy*qw),r12=2*(qy*qz-qx*qw),r22=1-2*(qx*qx+qy*qy);
+ const float degrees=57.2957795f;
+ p.tiltY=std::asin(std::clamp(-r12,-1.f,1.f))*degrees;
+ p.turn=std::atan2(-r02,r22)*degrees;
+ // Right side dropping (right.y < 0) is a clockwise roll.
+ p.tiltX=std::atan2(-r10,r11)*degrees;
+ p.x=tx;p.y=ty;p.z=tz;p.valid=true;return p;
+}
+struct Snapshot {PhonePose phone;std::vector<Hand> hands;std::vector<Body> bodies;bool bodyNeedsReassign=false;std::shared_ptr<const jp_crowd::Snapshot> crowd;std::shared_ptr<const Frame> frame;double captured=0,inferenceMs=0;float inferenceFps=0;uint64_t dropped=0;std::string status="Detenido";bool simulated=false;};
+enum Signal {Pinch,Opening,PositionX,PositionY,Distance,TorsoX,TorsoY,WristSpan,ArmHeight,BodyPointX,BodyPointY,CrowdMotion,CrowdOccupancy,CrowdX,CrowdY,CrowdDistance,CrowdActivityX,CrowdActivityY,BodyEnergy,BodyVelocityX,BodyVelocityY,BodyActivityX,BodyActivityY,PhoneTiltX,PhoneTiltY,PhoneTurn,PhoneX,PhoneY,PhoneZ};
 enum class Loss {Hold=0,ReturnBase=1,Release=2};
 struct Binding {Source source;BodySelection person=BodySelection::Group;int players=(1<<MaxBodies)-1;int bodyZone=0;bool right=true;int signal=Pinch,point=-1;float inputMin=.15f,inputMax=1, smoothingMs=100,attackMs=80,releaseMs=600,deadzone=.01f,base=0;bool invert=false,musical=false;Loss loss=Loss::Hold;jp_crowd::Config crowd;int zone=0;};
 inline bool operator==(const Binding &a,const Binding &b){return a.source==b.source&&a.person==b.person&&a.players==b.players&&a.bodyZone==b.bodyZone&&a.right==b.right&&a.signal==b.signal&&a.point==b.point&&a.inputMin==b.inputMin&&a.inputMax==b.inputMax&&a.smoothingMs==b.smoothingMs&&a.musical==b.musical&&a.attackMs==b.attackMs&&a.releaseMs==b.releaseMs&&a.deadzone==b.deadzone&&a.base==b.base&&a.invert==b.invert&&a.loss==b.loss&&a.crowd==b.crowd&&a.zone==b.zone;}
-inline std::string signalLabel(int signal){const char *names[]={"Pinza","Apertura","Posicion X","Posicion Y","Distancia (m)","Torso X","Torso Y","Separacion munecas","Altura brazos","Punto X","Punto Y","Movimiento","Ocupacion","Centro X","Centro Y","Distancia mediana (m)","Actividad X","Actividad Y","Energia corporal","Desplazamiento X/s","Desplazamiento Y/s","Centro de actividad X","Centro de actividad Y"};return names[std::clamp(signal,0,int(BodyActivityY))];}
+inline std::string signalLabel(int signal){const char *names[]={"Pinza","Apertura","Posicion X","Posicion Y","Distancia (m)","Torso X","Torso Y","Separacion munecas","Altura brazos","Punto X","Punto Y","Movimiento","Ocupacion","Centro X","Centro Y","Distancia mediana (m)","Actividad X","Actividad Y","Energia corporal","Desplazamiento X/s","Desplazamiento Y/s","Centro de actividad X","Centro de actividad Y","Inclinacion lateral","Inclinacion frontal","Giro","Posicion X (m)","Altura (m)","Profundidad (m)"};return names[std::clamp(signal,0,int(PhoneZ))];}
+inline bool phoneSignal(int signal){return signal>=PhoneTiltX&&signal<=PhoneZ;}
 inline bool bodyMotionSignal(int signal){return signal>=BodyEnergy&&signal<=BodyActivityY;}
 inline void setSignal(Binding &b,int signal){b.signal=signal;b.inputMin=signal==CrowdDistance?3:signal==Pinch?.15f:signal==Distance?.7f:0;b.inputMax=signal==CrowdDistance?4.5f:signal==Distance?1.5f:signal==WristSpan?3:signal==ArmHeight?2:1;
  if((signal>=TorsoX&&signal<=BodyPointY)||bodyMotionSignal(signal))b.musical=false;
  if(signal==BodyEnergy){b.inputMax=1.5f;b.musical=true;b.attackMs=100;b.releaseMs=800;}
  if(signal==BodyVelocityX||signal==BodyVelocityY){b.inputMin=-.5f;b.inputMax=.5f;}
+ if(phoneSignal(signal)){b.musical=false;
+  if(signal==PhoneTurn){b.inputMin=-90;b.inputMax=90;}
+  else if(signal<=PhoneTiltY){b.inputMin=-45;b.inputMax=45;}
+  else{b.inputMin=-.5f;b.inputMax=.5f;}}
 }
 // Presets alter only mapping; keep area, device, output range and background.
 inline void crowdPreset(Binding &b,int preset){
@@ -247,6 +273,12 @@ inline const Body *selectedBody(const Snapshot &s,const Binding &b){
 }
 inline Value sample(const Snapshot &s,const Binding &b,double time){
  if(time-s.captured>.25 || time<s.captured)return {};
+ if(b.source.detector==Detector::Pose){
+  if(!phoneSignal(b.signal)||!s.phone.valid)return {};
+  const auto &p=s.phone;
+  const float values[]={p.tiltX,p.tiltY,p.turn,p.x,p.y,p.z};
+  return {values[b.signal-PhoneTiltX],true};
+ }
  if(b.source.detector==Detector::Crowd){
   if((b.source.kind!=SourceKind::KinectIR&&b.source.kind!=SourceKind::IPhoneLidar)||!s.crowd)return {};
   const auto *result=s.crowd->find(b.crowd);if(!result)return {};

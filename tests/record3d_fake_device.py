@@ -79,7 +79,10 @@ def frame(t):
     header = struct.pack("<11I", RGB_W, RGB_H, DEPTH_W, DEPTH_H, DEPTH_W,
                          DEPTH_H, len(rgb), len(depth_c), len(conf_c), 0, 1)
     intrinsics = struct.pack("<4f", 700.0, 700.0, 480.0, 360.0)
-    pose = struct.pack("<7f", 0, 0, 0, 1, 0, 0, 0)
+    # The phone nodding: 20 degrees about +X, while it drifts sideways.
+    half = math.radians(20 * math.sin(t)) / 2
+    pose = struct.pack("<7f", math.sin(half), 0, 0, math.cos(half),
+                       0.1 * math.sin(t), 1.2, 0)
     body = header + intrinsics + pose + rgb + depth_c + conf_c
     return struct.pack(">4I", 1, 101, 0, len(body)) + body
 

@@ -42,5 +42,5 @@ output = (work / "iphone.log").read_text(errors="replace")
 print("\n".join(line for line in output.splitlines() if "iphone" in line.lower()), flush=True)
 if result.returncode or "iphone-test: PASS" not in output:
     raise SystemExit(f"FAIL; see {work}")
-print("PASS: depth/color/confidence, PointerCloud, Publico, persistence, delete/undo, pause.")
+print("PASS: depth/color/confidence, 16 bit, PointerCloud, depth shaders, Publico, phone pose, persistence, delete/undo, pause.")
 print("Screenshots:", work / "data")

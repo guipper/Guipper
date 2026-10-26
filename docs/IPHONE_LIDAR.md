@@ -17,8 +17,11 @@ Usos:
 - **Público**: en el panel de seguimiento, con **Publico** elegido, el tercer
   botón de fuente es **iPhone LiDAR**. Movimiento, ocupación, centros y
   distancia funcionan igual que con la Kinect.
+- **Teléfono**: en el mismo panel, el detector **Telefono** usa el iPhone como
+  control. Su inclinación lateral y frontal, el giro y la posición mueven el
+  parámetro vinculado; no necesita imagen ni modelo.
 
-Manos y Cuerpo no usan el iPhone: la fuente solo aporta profundidad.
+Manos y Cuerpo no usan el iPhone.
 
 ## Requisitos
 
@@ -82,6 +85,24 @@ comparten una sola conexión.
   de vuelta; con `mirror` y `flip vertical` cubre cualquier montaje. En
   PointerCloud se usa `rotate Z`.
 
+## El teléfono como control
+
+Record3D manda con cada cuadro la orientación y la posición del iPhone (ARKit).
+En el panel de seguimiento de un parámetro: **Telefono** → **Iniciar esta
+fuente** → elegir la señal:
+
+| Señal | Unidad | Rango inicial |
+| --- | --- | --- |
+| Inclinacion lateral | grados, horario positivo | −45 a 45 |
+| Inclinacion frontal | grados, hacia arriba positivo | −45 a 45 |
+| Giro | grados, a la derecha positivo | −90 a 90 |
+| Posicion X / Altura / Profundidad | metros | −0,5 a 0,5 |
+
+El cero es la posición en la que arrancó la grabación en Record3D;
+**Centrar posicion actual** toma la posición de ese momento como centro del
+rango. La vista previa dibuja un horizonte artificial. El iPhone sigue siendo la
+cámara de profundidad: moverlo también mueve la imagen DEPTH y la nube.
+
 ## Efectos con profundidad
 
 Tres shaders en `imageprocessing/`, pensados para la salida DEPTH (sirven igual
@@ -100,15 +121,18 @@ caja DEPTH los tres se ven más suaves.
 ## Pruebas
 
 ```sh
-make -C tests record3d_protocol_tests && tests/record3d_protocol_tests
+make -C tests record3d_protocol_tests depth_filter_tests phone_pose_tests
+tests/record3d_protocol_tests && tests/depth_filter_tests && tests/phone_pose_tests
 python3 tests/iphone_lidar_test.py
 ```
 
 `iphone_lidar_test.py` no necesita un iPhone: `tests/record3d_fake_device.py`
 simula `usbmuxd` y Record3D en un socket propio (`USBMUXD_SOCKET_ADDRESS`), con
-una figura que camina frente a una pared. Comprueba la profundidad en milímetros,
-el descarte por confianza, los intrínsecos, COLOR/CONFIDENCE, PointerCloud,
-Público, guardado/recarga, borrar/deshacer y el aviso de pausa. El simulador
+una figura que camina frente a una pared mientras el teléfono cabecea. Comprueba
+la profundidad en milímetros, el descarte por confianza, los intrínsecos,
+COLOR/CONFIDENCE, 16 bit depth, rotate 90, PointerCloud y su detail, los shaders
+`depth_`, Público, el teléfono como control, guardado/recarga, borrar/deshacer y
+el aviso de pausa. El simulador
 también sirve para probar una sesión a mano:
 
 ```sh

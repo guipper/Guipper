@@ -24,7 +24,7 @@ namespace
             hand.appendChild("bodyzone").set(b.bodyZone);
             hand.appendChild("person").set(int(b.person));
             hand.appendChild("players").set(b.players);
-            hand.appendChild("detector").set(b.source.detector==jp_hand::Detector::Crowd?"crowd":b.source.detector==jp_hand::Detector::Body?"body":"hands");
+            hand.appendChild("detector").set(b.source.detector==jp_hand::Detector::Crowd?"crowd":b.source.detector==jp_hand::Detector::Body?"body":b.source.detector==jp_hand::Detector::Pose?"pose":"hands");
             hand.appendChild("loss").set(int(b.loss));
             hand.appendChild("source").set(b.source.kind==jp_hand::SourceKind::KinectRGB?"kinect_rgb":b.source.kind==jp_hand::SourceKind::KinectIR?"kinect_ir":b.source.kind==jp_hand::SourceKind::Camera?"camera":b.source.kind==jp_hand::SourceKind::IPhoneLidar?"iphone_lidar":"unsupported");
             hand.appendChild("device").set(b.source.device);hand.appendChild("right").set(b.right);
@@ -60,13 +60,13 @@ namespace
                 auto source=hand.getChild("source");
                 if(source){const auto kind=source.getValue();b.source.kind=kind=="kinect_rgb"?jp_hand::SourceKind::KinectRGB:kind=="kinect_ir"?jp_hand::SourceKind::KinectIR:kind=="camera"?jp_hand::SourceKind::Camera:kind=="iphone_lidar"?jp_hand::SourceKind::IPhoneLidar:static_cast<jp_hand::SourceKind>(-1);}
                 b.source.device=hand.getChild("device").getValue();
-                const auto detector=hand.getChild("detector").getValue();b.source.detector=detector=="crowd"?jp_hand::Detector::Crowd:detector=="body"?jp_hand::Detector::Body:jp_hand::Detector::Hands;
+                const auto detector=hand.getChild("detector").getValue();b.source.detector=detector=="crowd"?jp_hand::Detector::Crowd:detector=="body"?jp_hand::Detector::Body:detector=="pose"?jp_hand::Detector::Pose:jp_hand::Detector::Hands;
                 b.person=jp_hand::BodySelection(std::clamp(hand.getChild("person").getIntValue(),0,6));
                 b.players=hand.getChild("players")?std::clamp(hand.getChild("players").getIntValue(),0,15):3;
                 b.loss=jp_hand::Loss(std::clamp(hand.getChild("loss").getIntValue(),0,2));
                 b.bodyZone=std::clamp(hand.getChild("bodyzone").getIntValue(),0,3);
                 b.right=(hand.getChild("right")?hand.getChild("right").getBoolValue():true);
-                b.signal=std::clamp(hand.getChild("signal").getIntValue(),0,int(jp_hand::BodyActivityY));
+                b.signal=std::clamp(hand.getChild("signal").getIntValue(),0,int(jp_hand::PhoneZ));
                 b.point=std::clamp((hand.getChild("point")?hand.getChild("point").getIntValue():-1),-1,b.source.detector==jp_hand::Detector::Body?32:20);
                 auto number=[&](const char *key,float fallback,float lo,float hi){auto v=hand.getChild(key);float value=v?v.getFloatValue():fallback;return std::isfinite(value)?std::clamp(value,lo,hi):fallback;};
                 b.inputMin=number("inputmin",b.signal==jp_hand::CrowdDistance?3:b.signal==jp_hand::Distance?.7f:b.signal==jp_hand::Pinch?.15f:0,-10000,10000);

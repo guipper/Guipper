@@ -80,6 +80,31 @@ struct Service {
   }
  }
 
+ // The phone as a controller: no image and no model, only the pose Record3D
+ // sends with every frame. Holding the source keeps the USB stream open.
+ void pose(uint64_t g,bool simulated){
+  if(key.kind!=SourceKind::IPhoneLidar){status("Movimiento requiere el iPhone",g,simulated);return;}
+  std::shared_ptr<IPhoneLidarCaptureSource> phoneSource;uint64_t serial=0;double last=0;
+  while(!cancelled(g)){
+   if(!panel&&now()-wanted>.5){dormant=true;status("En pausa: sin vinculos activos",g,simulated);return;}
+   Snapshot s;s.simulated=simulated;
+   if(simulated){
+    const double t=now();s.captured=t;auto &p=s.phone;p.valid=true;
+    p.tiltX=float(20*std::sin(t*1.1));p.tiltY=float(25*std::sin(t*.7));p.turn=float(40*std::sin(t*.3));
+    p.x=float(.2*std::sin(t*.5));p.y=float(1.2+.1*std::sin(t*.9));p.z=float(.2*std::cos(t*.5));
+    s.status="Simulacion: movimiento del telefono";publish(std::move(s),g);pause(16);continue;
+   }
+   if(!phoneSource){phoneSource=JPbox_iphonelidar::acquireSharedCapture();if(reconnecting.exchange(false))JPbox_iphonelidar::reconnectShared(phoneSource);}
+   const auto sample=JPbox_iphonelidar::latestPose(phoneSource);
+   if(!sample.serial||now()-sample.captured>.25){status("Sin movimiento: "+JPbox_iphonelidar::captureStatus(phoneSource),g);pause(30);continue;}
+   if(sample.serial==serial){pause(3);continue;}serial=sample.serial;
+   s.phone=phonePose(sample.qx,sample.qy,sample.qz,sample.qw,sample.tx,sample.ty,sample.tz);s.captured=sample.captured;
+   const double time=now();s.inferenceFps=last>0?float(1/(time-last)):0;last=time;
+   s.status=s.phone.valid?"Telefono: movimiento activo":"Pose invalida";
+   publish(std::move(s),g);pause(2);
+  }
+ }
+
 #ifdef __linux__
  struct Process {
   pid_t pid=-1;int input=-1,output=-1;std::string pending;
@@ -191,6 +216,7 @@ struct Service {
   uint64_t handled=0;
   while(!closing){uint64_t g=generation;if(!panel&&now()-wanted>.5){pause(30);continue;}if(g==handled||mode==0){pause(30);continue;}handled=g;
    if(key.detector==Detector::Crowd){dormant=false;crowd(g,mode==2);if(dormant)handled=0;continue;}
+   if(key.detector==Detector::Pose){dormant=false;pose(g,mode==2);if(dormant)handled=0;continue;}
    if(mode==2){std::array<BodyMotion,MaxBodies> simulatedMotion;while(!cancelled(g)){if(!panel&&now()-wanted>.5){pause(50);continue;}Snapshot s=simulatedSnapshot(now(),loss,key.detector,MaxBodies);
      if(key.kind!=SourceKind::KinectRGB){auto f=std::make_shared<Frame>(*s.frame);f->width=f->nativeWidth=key.kind==SourceKind::KinectIR?512:640;f->height=f->nativeHeight=key.kind==SourceKind::KinectIR?424:480;f->rgb.assign(f->width*f->height*3,24);f->infrared=key.kind==SourceKind::KinectIR;f->depthWidth=f->depthHeight=0;s.frame=f;for(auto &b:s.bodies){b.aspect=float(f->width)/f->height;if(key.kind==SourceKind::Camera)b.depthValid=false;}for(auto &h:s.hands){h.aspect=float(f->width)/f->height;if(key.kind==SourceKind::Camera)h.depthValid=false;}}
      for(auto &b:s.bodies)simulatedMotion[b.player-1].update(b,s.captured);

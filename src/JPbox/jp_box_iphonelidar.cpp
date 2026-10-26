@@ -122,6 +122,12 @@ public:
 		return audienceTrackingFrame;
 	}
 
+	JPbox_iphonelidar::PoseSample pose() const
+	{
+		lock_guard<mutex> lock(dataMutex);
+		return latestPose;
+	}
+
 private:
 	void setStatus(const string &value)
 	{
@@ -342,6 +348,10 @@ private:
 		lock_guard<mutex> lock(dataMutex);
 		++frameVersion;
 		if (audience) audience->serial = frameVersion;
+		// Seven floats, always: cheap enough not to need its own lease.
+		latestPose = {message.pose.qx, message.pose.qy, message.pose.qz,
+			message.pose.qw, message.pose.tx, message.pose.ty, message.pose.tz,
+			captured, frameVersion};
 		audienceTrackingFrame = std::move(audience);
 		depthFrame = std::move(depth);
 		confidenceFrame = std::move(confidence);
@@ -376,6 +386,7 @@ private:
 	shared_ptr<const ConfidenceFrame> confidenceFrame;
 	shared_ptr<const ofPixels> colorFrame;
 	std::shared_ptr<const jp_hand::Frame> audienceTrackingFrame;
+	JPbox_iphonelidar::PoseSample latestPose;
 	uint64_t frameVersion = 0;
 	uint64_t colorVersion = 0;
 };
@@ -823,4 +834,10 @@ std::shared_ptr<const jp_hand::Frame> JPbox_iphonelidar::audienceFrame(
 	const shared_ptr<IPhoneLidarCaptureSource> &source)
 {
 	return source ? source->audienceSnapshot() : nullptr;
+}
+
+JPbox_iphonelidar::PoseSample JPbox_iphonelidar::latestPose(
+	const shared_ptr<IPhoneLidarCaptureSource> &source)
+{
+	return source ? source->pose() : PoseSample();
 }

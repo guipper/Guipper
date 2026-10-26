@@ -81,6 +81,18 @@ public:
 	static std::shared_ptr<const jp_hand::Frame> audienceFrame(
 		const shared_ptr<IPhoneLidarCaptureSource> &source);
 
+	// ARKit camera-to-world pose of the latest frame, as Record3D sends it.
+	// serial 0 means none has arrived since the source opened.
+	struct PoseSample
+	{
+		float qx = 0.0f, qy = 0.0f, qz = 0.0f, qw = 1.0f;
+		float tx = 0.0f, ty = 0.0f, tz = 0.0f;
+		double captured = 0.0;
+		uint64_t serial = 0;
+	};
+	static PoseSample latestPose(
+		const shared_ptr<IPhoneLidarCaptureSource> &source);
+
 	// Usable LiDAR range. Wider than the Kinect's 500-4500.
 	static constexpr float kMinRangeMm = 200.0f;
 	static constexpr float kMaxRangeMm = 5000.0f;

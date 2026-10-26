@@ -66,13 +66,14 @@ void draw(){
  button(panel.getRight()-80,y+7,66,"Cerrar",[]{jp_text_input::controller().finish(true);opened=false;target={};jp_hand::setPanelVisible(false);});
 
  auto &source=binding().source;const bool audience=source.detector==jp_hand::Detector::Crowd;depthPreview={};
+ const bool phonePose=source.detector==jp_hand::Detector::Pose;
  if(source!=shownSource||shownSession!=jp_hand::session(source)){shownSource=source;shownSession=jp_hand::session(source);resetMapping();displayed.reset();texture.clear();lost=false;drawingArea=false;shownCrowd.reset();}
  auto choose=[&](jp_hand::Source next){jp_text_input::controller().finish();next.detector=binding().source.detector;edit([&]{binding().source=next;});resetMapping();choosingCamera=false;jp_hand::setPanelVisible(true,next);};
- button(x,y+43,136,"Kinect RGB",[choose]{choose({jp_hand::SourceKind::KinectRGB,{}});},source.kind==jp_hand::SourceKind::KinectRGB,!audience);
- button(x+144,y+43,194,audience?"Kinect profundidad":"Kinect infrarrojo",[choose]{choose({jp_hand::SourceKind::KinectIR,{}});},source.kind==jp_hand::SourceKind::KinectIR);
+ button(x,y+43,136,"Kinect RGB",[choose]{choose({jp_hand::SourceKind::KinectRGB,{}});},source.kind==jp_hand::SourceKind::KinectRGB,!audience&&!phonePose);
+ button(x+144,y+43,194,audience?"Kinect profundidad":"Kinect infrarrojo",[choose]{choose({jp_hand::SourceKind::KinectIR,{}});},source.kind==jp_hand::SourceKind::KinectIR,!phonePose);
  // Publico has no use for a PC camera (no depth), so the slot offers the
- // other depth device instead.
- if(audience)button(x+346,y+43,w-346,"iPhone LiDAR",[choose]{choose({jp_hand::SourceKind::IPhoneLidar,{}});},source.kind==jp_hand::SourceKind::IPhoneLidar);
+ // other depth device instead. Phone movement only exists on the phone.
+ if(audience||phonePose)button(x+346,y+43,w-346,"iPhone LiDAR",[choose]{choose({jp_hand::SourceKind::IPhoneLidar,{}});},source.kind==jp_hand::SourceKind::IPhoneLidar);
  else button(x+346,y+43,w-346,"Camara de PC",[choose]{choose({jp_hand::SourceKind::Camera,lastCamera});},source.kind==jp_hand::SourceKind::Camera);
  auto available=jp_hand::sources();
  if(source.kind==jp_hand::SourceKind::Camera){
@@ -81,22 +82,25 @@ void draw(){
   deviceButton.set(x,y+76,w-154,26);
   button(x,y+76,w-154,name,[&]{choosingCamera=!choosingCamera;cameraPage=0;},choosingCamera);
   button(x+w-146,y+76,146,"Actualizar camaras",[]{jp_hand::refreshSources();});
- }else label(audience?(source.kind==jp_hand::SourceKind::IPhoneLidar?"Publico · LiDAR del iPhone por USB (Record3D) · hasta ~5 m":"Publico en oscuridad · profundidad sin RGB"):source.kind==jp_hand::SourceKind::KinectIR?(source.detector==jp_hand::Detector::Body?"Cuerpo IR experimental · hasta 4 personas · validar precision":"IR experimental · validar dedos y pinza a 1,2 a 2 m"):"RGB + profundidad · necesita luz visible",x,y+94,source.kind==jp_hand::SourceKind::KinectIR?COL_ACCENT_GOLD:COL_TEXT_SECONDARY);
+ }else label(phonePose?"Mover o inclinar el iPhone · Record3D por USB · sin imagen":audience?(source.kind==jp_hand::SourceKind::IPhoneLidar?"Publico · LiDAR del iPhone por USB (Record3D) · hasta ~5 m":"Publico en oscuridad · profundidad sin RGB"):source.kind==jp_hand::SourceKind::KinectIR?(source.detector==jp_hand::Detector::Body?"Cuerpo IR experimental · hasta 4 personas · validar precision":"IR experimental · validar dedos y pinza a 1,2 a 2 m"):"RGB + profundidad · necesita luz visible",x,y+94,source.kind==jp_hand::SourceKind::KinectIR?COL_ACCENT_GOLD:COL_TEXT_SECONDARY);
  button(x,y+109,152,"Iniciar esta fuente",[]{jp_hand::start(false,binding().source);},jp_hand::running(binding().source)&&!jp_hand::simulation(binding().source),source.kind!=jp_hand::SourceKind::Camera||!source.device.empty());
  button(x+160,y+109,78,"Detener",[]{jp_hand::stop(binding().source);},false,jp_hand::running(binding().source));
  button(x+246,y+109,100,"Reconectar",[]{jp_hand::reconnect(binding().source);},false,source.kind!=jp_hand::SourceKind::Camera||!source.device.empty());
  button(x+354,y+109,100,"Simulacion",[]{jp_hand::start(true,binding().source);},jp_hand::simulation(binding().source));
  if(jp_hand::simulation(binding().source))button(x+462,y+109,w-462,lost?"Volver":"Perder",[]{lost=!lost;jp_hand::simulateLoss(lost,binding().source);},lost);
  auto chooseDetector=[](jp_hand::Detector detector){jp_text_input::controller().finish();edit([detector]{auto &b=binding();
-  if(detector==jp_hand::Detector::Crowd)b.source={b.source.kind==jp_hand::SourceKind::IPhoneLidar?jp_hand::SourceKind::IPhoneLidar:jp_hand::SourceKind::KinectIR,{},detector};
+  if(detector==jp_hand::Detector::Pose)b.source={jp_hand::SourceKind::IPhoneLidar,{},detector};
+  else if(detector==jp_hand::Detector::Crowd)b.source={b.source.kind==jp_hand::SourceKind::IPhoneLidar?jp_hand::SourceKind::IPhoneLidar:jp_hand::SourceKind::KinectIR,{},detector};
   else if(b.source.kind==jp_hand::SourceKind::IPhoneLidar)b.source={jp_hand::SourceKind::KinectRGB,{},detector}; // depth only: no hands or bodies
   else b.source.detector=detector;
-  b.point=-1;jp_hand::setSignal(b,detector==jp_hand::Detector::Crowd?jp_hand::CrowdMotion:detector==jp_hand::Detector::Body?jp_hand::TorsoX:jp_hand::Pinch);
+  b.point=-1;jp_hand::setSignal(b,detector==jp_hand::Detector::Pose?jp_hand::PhoneTiltY:detector==jp_hand::Detector::Crowd?jp_hand::CrowdMotion:detector==jp_hand::Detector::Body?jp_hand::TorsoX:jp_hand::Pinch);
  });crowdSetup=false;drawingArea=false;resetMapping();jp_hand::setPanelVisible(true,binding().source);};
  button(x,y+145,100,"Manos",[chooseDetector]{chooseDetector(jp_hand::Detector::Hands);},source.detector==jp_hand::Detector::Hands);
  button(x+108,y+145,108,source.kind==jp_hand::SourceKind::KinectIR?"Cuerpo IR":"Cuerpo RGB",[chooseDetector]{chooseDetector(jp_hand::Detector::Body);},source.detector==jp_hand::Detector::Body);
  button(x+224,y+145,108,"Publico",[chooseDetector]{chooseDetector(jp_hand::Detector::Crowd);},audience);
- button(x+340,y+145,w-340,diagnostics?"Ocultar diagnostico":"Diagnostico",[]{diagnostics=!diagnostics;},diagnostics);
+ button(x+340,y+145,100,"Telefono",[chooseDetector]{chooseDetector(jp_hand::Detector::Pose);},phonePose);
+ jp_tooltip::draw("El iPhone como control: su inclinacion, giro y posicion mueven el parametro. Requiere Record3D por USB.",ofRectangle(x+340,y+145,100,26));
+ button(x+448,y+145,w-448,diagnostics?"Ocultar diag.":"Diagnostico",[]{diagnostics=!diagnostics;},diagnostics);
  const auto &s=jp_hand::snapshot(binding().source);label(s.status+" · "+ofToString(jp_hand::consumers(binding().source))+" vinculos",x,y+181,jp_hand::simulation(binding().source)?COL_ACCENT_GOLD:COL_TEXT_PRIMARY);
  ofRectangle previewArea(x,y+195,276,155.25f),preview=previewArea;ofSetColor(12);ofDrawRectangle(previewArea);
  if(s.frame&&s.frame!=displayed){displayed=s.frame;if(displayed->valid()){
@@ -106,6 +110,16 @@ void draw(){
   texture.loadData(displayed->rgb.data(),displayed->width,displayed->height,GL_RGB);
  }}
  if(s.frame&&texture.isAllocated()){preview.set(0,0,s.frame->width,s.frame->height);preview.scaleTo(previewArea,OF_SCALEMODE_FIT);ofSetColor(255);texture.draw(preview);}
+ if(phonePose&&s.phone.valid&&jp_hand::now()-s.captured<=.25){
+  // An artificial horizon: roll tilts the line, nose up lowers it, the dot
+  // along the bottom is the turn.
+  const auto &p=s.phone;const ofVec2f centre=previewArea.getCenter();
+  const float drop=std::clamp(p.tiltY/45.f,-1.f,1.f)*previewArea.height*.45f;
+  ofPushMatrix();ofTranslate(centre.x,centre.y+drop);ofRotateDeg(-p.tiltX);
+  ofSetColor(COL_ACCENT_CYAN);ofSetLineWidth(2);ofDrawLine(-previewArea.width*.4f,0,previewArea.width*.4f,0);ofDrawLine(0,0,0,-12);
+  ofPopMatrix();
+  ofSetColor(COL_ACCENT_GOLD);ofDrawCircle(centre.x+std::clamp(p.turn/90.f,-1.f,1.f)*previewArea.width*.45f,previewArea.getBottom()-8,4);
+ }
  auto &b=binding();
  const auto *crowdResult=s.crowd?s.crowd->find(b.crowd):nullptr;
  if(audience&&s.frame&&texture.isAllocated()){
@@ -178,6 +192,11 @@ void draw(){
  auto metric=[&](const std::string &t){label(t,tx,ty);ty+=20;};
  if(diagnostics&&!crowdSetup){metric("Captura: "+ofToString(s.frame?s.frame->captureFps:0,1)+" FPS");metric("Detector: "+ofToString(s.inferenceFps,1)+" FPS / "+ofToString(s.inferenceMs,0)+" ms");metric("Edad: "+(s.captured?ofToString((jp_hand::now()-s.captured)*1000,0)+" ms":"--"));metric((audience&&crowdResult?"Validos: "+ofToString(crowdResult->zones[std::clamp(b.zone,0,3)].coverage*100,0)+"% · ":std::string())+"Descartes: "+ofToString(s.dropped));}
  else if(audience){metric(jp_crowd::quality(jp_hand::running(source),jp_hand::now()-s.captured,crowdResult?crowdResult->zones[std::clamp(b.zone,0,3)].coverage:0));metric(crowdResult?"Datos validos: "+ofToString(crowdResult->zones[std::clamp(b.zone,0,3)].coverage*100,0)+"%":"Esperando datos del area");metric("Cian: ocupado · Oro: movimiento");metric(crowdSetup?"Arrastra para delimitar el area":"Ajustar desde Area y fondo");metric(jp_hand::signalLabel(b.signal));metric("Entrada: "+(v.valid?ofToString(v.raw,3):"sin datos validos"));}
+ else if(phonePose){const auto &p=s.phone;
+  metric(p.valid?"Lateral "+ofToString(int(std::lround(p.tiltX)))+" · Frontal "+ofToString(int(std::lround(p.tiltY)))+" grados":"Sin datos del telefono");
+  metric(p.valid?"Giro "+ofToString(int(std::lround(p.turn)))+" grados":"");
+  metric(p.valid?"Posicion "+ofToString(p.x,2)+" / "+ofToString(p.y,2)+" / "+ofToString(p.z,2)+" m":"");
+  metric("Cero en el punto de inicio de Record3D");}
  else {metric(b.source.detector==jp_hand::Detector::Body?(b.source.kind==jp_hand::SourceKind::KinectIR?"Hasta 4 · IR experimental":"Hasta 4 · luz visible"):"Hasta dos manos");metric(s.frame?(s.frame->infrared?"IR ":"RGB ")+ofToString(s.frame->width)+" x "+ofToString(s.frame->height):"Sin imagen");metric("Imagen sin espejo");metric(b.source.detector==jp_hand::Detector::Body?"Clic en P1–P4 para seleccionar":"Clic en un punto para elegirlo");metric(jp_hand::signalLabel(b.signal));metric("Entrada: "+(v.valid?ofToString(v.raw,3):"sin seguimiento"));}
  label(attached()?"Parametro: "+target.name:"Diagnostico · elegir una senal para explorar",x,y+372,COL_TEXT_PRIMARY);
  if(attached())button(x,y+385,158,target.active()?"Vinculo activo":"Activar vinculo",[]{edit([]{target.activate(!target.active());});},target.active());
@@ -207,6 +226,9 @@ void draw(){
   cycleButton(x,y+423,270,jp_hand::signalLabel(b.signal),[](int step){edit([step]{auto &b=binding();jp_hand::setSignal(b,jp_hand::CrowdMotion+(b.signal-jp_hand::CrowdMotion+step+7)%7);});resetMapping();});
   const char *zones[]={"Toda el area","Zona izquierda","Zona central","Zona derecha"};
   cycleButton(x+280,y+423,w-280,zones[std::clamp(b.zone,0,3)],[](int step){edit([step]{auto &b=binding();b.zone=(b.zone+step+4)%4;});resetMapping();});
+ }else if(phonePose){
+  cycleButton(x,y+423,270,jp_hand::signalLabel(b.signal),[](int step){edit([step]{auto &b=binding();const int count=jp_hand::PhoneZ-jp_hand::PhoneTiltX+1;
+   const int index=jp_hand::phoneSignal(b.signal)?b.signal-jp_hand::PhoneTiltX:0;jp_hand::setSignal(b,jp_hand::PhoneTiltX+(index+step+count)%count);});resetMapping();});
  }else if(b.source.detector==jp_hand::Detector::Body){
   cycleButton(x,y+423,270,jp_hand::signalLabel(b.signal),[](int step){edit([step]{auto &b=binding();const int signals[]={jp_hand::TorsoX,jp_hand::TorsoY,jp_hand::WristSpan,jp_hand::ArmHeight,jp_hand::BodyPointX,jp_hand::BodyPointY,jp_hand::BodyEnergy,jp_hand::BodyVelocityX,jp_hand::BodyVelocityY,jp_hand::BodyActivityX,jp_hand::BodyActivityY};
    int index=0;for(int i=0;i<11;++i)if(signals[i]==b.signal)index=i;jp_hand::setSignal(b,signals[(index+step+11)%11]);if((b.signal==jp_hand::BodyPointX||b.signal==jp_hand::BodyPointY)&&b.point<0)b.point=0;});resetMapping();});
@@ -230,7 +252,7 @@ void draw(){
    button(px,y+457,80,"P"+ofToString(player)+(b.players&mask?" activo":" fuera"),[mask]{edit([mask]{binding().players^=mask;});resetMapping();},b.players&mask);
    jp_tooltip::draw("Incluir o excluir P"+ofToString(player)+" en este parametro.\nLos numeros se reasignan tras una perdida prolongada.",ofRectangle(px,y+457,80,26));
   }
- }else label(audience?"Superficies y movimiento · No cuenta personas":"X: derecha · Y: arriba | Pinza relativa al ancho de palma",x,y+466);
+ }else label(phonePose?"Grados y metros · Centrar fija la posicion actual como cero":audience?"Superficies y movimiento · No cuenta personas":"X: derecha · Y: arriba | Pinza relativa al ancho de palma",x,y+466);
  if(calibrating&&!(calibrationBinding==b))calibrating=false;
  if(calibrating){if(raw.valid&&s.captured!=calibrationStamp){calibrationStamp=s.captured;if(calibrationSamples++==0)calibrationMin=calibrationMax=raw.raw;else{calibrationMin=std::min(calibrationMin,raw.raw);calibrationMax=std::max(calibrationMax,raw.raw);}}if(jp_hand::now()>=calibrationEnd){calibrating=false;if(calibrationSamples>=12&&calibrationMax-calibrationMin>.01f){edit([]{binding().inputMin=calibrationMin;binding().inputMax=calibrationMax;});calibrationMessage="Recorrido aplicado";}else calibrationMessage="Sin recorrido suficiente. Repetir.";}}
  if(audience){

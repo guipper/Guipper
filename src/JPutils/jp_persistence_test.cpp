@@ -17,6 +17,7 @@
 #include "jp_image_fixture.h"
 #include "../JPbox/jp_box_analogcolor.h"
 #include "../JPbox/jp_box_iphonelidar.h"
+#include "../JPgui/jp_hand_panel.h"
 #include "../JPbox/jp_box_pointercloud.h"
 #include <set>
 #include "jp_font.h"
@@ -2652,6 +2653,19 @@ while True:
             colorBox.clear();depthBox.clear();
         }
 
+        // The phone as a controller: the fake nods +-20 degrees.
+        {
+            jp_hand::Source poseSource{jp_hand::SourceKind::IPhoneLidar,{},jp_hand::Detector::Pose};
+            jp_hand::Binding poseBinding;poseBinding.source=poseSource;jp_hand::setSignal(poseBinding,jp_hand::PhoneTiltY);
+            jp_hand::start(false,poseSource);float lo=100,hi=-100;
+            waitFor([&]{jp_hand::beginFrame();jp_hand::demand(poseSource,nullptr);const auto v=jp_hand::sample(jp_hand::snapshot(poseSource),poseBinding,jp_hand::now());
+                if(v.valid){lo=std::min(lo,v.raw);hi=std::max(hi,v.raw);}return hi-lo>15;},8);
+            check(hi-lo>15&&lo>-21&&hi<21,"phone tilt follows the pose: "+ofToString(lo)+" .. "+ofToString(hi)+" "+jp_hand::snapshot(poseSource).status);
+            jp_hand::setSignal(poseBinding,jp_hand::PhoneY);
+            {const auto v=jp_hand::sample(jp_hand::snapshot(poseSource),poseBinding,jp_hand::now());check(v.valid&&std::abs(v.raw-1.2f)<.01f,"phone height");}
+            jp_hand::stop(poseSource);
+        }
+
         // 16 bit depth: red stays the usual grey, green carries the fraction.
         phone->setInspectorChoice(JPbox_iphonelidar::DEPTH);
         phone->parameters.setBoolValue(true,phone->parameters.indexOfName("16 bit depth"));
@@ -2695,6 +2709,23 @@ while True:
             check(waitFor([&]{restoredPhone->update();return restoredPhone->getCaptureStatus().rfind("PAUSED",0)==0;},5),"pause reported: "+restoredPhone->getCaptureStatus());
             std::filesystem::remove(pause);
             check(waitFor([&]{restoredPhone->update();return restoredPhone->getCaptureStatus()=="STREAMING";},5),"resume after pause");
+        }
+        // The binding panel with the phone as controller, for a screenshot.
+        {
+            app.boxes.clear();JPbox *host=app.boxes.addBox("analogColor");
+            auto *param=host?host->parameters.getJParameter(host->parameters.indexOfName("pixel size")):nullptr;
+            check(param!=nullptr,"pose binding host");
+            if(param){
+                jp_hand::Source poseSource{jp_hand::SourceKind::IPhoneLidar,{},jp_hand::Detector::Pose};
+                param->setAutomationMode(JPParameter::KINECT);param->handBinding.source=poseSource;jp_hand::setSignal(param->handBinding,jp_hand::PhoneTiltX);
+                jp_hand::start(false,poseSource);jp_hand_ui::open();app.boxes.openKinectBinding(param);
+                ofSetWindowShape(1280,800);
+                waitFor([&]{jp_hand::beginFrame();jp_hand_ui::beginFrame();return jp_hand::snapshot(poseSource).phone.valid;},5);
+                jp_gl::resetWindowDrawState(ofGetWidth(),ofGetHeight());ofClear(0);jp_hand_ui::draw();
+                ofImage panel;panel.grabScreen(0,0,ofGetWidth(),ofGetHeight());panel.save(ofToDataPath("iphone-pose-panel.png",true));
+                check(jp_hand::snapshot(poseSource).status=="Telefono: movimiento activo","panel shows live phone pose: "+jp_hand::snapshot(poseSource).status);
+                jp_hand::stop(poseSource);
+            }
         }
         app.boxes.clear();ofLogNotice("iphone-test")<<(passed?"PASS":"FAIL");return passed;
     }
