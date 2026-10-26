@@ -224,6 +224,10 @@ void ofApp::setup() {
         enterScreen(SHADER_INDEX);
     }
     jp::recordEvent("startup_complete");
+    // Modo de verificacion del sync, sin tocar la UI: baja la biblioteca,
+    // importa lo que compile, escribe un reporte en cache y sale.
+    if (std::getenv("GUIPPER_JSE_SYNC_TEST"))
+        startJpshadereditorSync(std::getenv("GUIPPER_JSE_FORCE") != nullptr);
     if (const char* health = std::getenv("GUIPPER_UPDATE_HEALTH_FILE")) {
         try {
             const std::filesystem::path marker(health);
@@ -491,6 +495,72 @@ void ofApp::update() {
         toasts.publish(std::move(notice));boxes.loadWarnings.clear();
     }
     updateReview();
+    // Sync con jpshadereditor: la red va en su hilo, la compilacion de cada
+    // shader vuelve aca porque necesita el contexto GL vivo.
+    jseSync.update();
+    if (jseSync.takeRescan()) {
+        const string keepSelection = getSelectedShaderPath();
+        scanShaders();
+        rebuildShaderFolderOrder();
+        if (!keepSelection.empty()) {
+            for (int folder = 0; folder < (int)shaderFolders.size(); ++folder)
+                for (int shader = 0; shader < (int)shaderFolders[folder].shaders.size(); ++shader)
+                    if (shaderFolders[folder].shaders[shader].path == keepSelection) {
+                        selectedShaderFolder = folder;
+                        selectedShaderIndex = shader;
+                    }
+        }
+    }
+    if (jseSync.status() == jp_shadereditor::Sync::Status::Failed && jseLastSummary != "failed") {
+        jseLastSummary = "failed";
+        jp::Toast notice;
+        notice.id = "jse-sync";
+        notice.state = jp::ToastState::Error;
+        notice.message = (language == 0 ? "jpshadereditor sync failed: " : "Fallo el sync con jpshadereditor: ") +
+            jseSync.lastError();
+        toasts.publish(std::move(notice));
+    }
+    if (jseSync.status() == jp_shadereditor::Sync::Status::Finished && jseLastSummary.empty()) {
+        jseLastSummary = "done";
+        jp::Toast notice;
+        notice.id = "jse-sync";
+        notice.state = jseSync.failed() > 0 ? jp::ToastState::Warning : jp::ToastState::Success;
+        notice.message = "jpshadereditor: " + ofToString(jseSync.imported()) +
+            (language == 0 ? " imported" : " importados");
+        if (jseSync.multipass() > 0)
+            notice.message += " · " + ofToString(jseSync.multipass()) +
+                (language == 0 ? " multipass pending" : " multipass pendientes");
+        if (jseSync.failed() > 0)
+            notice.message += " · " + ofToString(jseSync.failed()) + (language == 0 ? " failed" : " no compilan");
+        if (jseSync.skipped() > 0)
+            notice.message += " · " + ofToString(jseSync.skipped()) + (language == 0 ? " up to date" : " al dia");
+        toasts.publish(std::move(notice));
+    }
+    if (std::getenv("GUIPPER_JSE_SYNC_TEST") && !jseSync.running()) {
+        ofLogNotice("jpshadereditor") << "test: sync terminado, escribiendo reporte";
+        ofJson report;
+        report["status"] = jseSync.status() == jp_shadereditor::Sync::Status::Finished ? "finished" : "failed";
+        report["error"] = jseSync.lastError();
+        report["total"] = jseSync.total();
+        report["imported"] = jseSync.imported();
+        report["failed"] = jseSync.failed();
+        report["multipass"] = jseSync.multipass();
+        report["skipped"] = jseSync.skipped();
+        ofJson results = ofJson::array();
+        for (const auto &result : jseSync.results()) {
+            ofJson item;
+            item["name"] = result.name;
+            item["file"] = result.file;
+            item["error"] = result.error;
+            item["parameters"] = result.parameters;
+            item["multipass"] = result.multipass;
+            results.push_back(item);
+        }
+        report["results"] = results;
+        jp::atomicWrite(jp::AppPaths::current().cache / "jse-sync-report.json", report.dump(2));
+        ofExit();
+        return;
+    }
     if (shaderOrderLanguage != language) {
         shaderNameFocused = false;
         rebuildShaderFolderOrder();
@@ -502,7 +572,7 @@ void ofApp::update() {
         toastView.hovered(ofGetMouseX(), ofGetMouseY()), toastBlocked());
     toastLastUpdate = toastNow;
     dispatchToastActions();
-    if (updates.exitRequested()) {ofExit();return;}
+    if (updates.exitRequested()) {ofLogNotice("app") << "salida pedida por el servicio de updates";ofExit();return;}
     const auto lastCheck = updates.lastCheck;
     updates.check(false, std::time(nullptr));
     if (lastCheck != updates.lastCheck) saveReleasePreferences();
@@ -5175,7 +5245,7 @@ void ofApp::scanShaders() {
     std::set<string> listed;
 
 	// Only scan these specific root folders (no sub-subdirectories)
-	vector<string> targetFolders = { "blending", "contrib", "generative", "imageprocessing", "Getting Started" };
+	vector<string> targetFolders = { "blending", "contrib", "generative", "imageprocessing", "Getting Started", "jpshadereditor" };
 	int helperFragmentsSkipped = 0;
 	auto appendStandaloneShader = [&](ShaderFolder &folder, const string &path,
 		const string &absolutePath) {
@@ -5290,6 +5360,21 @@ void ofApp::toggleFavorite(const string &path) {
 	saveFavorites();
 	rebuildFavoritesFolder();
 }
+void ofApp::startJpshadereditorSync(bool force)
+{
+    // Un click normal solo trae lo nuevo o lo que cambió de fecha. Con force
+    // (shift+click) se vuelve a bajar todo, incluso lo que ya está al día.
+    if (jseSync.running()) return;
+    jseLastSummary.clear();
+    jseSync.start(jp_shadereditor::kApiRoot, jp_shadereditor::importDirectory(), force);
+    jp::Toast notice;
+    notice.id = "jse-sync";
+    notice.state = jp::ToastState::Info;
+    notice.message = language == 0 ? "Syncing shaders from jpshadereditor..."
+                                   : "Sincronizando shaders de jpshadereditor...";
+    toasts.publish(std::move(notice));
+}
+
 void ofApp::rebuildFavoritesFolder() {
 	// Preserve the current selection by path across the rebuild (folder indices
 	// shift when the favorites folder appears/disappears).
@@ -5423,6 +5508,13 @@ ofApp::ShaderBrowserLayout ofApp::getShaderBrowserLayout() const {
 	layout.titleBaseline = panelY + jp_screen::kTitleBaseline;
 	layout.hintBaseline = panelY + jp_screen::kSubtitleBaseline;
 	layout.favoritesModeButton.set(panelX + panelW - inset - 52.0f, panelY + 10.0f, 52.0f, 24.0f);
+	{
+		// El boton del sync se mide contra el ancho disponible para no pisar el
+		// buscador ni el toggle de favoritos en ventanas chicas.
+		const float available = contentW - 52.0f - 16.0f;
+		const float jseW = ofClamp(available * 0.42f, 74.0f, 152.0f);
+		layout.jseButton.set(layout.favoritesModeButton.x - 8.0f - jseW, panelY + 10.0f, jseW, 24.0f);
+	}
 	layout.search.set(contentX, searchY, contentW, searchH);
 	layout.searchClear.set(contentX + contentW - searchH, searchY, searchH, searchH);
     if (shaderCuratedMode) for (int i=0;i<6;++i) {
@@ -6124,10 +6216,15 @@ void ofApp::draw_shaderindex() {
     ofDrawRectRounded(layout.panel, 6.0f);
 	// Half width so the node canvas stays visible behind it, but otherwise the
 	// same frame, border, title and subtitle as every other screen.
-	jp_screen::drawFrame(layout.panel, title, layout.panel.height < 480 ? "" : layout.panel.width < 480 ?
+    string frameHint = layout.panel.height < 480 ? "" : layout.panel.width < 480 ?
         (language == 0 ? "Up/Down select | Enter load" : "Arriba/Abajo | Enter cargar") :
         (language == 0 ? "Up/Down navigate | double click/Enter to load" :
-        "Arriba/Abajo navegar | doble clic/Enter para cargar"));
+        "Arriba/Abajo navegar | doble clic/Enter para cargar");
+    // Mientras corre el sync, la bajada del marco es el progreso: es el unico
+    // lugar de la pantalla que no le saca ancho a la lista.
+    if (jseSync.running() || jseSync.status() == jp_shadereditor::Sync::Status::Failed)
+        frameHint = jseSync.statusLine(language != 0);
+	jp_screen::drawFrame(layout.panel, title, frameHint);
 
 	const bool modeHovered = layout.favoritesModeButton.inside(ofGetMouseX(), ofGetMouseY());
 	ofSetColor(ofColor(COL_BG_BUTTON, 235));
@@ -6180,6 +6277,30 @@ void ofApp::draw_shaderindex() {
 		layout.favoritesModeButton.y,
 		layout.favoritesModeButton.width,
 		layout.favoritesModeButton.height);
+
+	// Sync con jpshadereditor: un click baja la biblioteca online y deja los
+	// shaders que compilan en la carpeta jpshadereditor del IMPORT.
+	{
+		const bool jseRunning = jseSync.running();
+		string jseLabel = layout.jseButton.width < 118.0f ? "JSE SYNC" : "JPSHADEREDITOR";
+		if (jseRunning)
+			jseLabel = ofToString(jseSync.processed()) + "/" + ofToString(jseSync.total());
+		jp_button::draw(layout.jseButton, jseLabel, jseRunning, true, COL_ACCENT_GOLD);
+		const int jseTotal = jseSync.total();
+		if (jseRunning && jseTotal > 0)
+		{
+			const float jseProgress = ofClamp(float(jseSync.processed()) / float(jseTotal), 0.0f, 1.0f);
+			ofFill();
+			ofSetColor(ofColor(COL_ACCENT_GOLD, 190));
+			ofDrawRectangle(layout.jseButton.x + 3.0f, layout.jseButton.getBottom() - 4.0f,
+				std::max(0.0f, (layout.jseButton.width - 6.0f) * jseProgress), 2.0f);
+		}
+		jp_tooltip::draw(
+			jseRunning ? (language == 0 ? "Syncing with jpshadereditor" : "Sincronizando con jpshadereditor") :
+			(language == 0 ? "Import shaders from jpshadereditor" : "Importar shaders desde jpshadereditor"),
+			layout.jseButton.x, layout.jseButton.y,
+			layout.jseButton.width, layout.jseButton.height);
+	}
 
 	const bool clearVisible = !shaderSearchText.empty();
 	const bool clearHovered = clearVisible &&
@@ -6670,6 +6791,11 @@ void ofApp::keyPressed(int key) {
 	// H toggles hit-box visualization in shader index
 	if (key == 'h' && pantallaActiva == SHADER_INDEX) {
 		showShaderHitBoxes = !showShaderHitBoxes;
+		return;
+	}
+	// J sincroniza la biblioteca con jpshadereditor sin usar el mouse.
+	if (key == 'j' && pantallaActiva == SHADER_INDEX) {
+		startJpshadereditorSync(false);
 		return;
 	}
 
@@ -7550,6 +7676,10 @@ void ofApp::mousePressed(int x, int y, int button) {
         }
 
 
+		if (layout.jseButton.inside(x, y)) {
+			startJpshadereditorSync(false);
+			return;
+		}
 		if (layout.favoritesModeButton.inside(x, y)) {
 			toggleFavoritesDisplayMode();
 			return;

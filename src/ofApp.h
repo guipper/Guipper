@@ -37,6 +37,7 @@
 #include "JPutils/jp_shader_globals.h"
 #include "JPutils/jp_midi_keymap.h"
 #include "JPgui/jp_shader_editor.h"
+#include "JPgui/jp_shadereditor_sync.h"
 #include "ofxOsc.h"
 #ifdef NDI
 #include "ofxNDI.h"
@@ -378,6 +379,8 @@ public:
 	struct ShaderBrowserLayout {
 		ofRectangle panel;
 		ofRectangle favoritesModeButton;
+		// Sync con la biblioteca online de jpshadereditor.
+		ofRectangle jseButton;
 		ofRectangle search;
 		ofRectangle searchClear;
         std::array<ofRectangle,6> reviewFilters;
@@ -547,6 +550,12 @@ public:
     bool shaderScrollbarDragging = false;
     float shaderScrollbarGrab = 0.0f;
 	vector<ShaderFolder> shaderFolders;
+	// Sync con la biblioteca online de jpshadereditor. El boton vive en la
+	// pantalla IMPORT; el trabajo de red corre en su propio hilo y la
+	// compilacion de cada shader vuelve a este hilo en update().
+	jp_shadereditor::Sync jseSync;
+	string jseLastSummary;
+	void startJpshadereditorSync(bool force);
     // Search is shared by rows, tab counts and pointer-occlusion layouts.
     mutable bool shaderFilterCacheValid = false;
     mutable string shaderFilterCacheQuery;

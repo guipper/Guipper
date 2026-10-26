@@ -220,6 +220,7 @@
     <ClCompile Include="src\JPgui\jp_exposebutton.cpp" />
     <ClCompile Include="src\JPgui\jp_complexslider.cpp" />
     <ClCompile Include="src\JPgui\jp_shader_editor.cpp" />
+    <ClCompile Include="src\JPgui\jp_shadereditor_sync.cpp" />
     <ClCompile Include="src\JPgui\jp_tooglelist.cpp" />
     <ClCompile Include="src\JPbox\jp_box_ndi.cpp" />
     <ClCompile Include="src\JPbox\jp_box_shader.cpp" />
@@ -338,6 +339,7 @@
     <ClInclude Include="src\JPgui\jp_toogle.h" />
     <ClInclude Include="src\JPgui\jp_exposebutton.h" />
     <ClInclude Include="src\JPgui\jp_shader_editor.h" />
+    <ClInclude Include="src\JPgui\jp_shadereditor_sync.h" />
     <ClInclude Include="src\JPgui\jp_controller.h" />
     <ClInclude Include="src\JPgui\jp_bang.h" />
     <ClInclude Include="src\JPgui\jp_gl_state.h" />

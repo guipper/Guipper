@@ -322,6 +322,9 @@
     <ClCompile Include="src\JPgui\jp_shader_editor.cpp">
       <Filter>src\JPgui</Filter>
     </ClCompile>
+    <ClCompile Include="src\JPgui\jp_shadereditor_sync.cpp">
+      <Filter>src\JPgui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">
@@ -830,6 +833,9 @@
       <Filter>src\JPgui</Filter>
     </ClInclude>
     <ClInclude Include="src\JPgui\jp_shader_editor.h">
+      <Filter>src\JPgui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\JPgui\jp_shadereditor_sync.h">
       <Filter>src\JPgui</Filter>
     </ClInclude>
   </ItemGroup>
