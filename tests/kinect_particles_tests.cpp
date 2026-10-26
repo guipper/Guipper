@@ -74,6 +74,11 @@ int main() {
     detailed.density=0;detail.update(1.21,0,detailed);assert(detail.silhouette.empty()&&detail.detailSurface.size()==32*24);
     detail.update(2,0,detailed);assert(detail.detailSurface.empty());
     detailed.detail=0;detail.submit(depth(2000),32,24,3,k);detail.update(3,0,detailed);assert(detail.detailSurface.empty());
+    Engine independent;Settings layers;layers.sourceDensity=1;layers.density=0;layers.nearM=1;layers.farM=4;
+    independent.submit(depth(2000),32,24,0,k);independent.update(0,0,layers);
+    assert(independent.silhouette.size()==32*24&&independent.particles.empty());
+    layers.density=.1f;independent.update(.01,.01,layers);
+    assert(independent.silhouette.size()==32*24&&!independent.particles.empty());
     e.reset();assert(e.history.empty()&&e.particles.empty());
     std::cout<<"Kinect particles core: PASS\n";
 }

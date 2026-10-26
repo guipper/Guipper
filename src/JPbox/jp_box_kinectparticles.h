@@ -13,6 +13,12 @@ public:
     void clear() override;
     void setCaptureActive(bool active) override;
     string getCaptureStatus() const;
+    vector<string> inspectorChoiceLabels() const override { return {"Encuadre","Superficie","Flotantes"}; }
+    int inspectorChoice() const override { return inspectorSection; }
+    void setInspectorChoice(int choice) override { inspectorSection=std::clamp(choice,0,2); }
+    string inspectorChoiceStatus() const override;
+    bool inspectorParameterVisible(const string& parameter) const;
+    string inspectorParameterLabel(const string& parameter) const;
     // Diagnostic/test injection uses the identical depth path; never persists.
     void submitDepth(jp_particles::Engine::Depth frame, int width, int height,
                      double time, jp_particles::Intrinsics intrinsics);
@@ -32,4 +38,5 @@ private:
     bool captureAllowed=true, cleared=false;
     int targetWidth=0,targetHeight=0;
     float depthFocalY=365;
+    int inspectorSection=1;
 };

@@ -2553,6 +2553,16 @@ while True:
         orientation.parameters.setFloatValue(0,orientation.parameters.indexOfName("density"));
         orientation.parameters.setFloatValue(0,orientation.parameters.indexOfName("silhouette"));
         orientation.parameters.setFloatValue(1,orientation.parameters.indexOfName("surface detail"));
+        auto sparse=std::make_shared<std::vector<float>>(512*424,0);
+        for(int y=80;y<86;++y)for(int x=250;x<256;++x)(*sparse)[y*512+x]=3500;
+        orientation.submitDepth(sparse,512,424,0,{365,365,255.5f,211.5f});
+        auto footprint=[&](){orientation.advanceSimulation(0,0);ofPixels px;orientation.fbo.readToPixels(px);size_t count=0;for(size_t i=0;i+3<px.size();i+=4)count+=px[i]+px[i+1]+px[i+2]>20;return count;};
+        orientation.parameters.setFloatValue(.1f,orientation.parameters.indexOfName("surface size"));const auto smallFootprint=footprint();
+        orientation.parameters.setFloatValue(8,orientation.parameters.indexOfName("surface size"));const auto largeFootprint=footprint();
+        check(largeFootprint>smallFootprint*2,"surface size expands IR point footprint");
+        orientation.parameters.setFloatValue(8,orientation.parameters.indexOfName("plume size"));check(footprint()==largeFootprint,"plume size leaves surface unchanged");
+        orientation.parameters.setFloatValue(1,orientation.parameters.indexOfName("surface size"));
+        orientation.parameters.setFloatValue(1,orientation.parameters.indexOfName("plume size"));
         auto top=std::make_shared<std::vector<float>>(512*424,0);
         for(int y=60;y<120;++y)for(int x=200;x<310;++x)(*top)[y*512+x]=3500;
         orientation.submitDepth(top,512,424,0,{365,365,255.5f,211.5f});
@@ -2571,21 +2581,74 @@ while True:
         ofPixels flat;orientation.fbo.readToPixels(flat);int darkest=255,brightest=0,count=0;
         for(size_t i=0;i<flat.size();i+=4)if(flat[i]>15){darkest=std::min(darkest,int(flat[i]));brightest=std::max(brightest,int(flat[i]));++count;}
         check(count>100&&brightest-darkest<=2,"flat detail has no overlap grid");
-        check(brightest<245,"surface exposure preserves highlight headroom");orientation.clear();
+        check(brightest<245,"surface exposure preserves highlight headroom");
+        // Full-size square samples cover the plane without forcing smaller sizes up.
+        orientation.parameters.setFloatValue(1.05f,orientation.parameters.indexOfName("surface size"));
+        orientation.parameters.setFloatValue(16,orientation.parameters.indexOfName("point size"));
+        orientation.advanceSimulation(0,0);ofPixels continuous;orientation.fbo.readToPixels(continuous);
+        int x0=continuous.getWidth(),y0=continuous.getHeight(),x1=-1,y1=-1;
+        for(int y=0;y<int(continuous.getHeight());++y)for(int x=0;x<int(continuous.getWidth());++x)if(continuous.getColor(x,y).r>15){x0=std::min(x0,x);x1=std::max(x1,x);y0=std::min(y0,y);y1=std::max(y1,y);}
+        int holes=0;for(int y=y0+2;y<y1-2;++y)for(int x=x0+2;x<x1-2;++x)holes+=continuous.getColor(x,y).r<15;
+        check(x1>x0&&holes==0,"continuous surface has no grid at full sample coverage");
+        orientation.parameters.setFloatValue(1,orientation.parameters.indexOfName("point size"));
+        orientation.parameters.setFloatValue(3,orientation.parameters.indexOfName("plume brightness"));
+        orientation.parameters.setFloatValue(0,orientation.parameters.indexOfName("density"));
+        orientation.advanceSimulation(0,0);ofPixels independent;orientation.fbo.readToPixels(independent);
+        check(continuous.size()==independent.size()&&std::equal(continuous.begin(),continuous.end(),independent.begin()),"plume size brightness and emission do not alter surface");
+        orientation.parameters.setBoolValue(true,orientation.parameters.indexOfName("surface grains"));orientation.advanceSimulation(0,0);
+        ofPixels grain;orientation.fbo.readToPixels(grain);check(!std::equal(grain.begin(),grain.end(),continuous.begin()),"grain mode is an explicit alternative");
+        auto grainEnergy=[&](float size){orientation.parameters.setFloatValue(size,orientation.parameters.indexOfName("surface size"));orientation.updateFBO();ofPixels result;orientation.fbo.readToPixels(result);uint64_t sum=0;for(size_t i=0;i<result.size();i+=4)sum+=result[i];return sum;};
+        const auto smallGrainEnergy=grainEnergy(.02f),largerGrainEnergy=grainEnergy(.2f);
+        check(largerGrainEnergy>0&&smallGrainEnergy<largerGrainEnergy,"subpixel surface grains keep shrinking below one pixel");
+        check(orientation.parameters.getJParameter(orientation.parameters.indexOfName("surface size"))->nativeMin<=.01f,"extended surface size minimum");
+        orientation.parameters.setFloatValue(.65f,orientation.parameters.indexOfName("surface size"));
+        orientation.updateFBO();ofPixels originalGrains;orientation.fbo.readToPixels(originalGrains);
+        orientation.parameters.setFloatValue(.2f,orientation.parameters.indexOfName("surface variation"));
+        orientation.updateFBO();ofPixels sizedGrains;orientation.fbo.readToPixels(sizedGrains);
+        check(!std::equal(originalGrains.begin(),originalGrains.end(),sizedGrains.begin()),"surface size variation changes grains");
+        orientation.parameters.setFloatValue(.25f,orientation.parameters.indexOfName("surface jitter"));
+        orientation.updateFBO();ofPixels movedGrains;orientation.fbo.readToPixels(movedGrains);
+        check(!std::equal(sizedGrains.begin(),sizedGrains.end(),movedGrains.begin()),"surface position variation changes grains independently");
+        orientation.advanceSimulation(0,0);ofPixels stableGrains;orientation.fbo.readToPixels(stableGrains);
+        check(std::equal(movedGrains.begin(),movedGrains.end(),stableGrains.begin()),"surface variation stays stable between frames");
+        orientation.parameters.setBoolValue(false,orientation.parameters.indexOfName("surface grains"));
+        orientation.parameters.setFloatValue(1.05f,orientation.parameters.indexOfName("surface size"));
+        orientation.updateFBO();ofPixels continuousVariation;orientation.fbo.readToPixels(continuousVariation);
+        check(std::equal(continuous.begin(),continuous.end(),continuousVariation.begin()),"surface variation leaves continuous coverage unchanged");
+        const auto tinySurfaceEnergy=grainEnergy(.02f),smallSurfaceEnergy=grainEnergy(.2f),mediumSurfaceEnergy=grainEnergy(.65f);
+        check(tinySurfaceEnergy<smallSurfaceEnergy&&smallSurfaceEnergy<mediumSurfaceEnergy,"continuous surface respects small and subpixel sizes without a forced floor");
+        orientation.clear();
         if(!live){set("brightness",2.5f);set("surface detail",.86f);set("point size",16);set("zoom",2.21f);set("silhouette",0);
             p->advanceSimulation(89/60.,0);ofPixels detailPreview;p->fbo.readToPixels(detailPreview);ofSaveImage(detailPreview,ofToDataPath("particles-detail-high-exposure.png",true));}
 
+        if(!live){
+            set("point size",1.2f);set("brightness",1);set("surface detail",1);set("zoom",1);
+            for(int layer=0;layer<3;++layer){
+                p->parameters.setBoolValue(layer!=2,p->parameters.indexOfName("surface on"));p->parameters.setBoolValue(layer!=1,p->parameters.indexOfName("plume on"));
+                p->advanceSimulation(89/60.,0);ofPixels preview;p->fbo.readToPixels(preview);ofSaveImage(preview,ofToDataPath("particles-layer-"+ofToString(layer)+".png",true));
+            }
+            ofPixels cloudA;p->fbo.readToPixels(cloudA);set("brightness",0);p->updateFBO();ofPixels cloudB;p->fbo.readToPixels(cloudB);
+            check(std::equal(cloudA.begin(),cloudA.end(),cloudB.begin()),"surface brightness does not change floating particles");set("brightness",1);
+            p->parameters.setBoolValue(true,p->parameters.indexOfName("surface on"));p->advanceSimulation(89/60.,0);
+        }
         app.boxes.selectOpenBoxByIndex(0);app.boxes.setControllers();
         ofSetWindowShape(1440,900);app.windowResized(1440,900);
         jp_gl::resetWindowDrawState(ofGetWidth(),ofGetHeight());ofClear(0);
         // Draw UI on the window: its scissor coordinates are window-space.
         p->setPos(400,350);app.boxes.draw();
         ofImage uiImage;uiImage.grabScreen(0,0,ofGetWidth(),ofGetHeight());uiImage.save(ofToDataPath("particles-inspector.png",true));
+        for(int section=0;section<3;++section){
+            p->setInspectorChoice(section);app.boxes.setControllers();
+            const auto bindOrder=app.boxes.getBindableParameterOrder(p);
+            for(size_t slot=0;slot<bindOrder.size();++slot)check(bindOrder[slot]==int(slot),"changing tabs preserves existing MIDI and OSC slots");
+            jp_gl::resetWindowDrawState(ofGetWidth(),ofGetHeight());ofClear(0);app.boxes.draw();
+            ofImage sectionShot;sectionShot.grabScreen(0,0,ofGetWidth(),ofGetHeight());sectionShot.save(ofToDataPath("particles-tab-"+ofToString(section)+".png",true));
+        }
         const auto oldW=jp_constants::renderWidth,oldH=jp_constants::renderHeight;
         jp_constants::renderWidth=320;jp_constants::renderHeight=180;p->advanceSimulation(100,.016f);
         check(p->fbo.getWidth()==320&&p->fbo.getHeight()==180,"resize target");
         jp_constants::renderWidth=oldW;jp_constants::renderHeight=oldH;
-        set("life s",2.7f);set("surface detail",.72f);set("surface contrast",1.3f);set("plume opacity",.4f);const string file=ofToDataPath("particles-test.xml",true);
+        set("surface variation",.12f);set("surface jitter",.17f);set("life s",2.7f);set("surface detail",.72f);set("surface contrast",1.3f);set("plume opacity",.4f);set("plume brightness",1.7f);set("plume softness",.3f);p->parameters.setBoolValue(true,p->parameters.indexOfName("surface grains"));const string file=ofToDataPath("particles-test.xml",true);
         check(app.boxes.save(file),"save particles");
         app.boxes.clearSelection();app.boxes.toggleBoxSelection(0);app.boxes.copySelectedBoxes();app.boxes.pasteBoxes();
         check(app.boxes.boxes.size()==2,"duplicate");
@@ -2603,7 +2666,9 @@ while True:
             p=dynamic_cast<JPbox_kinectparticles*>(app.boxes.boxes[0]);
             check(p&&p->particleCount()==0&&std::abs(p->parameters.getFloatValue(p->parameters.indexOfName("life s"))-2.7f)<.001f,"persist settings only");
             check(p&&std::abs(p->parameters.getFloatValue(p->parameters.indexOfName("surface detail"))-.72f)<.001f,"persist surface detail");
+            check(p&&std::abs(p->parameters.getFloatValue(p->parameters.indexOfName("surface variation"))-.12f)<.001f&&std::abs(p->parameters.getFloatValue(p->parameters.indexOfName("surface jitter"))-.17f)<.001f,"persist subtle surface variations");
             check(p&&std::abs(p->parameters.getFloatValue(p->parameters.indexOfName("surface contrast"))-1.3f)<.001f&&std::abs(p->parameters.getFloatValue(p->parameters.indexOfName("plume opacity"))-.4f)<.001f,"persist independent surface/plume controls");
+            check(p&&std::abs(p->parameters.getFloatValue(p->parameters.indexOfName("plume brightness"))-1.7f)<.001f&&p->parameters.getBoolValue(p->parameters.indexOfName("surface grains")),"layer controls persist");
             if(p){p->setonoff(false);p->update();check(p->getCaptureStatus()=="Detenida","pause stops capture");}
         }else check(false,"restored box count");
         app.boxes.clear();ofLogNotice("particles-test")<<(passed?"PASS":"FAIL");return passed;

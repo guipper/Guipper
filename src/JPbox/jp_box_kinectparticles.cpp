@@ -10,7 +10,7 @@ void JPbox_kinectparticles::setup(string directory,string boxName) {
         parameters.addFloatValue(value,label);
         parameters.setMin(lo,i); parameters.setMax(hi,i);
     };
-    add(1.f,"density",0,1); add(1.2f,"point size",1,16);
+    add(.7f,"density",0,1); add(1.2f,"point size",1,16);
     add(2.4f,"life s",.1f,8); add(.22f,"turbulence",0,2);
     add(.45f,"rise m/s",-1,1); add(.08f,"spread",0,1.5f);
     add(.65f,"delay s",0,2); add(15,"time stripes",1,40);
@@ -20,7 +20,15 @@ void JPbox_kinectparticles::setup(string directory,string boxName) {
     parameters.addBoolValue(true,"mirror"); parameters.addBoolValue(false,"additive");
     add(1.f,"surface detail",0,1); // Append: preserve saved parameter indices.
     add(1.f,"surface contrast",0,2);
-    add(.8f,"plume opacity",0,1);
+    add(.55f,"plume opacity",0,1);
+    add(1.f,"surface size",.01f,16);
+    add(1.f,"plume size",.1f,8);
+    parameters.addBoolValue(true,"surface on");parameters.addBoolValue(true,"plume on");
+    parameters.addBoolValue(false,"surface grains");
+    add(1.f,"plume brightness",0,3);add(.7f,"plume softness",0,1);
+    add(.3f,"plume variation",0,1);
+    add(0,"surface variation",0,.2f);
+    add(0,"surface jitter",0,.25f);
     // Private renderer resources belong to this executable. A previously
     // migrated development profile does not receive new bundled files.
     const auto shaderPath = jp::AppPaths::current().bundle / "shaders/private/kinectparticles";
@@ -64,7 +72,8 @@ void JPbox_kinectparticles::update() {
 void JPbox_kinectparticles::advanceSimulation(double now,float dt) {
     ensureTarget();
     jp_particles::Settings s;
-    s.density=parameters.getFloatValue(DENSITY);s.life=parameters.getFloatValue(LIFE);
+    s.sourceDensity=1;
+    s.density=parameters.getBoolValue(parameters.indexOfName("plume on"))?parameters.getFloatValue(DENSITY):0;s.life=parameters.getFloatValue(LIFE);
     s.turbulence=parameters.getFloatValue(TURBULENCE);s.drift=parameters.getFloatValue(DRIFT);
     s.spread=parameters.getFloatValue(SPREAD);s.delay=parameters.getFloatValue(DELAY);
     s.stripes=parameters.getFloatValue(STRIPES);s.nearM=parameters.getFloatValue(NEAR_M);
@@ -75,18 +84,18 @@ void JPbox_kinectparticles::advanceSimulation(double now,float dt) {
     // Draw current surface first so equal-depth delayed splats cannot overwrite
     // its fine features. Plume particles retain their own depth and appearance.
     for(const auto &p:simulation.detailSurface){
-        mesh.addVertex({p.x,p.y,p.z});mesh.addColor(ofFloatColor(0,.75f,p.light,s.detail));
+        mesh.addVertex({p.x,p.y,p.z});mesh.addColor(ofFloatColor(p.sampleSeed,.75f,p.light,s.detail));
     }
     const float silhouette=parameters.getFloatValue(SILHOUETTE)*(1.f-s.detail);
     if(silhouette>0) for(const auto& p:simulation.silhouette) {
         mesh.addVertex({p.x,p.y,p.z});
-        mesh.addColor(ofFloatColor(0,1,p.light,silhouette));
+        mesh.addColor(ofFloatColor(p.sampleSeed,1,p.light,silhouette));
     }
     for(const auto& p:simulation.particles) {
         mesh.addVertex({p.position.x,p.position.y,p.position.z});
         const float age=std::clamp(p.age/p.lifetime,0.f,1.f);
         // Color attributes encode age and brightness; palette is evaluated on GPU.
-        mesh.addColor(ofFloatColor(age,0,0,1-age));
+        mesh.addColor(ofFloatColor(age,0,p.seed,1-age));
     }
     updateFBO();
 }
@@ -108,15 +117,23 @@ void JPbox_kinectparticles::updateFBO() {
         shader.setUniform1f("brightness",parameters.getFloatValue(BRIGHTNESS));
         shader.setUniform1f("surfaceContrast",parameters.getFloatValue(parameters.indexOfName("surface contrast")));
         shader.setUniform1f("plumeOpacity",parameters.getFloatValue(parameters.indexOfName("plume opacity")));
+        shader.setUniform1f("surfaceVariation",parameters.getFloatValue(parameters.indexOfName("surface variation")));
+        shader.setUniform1f("surfaceJitter",parameters.getFloatValue(parameters.indexOfName("surface jitter")));
+        shader.setUniform1f("surfaceSize",parameters.getFloatValue(parameters.indexOfName("surface size")));
+        shader.setUniform1f("plumeSize",parameters.getFloatValue(parameters.indexOfName("plume size")));
+        shader.setUniform1f("plumeBrightness",parameters.getFloatValue(parameters.indexOfName("plume brightness")));
+        shader.setUniform1f("plumeSoftness",parameters.getFloatValue(parameters.indexOfName("plume softness")));
+        shader.setUniform1f("plumeVariation",parameters.getFloatValue(parameters.indexOfName("plume variation")));
+        shader.setUniform1i("surfaceGrains",parameters.getBoolValue(parameters.indexOfName("surface grains")));
         shader.setUniform1i("mirror",parameters.getBoolValue(MIRROR));
         // The surface owns depth. Transparent plume edges must not occlude
         // later particles; depth-test the plume against the body without writes.
         const size_t sourceCount=mesh.getNumVertices()-simulation.particles.size();
         auto &vbo=mesh.getVbo();
-        if(sourceCount)vbo.draw(GL_POINTS,0,sourceCount);
+        if(sourceCount&&parameters.getBoolValue(parameters.indexOfName("surface on")))vbo.draw(GL_POINTS,0,sourceCount);
         glDepthMask(GL_FALSE);
         ofEnableBlendMode(additive?OF_BLENDMODE_ADD:OF_BLENDMODE_ALPHA);
-        if(simulation.particles.size())vbo.draw(GL_POINTS,sourceCount,simulation.particles.size());
+        if(simulation.particles.size()&&parameters.getBoolValue(parameters.indexOfName("plume on")))vbo.draw(GL_POINTS,sourceCount,simulation.particles.size());
         shader.end();
         glDisable(GL_PROGRAM_POINT_SIZE);glDepthMask(GL_TRUE);ofDisableDepthTest();
     }
@@ -141,4 +158,44 @@ void JPbox_kinectparticles::clear() {
     if(cleared)return;
     cleared=true;
     setCaptureActive(false);shader.unload();JPbox::clear();
+}
+
+string JPbox_kinectparticles::inspectorChoiceStatus() const {
+    if(inspectorSection==0)return "Recorte y vista para las dos capas";
+    if(inspectorSection==1){bool grains=false;for(auto* p:parameters.parameters)if(p->name=="surface grains")grains=p->boolValue;return grains?"Puntos separados: tamano libre":"Superficie: tamano libre, sin minimo forzado";}
+    return "Nube: movimiento y aspecto independientes";
+}
+bool JPbox_kinectparticles::inspectorParameterVisible(const string& n) const {
+    const bool framing=n=="near m"||n=="far m"||n=="zoom"||n=="mirror"||n=="delay s"||n=="time stripes";
+    const bool surface=n.rfind("surface ",0)==0||n=="brightness"||n=="silhouette";
+    return inspectorSection==0?framing:inspectorSection==1?surface:!framing&&!surface;
+}
+string JPbox_kinectparticles::inspectorParameterLabel(const string& n) const {
+    if(n=="life s")return "Vida (s)";
+    if(n=="turbulence")return "Turbulencia";
+    if(n=="rise m/s")return "Subida (m/s)";
+    if(n=="spread")return "Dispersion";
+    if(n=="near m")return "Cerca (m)";
+    if(n=="far m")return "Lejos (m)";
+    if(n=="delay s")return "Retardo (s)";
+    if(n=="time stripes")return "Franjas temporales";
+    if(n=="mirror")return "Espejo";
+    if(n=="brightness"||n=="plume brightness")return "Brillo";
+    if(n=="point size")return "Tamano base (px)";
+    if(n=="surface variation")return "Variacion de tamano";
+    if(n=="surface jitter")return "Variacion de posicion";
+    if(n=="surface size")return "Tamano de puntos";
+    if(n=="plume size")return "Escala de puntos";
+    if(n=="surface on"||n=="plume on")return "Mostrar capa";
+    if(n=="surface grains")return "Puntos separados";
+    if(n=="surface detail")return "Cuerpo actual";
+    if(n=="surface contrast")return "Contraste";
+    if(n=="plume opacity")return "Opacidad";
+    if(n=="plume softness")return "Borde suave";
+    if(n=="plume variation")return "Variacion de tamano";
+    if(n=="silhouette")return "Estela del cuerpo";
+    if(n=="density")return "Emision";
+    if(n=="color cycle")return "Color";
+    if(n=="additive")return "Mezcla aditiva";
+    return n;
 }

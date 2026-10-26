@@ -3487,7 +3487,7 @@ void JPboxgroup::draw_paramswindow()
                 if(y>particlesStatusRect.getBottom())break;
                 jp_constants::inspector_media_font.drawString(line,particlesStatusRect.x,y); y+=17;
             }
-            jp_tooltip::draw("Profundidad compartida. Pausar libera la captura. Delay mezcla cuadros anteriores por franjas.",particlesStatusRect);
+            jp_tooltip::draw("Encuadre comparte camara y retardo. Superficie y flotantes tienen brillo y tamano independientes.",particlesStatusRect);
         }
 
 		const vector<string> choiceLabels = inspectorBox->inspectorChoiceLabels();
@@ -3516,7 +3516,7 @@ void JPboxgroup::draw_paramswindow()
 						jp_constants::p_font.stringHeight(label) / 2.0f - 2.0f);
 			}
 			const string status = inspectorBox->inspectorChoiceStatus();
-			ofSetColor(status == "STREAMING" ?
+			ofSetColor(dynamic_cast<JPbox_kinectparticles*>(inspectorBox) ? COL_TEXT_SECONDARY : status == "STREAMING" ?
 				COL_ACCENT_GREEN : COL_ACCENT_GOLD);
 			jp_constants::p_font.drawString(status,
 				panelLeft + 12.0f,
@@ -5158,6 +5158,7 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				if (kinectStreamButtons[i].inside(ofGetMouseX(), ofGetMouseY()))
 				{
 					inspectorBox->setInspectorChoice(i);
+                    if(dynamic_cast<JPbox_kinectparticles*>(inspectorBox)){inspectorScrollY=0;setControllers();return;}
 					markCueDraftDirty(cueSelectedIndex());
 					return;
 				}
@@ -6173,7 +6174,7 @@ void JPboxgroup::setControllers(){
 	{
 		const float left = inspectorBodyViewport.x + inspectorLayout.contentPadding;
 		const float gap = 4.0f;
-		const float width = (inspectorwindow_width - 20.0f -
+		const float width = (inspectorBodyViewport.width - 2*inspectorLayout.contentPadding -
 			gap * (choiceCount - 1)) / choiceCount;
 		for (int i = 0; i < choiceCount; ++i)
 		{
@@ -6187,6 +6188,7 @@ void JPboxgroup::setControllers(){
 	*/
 	auto *mediaBox = dynamic_cast<JPMediaInspectable *>(inspectorBox);
 	auto isMediaOwnedParameter = [&](const string &parameterName) {
+        if(auto* particles=dynamic_cast<JPbox_kinectparticles*>(inspectorBox))return !particles->inspectorParameterVisible(parameterName);
         if(dynamic_cast<JPbox_analogcolor *>(inspectorBox)&&parameterName=="palette")return true;
 		if(dynamic_cast<JPbox_screen *>(inspectorBox) && parameterName=="capture window")return true;
 		return mediaBox != nullptr &&
@@ -6242,6 +6244,8 @@ void JPboxgroup::setControllers(){
 	for (int k = 0; k < inspectorBox->parameters.getSize(); k++)
 	{
 		const string parameterName = inspectorBox->parameters.getName(k);
+        auto* particleBox=dynamic_cast<JPbox_kinectparticles*>(inspectorBox);
+        const string displayName=particleBox?particleBox->inspectorParameterLabel(parameterName):parameterName;
 		const bool mediaOwned = isMediaOwnedParameter(parameterName);
 		const int advancedLayer =
 			getAdvancedMappingParameterLayer(parameterName);
@@ -6302,7 +6306,8 @@ void JPboxgroup::setControllers(){
 						  inspectorBox->parameters.parameters[k]),
 					  controllerWidth, complexsliderheight,
 					  inspectorBox->parameters.parameters[k]);
-			if (advancedLayer >= 0)
+			if(particleBox){sl->name=displayName;sl->slider_value.name=displayName;}
+            if (advancedLayer >= 0)
 				sl->name = parameterName.substr(7);
 
 			controllers.push_back(sl);
@@ -6389,7 +6394,7 @@ void JPboxgroup::setControllers(){
 			toogle->setup(controllerX,
 						  parameterTop + complexsliderheight * 0.5f,
 						  controllerWidth, slider_height,
-						  inspectorBox->parameters.getName(k), inspectorBox->parameters.getBoolValue(k));
+						  displayName, inspectorBox->parameters.getBoolValue(k));
 			if (parameterHidden)
 			{
 				toogle->y = -10000.0f;

@@ -1,0 +1,23 @@
+{
+  "status": "PASS",
+  "validation": "Linux Release; CPU and native graphics tests with synthetic depth",
+  "checks": [
+    "full sample coverage has no interior holes; small and subpixel sizes remain adjustable in both modes",
+    "surface unaffected by plume size, brightness and emission",
+    "floating layer unaffected by surface brightness",
+    "independent surface/plume visibility",
+    "explicit round grain mode",
+    "existing MIDI/OSC slots stable across tabs",
+    "layer controls persistence, copy and undo/redo",
+    "three inspector tabs visually inspected",
+    "stable subtle surface size and position variation",
+    "surface variation settings survive persistence"
+  ],
+  "artifacts": "/tmp/guipper-particles-sp57nn0l/data",
+  "pending": [
+    "real face comparison",
+    "GPU/frame rate in live composition"
+  ],
+  "personal_compositions_modified": false,
+  "validation_note": "Final size behavior verified by particles-test PASS in particle-continuous-size-test.log; replaces earlier forced minimum."
+}

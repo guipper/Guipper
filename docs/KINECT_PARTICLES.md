@@ -86,3 +86,68 @@ Controles agregados al final: **surface contrast** (0–2, inicial 1) ajusta las
 Punto de partida para un rostro legible: surface detail 0,85–1, surface contrast 1–1,3, plume opacity 0,25–0,6 y point size 2–4. `point size=16` sigue generando granos grandes; no aumenta la resolución facial. El cambio conserva posiciones guardadas de parámetros y no modifica composiciones existentes. El brillo de la superficie cambia deliberadamente para evitar saturación.
 
 Validación de render separado: Release y prueba gráfica aprobados; superficie plana con variación máxima de 2 niveles de 8 bits y margen de brillo con brightness=2,5; persistencia de los nuevos controles verificada. Revisadas capturas sintéticas con zoom=2,21 y point size=16. Falta comparar el rostro real y FPS de la composición. Resultados: [particles-surface-render-linux-2026-10-23.json](../tests/results/particles-surface-render-linux-2026-10-23.json).
+
+## Tamaño independiente de los puntos
+
+**surface size** controla los puntos que forman la superficie de profundidad y
+las franjas retardadas. **plume size** controla solo las partículas desprendidas.
+Superficie admite 0,01–16× sobre la huella del sensor y el zoom; flotantes
+admite 0,1–8× sobre `point size`. El rasterizado usa 1–64 píxeles por punto
+(sujeto al límite de la GPU); por debajo de un píxel se reduce la cobertura.
+
+Para una superficie granulada, bajar surface size; para puntos grandes, subirlo.
+No aumenta la resolución del sensor ni cambia el número de partículas. Tamaños
+grandes pueden tapar detalles y aumentar el coste de render. Los controles se
+agregan al final, admiten automatización y se guardan con el resto de parámetros.
+
+## Capas separadas: Encuadre / Superficie / Flotantes
+
+El inspector muestra tres pestañas sin reordenar los parámetros guardados:
+
+- **Encuadre:** recorte near/far, zoom, espejo y tiempo/franjas del historial.
+  El historial alimenta la estela y el origen de emisión; la superficie actual
+  sigue usando el cuadro más reciente.
+- **Superficie:** mostrar capa, brillo, contraste, cuerpo actual, estela y tamaño.
+  El modo inicial usa muestras cuadradas; **Puntos separados** habilita granos
+  redondos y variaciones sutiles. Ambos respetan el tamaño elegido: no se
+  agranda automáticamente para tapar espacios.
+- **Flotantes:** mostrar capa, emisión, tamaño base en píxeles y multiplicador,
+  vida, movimiento, color, opacidad, mezcla aditiva, brillo, borde suave y
+  variación de tamaño. Los granos se reducen al envejecer; cada uno conserva
+  su propia variación para evitar parpadeos.
+
+El tamaño base de flotantes ya no afecta a la superficie. `brightness` se
+conserva como nombre interno y ahora controla solo la superficie;
+`plume brightness` controla la nube. La densidad cambia la emisión, no la
+cantidad de muestras de la estela. Ocultar superficie elimina también su
+oclusión de profundidad: permite ver la nube sola. Los controles nuevos se
+agregan al final y la pestaña es solo estado de interfaz.
+
+Para una cara legible: superficie continua, tamaño 1, cuerpo actual 1, brillo
+1 y contraste 1; nube con emisión 0.7, tamaño base 1.2 px, escala 1, opacidad
+0.55 y borde suave 0.7. Los nuevos defaults no reemplazan valores guardados.
+No se inventa detalle más allá de la profundidad Kinect. La mejora se comprueba
+con patrones sintéticos; la calidad de un rostro y el coste de GPU se deben
+comparar con la cámara y la composición reales.
+
+Las pestañas no reasignan los slots MIDI/OSC existentes: cada controlador sigue
+apuntando al mismo parámetro aunque su fila esté en otra pestaña.
+
+Validación anterior a quitar el mínimo de tamaño: Release y pruebas CPU/gráficas
+aprobadas, incluida ausencia de huecos con cobertura forzada a tamaño 0,38, independencia entre capas, persistencia
+y estabilidad de slots. Revisadas visualmente las pestañas. Resultados en
+[particles-layers-linux-2026-10-24.json](../tests/results/particles-layers-linux-2026-10-24.json).
+
+El tamaño de superficie admite **0,01–16×** en ambos modos, sin mínimo
+forzado ni redondeo hacia arriba al desactivar **Puntos separados**: por debajo de un píxel se reduce la cobertura
+(luminosidad aparente) proporcionalmente al área, en vez de quedar clavado en
+un punto de 1 px. A valores muy bajos los puntos pueden desaparecer por la
+cuantización de pantalla. Reducir el tamaño puede dejar espacios entre muestras;
+para cubrirlos, usar aproximadamente 1–1,05×. La nube flotante conserva sus
+controles independientes.
+
+En **Superficie → Puntos separados**, **Variación de tamaño** permite hasta
+±20 % del diámetro y **Variación de posición** hasta ±0,25 píxeles de profundidad
+por eje (escalados con el zoom). Ambos empiezan en cero y usan una semilla fija
+por píxel del sensor: no animan ruido entre cuadros. No afectan a flotantes ni
+al modo de superficie sin puntos separados.

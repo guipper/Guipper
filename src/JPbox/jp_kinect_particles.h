@@ -9,11 +9,12 @@
 // CPU simulation independent of OF/USB/GL. No per-frame allocation after warmup
 // except the bounded, immutable depth snapshots owned by the capture service.
 namespace jp_particles {
-struct Point { float x=0, y=0, z=0, light=1; };
+struct Point { float x=0, y=0, z=0, light=1, sampleSeed=0; };
 struct Particle { Point position; float age=0, lifetime=1, seed=0; };
 struct Settings {
     float density=.55f, life=1.6f, turbulence=.35f, drift=.36f, spread=.35f;
     float delay=.65f, stripes=15, nearM=3, farM=4.5f;
+    float sourceDensity=-1; // Negative keeps legacy sampling; boxes can decouple emission.
     float detail=0; // Full-resolution current surface, independent of plume density/history.
 };
 struct Intrinsics { float fx=365, fy=365, cx=255.5f, cy=211.5f; };
@@ -49,13 +50,14 @@ public:
         // Catch-up is bounded: resuming after a stall never emits a giant burst.
         dt=std::clamp(dt,0.f,.1f); clock+=dt;
         const float density=std::clamp(s.density,0.f,1.f);
-        const int step=std::max(1,int(std::round(5-4*density)));
+        const float sourceDensity=s.sourceDensity<0?density:std::clamp(s.sourceDensity,0.f,1.f);
+        const int step=std::max(1,int(std::round(5-4*sourceDensity)));
         const bool fresh=!history.empty() && now-history.back().time<=.5;
         const bool rebuild=!sourceBuilt || builtVersion!=sourceVersion ||
-            cached.density!=s.density || cached.delay!=s.delay || cached.stripes!=s.stripes ||
+            cached.density!=s.density || cached.sourceDensity!=s.sourceDensity || cached.delay!=s.delay || cached.stripes!=s.stripes ||
             cached.nearM!=s.nearM || cached.farM!=s.farM || cached.detail!=s.detail;
-        if(!fresh || density<=0) { silhouette.clear();if(!fresh||s.detail<=0)sourceBuilt=false; }
-        if(fresh && density>0 && rebuild) {
+        if(!fresh || sourceDensity<=0) { silhouette.clear();if(!fresh||s.detail<=0)sourceBuilt=false; }
+        if(fresh && sourceDensity>0 && rebuild) {
             silhouette.clear();cached=s;builtVersion=sourceVersion;sourceBuilt=true;
             const float nearM=std::max(.5f,s.nearM), farM=std::max(nearM+.01f,s.farM);
             for(int y=0;y<height;y+=step) {
@@ -83,7 +85,7 @@ public:
                     const float diffuse=std::max(0.f,(-.58f*nx+.58f*ny+.57f)/length);
                     const float light=.12f+.88f*diffuse;
                     silhouette.push_back({(x+.5f-intrinsics.cx)/intrinsics.fx*z,
-                        -(y+.5f-intrinsics.cy)/intrinsics.fy*z,z,light});
+                        -(y+.5f-intrinsics.cy)/intrinsics.fy*z,z,light,float(y*width+x)/float(width*height)});
                 }
             }
         }
@@ -111,7 +113,7 @@ public:
                 float normalLength=std::sqrt(nx*nx+ny*ny+1);
                 float diffuse=std::max(0.f,(-.58f*nx+.58f*ny+.57f)/normalLength);
                 float light=std::clamp(.2f+.8f*diffuse,0.f,1.f);
-                detailSurface.push_back({(x+.5f-intrinsics.cx)/intrinsics.fx*z,-(y+.5f-intrinsics.cy)/intrinsics.fy*z,z,light});
+                detailSurface.push_back({(x+.5f-intrinsics.cx)/intrinsics.fx*z,-(y+.5f-intrinsics.cy)/intrinsics.fy*z,z,light,float(y*width+x)/float(width*height)});
             }
             // With zero plume density, still cache the separate detail surface.
             cached=s;builtVersion=sourceVersion;sourceBuilt=true;
