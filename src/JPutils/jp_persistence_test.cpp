@@ -2419,11 +2419,20 @@ while True:
             input.begin();ofClear(0,0,0,128);ofPushStyle();ofDisableAlphaBlending();
             for(int y=0;y<dimensions.second;y+=8)for(int x=0;x<dimensions.first;x+=8){ofSetColor(x*255/dimensions.first,y*255/dimensions.second,((x/8+y/8)%2)*220,128);ofDrawRectangle(x,y,8,8);}
             ofPopStyle();input.end();ofPixels source;input.readToPixels(source);
-            for(const string name:{"waves","vortex","rgb_split","neon","mosaic"}){
+            for(const string name:{"waves","vortex","rgb_split","neon","mosaic","celeste"}){
                 JPbox_shader effect;effect.setup("shaders/imageprocessing/audience_"+name+".frag",name);effect.setonoff(true);
                 check(effect.shader.isLoaded(),name+" compiles");
                 effect.fbohandlergroup.setFboPointer(&input,&sourceName,0);
                 const int amount=effect.parameters.indexOfName("amount");check(amount>=0,name+" exposes amount");if(amount<0)continue;
+                if(name=="celeste"){
+                    auto *param=effect.parameters.getJParameter(amount);param->setAutomationMode(JPParameter::KINECT);
+                    param->handBinding.source={jp_hand::SourceKind::KinectIR,{},jp_hand::Detector::Body};
+                    jp_hand::setSignal(param->handBinding,jp_hand::LeftEyeCover);param->handBinding.person=jp_hand::BodySelection::Player1;
+                    ofXml stored;auto node=stored.appendChild("box");jp_parameter_xml::save(node,effect.parameters);
+                    param->handBinding.signal=jp_hand::Pinch;jp_parameter_xml::load(node,effect.parameters,jp_parameter_xml::LoadContext::Composition);
+                    check(param->handBinding.signal==jp_hand::LeftEyeCover&&param->handBinding.loss==jp_hand::Loss::ReturnBase,"eye gesture XML and loss policy");
+                    param->setAutomationMode(JPParameter::STANDART);
+                }
                 auto set=[&](int index,float value){effect.parameters.setFloatValue(value,index);effect.parameters.setFloatLerpValue(value,index);};
                 set(amount,0);effect.updateFBO();ofPixels neutral;effect.fbo.readToPixels(neutral);
                 int error=0;for(size_t i=0;i<source.size();++i)error=std::max(error,std::abs(int(source[i])-int(neutral[i])));

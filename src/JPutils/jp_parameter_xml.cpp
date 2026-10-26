@@ -66,7 +66,7 @@ namespace
                 b.loss=jp_hand::Loss(std::clamp(hand.getChild("loss").getIntValue(),0,2));
                 b.bodyZone=std::clamp(hand.getChild("bodyzone").getIntValue(),0,3);
                 b.right=(hand.getChild("right")?hand.getChild("right").getBoolValue():true);
-                b.signal=std::clamp(hand.getChild("signal").getIntValue(),0,int(jp_hand::PhoneZ));
+                b.signal=std::clamp(hand.getChild("signal").getIntValue(),0,int(jp_hand::LeftEyeCover));
                 b.point=std::clamp((hand.getChild("point")?hand.getChild("point").getIntValue():-1),-1,b.source.detector==jp_hand::Detector::Body?32:20);
                 auto number=[&](const char *key,float fallback,float lo,float hi){auto v=hand.getChild(key);float value=v?v.getFloatValue():fallback;return std::isfinite(value)?std::clamp(value,lo,hi):fallback;};
                 b.inputMin=number("inputmin",b.signal==jp_hand::CrowdDistance?3:b.signal==jp_hand::Distance?.7f:b.signal==jp_hand::Pinch?.15f:0,-10000,10000);

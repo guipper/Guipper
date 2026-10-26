@@ -24,5 +24,5 @@ for mode in modes:
     print(output[-2500:], flush=True)
     if result.returncode or "audience-shaders: PASS" not in output:
         raise SystemExit(f"FAIL: {mode}; see {work}")
-print("PASS: five shaders, landscape/portrait, neutral RGBA, extreme controls and visible effects.")
+print("PASS: six shaders, landscape/portrait, neutral RGBA, extreme controls and visible effects.")
 print("Screenshots:", work / "data")

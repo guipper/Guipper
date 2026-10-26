@@ -617,3 +617,31 @@ Vínculos sugeridos: Promedio de altura de brazos → `thickness`; energía corp
 SOUL TORUS validado con compilación y render nativos a 640×360 y 240×320, valores iniciales y extremos, y fondo opaco/transparente. Revisada la imagen inicial; rendimiento a resolución completa pendiente. Resultados: [soul-torus-linux-2026-10-23.json](../tests/results/soul-torus-linux-2026-10-23.json).
 
 Ajuste de SOUL TORUS según la referencia ampliada: cuerpo oscuro, reflejo localizado arriba a la derecha y halo en el borde interior/exterior. Los valores iniciales ahora son tilt_x=0,5, tilt_y=0,52, light_angle=0,5 y speed=0. Los vínculos/composiciones existentes conservan sus valores; ajustar esos controles para reproducir la posición de referencia. El shader activo del equipo fue actualizado sin sobrescribir ediciones distintas.
+
+## Mano izquierda sobre un ojo → celeste
+
+Añadir `imageprocessing/audience_celeste.frag` al final de la cadena de imagen
+y enviarlo a la salida. En **amount → Kinect**, elegir la cámara RGB o Kinect
+infrarrojo, detector **Cuerpo**, señal **Mano izq. sobre ojo**, y una persona
+(P1, por ejemplo). Pulsar **Iniciar**. Entrada/salida 0–1. `amount=0` conserva
+la imagen y alfa; `amount=1` convierte la imagen a tonos celestes conservando
+la luminancia. `brightness` ajusta la exposición del tinte.
+
+Se estima el centro de la palma izquierda anatómica con muñeca y al menos dos
+puntos de mano del mismo esqueleto. Se compara con cualquiera de los ojos,
+normalizando por el ancho de hombros y corrigiendo el aspecto de la imagen.
+Debe mantenerse cerca durante 200 ms; una banda de salida mayor reduce
+parpadeos. Retirar la mano desactiva la señal. El vínculo activa una envolvente
+de 100/250 ms y retorno al valor base 0 ante pérdida. La selección de grupo
+conserva el promedio: para un disparo individual seleccionar P1/P2/P3/P4.
+
+Es una aproximación por proximidad 2D, no una comprobación de oclusión real ni
+un detector de palma abierta. Si se ocultan todos los puntos fiables del ojo
+o de la mano, no inventa una detección. Cuerpo IR continúa experimental:
+validar cerca de cámara antes de probar a 3–4,5 m en la pista. No se ha validado
+aún el gesto real con RGB/IR, iluminación, lateralidad ni oclusiones. No requiere
+otro proceso ni modelo, ni cambia automáticamente composiciones existentes.
+
+Las pruebas sintéticas cubren la espera, ambas posiciones de ojo, exclusión
+de mano derecha, pérdida de confianza, huecos temporales y diferentes FPS y
+aspectos. La referencia de puntos es [MediaPipe Pose Landmarker](https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker).

@@ -4,6 +4,35 @@
 using namespace jp_hand;
 static bool near(float a,float b){return std::abs(a-b)<.001f;}
 int main(){
+ // Eye-cover gesture: dwell, anatomical side, scale/aspect, expiry and release.
+ for(float aspect:{1.f,4.f/3,16.f/9})for(int fps:{15,30,60}){
+  Body person;person.present=true;person.aspect=aspect;
+  auto put=[&](int i,float x,float y){person.points[i]={{x/aspect,y},1,1};};
+  put(11,.3,.5);put(12,.7,.5);put(2,.44,.25);put(5,.56,.25);
+  for(int i:{15,17,19,21})put(i,.44,.25);
+  EyeCoverGesture gesture;gesture.update(person,0);assert(person.eyeCoverValid&&person.leftEyeCover==0);
+  for(int n=1;n<=fps;++n)gesture.update(person,double(n)/fps);
+  assert(person.leftEyeCover==1);
+  for(int i:{15,17,19,21})put(i,.2,.7);
+  for(int i:{16,18,20,22})put(i,.44,.25);
+  gesture.update(person,1.05);assert(person.eyeCoverValid&&person.leftEyeCover==0); // right hand alone
+  for(int i:{15,17,19,21})put(i,.56,.25);
+  gesture.update(person,1.1);gesture.update(person,1.31);assert(person.leftEyeCover==1); // either eye
+  gesture.update(person,1.7);assert(person.leftEyeCover==0); // no dwell across a gap
+  person.points[2].visibility=person.points[5].visibility=0;gesture.update(person,1.75);assert(!person.eyeCoverValid);
+  person.points[2].visibility=person.points[5].visibility=1;
+  gesture.update(person,2);gesture.update(person,2.1);assert(person.leftEyeCover==0);
+  for(int i:{15,17,19,21})put(i,.2,.7);
+  gesture.update(person,2.12);assert(person.leftEyeCover==0);
+  for(int i:{15,17,19,21})put(i,.56,.25);
+  gesture.update(person,2.15);gesture.update(person,2.3);assert(person.leftEyeCover==0);
+  gesture.update(person,2.36);assert(person.leftEyeCover==1);
+  Snapshot frame;person.player=1;frame.bodies={person};frame.captured=2.36;
+  Binding gestureBinding;gestureBinding.source={SourceKind::KinectIR,{},Detector::Body};setSignal(gestureBinding,LeftEyeCover);
+  assert(sample(frame,gestureBinding,2.36).raw==1&&gestureBinding.loss==Loss::ReturnBase);
+  assert(!sample(frame,gestureBinding,2.7).valid);
+  gesture.clear();assert(signalLabel(LeftEyeCover)=="Mano izq. sobre ojo");
+ }
  Source hands{SourceKind::Camera,"same-device"},body=hands;body.detector=Detector::Body;
  assert(hands!=body&&(hands<body)!=(body<hands));
  Binding b;b.source=body;b.person=BodySelection::Player1;b.base=.2f;b.smoothingMs=0;

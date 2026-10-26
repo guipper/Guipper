@@ -61,6 +61,7 @@ struct Body {
  std::array<BodyPoint,33> points{};bool present=false;float aspect=16.f/9.f;
  int player=0;Point center;float meters=0;bool depthValid=false;
  float energy=0,velocityX=0,velocityY=0,activityX=0,activityY=0;bool motionValid=false,activityValid=false;
+ float leftEyeCover=0;bool eyeCoverValid=false;
 };
 constexpr int MaxBodies=4;
 enum class BodySelection { Centered=0, Nearest=1, Player1=2, Player2=3, Group=4, Player3=5, Player4=6 };
@@ -93,11 +94,41 @@ inline void measureBodyDepth(Body &b,const Frame &f){
 // Per-person temporal analysis, independent of render FPS and detector array
 // order. Compare with an interpolated frame 150 ms ago; no derivative across
 // losses, identity resets, resolution/aspect changes or implausible pose jumps.
-class BodyMotion {
- struct Timed {Body body;double time;};std::deque<Timed> history;
+// Geometric gesture, not proof of eye occlusion: anatomical left palm near
+// either eye. All landmarks belong to the same associated body.
+class EyeCoverGesture {
+ double since=-1,last=-1;float aspect=0;bool active=false;
 public:
- void clear(){history.clear();}
+ void clear(){since=last=-1;active=false;aspect=0;}
  void update(Body &body,double time){
+  body.leftEyeCover=0;body.eyeCoverValid=false;
+  if(!std::isfinite(time)){clear();return;}
+  if(last>=0&&(time<=last||time-last>.25||std::abs(aspect-body.aspect)>.001f))clear();
+  last=time;aspect=body.aspect;
+  auto valid=[&](int i){return body.points[i].valid();};
+  if(!body.present||!valid(11)||!valid(12)||!valid(15)){clear();return;}
+  const float scale=distance(body.points[11].position,body.points[12].position,body.aspect);
+  if(scale<.04f){clear();return;}
+  Point palm=body.points[15].position;int count=1;
+  for(int i:{17,19,21})if(valid(i)){palm.x+=body.points[i].position.x;palm.y+=body.points[i].position.y;++count;}
+  if(count<3){clear();return;}palm.x/=count;palm.y/=count;
+  float closest=100;bool eye=false;
+  for(int i:{2,5})if(valid(i)){closest=std::min(closest,distance(palm,body.points[i].position,body.aspect)/scale);eye=true;}
+  if(!eye){clear();return;}
+  body.eyeCoverValid=true;
+  if(closest<(active?.30f:.22f)){
+   if(since<0)since=time;
+   if(time-since>=.20-1e-6)active=true;
+  }else {active=false;since=-1;}
+  body.leftEyeCover=active?1.f:0.f;
+ }
+};
+class BodyMotion {
+ struct Timed {Body body;double time;};std::deque<Timed> history;EyeCoverGesture eyeCover;
+public:
+ void clear(){history.clear();eyeCover.clear();}
+ void update(Body &body,double time){
+  eyeCover.update(body,time);
   body.energy=body.velocityX=body.velocityY=0;body.motionValid=body.activityValid=false;
   if(!history.empty()&&(time<=history.back().time||time-history.back().time>.25||std::abs(body.aspect-history.back().body.aspect)>.001f))history.clear();
   history.push_back({body,time});while(history.size()>32)history.pop_front();
@@ -216,15 +247,16 @@ inline PhonePose phonePose(float qx,float qy,float qz,float qw,float tx,float ty
  p.x=tx;p.y=ty;p.z=tz;p.valid=true;return p;
 }
 struct Snapshot {PhonePose phone;std::vector<Hand> hands;std::vector<Body> bodies;bool bodyNeedsReassign=false;std::shared_ptr<const jp_crowd::Snapshot> crowd;std::shared_ptr<const Frame> frame;double captured=0,inferenceMs=0;float inferenceFps=0;uint64_t dropped=0;std::string status="Detenido";bool simulated=false;};
-enum Signal {Pinch,Opening,PositionX,PositionY,Distance,TorsoX,TorsoY,WristSpan,ArmHeight,BodyPointX,BodyPointY,CrowdMotion,CrowdOccupancy,CrowdX,CrowdY,CrowdDistance,CrowdActivityX,CrowdActivityY,BodyEnergy,BodyVelocityX,BodyVelocityY,BodyActivityX,BodyActivityY,PhoneTiltX,PhoneTiltY,PhoneTurn,PhoneX,PhoneY,PhoneZ};
+enum Signal {Pinch,Opening,PositionX,PositionY,Distance,TorsoX,TorsoY,WristSpan,ArmHeight,BodyPointX,BodyPointY,CrowdMotion,CrowdOccupancy,CrowdX,CrowdY,CrowdDistance,CrowdActivityX,CrowdActivityY,BodyEnergy,BodyVelocityX,BodyVelocityY,BodyActivityX,BodyActivityY,PhoneTiltX,PhoneTiltY,PhoneTurn,PhoneX,PhoneY,PhoneZ,LeftEyeCover};
 enum class Loss {Hold=0,ReturnBase=1,Release=2};
 struct Binding {Source source;BodySelection person=BodySelection::Group;int players=(1<<MaxBodies)-1;int bodyZone=0;bool right=true;int signal=Pinch,point=-1;float inputMin=.15f,inputMax=1, smoothingMs=100,attackMs=80,releaseMs=600,deadzone=.01f,base=0;bool invert=false,musical=false;Loss loss=Loss::Hold;jp_crowd::Config crowd;int zone=0;};
 inline bool operator==(const Binding &a,const Binding &b){return a.source==b.source&&a.person==b.person&&a.players==b.players&&a.bodyZone==b.bodyZone&&a.right==b.right&&a.signal==b.signal&&a.point==b.point&&a.inputMin==b.inputMin&&a.inputMax==b.inputMax&&a.smoothingMs==b.smoothingMs&&a.musical==b.musical&&a.attackMs==b.attackMs&&a.releaseMs==b.releaseMs&&a.deadzone==b.deadzone&&a.base==b.base&&a.invert==b.invert&&a.loss==b.loss&&a.crowd==b.crowd&&a.zone==b.zone;}
-inline std::string signalLabel(int signal){const char *names[]={"Pinza","Apertura","Posicion X","Posicion Y","Distancia (m)","Torso X","Torso Y","Separacion munecas","Altura brazos","Punto X","Punto Y","Movimiento","Ocupacion","Centro X","Centro Y","Distancia mediana (m)","Actividad X","Actividad Y","Energia corporal","Desplazamiento X/s","Desplazamiento Y/s","Centro de actividad X","Centro de actividad Y","Inclinacion lateral","Inclinacion frontal","Giro","Posicion X (m)","Altura (m)","Profundidad (m)"};return names[std::clamp(signal,0,int(PhoneZ))];}
+inline std::string signalLabel(int signal){const char *names[]={"Pinza","Apertura","Posicion X","Posicion Y","Distancia (m)","Torso X","Torso Y","Separacion munecas","Altura brazos","Punto X","Punto Y","Movimiento","Ocupacion","Centro X","Centro Y","Distancia mediana (m)","Actividad X","Actividad Y","Energia corporal","Desplazamiento X/s","Desplazamiento Y/s","Centro de actividad X","Centro de actividad Y","Inclinacion lateral","Inclinacion frontal","Giro","Posicion X (m)","Altura (m)","Profundidad (m)","Mano izq. sobre ojo"};return names[std::clamp(signal,0,int(LeftEyeCover))];}
 inline bool phoneSignal(int signal){return signal>=PhoneTiltX&&signal<=PhoneZ;}
 inline bool bodyMotionSignal(int signal){return signal>=BodyEnergy&&signal<=BodyActivityY;}
 inline void setSignal(Binding &b,int signal){b.signal=signal;b.inputMin=signal==CrowdDistance?3:signal==Pinch?.15f:signal==Distance?.7f:0;b.inputMax=signal==CrowdDistance?4.5f:signal==Distance?1.5f:signal==WristSpan?3:signal==ArmHeight?2:1;
  if((signal>=TorsoX&&signal<=BodyPointY)||bodyMotionSignal(signal))b.musical=false;
+ if(signal==LeftEyeCover){b.musical=true;b.attackMs=100;b.releaseMs=250;b.loss=Loss::ReturnBase;b.base=0;}
  if(signal==BodyEnergy){b.inputMax=1.5f;b.musical=true;b.attackMs=100;b.releaseMs=800;}
  if(signal==BodyVelocityX||signal==BodyVelocityY){b.inputMin=-.5f;b.inputMax=.5f;}
  if(phoneSignal(signal)){b.musical=false;
@@ -250,6 +282,7 @@ inline bool bodyInZone(const Body &body,const Binding &b){
 inline Value bodyValue(const Body &body,const Binding &b){
  auto valid=[&](std::initializer_list<int> ids){for(int i:ids)if(!body.points[i].valid())return false;return true;};
  auto p=[&](int i){return body.points[i].position;};
+ if(b.signal==LeftEyeCover)return {body.leftEyeCover,body.eyeCoverValid};
  if(b.signal==BodyEnergy)return {body.energy,body.motionValid};
  if(b.signal==BodyVelocityX)return {body.velocityX,body.motionValid};
  if(b.signal==BodyVelocityY)return {body.velocityY,body.motionValid};
