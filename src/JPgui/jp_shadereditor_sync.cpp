@@ -24,6 +24,13 @@ namespace jp_shadereditor
 	namespace
 	{
 		constexpr const char *kManifestName = ".jse_sync.json";
+		// Header que declara los globals de Guipper. Va en un include a
+		// proposito: el parser de uniforms lee el .frag crudo, no los includes,
+		// asi que `time` no se convierte en un slider que pisa el reloj.
+		constexpr const char *kHeaderName = "_jse_common.frag";
+		// Subir esto reimporta todo: el manifiesto guarda con que version se
+		// tradujo cada shader.
+		constexpr int kTranslatorVersion = 2;
 		constexpr int kMaxImportsPerFrame = 3;
 
 		std::string trim(const std::string &text)
@@ -458,6 +465,32 @@ namespace jp_shadereditor
 			return stream.good();
 		}
 
+		// Globals de Guipper en un include: el parser de uniforms del nodo lee
+		// el .frag crudo y no expande includes, asi que estos nombres no se
+		// convierten en controles. Si vivieran en el .frag, `time` seria un
+		// slider y el shader quedaria congelado en ese valor.
+		bool writeGlobalHeader(const std::string &directory)
+		{
+			static const char *kHeader =
+				"#version 330\n"
+				"// Globals de Guipper para los shaders importados de jpshadereditor.\n"
+				"uniform sampler2D feedback;\n"
+				"uniform float time;\n"
+				"uniform vec4 mouse;\n"
+				"uniform vec2 resolution;\n"
+				"uniform vec2 window_mouse;\n"
+				"uniform float bpm;\n"
+				"out vec4 fragColor;\n";
+			const std::string path = ofFilePath::join(directory, kHeaderName);
+			std::error_code error;
+			if (std::filesystem::is_regular_file(path, error))
+			{
+				const std::string current = ofBufferFromFile(path).getText();
+				if (current == kHeader) return true;
+			}
+			return writeTextFile(path, kHeader);
+		}
+
 		bool programLinked(ofShader &shader)
 		{
 			if (!shader.isLoaded() || !shader.getProgram()) return false;
@@ -642,7 +675,7 @@ namespace jp_shadereditor
 		if (usesCommonFrag)
 			out += "#pragma include \"../common.frag\"\n";
 		else
-			out += "#version 330\n";
+			out += "#pragma include \"" + std::string(kHeaderName) + "\"\n";
 		out += "// jpshadereditor · " + name + "\n";
 		if (detail.contains("autor") && detail["autor"].is_string())
 			out += "// autor: " + detail["autor"].get<std::string>() + "\n";
@@ -650,13 +683,8 @@ namespace jp_shadereditor
 
 		if (!usesCommonFrag)
 		{
-			out += "uniform sampler2D feedback;\n";
-			out += "uniform float time;\n";
-			out += "uniform vec4 mouse;\n";
-			out += "uniform vec2 resolution;\n";
-			out += "uniform vec2 window_mouse;\n";
-			out += "uniform float bpm;\n";
-			out += "out vec4 fragColor;\n";
+			// Los globals viven en _jse_common.frag (ver kHeaderName): aca solo
+			// quedan macros y lo que si es parametro del shader.
 			if (!definesMacro(body, "iTime")) out += "#define iTime time\n";
 			if (!definesMacro(body, "iFrame")) out += "#define iFrame floor(time*60.)\n";
 			if (!definesMacro(body, "iResolution")) out += "#define iResolution vec3(resolution, 1.0)\n";
@@ -748,6 +776,10 @@ namespace jp_shadereditor
 		{
 			ofLogWarning("jpshadereditor") << "manifest ilegible: " << error.what();
 		}
+		// Un manifiesto de otra version del traductor se reimporta entero: es la
+		// unica forma de que una mejora en la traduccion llegue a los ya bajados.
+		if (stored.value("version", 0) != kTranslatorVersion) force = true;
+		writeGlobalHeader(directory);
 		std::map<std::string, std::string> known;
 		std::map<std::string, std::string> knownFiles;
 		if (stored.contains("shaders") && stored["shaders"].is_object())
@@ -1019,6 +1051,7 @@ namespace jp_shadereditor
 			shaders[entry.name] = item;
 		}
 		ofJson payload;
+		payload["version"] = kTranslatorVersion;
 		payload["api"] = apiRoot;
 		payload["generated"] = ofGetTimestampString("%Y-%m-%d %H:%M:%S");
 		payload["shaders"] = shaders;
@@ -1165,6 +1198,7 @@ namespace jp_shadereditor
 				if (std::filesystem::remove(std::filesystem::path(dir) / name, error)) ++removed;
 			}
 		std::error_code ignored;
+		std::filesystem::remove(std::filesystem::path(dir) / kHeaderName, ignored);
 		std::filesystem::remove(file, ignored);
 		std::lock_guard<std::mutex> lock(mutex);
 		manifest.clear();
