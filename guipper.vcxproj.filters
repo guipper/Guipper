@@ -168,6 +168,7 @@
     </ClCompile>
     <ClCompile Include="src\JPutils\jp_audio_loopback.cpp"><Filter>src\JPutils</Filter></ClCompile>
     <ClCompile Include="src\JPutils\jp_hand_tracking.cpp"><Filter>src\JPutils</Filter></ClCompile>
+    <ClCompile Include="src\JPutils\jp_kinect_azure.cpp"><Filter>src\JPutils</Filter></ClCompile>
     <ClCompile Include="src\JPgui\jp_hand_panel.cpp"><Filter>src\JPgui</Filter></ClCompile>
     <ClCompile Include="src\JPutils\jp_audio_analyzer.cpp">
       <Filter>src\JPutils</Filter>

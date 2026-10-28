@@ -312,7 +312,7 @@ namespace jp_help
         E("Shift+T", "Text: multiline editor, typography and transparent output", "Texto: editor multilinea, tipografia y salida transparente", Scope::Nodes, "shift+t"),
 		E("Shift+Y", "YouTube: stream a video link or download an optional local copy", "YouTube: reproduce un enlace por streaming o descarga en cache", Scope::Nodes, "shift+y"),
 		E("Shift+S", "Screen capture: select a monitor in the inspector", "Captura de pantalla: selecciona un monitor en el inspector", Scope::Nodes, "shift+s"),
-		E("Shift+C", "Kinect V2 input", "Entrada Kinect V2", Scope::Nodes, "shift+c"),
+		E("Shift+C", "Kinect depth input: Kinect v2 or Azure Kinect", "Entrada de profundidad Kinect: Kinect v2 o Azure Kinect", Scope::Nodes, "shift+c"),
 		E("Shift+L", "iPhone LiDAR depth via Record3D (USB)",
 			"Profundidad LiDAR del iPhone via Record3D (USB)", Scope::Nodes, "shift+l"),
 		E("Shift+D", "Camera depth: pseudo-depth from an ordinary camera",
@@ -320,8 +320,11 @@ namespace jp_help
 			Scope::Nodes, "shift+d"),
         E("Shift+K", "Kinect particles: depth silhouette, time slices and turbulence",
             "Particulas Kinect: silueta de profundidad, retardo por franjas y turbulencia", Scope::Nodes, "shift+k"),
-		E("Shift+P", "PointerCloud: Kinect V2 or iPhone LiDAR point cloud",
-			"PointerCloud: nube de puntos del Kinect V2 o del LiDAR del iPhone", Scope::Nodes, "shift+p"),
+		E("Shift+P", "PointerCloud: Kinect or iPhone LiDAR point cloud",
+			"PointerCloud: nube de puntos del Kinect o del LiDAR del iPhone", Scope::Nodes, "shift+p"),
+		// La captura es compartida: se elige una vez y vale para todos los nodos.
+		N("Every depth node (Kinect, particles, SARV, PointerCloud) shows the capture source row (KINECT 2 / AZURE) in its inspector; the choice is global and applies to the whole app, including Manos/Publico.",
+			"Cada nodo de profundidad (Kinect, particulas, SARV, PointerCloud) muestra la fila de fuente (KINECT 2 / AZURE) en su inspector; la eleccion es global y vale para toda la app, incluido Manos/Publico."),
 		GAP(),
 
 		// ------------------------------------------------------------------

@@ -9,6 +9,7 @@
 #include "ofGstUtils.h"
 #endif
 #include "JPutils/jp_uishot.h"
+#include "JPutils/jp_kinect_azure.h"
 #include "JPutils/jp_persistence_test.h"
 #include "JPutils/jp_uniform_parser.h"
 #include "JPutils/jp_font.h"
@@ -16,6 +17,123 @@
 #include <iostream>
 #include <algorithm>
 #include <chrono>
+
+// Estado del banco de prueba de captura (ver GUIPPER_KINECT_TEST en setup).
+// Vive aca y no en ofApp para no cargar la clase de produccion con un modo de
+// verificacion que solo se usa a mano.
+namespace
+{
+	struct KinectTestState
+	{
+		bool active = false;
+		int phase = 0;
+		double started = 0.0;
+		double phaseStart = 0.0;
+		uint64_t version = 0;
+		int frames = 0;
+		JPbox_kinect2::Source source = JPbox_kinect2::Source::KinectV2;
+		std::shared_ptr<KinectV2CaptureSource> capture;
+		std::vector<float> depth;
+		JPbox_kinect2::DepthIntrinsics intrinsics;
+		std::string status;
+	};
+	KinectTestState kinectTest;
+
+	void writeKinectTestReport(ofApp &app)
+	{
+		using namespace jp;
+		const auto cache = AppPaths::current().cache;
+		ofJson report;
+		report["source"] = kinectTest.source == JPbox_kinect2::Source::Azure ? "azure" : "kinect2";
+		report["sdkAvailable"] = jp_kinect_azure::available();
+		report["sdkPath"] = jp_kinect_azure::runtimePath();
+		report["azureDevices"] = jp_kinect_azure::deviceCount();
+		report["status"] = kinectTest.status;
+		report["frames"] = kinectTest.frames;
+		report["intrinsics"] = {{"fx", kinectTest.intrinsics.fx}, {"fy", kinectTest.intrinsics.fy},
+			{"cx", kinectTest.intrinsics.cx}, {"cy", kinectTest.intrinsics.cy},
+			{"valid", kinectTest.intrinsics.valid}};
+		const int width = JPbox_kinect2::depthWidth();
+		const int height = JPbox_kinect2::depthHeight();
+		report["depthSize"] = {width, height};
+		report["depthPixels"] = (int)kinectTest.depth.size();
+		if (!kinectTest.depth.empty())
+		{
+			size_t valid = 0;
+			uint16_t low = 65535, high = 0;
+			double sum = 0.0;
+			for (uint16_t value : kinectTest.depth)
+			{
+				if (value == 0) continue;
+				++valid; low = std::min(low, value); high = std::max(high, value); sum += value;
+			}
+			report["depthCoverage"] = double(valid) / double(kinectTest.depth.size());
+			report["depthMin"] = low;
+			report["depthMax"] = high;
+			report["depthMean"] = valid ? sum / double(valid) : 0.0;
+			// PNG en gris con la misma escala que usa el nodo (near/far mm).
+			ofPixels pixels;
+			pixels.allocate(width, height, OF_PIXELS_GRAY);
+			for (size_t i = 0; i < kinectTest.depth.size(); ++i)
+			{
+				const float mm = kinectTest.depth[i];
+				const float tone = mm <= 0.0f ? 0.0f : ofClamp(ofMap(mm, 500.0f, 4500.0f, 1.0f, 0.0f), 0.0f, 1.0f);
+				pixels[i] = (unsigned char)(tone * 255.0f);
+			}
+			ofSaveImage(pixels, (cache / "kinect-depth.png").string());
+			report["depthImage"] = (cache / "kinect-depth.png").string();
+		}
+		atomicWrite(cache / "kinect-test.json", report.dump(2));
+		ofLogNotice("kinect-test") << "reporte escrito: " << report.dump();
+	}
+
+	void updateKinectTest(ofApp &app)
+	{
+		if (!kinectTest.active) return;
+		const double now = ofGetElapsedTimef();
+		if (kinectTest.phase == 0)
+		{
+			if (auto depth = JPbox_kinect2::acquireRawDepth(kinectTest.capture, kinectTest.version))
+			{
+				++kinectTest.frames;
+				kinectTest.depth = *depth;
+				kinectTest.intrinsics = JPbox_kinect2::depthIntrinsics(kinectTest.capture);
+			}
+			kinectTest.status = JPbox_kinect2::captureStatus(kinectTest.capture);
+			const bool enough = kinectTest.frames >= 12;
+			const bool timedOut = now - kinectTest.started > 8.0;
+			if (!enough && !timedOut) return;
+			// Un nodo Kinect real con el inspector abierto: asi la captura de
+			// pantalla muestra la fila de fuente ademas del flujo de imagenes.
+			std::string nodeDirectory = "kinect2";
+			if (const char *node = std::getenv("GUIPPER_KINECT_NODE")) nodeDirectory = node;
+			if (app.boxes.addBox(nodeDirectory, 520.0f, 330.0f) != nullptr)
+			{
+				app.boxes.openguinumber = (int)app.boxes.boxes.size() - 1;
+				if (auto *box = dynamic_cast<JPbox_kinect2 *>(app.boxes.boxes.back()))
+				{
+					if (const char *stream = std::getenv("GUIPPER_KINECT_STREAM"))
+					{
+						const std::string wanted = stream;
+						box->setStream(wanted == "depth" ? JPbox_kinect2::DEPTH :
+							wanted == "ir" ? JPbox_kinect2::INFRARED : JPbox_kinect2::COLOR);
+					}
+				}
+				app.boxes.setControllers();
+			}
+			kinectTest.phase = 1;
+			kinectTest.phaseStart = now;
+			return;
+		}
+		if (kinectTest.phase == 1 && now - kinectTest.phaseStart > 3.0)
+		{
+			// Si el draw nunca llega a capturar, no dejar la app colgada.
+			writeKinectTestReport(app);
+			kinectTest.active = false;
+			ofExit();
+		}
+	}
+}
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
@@ -158,6 +276,22 @@ void ofApp::setup() {
 	// After loadSettings: it auto-loads the default composition, which the
 	// harness has to clobber with its own fixture.
 	jp_uishot::setup(*this);
+
+	// Banco de prueba de la captura de profundidad (Kinect v2 / Azure):
+	// GUIPPER_KINECT_TEST=1 [GUIPPER_KINECT_SOURCE=azure|v2] abre la fuente,
+	// espera frames, deja un Kinect seleccionado, guarda reporte + capturas y
+	// sale. Sirve para verificar con hardware real sin tocar la UI a mano.
+	if (std::getenv("GUIPPER_KINECT_TEST"))
+	{
+	    if (const char *source = std::getenv("GUIPPER_KINECT_SOURCE"))
+	        JPbox_kinect2::setCaptureSource(std::string(source) == "azure" ?
+	            JPbox_kinect2::Source::Azure : JPbox_kinect2::Source::KinectV2);
+	    kinectTest = KinectTestState();
+	    kinectTest.active = true;
+	    kinectTest.started = ofGetElapsedTimef();
+	    kinectTest.source = JPbox_kinect2::captureSource();
+	    kinectTest.capture = JPbox_kinect2::acquireSharedCapture();
+	}
 
 	loadAspreset = true; // Default: drag XML as boxgroup. Press 't' to toggle to full session load.
 
@@ -488,6 +622,7 @@ void ofApp::enterScreen(int screen)
 void ofApp::update() {
     jp_hand::beginFrame();
     jp_hand_ui::beginFrame();
+    if (kinectTest.active) updateKinectTest(*this);
     if(!boxes.loadWarnings.empty()){
         jp::Toast notice;notice.id="load-missing-boxes";notice.state=jp::ToastState::Warning;
         notice.message="Composicion abierta. Cajas no disponibles omitidas: ";
@@ -851,6 +986,19 @@ void ofApp::draw() {
 	jp_uishot::draw(*this);
 	recordProfileValue(frameProfile.drawMs, frameProfile.drawPeakMs,
 		elapsedProfileMs(drawStart));
+
+	// Banco de prueba de Kinect: grabScreen lee el frame ya dibujado, asi que
+	// la captura va al final del draw y no en update().
+	if (kinectTest.active && kinectTest.phase == 1 &&
+		ofGetElapsedTimef() - kinectTest.phaseStart > 1.2)
+	{
+		ofImage shot;
+		shot.grabScreen(0, 0, ofGetWidth(), ofGetHeight());
+		shot.save(jp::AppPaths::current().cache / "kinect-inspector.png");
+		writeKinectTestReport(*this);
+		kinectTest.active = false;
+		ofExit();
+	}
 }
 void ofApp::queryGpuInfo() {
 	// glGetString returns a pointer owned by the driver that stays valid for

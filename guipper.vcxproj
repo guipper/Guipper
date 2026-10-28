@@ -254,6 +254,7 @@
     <ClCompile Include="src\JPutils\jp_audio_loopback.cpp" />
     <ClCompile Include="src\JPgui\jp_hand_panel.cpp" />
     <ClCompile Include="src\JPutils\jp_hand_tracking.cpp" />
+    <ClCompile Include="src\JPutils\jp_kinect_azure.cpp" />
     <ClCompile Include="src\JPutils\jp_audio_analyzer.cpp" />
     <ClCompile Include="src\JPutils\jp_persistence_test.cpp" />
     <ClCompile Include="src\JPutils\jp_uishot.cpp" />
@@ -390,6 +391,7 @@
     <ClInclude Include="src\JPutils\jp_shader_globals.h" />
     <ClInclude Include="src\JPutils\jp_help_content.h" />
     <ClInclude Include="src\JPutils\jp_pointer.h" />
+    <ClInclude Include="src\JPutils\jp_kinect_azure.h" />
     <ClInclude Include="src\JPutils\jp_fbohandler.h" />
     <ClInclude Include="src\JPutils\jp_dragobject.h" />
     <ClInclude Include="src\JPutils\jp_parametergroup.h" />

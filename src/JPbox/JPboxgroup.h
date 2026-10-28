@@ -954,6 +954,7 @@ private:
 	JPBang tooutputbutton;               // Marks the box selectable as a live output source
 	JPBang finaloverlaybutton;           // GO TO FINAL: composites this chain over the final image
 	std::array<ofRectangle, 3> kinectStreamButtons;
+	std::array<ofRectangle, 2> captureSourceButtons;
 	ofRectangle screenDisplayModeButton, screenWindowModeButton;
 	ofRectangle particlesStatusRect;
 	ofRectangle screenSelectButton, screenResumeButton, screenStopButton, screenStatusRect;

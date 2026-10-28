@@ -2,6 +2,7 @@
 #include "jp_button.h"
 #include "../JPutils/jp_tooltip.h"
 #include "../JPutils/jp_text_input.h"
+#include "../JPbox/jp_box_kinect2.h"
 #include <deque>
 namespace jp_hand_ui {
 namespace {
@@ -63,6 +64,13 @@ void draw(){
  ofSetColor(COL_BG_PANEL);ofDrawRectRounded(panel,6);ofNoFill();ofSetColor(COL_BORDER_DEFAULT);ofDrawRectRounded(panel,6);ofFill();
  float x=panel.x+14,y=panel.y,w=panel.width-28;buttons.clear();landmarks.clear();bodyHits.clear();
  label("SEGUIMIENTO",x,y+24,COL_TEXT_PRIMARY);label("Arrastrar para mover",x+195,y+24,COL_TEXT_MUTED);
+ // Fuente del dispositivo de profundidad: la misma que usan los nodos Kinect.
+ // Vive aca porque Manos/Publico/Cuerpo leen esa captura compartida.
+ button(panel.getRight()-80-8-176,y+7,176,
+        string("Kinect: ")+(JPbox_kinect2::captureSource()==JPbox_kinect2::Source::Azure?"AZURE":"V2"),
+        []{JPbox_kinect2::setCaptureSource(JPbox_kinect2::captureSource()==JPbox_kinect2::Source::Azure?
+             JPbox_kinect2::Source::KinectV2:JPbox_kinect2::Source::Azure);},
+        JPbox_kinect2::captureSource()==JPbox_kinect2::Source::Azure);
  button(panel.getRight()-80,y+7,66,"Cerrar",[]{jp_text_input::controller().finish(true);opened=false;target={};jp_hand::setPanelVisible(false);});
 
  auto &source=binding().source;const bool audience=source.detector==jp_hand::Detector::Crowd;depthPreview={};

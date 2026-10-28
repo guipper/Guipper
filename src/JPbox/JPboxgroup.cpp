@@ -3523,6 +3523,33 @@ void JPboxgroup::draw_paramswindow()
 				kinectStreamButtons[0].getBottom() + 16.0f);
 		}
 
+		// Fuente de captura compartida: Kinect v2 o Azure Kinect.
+		if (inspectorBox->usesDepthCapture())
+		{
+			const vector<string> sourceLabels = JPbox_kinect2::sourceLabels();
+			const JPbox_kinect2::Source source = JPbox_kinect2::captureSource();
+			for (size_t i = 0; i < sourceLabels.size() && i < captureSourceButtons.size(); ++i)
+			{
+				const bool selected = (int)source == (int)i;
+				const bool hovered = captureSourceButtons[i].inside(ofGetMouseX(), ofGetMouseY());
+				ofSetColor(selected ? COL_ACCENT_CYAN_DIM : (hovered ? COL_BG_HOVER : COL_BG_INPUT));
+				ofDrawRectRounded(captureSourceButtons[i], 3.0f);
+				ofNoFill();
+				ofSetColor(selected ? COL_ACCENT_CYAN : COL_BORDER_MUTED);
+				ofDrawRectRounded(captureSourceButtons[i], 3.0f);
+				ofFill();
+				ofSetColor(selected ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY);
+				jp_constants::p_font.drawString(sourceLabels[i],
+					captureSourceButtons[i].getCenter().x -
+						jp_constants::p_font.stringWidth(sourceLabels[i]) / 2.0f,
+					captureSourceButtons[i].getCenter().y +
+						jp_constants::p_font.stringHeight(sourceLabels[i]) / 2.0f - 2.0f);
+			}
+			ofSetColor(JPbox_kinect2::sourceAvailable(source) ? COL_ACCENT_GREEN : COL_ACCENT_GOLD);
+			jp_constants::p_font.drawString("FUENTE: " + JPbox_kinect2::sourceStatus(source),
+				panelLeft + 12.0f, captureSourceButtons[0].getBottom() + 16.0f);
+		}
+
 		for (int i = 0; i < controllers.size(); i++)
 		{
 			if (controllers[i]->width <= 0.0f ||
@@ -5164,6 +5191,18 @@ void JPboxgroup::update_mousePressed(int mouseButton)
 				}
 			}
 		}
+		{
+			const int sources = std::min<int>((int)JPbox_kinect2::sourceLabels().size(),
+				(int)captureSourceButtons.size());
+			for (int i = 0; i < sources; ++i)
+			{
+				if (captureSourceButtons[i].inside(ofGetMouseX(), ofGetMouseY()))
+				{
+					JPbox_kinect2::setCaptureSource((JPbox_kinect2::Source)i);
+					return;
+				}
+			}
+		}
 		if (editbutton.mouseGrab() && shaderEditor != nullptr)
 		{
 			string shaderDir = inspectorBox->dir;
@@ -6180,6 +6219,22 @@ void JPboxgroup::setControllers(){
 		{
 			kinectStreamButtons[i].set(left + i * (width + gap),
 				layoutCursor, width, 26.0f);
+		}
+		layoutCursor += 54.0f + controllerRowGap;
+	}
+	// Fila de fuente de captura: cualquier nodo que lea profundidad puede
+	// cambiar entre Kinect v2 y Azure Kinect sin salir del inspector.
+	for (ofRectangle &button : captureSourceButtons) button.set(0, 0, 0, 0);
+	if (inspectorBox->usesDepthCapture())
+	{
+		const int sourceCount = (int)JPbox_kinect2::sourceLabels().size();
+		const float left = inspectorBodyViewport.x + inspectorLayout.contentPadding;
+		const float gap = 4.0f;
+		const float width = (inspectorBodyViewport.width - 2*inspectorLayout.contentPadding -
+			gap * (sourceCount - 1)) / sourceCount;
+		for (int i = 0; i < sourceCount; ++i)
+		{
+			captureSourceButtons[i].set(left + i * (width + gap), layoutCursor, width, 26.0f);
 		}
 		layoutCursor += 54.0f + controllerRowGap;
 	}

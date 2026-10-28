@@ -17,6 +17,7 @@ public:
     int inspectorChoice() const override;
     void setInspectorChoice(int choice) override;
     string inspectorChoiceStatus() const override;
+    bool usesDepthCapture() const override { return true; }
 private:
     void allocate();
     void buildSource(double now);

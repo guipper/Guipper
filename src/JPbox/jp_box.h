@@ -151,6 +151,9 @@ public:
 	virtual int inspectorChoice() const { return -1; }
 	virtual void setInspectorChoice(int choice) {}
 	virtual string inspectorChoiceStatus() const { return ""; }
+	// Nodos que leen la captura de profundidad compartida: ademas de su propia
+	// fila, el inspector les muestra el selector de fuente (Kinect v2 / Azure).
+	virtual bool usesDepthCapture() const { return false; }
 	void setPos(float _x, float _y)
 	{
 		JPdragobject::setPos(_x, _y);

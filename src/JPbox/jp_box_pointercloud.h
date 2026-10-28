@@ -36,6 +36,7 @@ public:
 	int inspectorChoice() const override;
 	void setInspectorChoice(int choice) override;
 	string inspectorChoiceStatus() const override;
+	bool usesDepthCapture() const override { return true; }
 
 	// Saved as an int: append only. Prefixed: KINECT2 and IPHONE_LIDAR are
 	// build defines.

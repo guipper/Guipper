@@ -23,6 +23,12 @@ using std::unique_lock;
 #include <libfreenect2/registration.h>
 #endif
 
+// Segunda fuente: Azure Kinect DK. Se incluye siempre porque el archivo se
+// compila en todas las plataformas; la implementacion fuera de Windows es un
+// stub que solo informa el motivo.
+#include "../JPutils/jp_kinect_azure.h"
+#include "../JPutils/jp_app_paths.h"
+
 namespace
 {
 	constexpr int kColorWidth = 1920;
@@ -35,6 +41,34 @@ namespace
 
 	mutex sharedCaptureMutex;
 	weak_ptr<KinectV2CaptureSource> sharedCapture;
+
+	// Fuente elegida para la captura compartida. Se lee una vez del perfil y
+	// despues vive en memoria; -1 significa "todavia no se leyo".
+	atomic<int> sharedSourceIndex{-1};
+
+	std::filesystem::path sourceFile()
+	{
+		return jp::AppPaths::current().preference("kinect_source.txt");
+	}
+
+	int readSourceFromProfile()
+	{
+		try
+		{
+			const auto path = sourceFile();
+			std::error_code error;
+			if (std::filesystem::is_regular_file(path, error))
+			{
+				const string text = ofTrim(ofBufferFromFile(path).getText());
+				if (text == "azure") return (int)JPbox_kinect2::Source::Azure;
+			}
+		}
+		catch (const std::exception &)
+		{
+			// Un perfil ilegible no debe impedir arrancar: se usa Kinect v2.
+		}
+		return (int)JPbox_kinect2::Source::KinectV2;
+	}
 }
 
 class KinectV2CaptureSource
@@ -45,7 +79,7 @@ public:
     std::shared_ptr<const jp_hand::Frame> handSnapshot(bool infrared)const {lock_guard<mutex> lock(dataMutex);return infrared?irTrackingFrame:trackingFrame;}
 	KinectV2CaptureSource()
 	{
-#if defined(GUIPPER_KINECT_SDK) || defined(KINECT2)
+#if defined(GUIPPER_KINECT_SDK) || defined(KINECT2) || defined(_WIN32)
 		worker = thread(&KinectV2CaptureSource::run, this);
 #else
 		setStatus("INSTALL LIBFREENECT2");
@@ -133,21 +167,18 @@ private:
 		statusText = value;
 	}
 
-#if defined(GUIPPER_KINECT_SDK)
-	void run()
+#if defined(GUIPPER_KINECT_SDK) || defined(_WIN32)
+	// Publica frames de cualquier backend. Kinect v2 y Azure exponen los mismos
+	// campos (status, depth, infrared, color, newColor, colorDepth, intrinsics),
+	// asi que el flujo de captura se escribe una sola vez.
+	template <typename Device>
+	void streamDevice(Device &device)
 	{
-		while (!stopRequested)
+		if (!device.open())
 		{
-			reconnectRequested = false;
-			{
-				lock_guard<mutex> lock(dataMutex);
-				irParams = JPbox_kinect2::DepthIntrinsics();
-				trackingFrame.reset(); irTrackingFrame.reset(); audienceTrackingFrame.reset();
-			}
-			{
-				jp_kinect_sdk::Capture device;
-				if (device.open())
-				{
+			setStatus(device.status);
+			return;
+		}
 					double lastCaptured = 0, lastColorCaptured = 0;
 					double lastFrame = jp_hand::now();
 					jp_hand::IRNormalizer normalizer;
@@ -211,7 +242,38 @@ private:
 						}
 						lastCaptured = captured;
 					}
-				} else setStatus(device.status);
+	}
+
+	void run()
+	{
+		while (!stopRequested)
+		{
+			reconnectRequested = false;
+			{
+				lock_guard<mutex> lock(dataMutex);
+				irParams = JPbox_kinect2::DepthIntrinsics();
+				trackingFrame.reset(); irTrackingFrame.reset(); audienceTrackingFrame.reset();
+			}
+			{
+				if (JPbox_kinect2::captureSource() == JPbox_kinect2::Source::Azure)
+				{
+					jp_kinect_azure::Capture device;
+					streamDevice(device);
+				}
+#if defined(GUIPPER_KINECT_SDK)
+				else
+				{
+					jp_kinect_sdk::Capture device;
+					streamDevice(device);
+				}
+#else
+				else
+				{
+					// Sin la SDK 2.0 instalada al compilar, Kinect v2 no existe
+					// en este binario: Azure es la unica fuente disponible.
+					setStatus("KINECT V2 SDK NO INSTALADA");
+				}
+#endif
 			} // Release all SDK interfaces before retrying.
 			if (!stopRequested) waitBeforeRetry();
 		}
@@ -796,8 +858,69 @@ bool JPbox_kinect2::isDriverAvailable()
 #if defined(GUIPPER_KINECT_SDK) || defined(KINECT2)
 	return true;
 #else
+	// Sin la SDK 2.0 compilada, Azure es la fuente posible: se informa
+	// disponible cuando hay SDK y dispositivo para que Manos/Publico puedan
+	// elegir la fuente Kinect en vez de aparecer deshabilitados.
+	return jp_kinect_azure::available() && jp_kinect_azure::deviceCount() > 0;
+#endif
+}
+
+// --- Fuente de captura -----------------------------------------------------
+
+JPbox_kinect2::Source JPbox_kinect2::captureSource()
+{
+	int value = sharedSourceIndex.load();
+	if (value < 0)
+	{
+		value = readSourceFromProfile();
+		sharedSourceIndex.store(value);
+	}
+	return value == 1 ? Source::Azure : Source::KinectV2;
+}
+
+void JPbox_kinect2::setCaptureSource(Source value)
+{
+	const int index = value == Source::Azure ? 1 : 0;
+	const int current = captureSource() == Source::Azure ? 1 : 0;
+	if (current == index) return;
+	sharedSourceIndex.store(index);
+	try
+	{
+		jp::atomicWrite(sourceFile(), index == 1 ? "azure" : "v2");
+	}
+	catch (const std::exception &error)
+	{
+		ofLogWarning("kinect") << "no se pudo guardar la fuente de captura: " << error.what();
+	}
+	// El worker vuelve a leer la fuente en cada intento de apertura, asi que
+	// alcanza con despertarlo para que cambie de dispositivo.
+	if (auto source = sharedCapture.lock()) source->reconnect();
+	ofLogNotice("kinect") << "fuente de captura: " << (index == 1 ? "AZURE" : "KINECT V2");
+}
+
+vector<string> JPbox_kinect2::sourceLabels()
+{
+	return {"KINECT 2", "AZURE"};
+}
+
+bool JPbox_kinect2::sourceAvailable(Source value)
+{
+	if (value == Source::Azure)
+		return jp_kinect_azure::available() && jp_kinect_azure::deviceCount() > 0;
+#if defined(GUIPPER_KINECT_SDK) || defined(KINECT2)
+	return true;
+#else
 	return false;
 #endif
+}
+
+string JPbox_kinect2::sourceStatus(Source value)
+{
+	if (value != Source::Azure) return isDriverAvailable() ? "KINECT V2" : "SIN RUNTIME";
+	if (!jp_kinect_azure::available()) return "AZURE: FALTA LA SDK";
+	const int count = jp_kinect_azure::deviceCount();
+	if (count <= 0) return "AZURE: SIN DISPOSITIVO";
+	return "AZURE: " + ofToString(count) + " CONECTADA";
 }
 
 // --- Raw depth tap ---------------------------------------------------------

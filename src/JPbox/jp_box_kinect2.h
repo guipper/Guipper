@@ -33,6 +33,7 @@ public:
 	int inspectorChoice() const override;
 	void setInspectorChoice(int choice) override;
 	string inspectorChoiceStatus() const override;
+	bool usesDepthCapture() const override { return true; }
 
 	Stream getStream() const;
 	void setStream(Stream value);
@@ -40,6 +41,20 @@ public:
 	string getCaptureStatus() const;
 	void requestReconnect();
 	static bool isDriverAvailable();
+
+	// --- Fuente de captura ---------------------------------------------
+	// La captura es compartida por toda la app, asi que la fuente tambien: la
+	// eleccion se guarda en el perfil y cualquier nodo de Kinect puede cambiarla.
+	enum class Source
+	{
+		KinectV2 = 0,
+		Azure = 1
+	};
+	static Source captureSource();
+	static void setCaptureSource(Source value);
+	static vector<string> sourceLabels();
+	static bool sourceAvailable(Source value);
+	static string sourceStatus(Source value);
 
 	// --- Raw depth tap -------------------------------------------------
 	// The box itself only ever publishes an 8-bit grey visualisation of the
