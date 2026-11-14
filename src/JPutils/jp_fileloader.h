@@ -81,7 +81,14 @@ private:
 					 path.find(".mkv") != std::string::npos ||
 					 path.find(".mp4") != std::string::npos ||
 					 path.find(".flv") != std::string::npos ||
-					 path.find(".vob") != std::string::npos ||
+					 path.find(".vob") != std::string::npos ||
+					 path.find(".webm") != std::string::npos ||
+					 path.find(".wmv") != std::string::npos ||
+					 path.find(".mpg") != std::string::npos ||
+					 path.find(".mpeg") != std::string::npos ||
+					 path.find(".m4v") != std::string::npos ||
+					 path.find(".ts") != std::string::npos ||
+					 
 					 path.find(".avi") != std::string::npos)
 			{
 				activeFiletype = VIDEO;

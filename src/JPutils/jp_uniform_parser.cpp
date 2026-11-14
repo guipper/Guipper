@@ -48,7 +48,17 @@ namespace
 		if (text == "bool") return Type::Bool;
 		if (text == "sampler2D") return Type::Sampler2D;
 		if (text == "sampler2DRect") return Type::Sampler2DRect;
+		if (text == "vec2") return Type::Vec2;
+		if (text == "vec3") return Type::Vec3;
+		if (text == "vec4") return Type::Vec4;
 		return Type::Unsupported;
+	}
+	std::size_t vectorSize(Type type)
+	{
+		if (type == Type::Vec2) return 2;
+		if (type == Type::Vec3) return 3;
+		if (type == Type::Vec4) return 4;
+		return 0;
 	}
 	void diagnose(Result &result, Severity severity, Code code,
 		Location location, const std::string &name, const std::string &message)
@@ -185,6 +195,37 @@ namespace
 		if (!stream || !stream.eof() || !std::isfinite(number)) return {};
 		return number;
 	}
+	// `vec3(0.0, 0.98, 1.0)` o el atajo `vec3(1.0)`: lo unico que se acepta como
+	// default de un vector. Cualquier otra expresion deja components vacio.
+	bool vectorLiteral(const std::string &initializer, std::size_t want,
+		std::vector<float> &out)
+	{
+		const std::string head = "vec" + std::to_string(want) + "(";
+		if (initializer.size() <= head.size() + 1) return false;
+		if (initializer.compare(0, head.size(), head) != 0) return false;
+		if (initializer.back() != ')') return false;
+		const std::string inner = initializer.substr(head.size(),
+			initializer.size() - head.size() - 1);
+		std::vector<std::string> parts;
+		std::string current;
+		for (char c : inner)
+		{
+			if (c == ',') { parts.push_back(current); current.clear(); }
+			else current += c;
+		}
+		parts.push_back(current);
+		std::vector<float> values;
+		for (const auto &part : parts)
+		{
+			const auto value = floatLiteral(part);
+			if (!value) return false;
+			values.push_back(*value);
+		}
+		if (values.size() == 1) values.assign(want, values.front());
+		if (values.size() != want) return false;
+		out = std::move(values);
+		return true;
+	}
 }
 
 bool jp_uniform_parser::Result::hasErrors() const
@@ -306,7 +347,10 @@ jp_uniform_parser::Result jp_uniform_parser::parse(const std::string &source)
 					if (initializer == "true") declaration.boolDefault = true;
 					else if (initializer == "false") declaration.boolDefault = false;
 				}
-				if (!initializer.empty() && !declaration.floatDefault && !declaration.boolDefault)
+				else if (const std::size_t want = vectorSize(type); want > 0)
+					vectorLiteral(initializer, want, declaration.components);
+				if (!initializer.empty() && !declaration.floatDefault && !declaration.boolDefault &&
+					declaration.components.empty())
 					diagnose(result, Severity::Warning, Code::UnsupportedInitializer,
 						declaration.location, declaration.name,
 						"Initializer is not a supported scalar literal; the caller must use its fallback.");

@@ -1,0 +1,348 @@
+Versión de MSBuild 18.8.2+ce25c0108 para .NET Framework
+
+  Examinando orígenes para las dependencias de módulo...
+  openframeworksLib.vcxproj -> C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\openFrameworksCompiled\lib\vs\x64\openframeworksLib.lib
+  jp_persistence_test.cpp
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_persistence_test.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(123,9): warning C4005: 'WGL_ACCESS_READ_ONLY_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_persistence_test.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(921,9):
+      vea la definición anterior de “WGL_ACCESS_READ_ONLY_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(124,9): warning C4005: 'WGL_ACCESS_READ_WRITE_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_persistence_test.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(922,9):
+      vea la definición anterior de “WGL_ACCESS_READ_WRITE_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(125,9): warning C4005: 'WGL_ACCESS_WRITE_DISCARD_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPutils/jp_persistence_test.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(923,9):
+      vea la definición anterior de “WGL_ACCESS_WRITE_DISCARD_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_persistence_test.cpp(34,11): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  main.cpp
+  ofApp.cpp
+  fix_line.cpp
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/main.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/ofApp.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(123,9): warning C4005: 'WGL_ACCESS_READ_ONLY_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/main.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(921,9):
+      vea la definición anterior de “WGL_ACCESS_READ_ONLY_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(124,9): warning C4005: 'WGL_ACCESS_READ_WRITE_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/main.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(922,9):
+      vea la definición anterior de “WGL_ACCESS_READ_WRITE_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(125,9): warning C4005: 'WGL_ACCESS_WRITE_DISCARD_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/main.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(923,9):
+      vea la definición anterior de “WGL_ACCESS_WRITE_DISCARD_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(123,9): warning C4005: 'WGL_ACCESS_READ_ONLY_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/ofApp.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(921,9):
+      vea la definición anterior de “WGL_ACCESS_READ_ONLY_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(124,9): warning C4005: 'WGL_ACCESS_READ_WRITE_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/ofApp.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(922,9):
+      vea la definición anterior de “WGL_ACCESS_READ_WRITE_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(125,9): warning C4005: 'WGL_ACCESS_WRITE_DISCARD_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/ofApp.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(923,9):
+      vea la definición anterior de “WGL_ACCESS_WRITE_DISCARD_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\ofApp.cpp(127,2): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\ofApp.cpp(35,9): warning C4996: 'ofTrueTypeFont::loadFont': Use load [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\ofApp.cpp(38,12): warning C4996: 'ofTrueTypeFont::loadFont': Use load [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\ofApp.cpp(85,11): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\ofApp.cpp(345,3): warning C4996: 'ofClear': Use ofClear(brightness, alpha) [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\ofApp.cpp(3269,52): warning C4267: '=': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\ofApp.cpp(3399,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\ofApp.cpp(4718,40): warning C4267: '=': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\ofApp.cpp(4990,50): warning C4267: '=': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\ofApp.cpp(5038,65): warning C4267: '=': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\ofApp.cpp(5051,68): warning C4267: '=': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\ofApp.cpp(6147,12): warning C4996: 'ofxOscReceiver::getNextMessage': Pass a reference instead of a pointer [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\ofApp.cpp(6350,7): warning C4101: 'str': variable local sin referencia [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  jp_knob.cpp
+  jp_controller.cpp
+  jp_bang.cpp
+  jp_slider.cpp
+  jp_toogle.cpp
+  jp_exposebutton.cpp
+  jp_complexslider.cpp
+  jp_shader_editor.cpp
+  jp_tooglelist.cpp
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPgui\jp_knob.cpp(142,10): warning C4101: 'prevalue': variable local sin referencia [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPgui\jp_knob.cpp(152,10): warning C4101: 'prevalue': variable local sin referencia [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPgui\jp_toogle.cpp(226,3): warning C4996: 'ofRect': Use ofDrawRectangle [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPgui\jp_bang.cpp(43,2): warning C4996: 'ofRect': Use ofDrawRectangle [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPgui\jp_tooglelist.cpp(56,2): warning C4996: 'ofRect': Use ofDrawRectangle [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPgui\jp_tooglelist.cpp(74,4): warning C4996: 'ofRotate': Use ofRotateDeg or ofRotateRad [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  jp_box_ndi.cpp
+  jp_box_shader.cpp
+  jp_box.cpp
+  jp_box_framedifference.cpp
+  jp_box_pointercloud.cpp
+  JPboxgroup_mapping_advanced.cpp
+  jp_box_kinect2.cpp
+  jp_box_sequencer.cpp
+  jp_box_shader_mapping.cpp
+  jp_box_image.cpp
+  jp_box_cam.cpp
+  JPboxgroup.cpp
+  jp_box_video.cpp
+  jp_box_preset.cpp
+  jp_box_spout.cpp
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_framedifference.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_framedifference.cpp(57,4): warning C4996: 'ofRect': Use ofDrawRectangle [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_framedifference.cpp(192,6): warning C4996: 'ofFbo::destroy': Use clear() [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_shader_mapping.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_video.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_shader.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_video.cpp(94,6): warning C4996: 'ofFbo::destroy': Use clear() [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_cam.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_kinect2.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_pointercloud.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_shader.cpp(172,13): warning C4101: 'e': variable local sin referencia [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_image.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_spout.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_shader.cpp(216,13): warning C4101: 'e': variable local sin referencia [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_preset.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_cam.cpp(243,35): warning C4267: '=': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_shader.cpp(259,13): warning C4101: 'e': variable local sin referencia [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_image.cpp(8,6): warning C4996: 'ofImage_<unsigned char>::loadImage': Use load [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_shader.cpp(336,6): warning C4996: 'ofFbo::destroy': Use clear() [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup_mapping_advanced.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_cam.cpp(365,6): warning C4996: 'ofFbo::destroy': Use clear() [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_shader.cpp(391,3): warning C4996: 'ofRect': Use ofDrawRectangle [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_sequencer.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_image.cpp(15,6): warning C4996: 'ofImage_<unsigned char>::loadImage': Use load [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_image.cpp(45,7): warning C4996: 'ofImage_<unsigned char>::loadImage': Use load [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_image.cpp(109,6): warning C4996: 'ofFbo::destroy': Use clear() [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPutils\jp_fbohandler.h(158,26): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_ndi.cpp")
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_sequencer.cpp(157,13): warning C4996: 'ofRect': Use ofDrawRectangle [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_ndi.cpp(63,5): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_ndi.cpp(152,6): warning C4996: 'ofFbo::destroy': Use clear() [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(123,9): warning C4005: 'WGL_ACCESS_READ_ONLY_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(921,9):
+      vea la definición anterior de “WGL_ACCESS_READ_ONLY_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(124,9): warning C4005: 'WGL_ACCESS_READ_WRITE_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(922,9):
+      vea la definición anterior de “WGL_ACCESS_READ_WRITE_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(125,9): warning C4005: 'WGL_ACCESS_WRITE_DISCARD_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(923,9):
+      vea la definición anterior de “WGL_ACCESS_WRITE_DISCARD_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(123,9): warning C4005: 'WGL_ACCESS_READ_ONLY_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(921,9):
+      vea la definición anterior de “WGL_ACCESS_READ_ONLY_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(124,9): warning C4005: 'WGL_ACCESS_READ_WRITE_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(922,9):
+      vea la definición anterior de “WGL_ACCESS_READ_WRITE_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(125,9): warning C4005: 'WGL_ACCESS_WRITE_DISCARD_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(923,9):
+      vea la definición anterior de “WGL_ACCESS_WRITE_DISCARD_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(123,9): warning C4005: 'WGL_ACCESS_READ_ONLY_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_spout.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(921,9):
+      vea la definición anterior de “WGL_ACCESS_READ_ONLY_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(124,9): warning C4005: 'WGL_ACCESS_READ_WRITE_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_spout.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(922,9):
+      vea la definición anterior de “WGL_ACCESS_READ_WRITE_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(125,9): warning C4005: 'WGL_ACCESS_WRITE_DISCARD_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_spout.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(923,9):
+      vea la definición anterior de “WGL_ACCESS_WRITE_DISCARD_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(123,9): warning C4005: 'WGL_ACCESS_READ_ONLY_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup_mapping_advanced.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(921,9):
+      vea la definición anterior de “WGL_ACCESS_READ_ONLY_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(124,9): warning C4005: 'WGL_ACCESS_READ_WRITE_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup_mapping_advanced.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(922,9):
+      vea la definición anterior de “WGL_ACCESS_READ_WRITE_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(123,9): warning C4005: 'WGL_ACCESS_READ_ONLY_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_preset.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(921,9):
+      vea la definición anterior de “WGL_ACCESS_READ_ONLY_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(125,9): warning C4005: 'WGL_ACCESS_WRITE_DISCARD_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup_mapping_advanced.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(923,9):
+      vea la definición anterior de “WGL_ACCESS_WRITE_DISCARD_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(124,9): warning C4005: 'WGL_ACCESS_READ_WRITE_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_preset.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(922,9):
+      vea la definición anterior de “WGL_ACCESS_READ_WRITE_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\spoutGLextensions.h(125,9): warning C4005: 'WGL_ACCESS_WRITE_DISCARD_NV': redefinición de macro [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/jp_box_preset.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\glew\include\GL\wglew.h(923,9):
+      vea la definición anterior de “WGL_ACCESS_WRITE_DISCARD_NV”
+  
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_spout.cpp(77,4): warning C4996: 'sprintf': This function or variable may be unsafe. Consider using sprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_spout.cpp(149,4): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_spout.cpp(242,6): warning C4996: 'ofFbo::destroy': Use clear() [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_preset.cpp(354,14): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box_preset.cpp(841,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(295,25): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(295,36): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(296,33): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(297,18): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(449,5): warning C4996: 'ofRectRounded': Use ofDrawRectRounded [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(448,16): warning C4101: 'CENTER': variable local sin referencia [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(1091,4): warning C4996: 'ofBezier': Use ofDrawBezier [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(1114,4): warning C4996: 'ofBezier': Use ofDrawBezier [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(1709,32): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(1709,46): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(1714,31): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(1714,49): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(1715,29): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(1715,43): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(1719,44): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(1720,30): warning C4267: 'argumento': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(2934,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(2936,14): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(3044,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(3100,13): warning C4101: 'aux': variable local sin referencia [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(3196,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(3241,19): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(3850,14): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box.cpp(39,3): warning C4996: 'ofRectRounded': Use ofDrawRectRounded [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box.cpp(192,2): warning C4996: 'ofRectRounded': Use ofDrawRectRounded [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box.cpp(211,2): warning C4996: 'ofRectRounded': Use ofDrawRectRounded [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box.cpp(365,2): warning C4996: 'ofRotate': Use ofRotateDeg or ofRotateRad [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\jp_box.cpp(396,6): warning C4996: 'ofFbo::destroy': Use clear() [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(7706,25): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(8009,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(8104,13): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(9261,19): warning C4267: 'return': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(9873,43): warning C4267: '=': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup.cpp(9919,43): warning C4267: '=': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\openFrameworks\graphics\ofPolyline.inl(646,8): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  (compilando archivo de origen "src/JPbox/JPboxgroup_mapping_advanced.cpp")
+      C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\openFrameworks\graphics\ofPolyline.inl(646,8):
+      el contexto de creación de instancias de la plantilla (el más antiguo primero) es
+          C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\openFrameworks\gl\ofGLRenderer.h(238,13):
+          Vea la referencia a la creación de una instancia de clase plantilla "ofPolyline_<ofDefaultVertexType>" que se está compilando
+          C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\openFrameworks\graphics\ofPolyline.inl(16,30):
+          al compilar la función del miembro clase plantilla "ofPolyline_<ofDefaultVertexType>::ofPolyline_(void)"
+              C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(28,14):
+              vea la primera referencia a “ofPolyline_<ofDefaultVertexType>::ofPolyline_” en “`anonymous-namespace'::drawCubic”
+          C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\openFrameworks\graphics\ofPolyline.inl(640,76):
+          al compilar la función del miembro clase plantilla "bool ofPolyline_<ofDefaultVertexType>::inside(float,float,const ofPolyline_<ofDefaultVertexType> &)"
+              C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\libs\openFrameworks\graphics\ofPolyline.inl(672,2):
+              vea la primera referencia a “ofPolyline_<ofDefaultVertexType>::inside” en “ofPolyline_<ofDefaultVertexType>::inside”
+              C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\JPbox\JPboxgroup_mapping_advanced.cpp(251,3):
+              vea la primera referencia a “ofPolyline_<ofDefaultVertexType>::inside” en “`anonymous-namespace'::outlineContains”
+  
+  ofxBaseMidi.cpp
+  ofxMidi.cpp
+  ofxMidiClock.cpp
+  ofxMidiIn.cpp
+  ofxMidiOut.cpp
+  ofxMidiTimecode.cpp
+  ofxMidiMessage.cpp
+  ofxRtMidiIn.cpp
+  ofxRtMidiOut.cpp
+  RtMidi.cpp
+  ofxNDIreceive.cpp
+  ofxNDIsender.cpp
+  ofxNDIsend.cpp
+  ofxNDIdynloader.cpp
+  ofxNDIutils.cpp
+  ofxNDIreceiver.cpp
+  ofxOscBundle.cpp
+  ofxOscParameterSync.cpp
+  ofxOscSender.cpp
+  ofxOscReceiver.cpp
+  ofxOscMessage.cpp
+  OscOutboundPacketStream.cpp
+  OscReceivedElements.cpp
+  OscPrintReceivedElements.cpp
+  OscTypes.cpp
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\addons\ofxOsc\libs\oscpack\src\osc\OscOutboundPacketStream.cpp(363,10): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\addons\ofxOsc\libs\oscpack\src\osc\OscOutboundPacketStream.cpp(605,10): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\addons\ofxOsc\libs\oscpack\src\osc\OscOutboundPacketStream.cpp(625,10): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\addons\ofxOsc\libs\oscpack\src\osc\OscPrintReceivedElements.cpp(129,47): warning C4996: 'ctime': This function or variable may be unsafe. Consider using ctime_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  IpEndpointName.cpp
+  UdpSocket.cpp
+  NetworkingUtils.cpp
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\addons\ofxOsc\libs\oscpack\src\ip\win32\NetworkingUtils.cpp(88,25): warning C4996: 'gethostbyname': Use getaddrinfo() or GetAddrInfoW() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+  SpoutCopy.cpp
+  SpoutDirectX.cpp
+  SpoutGLDXinterop.cpp
+  SpoutGLextensions.cpp
+  SpoutMemoryShare.cpp
+  SpoutReceiver.cpp
+  SpoutSDK.cpp
+  SpoutSender.cpp
+  SpoutSenderMemory.cpp
+  SpoutSenderNames.cpp
+  SpoutSharedMemory.cpp
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\SpoutSDK.cpp(1484,24): warning C4312: 'conversión de tipo': conversión de 'unsigned int' a 'HANDLE' de mayor tamaño [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\src\SpoutSDK\SpoutSDK.cpp(1501,25): warning C4312: 'conversión de tipo': conversión de 'unsigned int' a 'HANDLE' de mayor tamaño [C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\guipper.vcxproj]
+     Creando biblioteca bin\guipper.lib y objeto bin\guipper.exp
+  LINK : se especificó /LTCG pero no se requiere generación de código; quite /LTCG de la línea de comandos de vínculo para mejorar el rendimiento del vinculador
+  guipper.vcxproj -> C:\jpupper\programacion\openframeworks\of_v0.12.1_vs_64_release\apps\myApps\Guipper\bin\guipper.exe

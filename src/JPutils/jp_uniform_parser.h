@@ -9,7 +9,7 @@
 // globals. The caller decides which declarations become controls.
 namespace jp_uniform_parser
 {
-	enum class Type { Float, Bool, Sampler2D, Sampler2DRect, Unsupported };
+	enum class Type { Float, Bool, Sampler2D, Sampler2DRect, Vec2, Vec3, Vec4, Unsupported };
 	enum class Severity { Warning, Error };
 	enum class Code {
 		InvalidDeclaration, UnterminatedComment, DuplicateName,
@@ -37,6 +37,9 @@ namespace jp_uniform_parser
 		Location location;
 		std::optional<float> floatDefault;
 		std::optional<bool> boolDefault;
+		// Para vec2/vec3/vec4: el literal `vec3(1.0, 0.5, 0.0)` del default.
+		// Los controles se arman como una componente por slider.
+		std::vector<float> components;
 		bool array = false;
 		bool internal = false;
 		// Comments inside the declaration and directly after its semicolon.

@@ -311,6 +311,7 @@ namespace jp_help
         E("Shift+R", "Analog color reduction: palettes, dithering, grain and bleed", "Reduccion analogica de color: paletas, tramado, grano y sangrado", Scope::Nodes, "shift+r"),
         E("Shift+T", "Text: multiline editor, typography and transparent output", "Texto: editor multilinea, tipografia y salida transparente", Scope::Nodes, "shift+t"),
 		E("Shift+Y", "YouTube: stream a video link or download an optional local copy", "YouTube: reproduce un enlace por streaming o descarga en cache", Scope::Nodes, "shift+y"),
+		E("Shift+W", "WebRender: render any live website or WebGL page in real time", "WebRender: renderiza cualquier pagina web o WebGL en vivo en tiempo real", Scope::Nodes, "shift+w"),
 		E("Shift+S", "Screen capture: select a monitor in the inspector", "Captura de pantalla: selecciona un monitor en el inspector", Scope::Nodes, "shift+s"),
 		E("Shift+C", "Kinect depth input: Kinect v2 or Azure Kinect", "Entrada de profundidad Kinect: Kinect v2 o Azure Kinect", Scope::Nodes, "shift+c"),
 		E("Shift+L", "iPhone LiDAR depth via Record3D (USB)",

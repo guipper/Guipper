@@ -364,6 +364,23 @@ void JPbox_video::updateFBO() {
 		}
 		ofEnableAlphaBlending();
 		fbo.end();
+		// Diagnostico temporal: GUIPPER_VIDEO_DUMP=<carpeta> vuelca cada 15
+		// frames el frame decodificado y el FBO de la caja, para poder medir
+		// desde afuera si el problema esta en el decoder o en el compositing.
+		if (const char *dumpDir = std::getenv("GUIPPER_VIDEO_DUMP")) {
+			static int dumpFrame = 0;
+			++dumpFrame;
+			if (dumpFrame % 15 == 0 && dumpFrame < 400) {
+				const std::string base = std::string(dumpDir) + "/" + name + "_" +
+					ofToString(dumpFrame, 3, '0');
+				ofPixels fboPixels;
+				fbo.readToPixels(fboPixels);
+				ofSaveImage(fboPixels, base + "_fbo.png");
+				ofPixels srcPixels = movie.getPixels();
+				if (srcPixels.isAllocated())
+					ofSaveImage(srcPixels, base + "_src.png");
+			}
+		}
 	} else {
 		if (movie.isLoaded() && !movie.isPaused()) movie.setPaused(true);
 		JPbox::updateFBO();

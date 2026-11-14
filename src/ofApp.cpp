@@ -5330,8 +5330,10 @@ static vector<std::pair<string, string>> listFragFiles(const string &directory)
 	{
 		if (!it->is_regular_file(error)) continue;
 		const string filename = it->path().filename().string();
-		// ofDirectory dropped hidden files; keep doing that.
-		if (filename.empty() || filename[0] == '.') continue;
+		// ofDirectory dropped hidden files; keep doing that. Los `_algo.frag` son
+		// piezas de otro shader (el header `_jse_common`, los buffers de un
+		// multipass): no son shaders elegibles.
+		if (filename.empty() || filename[0] == '.' || filename[0] == '_') continue;
 		if (ofToLower(it->path().extension().string()) != ".frag") continue;
 		paths.emplace_back(directory + "/" + filename, it->path().string());
 	}
@@ -7024,6 +7026,13 @@ void ofApp::keyPressed(int key) {
         if (key == 'Y' && !surfaces.modalOpen() && !anyFieldFocused() &&
             !ofGetKeyPressed(OF_KEY_CONTROL) && !ofGetKeyPressed(OF_KEY_COMMAND) && !ofGetKeyPressed(OF_KEY_ALT)) {
             boxes.addBox("youtubeVideo");
+            if (!boxes.isGroupViewActive()) boxes.selectOpenBoxByIndex(int(boxes.boxes.size()) - 1);
+            boxes.setControllers();
+            return;
+        }
+        if (key == 'W' && !surfaces.modalOpen() && !anyFieldFocused() &&
+            !ofGetKeyPressed(OF_KEY_CONTROL) && !ofGetKeyPressed(OF_KEY_COMMAND) && !ofGetKeyPressed(OF_KEY_ALT)) {
+            boxes.addBox("webRender");
             if (!boxes.isGroupViewActive()) boxes.selectOpenBoxByIndex(int(boxes.boxes.size()) - 1);
             boxes.setControllers();
             return;

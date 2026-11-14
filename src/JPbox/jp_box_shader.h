@@ -9,6 +9,7 @@
 #include "../JPutils/jp_uniform_parser.h"
 #include "../JPutils/jp_fbohandler.h"
 #include <array>
+#include <map>
 #include <utility>
 #include <vector>
 //#include "Shaderrender.h"
@@ -136,10 +137,51 @@ public:
 	void setfbohandler_nodepos();
 	void update_NonglobalUniforms();
 	void update_globalUniforms(); // GLOBAL UNIFORMS
+	// Las mismas dos sobre otro programa: los passes de buffer reciben los
+	// mismos controles que el pass principal.
+	void update_NonglobalUniforms(ofShader &target);
+	void update_globalUniforms(ofShader &target);
 	// JPParameterGroup getUniformsToJPParameterGroup(string _dir, string _name);
 	// Failed reads or malformed declarations preserve existing controls/inputs.
 	bool setUniforms(JPParameterGroup &_parameters, JPFbohandlerGroup &_fbohandlergroup, string _dir, string _name, const ofBuffer* source = nullptr);
 	std::vector<jp_uniform_parser::Diagnostic> uniformDiagnostics;
+	// Uniforms de vector (vec2/vec3/vec4): Guipper no tiene un control nativo de
+	// vector, asi que cada componente es un slider propio y el uniform se arma
+	// al vuelo en update_NonglobalUniforms. Se rearma desde el .frag en cada
+	// setup, nunca se serializa: los <param> guardados son los de las
+	// componentes, igual que los triples @color de los shaders nativos.
+	struct VectorControl
+	{
+		std::string name;                // nombre del uniform en el shader
+		std::vector<std::string> params; // una componente por slider
+	};
+	std::vector<VectorControl> vectorControls;
+	// Multipass estilo Shadertoy: la caja encadena los buffers que publica
+	// jpshadereditor antes del pass principal. El sidecar `<shader>.passes.json`
+	// dice cuantos buffers hay, cuantas iteraciones corre cada uno y que buffer
+	// alimenta cada iChannel. Sin sidecar la caja es de un solo pass, como antes.
+	//
+	// Cada buffer vive en DOS fbo (ping-pong): en jpshadereditor un buffer puede
+	// leerse a si mismo por iChannelN, y eso es la memoria del efecto (estela,
+	// fluido). Sin el par, leer y escribir la misma textura es indefinido.
+	struct PassChainEntry
+	{
+		std::string file;
+		int iterations = 1;
+		std::map<std::string, int> channels;
+	};
+	bool loadPassChain();
+	void unloadPassChain();
+	void drawPasses();
+	void ensurePassFbos();
+	void bindPassChannels(ofShader &program, const std::map<std::string, int> &channels,
+		int firstUnit, int self, int selfRead);
+	bool hasPassChain() const { return !passBuffers.empty(); }
+	std::vector<PassChainEntry> passBuffers;
+	std::vector<ofShader> passPrograms;
+	std::vector<std::array<ofFbo, 2>> passFbos;
+	std::vector<int> passCurrent; // cual de los dos fbo tiene el ultimo frame
+	std::map<std::string, int> passMainChannels;
 	bool isAdvancedMappingShader() const;
 	AdvancedMappingState *getAdvancedMappingState();
 	const AdvancedMappingState *getAdvancedMappingState() const;

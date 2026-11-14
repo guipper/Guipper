@@ -13,6 +13,7 @@
 #include "../JPbox/jp_box_cam.h"
 #include "../JPbox/jp_box_screen.h"
 #include "../JPbox/jp_box_youtube.h"
+#include "../JPbox/jp_box_webrender.h"
 #include "../JPbox/jp_box_text.h"
 #include "jp_image_fixture.h"
 #include "../JPbox/jp_box_analogcolor.h"
@@ -610,6 +611,7 @@ namespace
 			{"effect.frag", Kind::Shader}, {"photo.png", Kind::Image},
 			{"clip.mp4", Kind::Video}, {"group.xml", Kind::Preset},
 			{"sarv", Kind::Sarv}, {"kinectParticles", Kind::KinectParticles}, {"iphoneLidar", Kind::IPhoneLidar}, {"kinect2", Kind::Kinect2}, {"pointercloud", Kind::PointerCloud},
+			{"webRender", Kind::WebRender},
 			{"camdepth", Kind::CameraDepth}, {"cam", Kind::Camera},
 			{"framedifference", Kind::FrameDifference}, {"paint", Kind::Paint},
 			{"unrecognized", Kind::Unknown}};
@@ -2961,6 +2963,59 @@ while True:
             stream.clear();
         }
         ofLogNotice("youtube-test") << (passed ? "PASS" : "FAIL"); return passed;
+    }
+
+    if (testMode && string(testMode) == "webrender") {
+        bool passed = true;
+        auto check = [&](bool ok, const string &message) {
+            if (!ok) ofLogError("webrender-test") << message;
+            passed = passed && ok;
+        };
+        app.boxes.clear();
+        app.pantallaActiva = app.NODOS;
+        app.keyPressed('W');
+        check(app.boxes.boxes.size() == 1, "Shift+W adds WEBRENDER box");
+        auto *web = app.boxes.boxes.empty() ? nullptr : dynamic_cast<JPbox_webrender *>(app.boxes.boxes[0]);
+        check(web != nullptr && web->getTipo() == JPbox::WEBRENDERBOX && web->name == "WEBRENDER", "WEBRENDER type and default name");
+        if (web) {
+            web->setonoff(true);
+            web->navigate("data:text/html,<html><body style='margin:0;background:rgb(20,220,60);'></body></html>");
+            bool gotGreenFrame = false;
+            for (int i = 0; i < 150 && !gotGreenFrame; ++i) {
+                web->update();
+                ofPixels pix;
+                web->fbo.readToPixels(pix);
+                if (pix.isAllocated() && pix.getWidth() > 10 && pix.getHeight() > 10) {
+                    auto c = pix.getColor(pix.getWidth() / 2, pix.getHeight() / 2);
+                    if (c.g > 180 && c.r < 60 && c.b < 90) {
+                        gotGreenFrame = true;
+                    }
+                }
+                if (!gotGreenFrame) std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            }
+            check(gotGreenFrame, "live HTML page renders into FBO");
+
+            const int zoomIdx = web->parameters.indexOfName("zoom");
+            check(zoomIdx >= 0, "zoom parameter exists");
+            if (zoomIdx >= 0) {
+                web->parameters.setFloatValue(1.5f, zoomIdx);
+                web->parameters.setFloatLerpValue(1.5f, zoomIdx);
+            }
+            web->setMuted(true);
+
+            const string path = ofToDataPath("webrender-test.xml", true);
+            check(app.boxes.save(path), "save webrender composition");
+            app.boxes.clear();
+            check(app.boxes.load(path) == JPboxgroup::LoadResult::Success, "reload webrender composition");
+            auto *loaded = app.boxes.boxes.empty() ? nullptr : dynamic_cast<JPbox_webrender *>(app.boxes.boxes[0]);
+            check(loaded != nullptr && loaded->isMuted() && loaded->hasActiveUrl(), "custom state roundtrip");
+            if (loaded && zoomIdx >= 0) {
+                check(std::abs(loaded->parameters.getFloatValue(zoomIdx) - 1.5f) < 0.01f, "zoom parameter roundtrip");
+            }
+        }
+        app.boxes.clear();
+        ofLogNotice("webrender-test") << (passed ? "PASS" : "FAIL");
+        return passed;
     }
 
     if (testMode && string(testMode) == "screen_capture") {

@@ -213,6 +213,7 @@ void JPbox_shader::reload()
 		}
 	}
 	shader = candidateShader;
+	loadPassChain();
 	resetFeedbackFrame();
 
 	fbohandlergroup.setupdragobjects(x, y, outlet_size, outlet_size);
@@ -225,6 +226,7 @@ void JPbox_shader::reloadShaderonly()
     ofShader candidate;
     if (!candidate.load("shaders/default.vert", dir) || !linkedProgram(candidate)) return;
     shader = candidate;
+	loadPassChain();
 	resetFeedbackFrame();
 	frameNum = 0;
 }
@@ -250,6 +252,7 @@ void JPbox_shader::setup(ofTrueTypeFont &_font,
 	{
 		cout << "ERROR EL SHADER NO LEVANTO " << endl;
 	}
+	loadPassChain();
 	if (shader.isLoaded())
 	{
 		cout << "CARGO BIEN EL SHADER " << endl;
@@ -294,6 +297,7 @@ void JPbox_shader::setup2(string _dir,
 	{
 		cout << "ERROR EL SHADER NO LEVANTO " << endl;
 	}
+	loadPassChain();
 	if (shader.isLoaded())
 	{
 		cout << "CARGO BIEN EL SHADER " << endl;
@@ -337,6 +341,7 @@ void JPbox_shader::setup(string _dir,
 	{
 		cout << "ERROR EL SHADER NO LEVANTO " << endl;
 	}
+	loadPassChain();
 	if (shader.isLoaded())
 	{
 		cout << "CARGO BIEN EL SHADER " << endl;
@@ -380,6 +385,7 @@ void JPbox_shader::clear()
 	parameters.clear();
 
 	cout << "CORRE CLEAR SHADERBOX " << endl;
+	unloadPassChain();
 	fbo.clear();
 	fbo.destroy();
 	// fbohandlergroup.clear();
@@ -431,6 +437,10 @@ void JPbox_shader::updateFBO()
 	if (onoff.boolValue && shader.isLoaded())
 	{
 		prepareFeedbackFrame(shader);
+		// Multipass: los buffers se renderizan antes, en sus propios FBOs, y el
+		// pass principal los lee como texturas (iChannel0, iChannel1...).
+		if (hasPassChain())
+			drawPasses();
 		if (isAdvancedMappingShader())
 		{
 			for (int layerIndex = 0;
@@ -464,6 +474,10 @@ void JPbox_shader::updateFBO()
 		shader.begin();
 		update_globalUniforms();
 		update_NonglobalUniforms();
+		// Los canales que vienen de un buffer pisan el inlet del mismo nombre:
+		// el cableado del editor manda sobre lo que haya enchufado el usuario.
+		if (hasPassChain())
+			bindPassChannels(shader, passMainChannels, 8, -1, 0);
 		if (isAdvancedMappingShader())
 		{
 			updateAdvancedMappingUniforms();
@@ -478,6 +492,20 @@ void JPbox_shader::updateFBO()
 		fbo.end();
 		ofEnableAlphaBlending();
 		ofPopStyle();
+		if (hasPassChain() && std::getenv("GUIPPER_MULTIPASS_TRACE"))
+		{
+			// Sonda del compuesto final: distingue "los buffers dibujan pero el
+			// principal no los muestra" de una cadena entera funcionando.
+			static int traced = 0;
+			if (++traced % 30 == 0)
+			{
+				ofFloatPixels probe;
+				fbo.readToPixels(probe);
+				float peak = 0.0f;
+				for (float value : probe) if (std::isfinite(value)) peak = std::max(peak, value);
+				ofLogNotice("multipass-trace") << "main peak=" << peak << " gl=" << glGetError();
+			}
+		}
 
 		fbo.begin();
 		//ofSetColor(255, 0, 0);
@@ -557,6 +585,45 @@ bool JPbox_shader::setUniforms(JPParameterGroup &_parameters,
 		else if (declaration.type == Type::Sampler2D || declaration.type == Type::Sampler2DRect)
 			_fbohandlergroup.addFbohandler(declaration.name);
 	}
+	// Vectores: un slider por componente. Van al final del grupo para no correr
+	// la posicion de los <param> que ya estan guardados en las composiciones.
+	// En vec3/vec4 las componentes rgb se anotan como triple de color, asi el
+	// inspector dibuja los sliders y la muestra igual que en los shaders
+	// nativos; el cuarto canal y las de un vec2 quedan como sliders sueltos.
+	vectorControls.clear();
+	const auto vectorCount = [](Type type) -> std::size_t {
+		if (type == Type::Vec2) return 2;
+		if (type == Type::Vec3) return 3;
+		if (type == Type::Vec4) return 4;
+		return 0;
+	};
+	static const char *kChannels = "rgba";
+	for (const Declaration &declaration : parsed.declarations)
+	{
+		const std::size_t count = vectorCount(declaration.type);
+		if (count == 0 || declaration.internal || declaration.array) continue;
+		if (jp_shader_globals::isGlobalName(declaration.name) ||
+			jp_shader_globals::isNewGlobalName(declaration.name)) continue;
+		VectorControl control;
+		control.name = declaration.name;
+		for (std::size_t i = 0; i < count; ++i)
+		{
+			const std::string paramName = count >= 3
+				? declaration.name + "_" + kChannels[i]
+				: declaration.name + (i == 0 ? "_x" : "_y");
+			const float value = i < declaration.components.size()
+				? declaration.components[i] : 0.0f;
+			_parameters.addFloatValue(value, paramName, true);
+			JPParameter *added = _parameters.getJParameter(_parameters.getSize() - 1);
+			if (count >= 3 && i < 3)
+			{
+				added->colorChannel = JPParameter::COLOR_R + (int)i;
+				added->colorGroup = declaration.name;
+			}
+			control.params.push_back(paramName);
+		}
+		vectorControls.push_back(std::move(control));
+	}
 	return true;
 }
 void JPbox_shader::setfbohandler_nodepos()
@@ -574,37 +641,235 @@ void JPbox_shader::setfbohandler_nodepos()
 }
 void JPbox_shader::update_NonglobalUniforms()
 {
+	update_NonglobalUniforms(shader);
+}
+void JPbox_shader::update_globalUniforms()
+{
+	update_globalUniforms(shader);
+}
+void JPbox_shader::update_NonglobalUniforms(ofShader &target)
+{
 	for (int i = 0; i < parameters.getSize(); i++)
 	{
 		if (parameters.getType(i) == parameters.FLOAT)
 		{
-			shader.setUniform1f(parameters.getName(i), parameters.getFloatValue(i));
+			target.setUniform1f(parameters.getName(i), parameters.getFloatValue(i));
 		}
 		else if (parameters.getType(i) == parameters.BOOL)
 		{
 			const auto *parameter=parameters.getJParameter(i);
             const bool value=parameter->isMorphing() && parameter->morphAmount>0.f ?
                 parameter->morphTarget>.5f : parameter->boolValue;
-            shader.setUniform1i(parameters.getName(i), value?1:0);
+            target.setUniform1i(parameters.getName(i), value?1:0);
 		}
+	}
+	// Vectores: el uniform se arma juntando sus componentes. Se resuelve por
+	// nombre y no por indice porque el orden del grupo cambia al releer una
+	// composicion guardada.
+	for (const VectorControl &control : vectorControls)
+	{
+		float values[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+		std::size_t resolved = 0;
+		for (std::size_t i = 0; i < control.params.size() && i < 4; ++i)
+			for (int p = 0; p < parameters.getSize(); ++p)
+			{
+				if (parameters.getName(p) != control.params[i]) continue;
+				values[i] = parameters.getFloatValue(p);
+				++resolved;
+				break;
+			}
+		if (resolved != control.params.size()) continue;
+		if (control.params.size() == 2)
+			target.setUniform2f(control.name, values[0], values[1]);
+		else if (control.params.size() == 3)
+			target.setUniform3f(control.name, values[0], values[1], values[2]);
+		else if (control.params.size() == 4)
+			target.setUniform4f(control.name, values[0], values[1], values[2], values[3]);
 	}
 	for (int i = 0; i < fbohandlergroup.getSize(); i++)
 	{
 		if (fbohandlergroup.getisPointerSet(i))
 		{
-			shader.setUniformTexture(fbohandlergroup.getName(i), fbohandlergroup.getFboPointer(i), i + 1);
+			target.setUniformTexture(fbohandlergroup.getName(i), fbohandlergroup.getFboPointer(i), i + 1);
 		}
 	}
 }
-void JPbox_shader::update_globalUniforms()
+void JPbox_shader::update_globalUniforms(ofShader &target)
 {
 	JPShaderGlobalsCtx ctx;
 	ctx.width = fbo.getWidth();
 	ctx.height = fbo.getHeight();
 	ctx.boxFrameNum = frameNum;
 	ctx.feedback = getFeedbackTexture();
-	jp_shader_globals::apply(shader, ctx);
+	jp_shader_globals::apply(target, ctx);
 }
+
+// --- Cadena de passes (multipass de jpshadereditor) -------------------------
+// El sidecar lo escribe el import: <shader>.passes.json
+//   { "version":1,
+//     "buffers":[{"file":"_p1_x.frag","iterations":1,"channels":{"iChannel0":0}}],
+//     "main":{"channels":{"iChannel0":0}} }
+void JPbox_shader::unloadPassChain()
+{
+	passPrograms.clear();
+	passFbos.clear();
+	passCurrent.clear();
+	passBuffers.clear();
+	passMainChannels.clear();
+}
+
+bool JPbox_shader::loadPassChain()
+{
+	unloadPassChain();
+	if (dir.empty()) return false;
+	const std::string sidecar = ofFilePath::removeExt(dir) + ".passes.json";
+	const std::string absolute = ofToDataPath(sidecar, true);
+	if (!ofFile::doesFileExist(absolute)) return false;
+	ofJson doc;
+	try
+	{
+		doc = ofJson::parse(ofBufferFromFile(absolute).getText());
+	}
+	catch (const std::exception &error)
+	{
+		ofLogError("multipass") << sidecar << ": " << error.what();
+		return false;
+	}
+	if (!doc.contains("buffers") || !doc["buffers"].is_array()) return false;
+	const std::string folder = ofFilePath::getEnclosingDirectory(dir);
+	for (const auto &item : doc["buffers"])
+	{
+		if (!item.is_object() || !item.contains("file") || !item["file"].is_string()) continue;
+		PassChainEntry entry;
+		entry.file = item["file"].get<std::string>();
+		entry.iterations = item.value("iterations", 1);
+		if (item.contains("channels") && item["channels"].is_object())
+			for (const auto &channel : item["channels"].items())
+				if (channel.value().is_number())
+					entry.channels[channel.key()] = channel.value().get<int>();
+		const std::string file = ofFilePath::join(folder, entry.file);
+		ofShader program;
+		if (!program.load("shaders/default.vert", file) || !linkedProgram(program))
+		{
+			ofLogError("multipass") << "no carga el buffer " << file;
+			unloadPassChain();
+			return false;
+		}
+		passBuffers.push_back(std::move(entry));
+		passPrograms.push_back(std::move(program));
+	}
+	if (passBuffers.empty())
+	{
+		unloadPassChain();
+		return false;
+	}
+	if (doc.contains("main") && doc["main"].is_object() && doc["main"].contains("channels") &&
+		doc["main"]["channels"].is_object())
+		for (const auto &channel : doc["main"]["channels"].items())
+			if (channel.value().is_number())
+				passMainChannels[channel.key()] = channel.value().get<int>();
+	passFbos.resize(passBuffers.size());
+	passCurrent.assign(passBuffers.size(), 0);
+	ofLogNotice("multipass") << sidecar << ": " << passBuffers.size() << " buffer(s)";
+	return true;
+}
+
+void JPbox_shader::ensurePassFbos()
+{
+	if (!fbo.isAllocated()) return;
+	const int width = (int)fbo.getWidth();
+	const int height = (int)fbo.getHeight();
+	if ((int)passFbos.size() != (int)passBuffers.size())
+	{
+		passFbos.resize(passBuffers.size());
+		passCurrent.assign(passBuffers.size(), 0);
+	}
+	for (auto &pair : passFbos)
+		for (int slot = 0; slot < 2; ++slot)
+		{
+			ofFbo &target = pair[slot];
+			if (target.isAllocated() && (int)target.getWidth() == width &&
+				(int)target.getHeight() == height) continue;
+			target.allocate(width, height, GL_RGBA);
+			if (!target.isAllocated()) continue;
+			target.begin();
+			ofPushStyle();
+			ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+			ofClear(0, 0, 0, 0);
+			ofPopStyle();
+			target.end();
+		}
+}
+
+void JPbox_shader::bindPassChannels(ofShader &program, const std::map<std::string, int> &channels,
+	int firstUnit, int self, int selfRead)
+{
+	int unit = firstUnit;
+	for (const auto &channel : channels)
+	{
+		const int index = channel.second;
+		if (index < 0 || index >= (int)passFbos.size()) continue;
+		// Un buffer puede leerse a si mismo: ahi se lee la copia anterior del
+		// ping-pong, nunca la que se esta escribiendo.
+		const int slot = index == self ? selfRead : passCurrent[index];
+		ofFbo &source = passFbos[index][slot];
+		if (!source.isAllocated()) continue;
+		program.setUniformTexture(channel.first, source.getTexture(), unit++);
+	}
+}
+
+// Corre los buffers en orden. Cada uno ve los anteriores por sus iChannel y a si
+// mismo por la copia del frame anterior; el pass principal los ve por
+// passMainChannels.
+void JPbox_shader::drawPasses()
+{
+	ensurePassFbos();
+	for (std::size_t p = 0; p < passPrograms.size() && p < passFbos.size(); ++p)
+	{
+		ofShader &program = passPrograms[p];
+		if (!program.isLoaded()) continue;
+		if (!passFbos[p][0].isAllocated() || !passFbos[p][1].isAllocated()) continue;
+		const int iterations = std::max(1, passBuffers[p].iterations);
+		int read = passCurrent[p];
+		int write = 1 - read;
+		for (int iteration = 0; iteration < iterations; ++iteration)
+		{
+			ofFbo &target = passFbos[p][write];
+			target.begin();
+			ofPushStyle();
+			ofSetRectMode(OF_RECTMODE_CORNER);
+			ofFill();
+			ofSetColor(255, 255);
+			ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+			program.begin();
+			update_globalUniforms(program);
+			update_NonglobalUniforms(program);
+			bindPassChannels(program, passBuffers[p].channels, 8, (int)p, read);
+			ofSetColor(255, 255);
+			ofRect(0, 0, target.getWidth(), target.getHeight());
+			program.end();
+			ofEnableAlphaBlending();
+			ofPopStyle();
+			target.end();
+			read = write;
+			write = 1 - read;
+		}
+		passCurrent[p] = read;
+		if (std::getenv("GUIPPER_MULTIPASS_TRACE"))
+		{
+			// Sonda: el buffer dibujo algo? Sin esto, "se ve negro" no distingue
+			// entre un pass vacio y el principal muestreando mal el canal.
+			ofFloatPixels probe;
+			passFbos[p][read].readToPixels(probe);
+			float peak = 0.0f;
+			for (float value : probe) if (std::isfinite(value)) peak = std::max(peak, value);
+			ofLogNotice("multipass-trace") << "pass " << p << " iterations=" << iterations
+				<< " peak=" << peak << " target=" << (int)passFbos[p][read].getTexture().getTextureData().textureTarget
+				<< " units=" << (int)passBuffers[p].channels.size() << " gl=" << glGetError();
+		}
+	}
+}
+
 
 /*********************************DEPRECATED ******************************************/
 /*JPParameterGroup JPbox_shader::getUniformsToJPParameterGroup(string _dir, string _name) {

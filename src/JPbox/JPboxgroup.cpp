@@ -7,6 +7,7 @@
 #include "jp_box_factory.h"
 #include "jp_box_screen.h"
 #include "jp_box_youtube.h"
+#include "jp_box_webrender.h"
 #include "jp_box_text.h"
 #include "jp_box_analogcolor.h"
 #include "../JPutils/jp_textwrap.h"
@@ -410,6 +411,7 @@ string JPboxgroup::makeNameFromDirectory(const string &directory) const
 	if (directory == "analogColor") return "ANALOG COLOR";
 	if (directory == "textSource") return "TEXTO";
 	if (directory == "youtubeVideo") return "YOUTUBE";
+	if (directory == "webRender") return "WEBRENDER";
 	if (directory.find("camdepth") != std::string::npos)
 	{
 		// Checked first for the same reason the box dispatch is: "camdepth"
@@ -3400,6 +3402,7 @@ void JPboxgroup::draw_paramswindow()
 			JPdragobject::setMouseOverride(ofVec2f(-10000.0f, -10000.0f));
 
         if (auto *analog=dynamic_cast<JPbox_analogcolor *>(inspectorBox)) analog->drawInspector();
+        if (auto *webrender=dynamic_cast<JPbox_webrender *>(inspectorBox)) webrender->drawInspector();
         if (auto *text = dynamic_cast<JPbox_text *>(inspectorBox)) {
             text->drawEditor([this,text](const string &before,const string &after){
                 if(before==after)return;
@@ -4026,6 +4029,8 @@ void JPboxgroup::update(){
         }
         if (auto *youtube = dynamic_cast<JPbox_youtube *>(node))
             if (!enabled) youtube->suspend();
+        if (auto *webrender = dynamic_cast<JPbox_webrender *>(node))
+            webrender->setCaptureActive(enabled);
         if(auto *particles=dynamic_cast<JPbox_kinectparticles *>(node)) particles->setCaptureActive(enabled);
         if(auto *group=dynamic_cast<JPbox_preset *>(node))for(auto *child:group->boxes)stopHiddenScreens(child,enabled);
     };
@@ -4838,6 +4843,10 @@ void JPboxgroup::update_mousePressed(int mouseButton)
     if(mouseButton==OF_MOUSE_BUTTON_LEFT && inspectorBodyContains(ofGetMouseX(),ofGetMouseY()))
         if(auto *analog=dynamic_cast<JPbox_analogcolor *>(inputInspectorBox))
             if(analog->clickInspector(ofGetMouseX(),ofGetMouseY())){markCueDraftDirty(cueSelectedIndex());setControllers();return;}
+
+    if(mouseButton==OF_MOUSE_BUTTON_LEFT && inspectorBodyContains(ofGetMouseX(),ofGetMouseY()))
+        if(auto *webrender=dynamic_cast<JPbox_webrender *>(inputInspectorBox))
+            if(webrender->clickInspector(ofGetMouseX(),ofGetMouseY())){markCueDraftDirty(cueSelectedIndex());setControllers();return;}
 
     if(mouseButton==OF_MOUSE_BUTTON_LEFT && inspectorBodyContains(ofGetMouseX(),ofGetMouseY()))
         if(auto *text=dynamic_cast<JPbox_text *>(inputInspectorBox))
@@ -6161,6 +6170,11 @@ void JPboxgroup::setControllers(){
         analog->layoutInspector(inspectorBodyViewport.x+inspectorLayout.contentPadding,layoutCursor,
             inspectorBodyViewport.width-2*inspectorLayout.contentPadding);
         layoutCursor+=analog->inspectorHeight();
+    }
+    if(auto *webrender=dynamic_cast<JPbox_webrender *>(inspectorBox)) {
+        webrender->layoutInspector(inspectorBodyViewport.x+inspectorLayout.contentPadding,layoutCursor,
+            inspectorBodyViewport.width-2*inspectorLayout.contentPadding);
+        layoutCursor+=webrender->inspectorHeight();
     }
     if(auto *text=dynamic_cast<JPbox_text *>(inspectorBox)) {
         text->layoutEditor(inspectorBodyViewport.x+inspectorLayout.contentPadding,layoutCursor,

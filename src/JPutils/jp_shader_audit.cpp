@@ -39,6 +39,17 @@ bool jp_shader_audit::run(ofApp& app,const char* path) {
         for(int i=0;i<box.fbohandlergroup.getSize();++i)box.fbohandlergroup.setFboPointer(&sources[i%2],&names[i%2],i);
         box.updateFBO(); // Production node path, including global/parameter/input binding.
         report["node_render_error"]=glGetError();
+        if (std::getenv("GUIPPER_SHADER_AUDIT_NODE_PNG") && box.fbo.isAllocated()) {
+            // Dump del FBO del nodo: el preview de un solo pass no reproduce una
+            // cadena multipass, asi que esta es la unica forma de ver el
+            // resultado real que dibuja la caja.
+            ofFloatPixels nodeFloat;box.fbo.readToPixels(nodeFloat);
+            ofPixels nodeImage;nodeImage.allocate(nodeFloat.getWidth(),nodeFloat.getHeight(),OF_PIXELS_RGBA);
+            for(size_t i=0;i<nodeFloat.size();++i){float v=nodeFloat[i];if(!std::isfinite(v))v=0;
+                nodeImage[i]=i%4==3?255:static_cast<unsigned char>(ofClamp(v,0,1)*255);}
+            ofSaveImage(nodeImage,(output/"node.png").string());
+            report["node_png"]="node.png";
+        }
         if (!std::getenv("GUIPPER_SHADER_PREVIEW_INPUTS")) {
             app.previewImg1=inputs[0];app.previewImg2=inputs[1];
         }

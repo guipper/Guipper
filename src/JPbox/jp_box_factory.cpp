@@ -14,6 +14,7 @@
 #include "jp_box_cam.h"
 #include "jp_box_screen.h"
 #include "jp_box_youtube.h"
+#include "jp_box_webrender.h"
 #include "jp_box_text.h"
 #include "jp_box_analogcolor.h"
 #include "jp_box_framedifference.h"
@@ -49,6 +50,7 @@ namespace
 		case Kind::AnalogColor: return directory == "analogColor";
         case Kind::Text: return directory == "textSource";
         case Kind::Youtube: return directory == "youtubeVideo";
+		case Kind::WebRender: return directory == "webRender";
 		case Kind::Screen: return directory == "screenCapture";
 		case Kind::Camera: return contains("cam");
 #ifdef SPOUT
@@ -69,11 +71,11 @@ jp_box_factory::Kind jp_box_factory::classify(const std::string &directory,
 {
 	// Shared matching rules; only legacy precedence depends on the entry path.
 	static constexpr Kind interactive[] = {
-		Kind::Dvd, Kind::Sarv, Kind::IPhoneLidar, Kind::KinectParticles, Kind::AnalogColor, Kind::Text, Kind::Youtube, Kind::Screen, Kind::Shader, Kind::Image, Kind::Video, Kind::Preset, Kind::Kinect2,
+		Kind::Dvd, Kind::Sarv, Kind::IPhoneLidar, Kind::KinectParticles, Kind::AnalogColor, Kind::Text, Kind::Youtube, Kind::WebRender, Kind::Screen, Kind::Shader, Kind::Image, Kind::Video, Kind::Preset, Kind::Kinect2,
 		Kind::PointerCloud, Kind::CameraDepth, Kind::Camera, Kind::Spout,
 		Kind::FrameDifference, Kind::Paint, Kind::Ndi};
 	static constexpr Kind stored[] = {
-		Kind::Dvd, Kind::Sarv, Kind::IPhoneLidar, Kind::KinectParticles, Kind::AnalogColor, Kind::Text, Kind::Youtube, Kind::Screen, Kind::Shader, Kind::Image, Kind::Video, Kind::Kinect2,
+		Kind::Dvd, Kind::Sarv, Kind::IPhoneLidar, Kind::KinectParticles, Kind::AnalogColor, Kind::Text, Kind::Youtube, Kind::WebRender, Kind::Screen, Kind::Shader, Kind::Image, Kind::Video, Kind::Kinect2,
 		Kind::PointerCloud, Kind::CameraDepth, Kind::Camera, Kind::Ndi,
 		Kind::Spout, Kind::Preset, Kind::FrameDifference, Kind::Paint};
 	const auto &order = context == Context::Stored ? stored : interactive;
@@ -101,6 +103,7 @@ JPbox *jp_box_factory::create(const std::string &directory, Context context)
 	case Kind::AnalogColor: return new JPbox_analogcolor();
     case Kind::Text: return new JPbox_text();
     case Kind::Youtube: return new JPbox_youtube();
+	case Kind::WebRender: return new JPbox_webrender();
 	case Kind::Screen: return new JPbox_screen();
 #ifdef SPOUT
 	case Kind::Spout: return new JPbox_spout();

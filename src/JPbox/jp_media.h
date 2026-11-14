@@ -45,8 +45,14 @@ namespace jp_media
 	inline bool isVideo(const std::string &path)
 	{
 		const std::string ext = extension(path);
+		// The Windows backend is DirectShow (K-Lite / LAV Filters), so anything
+		// those splitter/decoders open is playable here - mkv, webm/vp9, wmv,
+		// mpeg-ps, ts, mjpeg-in-mov. Keep the list to what the player can
+		// actually handle on the other platforms too.
 		return ext == "mov" || ext == "mkv" || ext == "mp4" || ext == "flv" ||
-			ext == "vob" || ext == "avi";
+			ext == "vob" || ext == "avi" || ext == "webm" || ext == "wmv" ||
+			ext == "mpg" || ext == "mpeg" || ext == "m4v" || ext == "ts" ||
+			ext == "m2ts" || ext == "mts" || ext == "ogv" || ext == "3gp";
 	}
 	inline std::string stem(const std::string &path)
 	{

@@ -30,7 +30,7 @@ namespace jp_shadereditor
 		constexpr const char *kHeaderName = "_jse_common.frag";
 		// Subir esto reimporta todo: el manifiesto guarda con que version se
 		// tradujo cada shader.
-		constexpr int kTranslatorVersion = 2;
+		constexpr int kTranslatorVersion = 3;
 		constexpr int kMaxImportsPerFrame = 3;
 
 		std::string trim(const std::string &text)
@@ -169,6 +169,13 @@ namespace jp_shadereditor
 						text += " = " + wanted->second;
 						hasInitializer = true;
 					}
+					// Vectores: el control no existe en Guipper, pero el valor
+					// que publico el autor si se puede fijar como default.
+					else if (startsWith(wanted->second, type + "("))
+					{
+						text += " = " + wanted->second;
+						hasInitializer = true;
+					}
 				}
 				declared[name] = {type, hasInitializer};
 				if (!rebuilt.empty()) rebuilt += ", ";
@@ -193,6 +200,23 @@ namespace jp_shadereditor
 					literal.find("inf") == std::string::npos && literal.find("nan") == std::string::npos)
 					literal += ".0";
 				return literal;
+			}
+			// El editor publica los colores como [r,g,b] o [r,g,b,a]. Guipper
+			// no expone controles para vectores, pero el shader igual los usa:
+			// sin inicializador quedan en cero y el shader sale negro.
+			if (value.is_array())
+			{
+				const std::size_t size = value.size();
+				if (size < 2 || size > 4) return {};
+				std::string literal = size == 2 ? "vec2(" : size == 3 ? "vec3(" : "vec4(";
+				for (std::size_t i = 0; i < size; ++i)
+				{
+					const std::string piece = numberLiteral(value[i]);
+					if (piece.empty() || piece == "true" || piece == "false") return {};
+					if (i > 0) literal += ", ";
+					literal += piece;
+				}
+				return literal + ")";
 			}
 			if (value.is_string())
 			{
@@ -531,24 +555,14 @@ namespace jp_shadereditor
 		return out;
 	}
 
-	std::string translate(const std::string &name, const ofJson &detail, std::string &error)
+	// Traduce UN pass a GLSL de Guipper. Los defaults (el objeto `uniforms`) son
+	// globales del shader; lo que cambia por pass es el codigo. Los multipass ya
+	// no se rechazan: cada buffer se traduce con esta misma funcion y la caja
+	// los encadena (ver jp_box_shader::renderPasses).
+	std::string translateCode(const std::string &name, const ofJson &detail,
+		std::string code, std::string &error)
 	{
 		error.clear();
-		const ofJson passes = detail.contains("passesData") && detail["passesData"].is_object()
-			? detail["passesData"] : ofJson::object();
-		const int passCounter = detail.value("passCounter", 0);
-		if (passCounter > 0 || passes.size() > 1)
-		{
-			error = "multipass";
-			return {};
-		}
-
-		std::string code;
-		if (detail.contains("contenido") && detail["contenido"].is_string())
-			code = detail["contenido"].get<std::string>();
-		if (code.empty() && passes.contains("main") && passes["main"].is_object() &&
-			passes["main"].contains("code") && passes["main"]["code"].is_string())
-			code = passes["main"]["code"].get<std::string>();
 		if (code.empty())
 		{
 			error = "sin codigo";
@@ -725,9 +739,144 @@ namespace jp_shadereditor
 		out += body;
 
 		if (!hasMain)
-			out += "\nvoid main(){\n\tvec4 jp_jse_color = vec4(0.0, 0.0, 0.0, 1.0);\n"
-				   "\tmainImage(jp_jse_color, gl_FragCoord.xy);\n\tfragColor = jp_jse_color;\n}\n";
+			out += "\nvoid main(){\n	vec4 jp_jse_color = vec4(0.0, 0.0, 0.0, 1.0);\n"
+			   "	mainImage(jp_jse_color, gl_FragCoord.xy);\n	fragColor = jp_jse_color;\n}\n";
 		return out;
+	}
+
+	// Codigo del pass principal: `contenido` o, si viene vacio, passesData.main.
+	std::string mainCode(const ofJson &detail)
+	{
+		const ofJson passes = detail.contains("passesData") && detail["passesData"].is_object()
+			? detail["passesData"] : ofJson::object();
+		if (detail.contains("contenido") && detail["contenido"].is_string())
+		{
+			std::string code = detail["contenido"].get<std::string>();
+			if (!code.empty()) return code;
+		}
+		if (passes.contains("main") && passes["main"].is_object() &&
+			passes["main"].contains("code") && passes["main"]["code"].is_string())
+			return passes["main"]["code"].get<std::string>();
+		return {};
+	}
+
+	std::string translate(const std::string &name, const ofJson &detail, std::string &error)
+	{
+		return translateCode(name, detail, mainCode(detail), error);
+	}
+
+	// Sidecar que describe la cadena de passes de un shader importado: la caja
+	// lo lee para saber cuantos buffers hay y que textura alimenta cada iChannel.
+	std::string passesManifestPath(const std::string &directory, const std::string &leaf)
+	{
+		return ofFilePath::join(directory, ofFilePath::removeExt(leaf) + ".passes.json");
+	}
+
+	// Buffers publicados por el editor, en orden (buffer1, buffer2, ...).
+	std::vector<std::string> bufferPassNames(const ofJson &detail)
+	{
+		std::vector<std::string> names;
+		if (!detail.contains("passesData") || !detail["passesData"].is_object()) return names;
+		for (const auto &item : detail["passesData"].items())
+		{
+			if (!item.value().is_object()) continue;
+			if (!startsWith(lowerCase(item.key()), "buffer")) continue;
+			names.push_back(item.key());
+		}
+		std::sort(names.begin(), names.end(), [](const std::string &a, const std::string &b) {
+			return std::atoi(a.c_str() + 6) < std::atoi(b.c_str() + 6);
+		});
+		return names;
+	}
+
+	// Traduce las conexiones de un pass (`["buffer1","texture1","none",...]`) a
+	// uniform -> indice de buffer. Lo que viene de `textureN` se deja como esta:
+	// en Guipper esos canales son los inlets que el usuario conecta a mano.
+	ofJson channelMap(const ofJson &pass, const std::vector<std::string> &buffers)
+	{
+		ofJson channels = ofJson::object();
+		if (!pass.contains("connections") || !pass["connections"].is_array()) return channels;
+		const ofJson &connections = pass["connections"];
+		for (std::size_t i = 0; i < connections.size() && i < 4; ++i)
+		{
+			if (!connections[i].is_string()) continue;
+			const std::string source = lowerCase(connections[i].get<std::string>());
+			if (!startsWith(source, "buffer")) continue;
+			const int index = std::atoi(source.c_str() + 6) - 1;
+			if (index < 0 || index >= (int)buffers.size()) continue;
+			channels["iChannel" + ofToString((int)i)] = index;
+		}
+		return channels;
+	}
+
+	// Escribe los passes de buffer y el sidecar que los describe. Devuelve false
+	// (y deja el motivo en `error`) si algun buffer no se puede traducir o
+	// compilar: sin el buffer el pass principal leeria una textura vacia, asi
+	// que se descarta el shader entero.
+	bool writePassChain(const std::string &name, const ofJson &detail,
+		const std::string &directory, const std::string &leaf, std::string &error)
+	{
+		error.clear();
+		const std::string manifest = passesManifestPath(directory, leaf);
+		const std::vector<std::string> buffers = bufferPassNames(detail);
+		std::error_code ignored;
+		if (buffers.empty())
+		{
+			// Shader de un solo pass: que no quede el sidecar de una version
+			// anterior del mismo archivo.
+			std::filesystem::remove(manifest, ignored);
+			return true;
+		}
+
+		ofJson passes = ofJson::object();
+		passes["version"] = 1;
+		ofJson bufferList = ofJson::array();
+		for (std::size_t b = 0; b < buffers.size(); ++b)
+		{
+			const ofJson &pass = detail["passesData"][buffers[b]];
+			if (!pass.contains("code") || !pass["code"].is_string())
+			{
+				error = "multipass sin codigo en " + buffers[b];
+				return false;
+			}
+			const std::string source = translateCode(name, detail, pass["code"].get<std::string>(), error);
+			if (source.empty())
+			{
+				if (error.empty()) error = "multipass sin traducir " + buffers[b];
+				return false;
+			}
+			// Prefijo `_`: el indice de shaders esconde los .frag que empiezan
+			// con guion bajo, asi que los buffers no ensucian el navegador.
+			const std::string bufferLeaf = "_p" + ofToString((int)b + 1) + "_" +
+				ofFilePath::removeExt(leaf) + ".frag";
+			const std::string bufferAbsolute = ofToDataPath(ofFilePath::join(directory, bufferLeaf), true);
+			ofShaderSettings settings = settingsFor(bufferAbsolute);
+			settings.shaderSources[GL_FRAGMENT_SHADER] = source;
+			ofShader candidate;
+			if (!writeTextFile(bufferAbsolute, source) || !candidate.setup(settings) ||
+				!programLinked(candidate))
+			{
+				error = "no compila " + buffers[b] + " (" + bufferLeaf + ")";
+				std::filesystem::remove(bufferAbsolute, ignored);
+				return false;
+			}
+			ofJson entry = ofJson::object();
+			entry["file"] = bufferLeaf;
+			entry["iterations"] = pass.contains("iteraciones") && pass["iteraciones"].is_number()
+				? pass["iteraciones"].get<int>() : 1;
+			entry["channels"] = channelMap(pass, buffers);
+			bufferList.push_back(entry);
+		}
+		passes["buffers"] = bufferList;
+		const ofJson mainPass = detail["passesData"].contains("main") &&
+			detail["passesData"]["main"].is_object() ? detail["passesData"]["main"] : ofJson::object();
+		passes["main"] = ofJson{{"channels", channelMap(mainPass, buffers)}};
+		if (!writeTextFile(manifest, passes.dump(1)))
+		{
+			error = "no se pudo escribir el sidecar de passes";
+			return false;
+		}
+		return true;
 	}
 
 	Sync::~Sync()
@@ -869,7 +1018,8 @@ namespace jp_shadereditor
 		int candidates = 0;
 		for (const auto &entry : entries)
 		{
-			if (entry.passes > 0) { ++upToDate; continue; } // multipass: etapa siguiente
+			// Los multipass tambien se importan: el buffer viaja como pass extra
+			// y la caja los encadena (ver writePassChain / drawPasses).
 			++candidates;
 			const auto found = known.find(entry.name);
 			const auto fileIt = knownFiles.find(entry.name);
@@ -893,7 +1043,6 @@ namespace jp_shadereditor
 		for (const auto &entry : entries)
 		{
 			if (cancelFlag) break;
-			if (entry.passes > 0) continue;
 			const auto found = known.find(entry.name);
 			const auto fileIt = knownFiles.find(entry.name);
 			const std::string leaf = fileIt != knownFiles.end() && !fileIt->second.empty()
@@ -980,10 +1129,20 @@ namespace jp_shadereditor
 						if (compiled)
 						{
 							for (const auto &declaration : jp_uniform_parser::parse(source).declarations)
-								if ((declaration.type == jp_uniform_parser::Type::Float ||
-									declaration.type == jp_uniform_parser::Type::Bool) &&
-									!jp_shader_globals::isGlobalName(declaration.name))
+							{
+								if (jp_shader_globals::isGlobalName(declaration.name)) continue;
+								if (declaration.type == jp_uniform_parser::Type::Float ||
+									declaration.type == jp_uniform_parser::Type::Bool)
 									++result.parameters;
+								else if (!declaration.array)
+								{
+									// Un vector se expone como un slider por componente.
+									const int components = declaration.type == jp_uniform_parser::Type::Vec2 ? 2 :
+										declaration.type == jp_uniform_parser::Type::Vec3 ? 3 :
+										declaration.type == jp_uniform_parser::Type::Vec4 ? 4 : 0;
+									result.parameters += components;
+								}
+							}
 							smokeRender(candidate);
 						}
 					}
@@ -1004,8 +1163,19 @@ namespace jp_shadereditor
 					}
 					else
 					{
-						result.file = file;
-						result.updated = true;
+						// Multipass: los buffers se escriben al lado del principal
+						// junto a un sidecar con el cableado de cada iChannel.
+						if (writePassChain(fetch.name, detail, directory, leaf, translateError))
+						{
+							result.file = file;
+							result.updated = true;
+						}
+						else
+						{
+							failureText = translateError.empty() ? "multipass" : translateError;
+							std::error_code ignored;
+							std::filesystem::remove(absolute, ignored);
+						}
 					}
 				}
 			}
@@ -1043,7 +1213,6 @@ namespace jp_shadereditor
 		ofJson shaders = ofJson::object();
 		for (const auto &entry : remote)
 		{
-			if (entry.passes > 0) continue;
 			if (importedNames.count(entry.name) == 0) continue;
 			ofJson item = ofJson::object();
 			item["updated"] = entry.updated;

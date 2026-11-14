@@ -2,6 +2,9 @@
 #include "ofApp.h"
 #include "JPutils/jp_app_paths.h"
 #include <iostream>
+#if defined(TARGET_WIN32)
+#include <objbase.h> // CoInitializeEx: claim COM's MTA before Media Foundation starts
+#endif
 #ifdef TARGET_LINUX
 #include <GLFW/glfw3.h>
 #endif
@@ -11,6 +14,17 @@
 //========================================================================
 int main()
 {
+#if defined(TARGET_WIN32)
+    // Media Foundation requires a multi-threaded apartment, and MFStartup() is
+    // called lazily the first time a video player is constructed. RtAudio's
+    // ASIO backend initialises COM as single-threaded when it opens an input
+    // device - and jp_audio::setup() runs long before the first video box - so
+    // MFStartup() then fails and every clip dies with
+    // "ofMediaFoundationPlayer: MF_MEDIA_ENGINE_ERR_SRC_NOT_SUPPORTED" while
+    // the same file plays fine with the audio input disabled.
+    // Claim the apartment here, before anything else touches COM.
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+#endif
     // Construct paths before OF registers its exit handlers: graphics tests may
     // initialize them later, but shutdown still saves preferences through them.
     auto &paths = jp::AppPaths::current();
