@@ -375,7 +375,7 @@ bool ofApp::anyFieldFocused() const
 {
 	return jp_text_input::controller().focused() || focusedOptionsField >= 0 || focusedLiveOutputField >= 0 ||
 		focusedSplitField >= 0 || boxes.textCaptureActive() ||
-		(pantallaActiva == SHADER_INDEX && (shaderSearchFocused || shaderNameFocused || reviewCommentFocused));
+		(pantallaActiva == SHADER_INDEX && (shaderSearchFocused || shaderNameFocused || reviewCommentFocused || (shaderContextMenuOpen && shaderContextMenuInputFocused)));
 }
 
 void ofApp::clearFieldFocus()
@@ -383,6 +383,7 @@ void ofApp::clearFieldFocus()
     jp_text_input::controller().reset();
     shaderNameFocused = false;
     reviewCommentFocused=false;
+    shaderContextMenuInputFocused = false;
 	// Reverting, not just unfocusing: re-initialising a field group re-reads
 	// the committed values, so an abandoned edit is discarded. The settings
 	// screen already promised this on screen ("Click outside to cancel") while
@@ -485,6 +486,10 @@ void ofApp::registerSurfaces()
         auto bounds = getShaderBrowserLayout().panel;
         const auto inspector = getPreviewInspectorLayout().panel;
         if (inspector.width > 0) bounds.growToInclude(inspector);
+        if (shaderContextMenuOpen) {
+            const auto menuBounds = getShaderContextMenuBounds();
+            if (menuBounds.width > 0) bounds.growToInclude(menuBounds);
+        }
         return bounds;
     };
     surfaces.add(s);
@@ -539,6 +544,13 @@ void ofApp::registerSurfaces()
 	surfaces.add(s);
 
 	s = JPSurface();
+	s.id = s.order = jp_pointer::kDropdown + 2;
+	s.isOpen = [this]{ return pantallaActiva == SHADER_INDEX && shaderContextMenuOpen; };
+	s.close = [this]{ closeShaderContextMenu(); };
+	s.bounds = [this]{ return getShaderContextMenuBounds(); };
+	surfaces.add(s);
+
+	s = JPSurface();
 	s.id = s.order = SURFACE_SAVE_MODAL;
 	s.modal = true;
 	s.isOpen = [this]() { return saveModalActive; };
@@ -582,6 +594,7 @@ void ofApp::enterScreen(int screen)
     if (screen != SHADER_INDEX) {
         shaderNameFocused = false;
         shaderScrollbarDragging = false;
+        closeShaderContextMenu();
         if (previewInspectorDrag >= 0) saveCuratedPreview();
         previewInspectorDrag = -1;
         previewInspectorScrollbarDrag = false;
@@ -610,6 +623,7 @@ void ofApp::enterScreen(int screen)
 		shaderSearchCursor = ofClamp(shaderSearchCursor, 0,
 			(int)shaderSearchText.size());
 		if (shaderFolders.empty() || std::getenv("GUIPPER_CURATED_LIST") || shaderUserLibrary || std::getenv("GUIPPER_USER_LIST")) scanShaders();
+		else refreshSavedPresetsFolder();
 		break;
 	case EDITOR:
 		shaderEditor.setVisible(true);
@@ -5341,6 +5355,99 @@ static vector<std::pair<string, string>> listFragFiles(const string &directory)
 	return paths;
 }
 
+static string trimShaderBrowserText(const string &raw) {
+	const size_t first = raw.find_first_not_of(" \t\r\n");
+	if (first == string::npos) return {};
+	const size_t last = raw.find_last_not_of(" \t\r\n");
+	return raw.substr(first, last - first + 1);
+}
+
+ofApp::ShaderFolder ofApp::buildSavedPresetsFolder() const {
+	ShaderFolder presetsFolder;
+	presetsFolder.name = "presets";
+	presetsFolder.path = "presets";
+	presetsFolder.category = "presets";
+	presetsFolder.expanded = false;
+
+	std::set<string> seenRelPaths;
+	auto scanPresetRoot = [&](const std::filesystem::path &rootDir, const string &prefix) {
+		std::error_code error;
+		if (!std::filesystem::is_directory(rootDir, error)) return;
+		vector<std::filesystem::path> files;
+		for (std::filesystem::recursive_directory_iterator it(rootDir, error), end;
+			it != end && !error; it.increment(error)) {
+			if (!it->is_regular_file(error)) continue;
+			const string fname = it->path().filename().string();
+			if (fname.empty() || fname[0] == '.') continue;
+			if (ofToLower(it->path().extension().string()) != ".xml") continue;
+			files.push_back(it->path());
+		}
+		std::sort(files.begin(), files.end());
+		for (const auto &fullPath : files) {
+			std::error_code relErr;
+			const auto rel = std::filesystem::relative(fullPath, rootDir, relErr);
+			if (relErr || rel.empty()) continue;
+			const string relPath = prefix + "/" + rel.generic_string();
+			if (relPath == "savefiles/recovered.xml") continue;
+			if (!seenRelPaths.insert(relPath).second) continue;
+
+			ofXml xml;
+			if (!xml.load(fullPath.string()) || !xml.getChild("box")) continue;
+
+			ShaderEntry entry;
+			entry.name = ofFilePath::getBaseName(relPath);
+			entry.path = relPath;
+			entry.standalone = true;
+			entry.personal = true;
+			entry.catalogued = true;
+			entry.metadata.path = relPath;
+			entry.metadata.category = "presets";
+			entry.metadata.groupPath = ofFile::doesFileExist(relPath) ? relPath : fullPath.generic_string();
+			entry.metadata.name = { entry.name, entry.name };
+			const bool isGroup = relPath.rfind("groups/", 0) == 0;
+			entry.metadata.description = {
+				(isGroup ? "Saved group preset (" : "Saved preset (") + relPath + ")",
+				(isGroup ? "Preset de grupo guardado (" : "Preset guardado (") + relPath + ")"
+			};
+			presetsFolder.shaders.push_back(std::move(entry));
+		}
+	};
+
+	const auto &appPaths = jp::AppPaths::current();
+	for (const string &dirName : { string("savefiles"), string("groups") }) {
+		scanPresetRoot(std::filesystem::path(ofToDataPath(dirName, true)), dirName);
+		if (!appPaths.bundle.empty()) {
+			scanPresetRoot(appPaths.bundle / dirName, dirName);
+		}
+	}
+	return presetsFolder;
+}
+
+void ofApp::refreshSavedPresetsFolder() {
+	if (shaderCuratedMode || shaderUserLibrary || shaderFolders.empty()) return;
+	ShaderFolder presetsFolder = buildSavedPresetsFolder();
+	bool wasExpanded = false;
+	int existingIdx = -1;
+	for (int i = 0; i < (int)shaderFolders.size(); ++i) {
+		if (shaderFolders[i].path == "presets") {
+			wasExpanded = shaderFolders[i].expanded;
+			existingIdx = i;
+			break;
+		}
+	}
+	if (presetsFolder.shaders.empty()) {
+		if (existingIdx >= 0) shaderFolders.erase(shaderFolders.begin() + existingIdx);
+	} else {
+		if (existingIdx >= 0) {
+			presetsFolder.expanded = wasExpanded;
+			shaderFolders[existingIdx] = std::move(presetsFolder);
+		} else {
+			shaderFolders.push_back(std::move(presetsFolder));
+		}
+	}
+	rebuildFavoritesFolder();
+}
+
 void ofApp::scanShaders() {
 	shaderFolders.clear();
     std::map<string,jp_shader_catalog::Entry> catalog;
@@ -5457,6 +5564,11 @@ void ofApp::scanShaders() {
 		}
 	}
 
+	ShaderFolder presetsFolder = buildSavedPresetsFolder();
+	if (!presetsFolder.shaders.empty()) {
+		shaderFolders.push_back(std::move(presetsFolder));
+	}
+
     } // Normal library scan; curated mode only uses the explicit list.
 	shaderScroll = 0;
 	selectedShaderFolder = -1;
@@ -5483,20 +5595,56 @@ bool ofApp::isFavorite(const string &path) const {
 }
 void ofApp::loadFavorites() {
 	favoritePaths.clear();
+	customShaderFolders.clear();
+	shaderFolderAssignments.clear();
 	string p = jp::preferencePath("shader_favorites.xml");
 	if (!ofFile(p).exists()) return;
 	ofXml xml;
 	if (!xml.load(p)) return;
 	auto favs = xml.find("/favorite");
 	for (auto &n : favs) {
-		string s = n.getValue();
+		string s = jp_normalizePath(n.getValue());
 		if (!s.empty()) favoritePaths.push_back(s);
+	}
+	for (auto &fn : xml.getChildren("folder")) {
+		CustomShaderFolder cf;
+		auto idNode = fn.getChild("id");
+		auto nameNode = fn.getChild("name");
+		cf.id = idNode ? idNode.getValue() : fn.getAttribute("id").getValue();
+		cf.name = nameNode ? nameNode.getValue() : fn.getAttribute("name").getValue();
+		if (!cf.id.empty() && !cf.name.empty()) {
+			customShaderFolders.push_back(std::move(cf));
+		}
+	}
+	for (auto &an : xml.getChildren("assign")) {
+		auto pathNode = an.getChild("path");
+		auto targetNode = an.getChild("target");
+		string itemPath = jp_normalizePath(pathNode ? pathNode.getValue() : an.getAttribute("path").getValue());
+		string target = targetNode ? targetNode.getValue() : an.getAttribute("target").getValue();
+		if (!itemPath.empty() && !target.empty()) {
+			auto &vec = shaderFolderAssignments[itemPath];
+			if (std::find(vec.begin(), vec.end(), target) == vec.end()) {
+				vec.push_back(target);
+			}
+		}
 	}
 }
 void ofApp::saveFavorites() {
 	ofXml xml;
 	for (auto &p : favoritePaths) {
 		xml.appendChild("favorite").set(p);
+	}
+	for (const auto &cf : customShaderFolders) {
+		auto fn = xml.appendChild("folder");
+		fn.appendChild("id").set(cf.id);
+		fn.appendChild("name").set(cf.name);
+	}
+	for (const auto &kv : shaderFolderAssignments) {
+		for (const auto &target : kv.second) {
+			auto an = xml.appendChild("assign");
+			an.appendChild("path").set(kv.first);
+			an.appendChild("target").set(target);
+		}
 	}
 	jp::saveXml(xml, jp::preferencePath("shader_favorites.xml"));
 }
@@ -5507,6 +5655,88 @@ void ofApp::toggleFavorite(const string &path) {
 	} else {
 		favoritePaths.erase(it);
 	}
+	saveFavorites();
+	rebuildFavoritesFolder();
+}
+string ofApp::createCustomShaderFolder(const string &name) {
+	const string clean = trimShaderBrowserText(name);
+	if (clean.empty()) return {};
+	int idx = 1;
+	string id;
+	for (;;) {
+		id = "folder_" + ofToString(idx++);
+		bool exists = false;
+		for (const auto &f : customShaderFolders) {
+			if (f.id == id) { exists = true; break; }
+		}
+		if (!exists) break;
+	}
+	CustomShaderFolder cf;
+	cf.id = id;
+	cf.name = clean;
+	customShaderFolders.push_back(cf);
+	customFolderExpanded[id] = true;
+	saveFavorites();
+	rebuildFavoritesFolder();
+	return id;
+}
+bool ofApp::renameCustomShaderFolder(const string &id, const string &newName) {
+	const string clean = trimShaderBrowserText(newName);
+	if (id.empty() || clean.empty()) return false;
+	for (auto &f : customShaderFolders) {
+		if (f.id == id) {
+			f.name = clean;
+			saveFavorites();
+			rebuildFavoritesFolder();
+			return true;
+		}
+	}
+	return false;
+}
+bool ofApp::deleteCustomShaderFolder(const string &id) {
+	if (id.empty()) return false;
+	const size_t before = customShaderFolders.size();
+	customShaderFolders.erase(
+		std::remove_if(customShaderFolders.begin(), customShaderFolders.end(),
+			[&](const CustomShaderFolder &f) { return f.id == id; }),
+		customShaderFolders.end());
+	if (customShaderFolders.size() == before) return false;
+	const string targetKey = "custom:" + id;
+	for (auto it = shaderFolderAssignments.begin(); it != shaderFolderAssignments.end(); ) {
+		auto &vec = it->second;
+		vec.erase(std::remove(vec.begin(), vec.end(), targetKey), vec.end());
+		if (vec.empty()) it = shaderFolderAssignments.erase(it);
+		else ++it;
+	}
+	customFolderExpanded.erase(id);
+	if (shaderFolderTab == targetKey) shaderFolderTab.clear();
+	if (shaderContextMenuEditingFolderId == id) shaderContextMenuEditingFolderId.clear();
+	if (shaderContextMenuPath.empty() && shaderContextMenuFolderId == id) closeShaderContextMenu();
+	saveFavorites();
+	rebuildFavoritesFolder();
+	return true;
+}
+bool ofApp::isShaderAssignedToFolder(const string &shaderPath, const string &targetFolderPath) const {
+	auto it = shaderFolderAssignments.find(shaderPath);
+	if (it == shaderFolderAssignments.end()) return false;
+	return std::find(it->second.begin(), it->second.end(), targetFolderPath) != it->second.end();
+}
+void ofApp::toggleShaderFolderAssignment(const string &shaderPath, const string &targetFolderPath) {
+	if (shaderPath.empty() || targetFolderPath.empty()) return;
+	for (const auto &folder : shaderFolders) {
+		if (folder.isFavorites || folder.isCustomFolder) continue;
+		const bool matchFolder = folder.path == targetFolderPath ||
+			(!folder.category.empty() && ("catalog:" + folder.category) == targetFolderPath);
+		if (!matchFolder) continue;
+		for (const auto &e : folder.shaders) {
+			if (!e.assignedCopy && e.path == shaderPath) return;
+		}
+	}
+	auto &vec = shaderFolderAssignments[shaderPath];
+	auto it = std::find(vec.begin(), vec.end(), targetFolderPath);
+	if (it == vec.end()) vec.push_back(targetFolderPath);
+	else vec.erase(it);
+	if (vec.empty()) shaderFolderAssignments.erase(shaderPath);
 	saveFavorites();
 	rebuildFavoritesFolder();
 }
@@ -5526,46 +5756,113 @@ void ofApp::startJpshadereditorSync(bool force)
 }
 
 void ofApp::rebuildFavoritesFolder() {
-	// Preserve the current selection by path across the rebuild (folder indices
-	// shift when the favorites folder appears/disappears).
+	// Preserve the current selection by path and folder across the rebuild.
 	string selPath;
+	string selFolderPath;
 	bool selectedWasFavorites = false;
 	if (selectedShaderFolder >= 0 && selectedShaderFolder < (int)shaderFolders.size() &&
 		selectedShaderIndex >= 0 && selectedShaderIndex < (int)shaderFolders[selectedShaderFolder].shaders.size()) {
 		selPath = shaderFolders[selectedShaderFolder].shaders[selectedShaderIndex].path;
+		selFolderPath = shaderFolders[selectedShaderFolder].path;
 		selectedWasFavorites = shaderFolders[selectedShaderFolder].isFavorites;
 	}
 
-	// Drop any existing favorites pseudo-folder so we rebuild it cleanly.
+	// Preserve expanded states of synthetic favorites and custom folders.
 	if (!shaderFolders.empty() && shaderFolders.front().isFavorites) {
 		favoritesFolderExpanded = shaderFolders.front().expanded;
-		shaderFolders.erase(shaderFolders.begin());
+	}
+	for (const auto &f : shaderFolders) {
+		if (f.isCustomFolder && !f.customFolderId.empty()) {
+			customFolderExpanded[f.customFolderId] = f.expanded;
+		}
 	}
 
-	// Re-mark real entries and collect the favorited ones (in file order).
-	ShaderFolder fav;
-	fav.name = "favorites";
-    fav.path = "favorites:";
-	fav.isFavorites = true;
-	fav.expanded = favoritesFolderExpanded;
+	// Strip synthetic favorites/custom folders and assigned copies from built-in folders.
+	shaderFolders.erase(
+		std::remove_if(shaderFolders.begin(), shaderFolders.end(),
+			[](const ShaderFolder &f) { return f.isFavorites || f.isCustomFolder; }),
+		shaderFolders.end());
+	for (auto &folder : shaderFolders) {
+		folder.shaders.erase(
+			std::remove_if(folder.shaders.begin(), folder.shaders.end(),
+				[](const ShaderEntry &e) { return e.assignedCopy; }),
+			folder.shaders.end());
+	}
+
+	// Re-mark entries and build canonical lookup for copies.
+	std::map<string, ShaderEntry> canonicalEntries;
 	for (auto &folder : shaderFolders) {
 		for (auto &e : folder.shaders) {
 			e.favorite = isFavorite(e.path);
+			if (!e.path.empty()) canonicalEntries.emplace(e.path, e);
 		}
 	}
-	for (const string &favPath : favoritePaths) {
-		for (auto &folder : shaderFolders) {
-			bool found = false;
-			for (auto &e : folder.shaders) {
-				if (e.path == favPath) {
-					ShaderEntry c = e;
-					c.favorite = true;
-					fav.shaders.push_back(c);
-					found = true;
-					break;
-				}
+
+	// Rebuild assigned copies in built-in category/folder tabs.
+	for (auto &folder : shaderFolders) {
+		for (const auto &kv : shaderFolderAssignments) {
+			const string &itemPath = kv.first;
+			const auto &targets = kv.second;
+			const bool matched = std::find(targets.begin(), targets.end(), folder.path) != targets.end() ||
+				(!folder.category.empty() &&
+					std::find(targets.begin(), targets.end(), "catalog:" + folder.category) != targets.end());
+			if (!matched) continue;
+			auto canonicalIt = canonicalEntries.find(itemPath);
+			if (canonicalIt == canonicalEntries.end()) continue;
+			bool alreadyPresent = false;
+			for (const auto &existing : folder.shaders) {
+				if (existing.path == itemPath) { alreadyPresent = true; break; }
 			}
-			if (found) break;
+			if (alreadyPresent) continue;
+			ShaderEntry copy = canonicalIt->second;
+			copy.assignedCopy = true;
+			copy.favorite = isFavorite(copy.path);
+			folder.shaders.push_back(std::move(copy));
+		}
+	}
+
+	// Build user custom folders.
+	vector<ShaderFolder> builtCustomFolders;
+	for (const auto &cf : customShaderFolders) {
+		ShaderFolder folder;
+		folder.name = cf.name;
+		folder.path = "custom:" + cf.id;
+		folder.isCustomFolder = true;
+		folder.customFolderId = cf.id;
+		auto expIt = customFolderExpanded.find(cf.id);
+		folder.expanded = expIt != customFolderExpanded.end() ? expIt->second : true;
+		for (const auto &kv : shaderFolderAssignments) {
+			const string &itemPath = kv.first;
+			const auto &targets = kv.second;
+			if (std::find(targets.begin(), targets.end(), folder.path) == targets.end()) continue;
+			auto canonicalIt = canonicalEntries.find(itemPath);
+			if (canonicalIt == canonicalEntries.end()) continue;
+			ShaderEntry copy = canonicalIt->second;
+			copy.assignedCopy = true;
+			copy.favorite = isFavorite(copy.path);
+			folder.shaders.push_back(std::move(copy));
+		}
+		builtCustomFolders.push_back(std::move(folder));
+	}
+	if (!builtCustomFolders.empty()) {
+		shaderFolders.insert(shaderFolders.begin(),
+			std::make_move_iterator(builtCustomFolders.begin()),
+			std::make_move_iterator(builtCustomFolders.end()));
+	}
+
+	// Collect the favorited ones (in file order).
+	ShaderFolder fav;
+	fav.name = "favorites";
+	fav.path = "favorites:";
+	fav.isFavorites = true;
+	fav.expanded = favoritesFolderExpanded;
+	for (const string &favPath : favoritePaths) {
+		auto it = canonicalEntries.find(favPath);
+		if (it != canonicalEntries.end()) {
+			ShaderEntry c = it->second;
+			c.favorite = true;
+			c.assignedCopy = true;
+			fav.shaders.push_back(std::move(c));
 		}
 	}
 	if (favoritesDisplayMode == FAVORITES_TOP && !fav.shaders.empty()) {
@@ -5576,11 +5873,15 @@ void ofApp::rebuildFavoritesFolder() {
 	selectedShaderFolder = -1;
 	selectedShaderIndex = -1;
 	if (!selPath.empty()) {
-		for (int pass = 0; pass < 2 && selectedShaderIndex < 0; pass++) {
+		for (int pass = 0; pass < 3 && selectedShaderIndex < 0; pass++) {
 			for (size_t f = 0; f < shaderFolders.size() && selectedShaderIndex < 0; f++) {
-				bool preferredFolder = selectedWasFavorites ?
-					shaderFolders[f].isFavorites : !shaderFolders[f].isFavorites;
-				if (pass == 0 && !preferredFolder) continue;
+				if (pass == 0 && (selFolderPath.empty() || shaderFolders[f].path != selFolderPath)) continue;
+				if (pass == 1) {
+					const bool preferredFolder = selectedWasFavorites ?
+						shaderFolders[f].isFavorites :
+						(!shaderFolders[f].isFavorites && !shaderFolders[f].isCustomFolder);
+					if (!preferredFolder) continue;
+				}
 				for (size_t s = 0; s < shaderFolders[f].shaders.size(); s++) {
 					if (shaderFolders[f].shaders[s].path == selPath) {
 						selectedShaderFolder = (int)f;
@@ -5753,7 +6054,8 @@ vector<ofApp::ShaderBrowserRow> ofApp::buildShaderBrowserRows() const {
 		if (searchActive && folder.isFavorites && shaderFolderTab.empty()) continue;
 
         const auto& visibleShaders = filtered[f];
-        if (visibleShaders.empty()) continue;
+        const bool showEmptyCustom = folder.isCustomFolder && !searchActive && !(shaderCuratedMode && shaderReviewFilter!=0);
+        if (visibleShaders.empty() && !showEmptyCustom) continue;
 
 		ShaderBrowserRow folderRow;
 		folderRow.folderHeader = true;
@@ -6320,6 +6622,465 @@ void ofApp::ensureShaderSelectionVisible() {
     else if (bottom > shaderScroll + layout.list.height) shaderScroll = bottom - layout.list.height;
 	clampShaderScroll(layout);
 }
+namespace {
+struct ShaderCtxItemRect {
+	enum Kind {
+		CustomFolderToggle = 0,
+		CategoryToggle = 1,
+		FolderOpenTabAction = 2,
+		FolderRenameAction = 3,
+		FolderDeleteAction = 4
+	};
+	Kind kind = CustomFolderToggle;
+	string targetId;
+	string label;
+	bool checked = false;
+	bool isNative = false;
+	ofRectangle rowBounds;
+	ofRectangle renameBounds;
+	ofRectangle deleteBounds;
+};
+
+struct ShaderCtxMenuLayout {
+	ofRectangle panel;
+	ofRectangle header;
+	ofRectangle favoriteRow;
+	ofRectangle inputRect;
+	ofRectangle inputButton;
+	ofRectangle body;
+	float contentHeight = 0.0f;
+	float maxScroll = 0.0f;
+	bool emptyCustomHint = false;
+	ofRectangle emptyHintRect;
+	vector<std::pair<ofRectangle, string>> sections;
+	vector<ShaderCtxItemRect> items;
+};
+
+ShaderCtxMenuLayout buildShaderContextMenuLayout(const ofApp *app) {
+	ShaderCtxMenuLayout layout;
+	if (!app || !app->shaderContextMenuOpen) return layout;
+	const bool hasItem = !app->shaderContextMenuPath.empty();
+	const bool hasFolder = !app->shaderContextMenuFolderId.empty();
+	if (!hasItem && !hasFolder) return layout;
+
+	const bool es = app->language != 0;
+	const float panelW = std::min(276.0f, std::max(180.0f, float(ofGetWidth()) - 16.0f));
+	const float pad = 8.0f;
+	const float innerW = panelW - pad * 2.0f;
+	const float headerH = 26.0f;
+	const float favoriteH = hasItem ? 26.0f : 0.0f;
+	const float inputRowH = 28.0f;
+	const float topFixedH = pad + headerH + 4.0f + (favoriteH > 0.0f ? favoriteH + 4.0f : 0.0f) + inputRowH + 6.0f;
+
+	float contentHeight = 0.0f;
+	if (hasItem) {
+		contentHeight += 20.0f; // FOLDERS section header
+		if (app->customShaderFolders.empty()) {
+			contentHeight += 20.0f;
+		} else {
+			contentHeight += float(app->customShaderFolders.size()) * 24.0f;
+		}
+		contentHeight += 4.0f;
+		contentHeight += 20.0f; // CATEGORIES section header
+		int catCount = 0;
+		for (const auto &folder : app->shaderFolders) {
+			if (!folder.isFavorites && !folder.isCustomFolder) ++catCount;
+		}
+		contentHeight += float(catCount) * 24.0f;
+	} else {
+		contentHeight += 3.0f * 26.0f;
+	}
+	layout.contentHeight = contentHeight;
+
+	const float maxPanelH = std::max(140.0f, std::min(440.0f, float(ofGetHeight()) - 20.0f));
+	const float maxBodyH = std::max(40.0f, maxPanelH - topFixedH - pad);
+	const float bodyH = std::min(contentHeight, maxBodyH);
+	const float panelH = topFixedH + bodyH + pad;
+
+	const float px = ofClamp(app->shaderContextMenuPos.x, 8.0f, std::max(8.0f, float(ofGetWidth()) - panelW - 8.0f));
+	const float py = ofClamp(app->shaderContextMenuPos.y, 8.0f, std::max(8.0f, float(ofGetHeight()) - panelH - 8.0f));
+	layout.panel.set(px, py, panelW, panelH);
+
+	float curY = py + pad;
+	layout.header.set(px + pad, curY, innerW, headerH);
+	curY += headerH + 4.0f;
+	if (hasItem) {
+		layout.favoriteRow.set(px + pad, curY, innerW, favoriteH);
+		curY += favoriteH + 4.0f;
+	}
+	layout.inputButton.set(px + pad + innerW - 34.0f, curY, 34.0f, inputRowH);
+	layout.inputRect.set(px + pad, curY, std::max(40.0f, innerW - 38.0f), inputRowH);
+	curY += inputRowH + 6.0f;
+
+	layout.body.set(px + pad, curY, innerW, bodyH);
+	layout.maxScroll = std::max(0.0f, contentHeight - bodyH);
+	const float scroll = ofClamp(app->shaderContextMenuScroll, 0.0f, layout.maxScroll);
+
+	float itemY = curY - scroll;
+	if (hasItem) {
+		layout.sections.emplace_back(ofRectangle(px + pad, itemY, innerW, 20.0f), es ? "CARPETAS" : "FOLDERS");
+		itemY += 20.0f;
+		if (app->customShaderFolders.empty()) {
+			layout.emptyCustomHint = true;
+			layout.emptyHintRect.set(px + pad, itemY, innerW, 20.0f);
+			itemY += 20.0f;
+		} else {
+			const float delW = 22.0f;
+			const float renW = 22.0f;
+			for (const auto &cf : app->customShaderFolders) {
+				ShaderCtxItemRect item;
+				item.kind = ShaderCtxItemRect::CustomFolderToggle;
+				item.targetId = cf.id;
+				item.label = cf.name;
+				item.checked = app->isShaderAssignedToFolder(app->shaderContextMenuPath, "custom:" + cf.id);
+				item.rowBounds.set(px + pad, itemY, innerW, 24.0f);
+				item.deleteBounds.set(px + pad + innerW - delW, itemY + 2.0f, delW, 20.0f);
+				item.renameBounds.set(px + pad + innerW - delW - renW - 2.0f, itemY + 2.0f, renW, 20.0f);
+				layout.items.push_back(std::move(item));
+				itemY += 24.0f;
+			}
+		}
+		itemY += 4.0f;
+		layout.sections.emplace_back(ofRectangle(px + pad, itemY, innerW, 20.0f), es ? "CATEGORIAS (TABS)" : "CATEGORIES (TABS)");
+		itemY += 20.0f;
+		for (const auto &folder : app->shaderFolders) {
+			if (folder.isFavorites || folder.isCustomFolder) continue;
+			ShaderCtxItemRect item;
+			item.kind = ShaderCtxItemRect::CategoryToggle;
+			item.targetId = folder.path;
+			if (folder.category == "presets") item.label = "Presets";
+			else if (!folder.category.empty()) item.label = jp_shader_catalog::categoryName(folder.category, es);
+			else item.label = folder.name;
+			for (const auto &e : folder.shaders) {
+				if (!e.assignedCopy && e.path == app->shaderContextMenuPath) {
+					item.isNative = true;
+					break;
+				}
+			}
+			item.checked = item.isNative || app->isShaderAssignedToFolder(app->shaderContextMenuPath, folder.path);
+			item.rowBounds.set(px + pad, itemY, innerW, 24.0f);
+			layout.items.push_back(std::move(item));
+			itemY += 24.0f;
+		}
+	} else {
+		const vector<std::pair<ShaderCtxItemRect::Kind, string>> actions = {
+			{ ShaderCtxItemRect::FolderOpenTabAction, es ? "Abrir pestaña" : "Open tab" },
+			{ ShaderCtxItemRect::FolderRenameAction, es ? "Renombrar carpeta" : "Rename folder" },
+			{ ShaderCtxItemRect::FolderDeleteAction, es ? "Eliminar carpeta" : "Delete folder" }
+		};
+		for (const auto &act : actions) {
+			ShaderCtxItemRect item;
+			item.kind = act.first;
+			item.targetId = app->shaderContextMenuFolderId;
+			item.label = act.second;
+			item.rowBounds.set(px + pad, itemY, innerW, 26.0f);
+			layout.items.push_back(std::move(item));
+			itemY += 26.0f;
+		}
+	}
+	return layout;
+}
+} // namespace
+
+static void drawStarGlyph(float cx, float cy, float r, bool filled);
+
+void ofApp::openShaderContextMenu(const string &shaderPath, float x, float y, const string &customFolderId) {
+	if (shaderPath.empty() && customFolderId.empty()) return;
+	shaderContextMenuOpen = true;
+	shaderContextMenuPath = shaderPath;
+	shaderContextMenuFolderId = customFolderId;
+	shaderContextMenuPos.set(x, y);
+	shaderContextMenuScroll = 0.0f;
+	shaderContextMenuInputFocused = false;
+	shaderContextMenuInputText.clear();
+	shaderContextMenuEditingFolderId.clear();
+}
+
+void ofApp::closeShaderContextMenu() {
+	shaderContextMenuOpen = false;
+	shaderContextMenuPath.clear();
+	shaderContextMenuFolderId.clear();
+	shaderContextMenuInputFocused = false;
+	shaderContextMenuInputText.clear();
+	shaderContextMenuEditingFolderId.clear();
+}
+
+ofRectangle ofApp::getShaderContextMenuBounds() const {
+	return buildShaderContextMenuLayout(this).panel;
+}
+
+bool ofApp::pressShaderContextMenu(int x, int y, int button) {
+	if (!shaderContextMenuOpen) return false;
+	const ShaderCtxMenuLayout layout = buildShaderContextMenuLayout(this);
+	if (layout.panel.width <= 0 || !layout.panel.inside(x, y)) return false;
+	if (button != OF_MOUSE_BUTTON_LEFT) return true;
+
+	shaderContextMenuScroll = ofClamp(shaderContextMenuScroll, 0.0f, layout.maxScroll);
+
+	if (layout.favoriteRow.width > 0 && layout.favoriteRow.inside(x, y)) {
+		toggleFavorite(shaderContextMenuPath);
+		clampShaderScroll(getShaderBrowserLayout());
+		return true;
+	}
+	if (layout.inputButton.inside(x, y)) {
+		if (!shaderContextMenuEditingFolderId.empty()) {
+			if (renameCustomShaderFolder(shaderContextMenuEditingFolderId, shaderContextMenuInputText)) {
+				shaderContextMenuEditingFolderId.clear();
+				shaderContextMenuInputText.clear();
+				shaderContextMenuInputFocused = false;
+			}
+		} else {
+			const string newId = createCustomShaderFolder(shaderContextMenuInputText);
+			if (!newId.empty()) {
+				if (!shaderContextMenuPath.empty()) {
+					toggleShaderFolderAssignment(shaderContextMenuPath, "custom:" + newId);
+				}
+				shaderContextMenuInputText.clear();
+				shaderContextMenuInputFocused = false;
+			}
+		}
+		return true;
+	}
+	if (layout.inputRect.inside(x, y)) {
+		shaderContextMenuInputFocused = true;
+		return true;
+	}
+	if (layout.body.inside(x, y)) {
+		for (const auto &item : layout.items) {
+			if (item.kind == ShaderCtxItemRect::CustomFolderToggle) {
+				if (item.deleteBounds.inside(x, y)) {
+					deleteCustomShaderFolder(item.targetId);
+					return true;
+				}
+				if (item.renameBounds.inside(x, y)) {
+					shaderContextMenuEditingFolderId = item.targetId;
+					shaderContextMenuInputText = item.label;
+					shaderContextMenuInputFocused = true;
+					return true;
+				}
+				if (item.rowBounds.inside(x, y)) {
+					toggleShaderFolderAssignment(shaderContextMenuPath, "custom:" + item.targetId);
+					return true;
+				}
+			} else if (item.kind == ShaderCtxItemRect::CategoryToggle) {
+				if (item.rowBounds.inside(x, y)) {
+					if (!item.isNative) {
+						toggleShaderFolderAssignment(shaderContextMenuPath, item.targetId);
+					}
+					return true;
+				}
+			} else if (item.kind == ShaderCtxItemRect::FolderOpenTabAction) {
+				if (item.rowBounds.inside(x, y)) {
+					shaderFolderTab = "custom:" + item.targetId;
+					shaderScroll = 0.0f;
+					closeShaderContextMenu();
+					return true;
+				}
+			} else if (item.kind == ShaderCtxItemRect::FolderRenameAction) {
+				if (item.rowBounds.inside(x, y)) {
+					string currentName;
+					for (const auto &cf : customShaderFolders) {
+						if (cf.id == item.targetId) { currentName = cf.name; break; }
+					}
+					shaderContextMenuEditingFolderId = item.targetId;
+					shaderContextMenuInputText = currentName;
+					shaderContextMenuInputFocused = true;
+					return true;
+				}
+			} else if (item.kind == ShaderCtxItemRect::FolderDeleteAction) {
+				if (item.rowBounds.inside(x, y)) {
+					deleteCustomShaderFolder(item.targetId);
+					closeShaderContextMenu();
+					return true;
+				}
+			}
+		}
+	}
+	return true;
+}
+
+void ofApp::drawShaderContextMenu() {
+	if (!shaderContextMenuOpen) return;
+	const ShaderCtxMenuLayout layout = buildShaderContextMenuLayout(this);
+	if (layout.panel.width <= 0) return;
+
+	shaderContextMenuScroll = ofClamp(shaderContextMenuScroll, 0.0f, layout.maxScroll);
+
+	auto fit = [&](string text, float maxWidth) {
+		if (maxWidth <= 0.0f) return string();
+		if (font_p.stringWidth(text) <= maxWidth) return text;
+		const string suffix = "...";
+		while (!text.empty() && font_p.stringWidth(text + suffix) > maxWidth) {
+			size_t end = text.size() - 1;
+			while (end > 0 && (static_cast<unsigned char>(text[end]) & 0xc0) == 0x80) --end;
+			text.erase(end);
+		}
+		return text.empty() ? suffix : text + suffix;
+	};
+
+	jp_pointer::Scope menuLayer(jp_pointer::kDropdown + 2);
+	ofPushStyle();
+	ofSetRectMode(OF_RECTMODE_CORNER);
+
+	// Shadow + Panel background
+	ofSetColor(0, 0, 0, 120);
+	ofDrawRectRounded(layout.panel.x + 4, layout.panel.y + 4, layout.panel.width, layout.panel.height, 6.0f);
+	ofSetColor(ofColor(COL_BG_DARK, 245));
+	ofDrawRectRounded(layout.panel, 6.0f);
+	ofNoFill();
+	ofSetColor(ofColor(COL_ACCENT_CYAN, 175));
+	ofDrawRectRounded(layout.panel, 6.0f);
+	ofFill();
+
+	const bool es = language != 0;
+	string headerTitle;
+	if (!shaderContextMenuPath.empty()) {
+		headerTitle = ofFilePath::getBaseName(shaderContextMenuPath);
+		for (const auto &folder : shaderFolders) {
+			bool found = false;
+			for (const auto &entry : folder.shaders) {
+				if (entry.path == shaderContextMenuPath) {
+					headerTitle = entry.displayName(es);
+					found = true;
+					break;
+				}
+			}
+			if (found) break;
+		}
+	} else {
+		for (const auto &cf : customShaderFolders) {
+			if (cf.id == shaderContextMenuFolderId) { headerTitle = cf.name; break; }
+		}
+	}
+
+	ofSetColor(COL_BG_PANEL);
+	ofDrawRectRounded(layout.header, 3.0f);
+	ofSetColor(COL_ACCENT_CYAN);
+	font_p.drawString(fit(headerTitle, layout.header.width - 12.0f),
+		layout.header.x + 6.0f, std::round(layout.header.getCenter().y + 4.0f));
+
+	if (layout.favoriteRow.width > 0) {
+		const bool fav = isFavorite(shaderContextMenuPath);
+		const bool hovered = layout.favoriteRow.inside(ofGetMouseX(), ofGetMouseY());
+		ofSetColor(hovered ? COL_BG_HOVER : COL_BG_BUTTON);
+		ofDrawRectRounded(layout.favoriteRow, 3.0f);
+		ofSetColor(fav ? COL_ACCENT_GOLD : COL_TEXT_MUTED);
+		drawStarGlyph(layout.favoriteRow.x + 13.0f, layout.favoriteRow.getCenter().y, 5.0f, fav);
+		ofSetColor(fav ? COL_ACCENT_GOLD : COL_TEXT_PRIMARY);
+		font_p.drawString(fit(fav ? (es ? "En Favoritos" : "In Favorites") : (es ? "Agregar a Favoritos" : "Add to Favorites"),
+			layout.favoriteRow.width - 28.0f), layout.favoriteRow.x + 25.0f, std::round(layout.favoriteRow.getCenter().y + 4.0f));
+	}
+
+	// Inline create/rename folder input + confirm button
+	ofSetColor(COL_BG_INPUT);
+	ofDrawRectRounded(layout.inputRect, 3.0f);
+	ofNoFill();
+	ofSetColor(shaderContextMenuInputFocused ? COL_ACCENT_CYAN : COL_BORDER_MUTED);
+	ofDrawRectRounded(layout.inputRect, 3.0f);
+	ofFill();
+
+	if (!shaderContextMenuInputFocused && shaderContextMenuInputText.empty()) {
+		ofSetColor(COL_TEXT_MUTED);
+		const string placeholder = !shaderContextMenuEditingFolderId.empty()
+			? (es ? "Nuevo nombre..." : "New name...")
+			: (es ? "+ Nueva carpeta..." : "+ New folder...");
+		font_p.drawString(fit(placeholder, layout.inputRect.width - 12.0f),
+			layout.inputRect.x + 6.0f, std::round(layout.inputRect.getCenter().y + 4.0f));
+	}
+
+	auto f = jp_text_input::field("import-context-folder", "import-context", layout.inputRect,
+		font_p, shaderContextMenuInputText, shaderContextMenuInputFocused);
+	f.restoreOnCancel = false;
+	f.limit = 128;
+	f.focus = [this] { shaderContextMenuInputFocused = true; };
+	f.cancel = [this] {
+		shaderContextMenuInputFocused = false;
+		shaderContextMenuEditingFolderId.clear();
+		shaderContextMenuInputText.clear();
+	};
+	f.commit = [this] {
+		const string clean = trimShaderBrowserText(shaderContextMenuInputText);
+		if (!clean.empty()) {
+			if (!shaderContextMenuEditingFolderId.empty()) {
+				renameCustomShaderFolder(shaderContextMenuEditingFolderId, clean);
+			} else {
+				const string newId = createCustomShaderFolder(clean);
+				if (!newId.empty() && !shaderContextMenuPath.empty()) {
+					toggleShaderFolderAssignment(shaderContextMenuPath, "custom:" + newId);
+				}
+			}
+		}
+		shaderContextMenuEditingFolderId.clear();
+		shaderContextMenuInputText.clear();
+		shaderContextMenuInputFocused = false;
+		return true;
+	};
+	f.special = [this](int key) {
+		if (key != OF_KEY_RETURN) return false;
+		jp_text_input::controller().finish();
+		return true;
+	};
+	jp_text_input::controller().add(std::move(f));
+
+	const string btnLabel = !shaderContextMenuEditingFolderId.empty() ? "OK" : "+";
+	jp_button::draw(layout.inputButton, btnLabel, false, !trimShaderBrowserText(shaderContextMenuInputText).empty(), COL_ACCENT_CYAN);
+
+	// Scrollable body
+	{
+		jp_gl::ScopedScissor bodyClip(layout.body);
+		for (const auto &sec : layout.sections) {
+			if (sec.first.getBottom() < layout.body.y || sec.first.y > layout.body.getBottom()) continue;
+			ofSetColor(COL_TEXT_DIM);
+			font_p.drawString(sec.second, sec.first.x + 2.0f, std::round(sec.first.getCenter().y + 4.0f));
+		}
+		if (layout.emptyCustomHint && layout.emptyHintRect.getBottom() >= layout.body.y && layout.emptyHintRect.y <= layout.body.getBottom()) {
+			ofSetColor(COL_TEXT_MUTED);
+			font_p.drawString(es ? "(sin carpetas aun)" : "(no custom folders yet)",
+				layout.emptyHintRect.x + 6.0f, std::round(layout.emptyHintRect.getCenter().y + 4.0f));
+		}
+		for (const auto &item : layout.items) {
+			if (item.rowBounds.getBottom() < layout.body.y || item.rowBounds.y > layout.body.getBottom()) continue;
+			const bool hovered = layout.body.inside(ofGetMouseX(), ofGetMouseY()) && item.rowBounds.inside(ofGetMouseX(), ofGetMouseY());
+			ofSetColor(hovered ? COL_BG_HOVER : COL_BG_BUTTON);
+			ofDrawRectRounded(item.rowBounds, 3.0f);
+
+			if (item.kind == ShaderCtxItemRect::CustomFolderToggle || item.kind == ShaderCtxItemRect::CategoryToggle) {
+				ofRectangle cb(item.rowBounds.x + 6.0f, item.rowBounds.getCenter().y - 6.0f, 12.0f, 12.0f);
+				ofNoFill();
+				ofSetColor(item.checked ? (item.isNative ? COL_ACCENT_CYAN : COL_ACCENT_GOLD) : COL_TEXT_MUTED);
+				ofDrawRectRounded(cb, 2.0f);
+				ofFill();
+				if (item.checked) {
+					ofSetColor(item.isNative ? COL_ACCENT_CYAN : COL_ACCENT_GOLD);
+					ofDrawRectRounded(cb.x + 2.5f, cb.y + 2.5f, cb.width - 5.0f, cb.height - 5.0f, 1.5f);
+				}
+
+				float textRight = item.rowBounds.getRight() - 6.0f;
+				if (item.kind == ShaderCtxItemRect::CustomFolderToggle) {
+					textRight = item.renameBounds.x - 4.0f;
+					jp_button::draw(item.renameBounds, "R", shaderContextMenuEditingFolderId == item.targetId, true, COL_BORDER_MUTED);
+					jp_button::draw(item.deleteBounds, "x", false, true, COL_BORDER_MUTED);
+				} else if (item.isNative) {
+					const string tag = es ? "orig" : "base";
+					const float tagW = font_p.stringWidth(tag) + 6.0f;
+					ofSetColor(COL_TEXT_MUTED);
+					font_p.drawString(tag, textRight - tagW + 3.0f, std::round(item.rowBounds.getCenter().y + 4.0f));
+					textRight -= tagW;
+				}
+				ofSetColor(item.isNative ? COL_ACCENT_CYAN : (item.checked ? COL_TEXT_PRIMARY : COL_TEXT_SECONDARY));
+				font_p.drawString(fit(item.label, std::max(20.0f, textRight - (cb.getRight() + 6.0f))),
+					cb.getRight() + 6.0f, std::round(item.rowBounds.getCenter().y + 4.0f));
+			} else {
+				ofSetColor(item.kind == ShaderCtxItemRect::FolderDeleteAction ? ofColor(255, 130, 130) : COL_TEXT_PRIMARY);
+				font_p.drawString(fit(item.label, item.rowBounds.width - 12.0f),
+					item.rowBounds.x + 6.0f, std::round(item.rowBounds.getCenter().y + 4.0f));
+			}
+		}
+	}
+
+	ofPopStyle();
+}
+
 // Draw a small 5-pointed star (filled or outline) at (cx,cy) with radius r.
 static void drawStarGlyph(float cx, float cy, float r, bool filled) {
 	ofBeginShape();
@@ -6553,7 +7314,8 @@ void ofApp::draw_shaderindex() {
 			const float arrowCx = row.bounds.x + 7.0f;
 			const float arrowCy = row.bounds.getCenter().y;
 			ofSetColor(folder.isFavorites ? COL_ACCENT_GOLD :
-				(isHovered ? COL_ACCENT_CYAN : ofColor(120, 200, 255)));
+				(folder.isCustomFolder ? COL_ACCENT_GREEN :
+				(isHovered ? COL_ACCENT_CYAN : ofColor(120, 200, 255))));
 			if (expanded) {
 				ofDrawTriangle(arrowCx - 4.0f, arrowCy - 2.5f,
 					arrowCx + 4.0f, arrowCy - 2.5f,
@@ -6568,6 +7330,10 @@ void ofApp::draw_shaderindex() {
 			if (folder.isFavorites) {
 				drawStarGlyph(folderNameX + 4.0f, arrowCy, 5.0f, true);
 				folderNameX += 14.0f;
+			} else if (folder.isCustomFolder) {
+				ofSetColor(COL_ACCENT_GREEN);
+				ofDrawRectRounded(folderNameX, arrowCy - 4.0f, 9.0f, 8.0f, 1.5f);
+				folderNameX += 13.0f;
 			}
 			const int matchingCount=std::count_if(folder.shaders.begin(),folder.shaders.end(),[this](const ShaderEntry& entry){return matchesShaderReviewFilter(entry);});
 			const string countText = "(" + ofToString(matchingCount) + ")";
@@ -6575,7 +7341,8 @@ void ofApp::draw_shaderindex() {
 			const string folderName = fitText(folder.category.empty()?folder.name:jp_shader_catalog::categoryName(folder.category,language!=0),
 				row.bounds.width - (folderNameX - row.bounds.x) - countWidth - 16.0f);
 			ofSetColor(folder.isFavorites ? COL_ACCENT_GOLD :
-				(isHovered ? COL_TEXT_PRIMARY : ofColor(120, 200, 255)));
+				(folder.isCustomFolder ? (isHovered ? COL_TEXT_PRIMARY : COL_ACCENT_GREEN) :
+				(isHovered ? COL_TEXT_PRIMARY : ofColor(120, 200, 255))));
 			font_p.drawString(folderName, folderNameX, std::round(row.bounds.getCenter().y + 4.0f));
 			ofSetColor(COL_TEXT_MUTED);
 			font_p.drawString(countText, row.bounds.getRight() - countWidth - 7.0f,
@@ -6788,6 +7555,7 @@ void ofApp::draw_shaderindex() {
 	}
     } // Optional preview image
     drawPreviewInspector();
+    drawShaderContextMenu();
 }
 // Esta es la que se dibuja en la otra ventana
 void ofApp::drawRender() {
@@ -7485,8 +8253,17 @@ void ofApp::mousePressed(int x, int y, int button) {
 	// or a panel still has to be recorded or the next one inherits a stale one.
 	JPdragobject::notePressOrigin((float)x, (float)y);
     if (!saveModalActive && pantallaActiva == SHADER_INDEX &&
-        (getShaderBrowserLayout().panel.inside(x, y) || getPreviewInspectorLayout().panel.inside(x, y)))
+        (getShaderBrowserLayout().panel.inside(x, y) || getPreviewInspectorLayout().panel.inside(x, y) ||
+         (shaderContextMenuOpen && getShaderContextMenuBounds().inside(x, y))))
         shaderBrowserPointerButtons.insert(button);
+    if (!saveModalActive && !releasePanelOpen && pantallaActiva == SHADER_INDEX && shaderContextMenuOpen) {
+        if (getShaderContextMenuBounds().inside(x, y)) {
+            pressShaderContextMenu(x, y, button);
+            return;
+        }
+        closeShaderContextMenu();
+        if (button == OF_MOUSE_BUTTON_LEFT) return;
+    }
     if (!saveModalActive && !releasePanelOpen && pantallaActiva == SHADER_INDEX &&
         button == OF_MOUSE_BUTTON_LEFT && pressPreviewInspector(x, y)) return;
 
@@ -7802,6 +8579,31 @@ void ofApp::mousePressed(int x, int y, int button) {
 			}
 		}
 	}
+	if (pantallaActiva == SHADER_INDEX && button == OF_MOUSE_BUTTON_RIGHT) {
+		const ShaderBrowserLayout layout = getShaderBrowserLayout();
+		if (!layout.panel.inside(x, y)) return;
+		for (size_t i = 0; i < layout.folderTabs.size(); ++i) {
+			if (!layout.folderTabs[i].inside(x, y)) continue;
+			const int index = layout.folderTabIndices[i];
+			if (index > 0 && shaderFolders[index - 1].isCustomFolder) {
+				openShaderContextMenu("", (float)x, (float)y, shaderFolders[index - 1].customFolderId);
+			}
+			return;
+		}
+		for (const ShaderBrowserRow &row : getVisibleShaderBrowserRows(layout)) {
+			if (!layout.list.inside(x, y) || !row.bounds.inside(x, y)) continue;
+			if (row.folderHeader) {
+				if (shaderFolders[row.folderIndex].isCustomFolder) {
+					openShaderContextMenu("", (float)x, (float)y, shaderFolders[row.folderIndex].customFolderId);
+				}
+				return;
+			}
+			selectShaderForPreview(row.folderIndex, row.shaderIndex);
+			openShaderContextMenu(shaderFolders[row.folderIndex].shaders[row.shaderIndex].path, (float)x, (float)y);
+			return;
+		}
+		return;
+	}
 	if (pantallaActiva == SHADER_INDEX && button == 0) {
 		const ShaderBrowserLayout layout = getShaderBrowserLayout();
 		if (!layout.panel.inside(x, y)) return;
@@ -7895,6 +8697,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 					ShaderFolder &folder = shaderFolders[row.folderIndex];
 					folder.expanded = !folder.expanded;
 					if (folder.isFavorites) favoritesFolderExpanded = folder.expanded;
+					if (folder.isCustomFolder) customFolderExpanded[folder.customFolderId] = folder.expanded;
 					clampShaderScroll(layout);
 				}
 				return;
@@ -8101,6 +8904,11 @@ void ofApp::mouseScrolled(int x, int y, float scrollX, float scrollY) {
 		return;
 	}
 	if (pantallaActiva == SHADER_INDEX) {
+		if (shaderContextMenuOpen && getShaderContextMenuBounds().inside(x, y)) {
+			const auto menuLayout = buildShaderContextMenuLayout(this);
+			shaderContextMenuScroll = ofClamp(shaderContextMenuScroll - scrollY * 36.0f, 0.0f, menuLayout.maxScroll);
+			return;
+		}
         const auto inspector = getPreviewInspectorLayout();
         if (inspector.panel.width > 0 && inspector.panel.inside(x, y)) {
             const float maximum = std::max(0.0f, previewInspectorRows() * 30.0f - inspector.body.height);
@@ -8704,7 +9512,8 @@ bool ofApp::saveSettings() {
 }
 bool ofApp::saveSession(string path, bool manual) {
     jp::recordEvent("session_save_requested");
-    if (!boxes.save(jp_normalizePath(path))) {
+    const string targetPath = std::filesystem::path(path).is_absolute() ? path : jp_normalizePath(path);
+    if (!boxes.save(targetPath)) {
         jp::recordEvent("session_save_failed");
         toasts.close("composition-saved");
         publishToast("save-error", jp::ToastState::Error, language == 0 ?
@@ -8714,6 +9523,9 @@ bool ofApp::saveSession(string path, bool manual) {
     }
     recovery.markSaved(boxes, recoveryCandidate.empty());
     toasts.close("save-error");
+    if (!shaderFolders.empty() && !shaderCuratedMode && !shaderUserLibrary) {
+        refreshSavedPresetsFolder();
+    }
     if (manual) publishToast("composition-saved", jp::ToastState::Success,
         (language == 0 ? "Composition saved: " : "Composición guardada: ") + ofFilePath::getFileName(path));
     return true;

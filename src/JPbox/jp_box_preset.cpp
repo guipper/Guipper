@@ -16,6 +16,9 @@ JPbox_preset::~JPbox_preset()
 
 void JPbox_preset::setup(string _directory, string _name)
 {
+	if (!std::filesystem::path(_directory).is_absolute() || !ofFile::doesFileExist(_directory)) {
+		_directory = jp_normalizePath(_directory);
+	}
 
 	// JPbox::setup(jp_constants::p_font);
 	JPbox::setup(_directory, _name);
@@ -44,7 +47,15 @@ void JPbox_preset::setup(string _directory, string _name)
 		// cout << "x : " << y.getValue() << endl;
 		// cout << "Directory : " << directory.getValue() << endl;
 
-		JPbox *bx = jp_box_factory::create(directory.getValue(),
+		const string childDir = jp_normalizePath(directory.getValue());
+		if (ofToLower(ofFilePath::getFileExt(childDir)) == "frag" && !ofFile::doesFileExist(childDir))
+		{
+			ofLogWarning("JPbox_preset")
+				<< "skipping missing shader '" << nombre.getValue()
+				<< "' (" << childDir << ")";
+			continue;
+		}
+		JPbox *bx = jp_box_factory::create(childDir,
 			jp_box_factory::Context::Stored);
 		if (bx == nullptr)
 		{
@@ -57,7 +68,7 @@ void JPbox_preset::setup(string _directory, string _name)
 			continue;
 		}
 
-		bx->setup(jp_normalizePath(directory.getValue()), nombre.getValue());
+		bx->setup(childDir, nombre.getValue());
 		bx->setPos(x.getIntValue(), y.getIntValue());
 
 		// Load onoff and bypass states
@@ -947,7 +958,7 @@ ofXml JPbox_preset::snapshotXml()
 		data.appendChild("nombre").set(boxes[i]->name);
 		data.appendChild("x").set(boxes[i]->x);
 		data.appendChild("y").set(boxes[i]->y);
-		data.appendChild("directory").set(boxes[i]->dir);
+		data.appendChild("directory").set(jp_portablePath(boxes[i]->dir));
 		data.appendChild("uid").set(boxes[i]->uid);
 		data.appendChild("tooutput").set(boxes[i]->getOutputCandidate());
 		data.appendChild("onoff").set(boxes[i]->getonoff());
@@ -1033,5 +1044,7 @@ bool JPbox_preset::save()
         if (auto* preset = dynamic_cast<JPbox_preset*>(child))
             if (!preset->save()) return false;
     }
-    return jp::saveXml(snapshotXml(), dir);
+    const string targetDir = std::filesystem::path(dir).is_absolute() ? dir : jp_normalizePath(dir);
+    dir = targetDir;
+    return jp::saveXml(snapshotXml(), targetDir);
 }

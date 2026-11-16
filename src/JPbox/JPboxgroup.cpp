@@ -8308,7 +8308,7 @@ void JPboxgroup::groupSelectedBoxes()
 	// destroyed the originals, so it could not be undone. The boxes are
 	// transplanted alive instead, and JPbox_preset::save() writes this file when
 	// the session is saved.
-	const string outputPath = "data/groups/group_" +
+	const string outputPath = "groups/group_" +
 		ofGetTimestampString() + ".xml";
 
 	JPbox_preset *newPreset = new JPbox_preset();

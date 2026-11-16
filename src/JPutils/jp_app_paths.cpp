@@ -117,12 +117,29 @@ AppPaths AppPaths::discover(const fs::path& source) {
         p.data = override / "data"; p.config = override / "config";
         p.state = override / "state"; p.cache = override / "cache";
     } else {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(TARGET_WIN32)
         auto root = envPath("LOCALAPPDATA", {});
+        if (root.empty()) root = envPath("APPDATA", {});
+        if (root.empty()) {
+            const auto profile = envPath("USERPROFILE", {});
+            if (!profile.empty()) root = profile / "AppData" / "Local";
+        }
         if (root.empty()) throw std::runtime_error("LOCALAPPDATA is unavailable");
         root /= "Guipper";
         p.data = root / "data"; p.config = root / "config";
         p.state = root / "state"; p.cache = root / "cache";
+#elif defined(__APPLE__) || defined(TARGET_OSX)
+        auto home = envPath("HOME", {});
+        if (home.empty()) throw std::runtime_error("HOME is unavailable");
+        const auto appSupport = home / "Library" / "Application Support" / "Guipper";
+        const auto xdgData = envPath("XDG_DATA_HOME", {});
+        const auto xdgConfig = envPath("XDG_CONFIG_HOME", {});
+        const auto xdgState = envPath("XDG_STATE_HOME", {});
+        const auto xdgCache = envPath("XDG_CACHE_HOME", {});
+        p.data = xdgData.empty() ? (appSupport / "data") : (xdgData / "guipper");
+        p.config = xdgConfig.empty() ? (appSupport / "config") : (xdgConfig / "guipper");
+        p.state = xdgState.empty() ? (appSupport / "state") : (xdgState / "guipper");
+        p.cache = xdgCache.empty() ? (home / "Library" / "Caches" / "Guipper") : (xdgCache / "guipper");
 #else
         auto home = envPath("HOME", {});
         if (home.empty()) throw std::runtime_error("HOME is unavailable");
@@ -189,7 +206,7 @@ void AppPaths::initialize() const {
         const auto destination = data / relative;
         const auto baseline = cache / "resource-baseline" / relative;
         if (!packaged) {
-            if (!migrated) copyMissing(entry.path(), destination);
+            copyMissing(entry.path(), destination);
             continue;
         }
         // Exact comparison, not timestamp or hash: only unchanged managed

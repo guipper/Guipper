@@ -1,5 +1,6 @@
 #include "JPutils/jp_review.h"
 #include <future>
+#include <map>
 #include "JPutils/jp_shader_catalog.h"
 #include "JPutils/jp_update_service.h"
 #include "JPutils/jp_recovery.h"
@@ -358,6 +359,7 @@ public:
         bool official = false;
         bool personal = false;
         bool standalone = true;
+        bool assignedCopy = false;
         jp_shader_catalog::Entry metadata;
         string displayName(bool es) const { return catalogued?metadata.name.get(es):name; }
 	};
@@ -368,6 +370,8 @@ public:
 		bool expanded = false;
         string category;
 		bool isFavorites = false; // synthetic "favorites" folder pinned on top
+		bool isCustomFolder = false;
+		string customFolderId;
 		vector<ShaderEntry> shaders;
 	};
 
@@ -669,9 +673,26 @@ public:
 	// LOAD distribution counter
 	int loadBoxCount = 0;
 
-	// Favorites (persisted to bin/data/shader_favorites.xml). Paths of starred
-	// shaders; display placement is controlled separately in settings.xml.
+	// Favorites & custom folders (persisted to shader_favorites.xml). Paths of starred
+	// shaders and folder/category assignments; display placement is controlled in settings.xml.
 	vector<string> favoritePaths;
+	struct CustomShaderFolder {
+		string id;
+		string name;
+	};
+	vector<CustomShaderFolder> customShaderFolders;
+	std::map<string, vector<string>> shaderFolderAssignments; // item path -> target folder paths ("custom:<id>" or folder.path)
+	std::map<string, bool> customFolderExpanded;
+
+	bool shaderContextMenuOpen = false;
+	string shaderContextMenuPath;       // shader/preset path when right-clicking an item
+	string shaderContextMenuFolderId;   // custom folder id when right-clicking a custom folder header/tab
+	ofPoint shaderContextMenuPos;
+	float shaderContextMenuScroll = 0.0f;
+	bool shaderContextMenuInputFocused = false;
+	string shaderContextMenuInputText;
+	string shaderContextMenuEditingFolderId; // non-empty when renaming an existing custom folder
+
 	FavoritesDisplayMode favoritesDisplayMode = FAVORITES_TOP;
 	bool favoritesFolderExpanded = true;
 	vector<vector<int>> shaderFolderOrder;
@@ -679,9 +700,21 @@ public:
 	void saveFavorites();
 	bool isFavorite(const string &path) const;
 	void toggleFavorite(const string &path);
+	string createCustomShaderFolder(const string &name);
+	bool renameCustomShaderFolder(const string &id, const string &newName);
+	bool deleteCustomShaderFolder(const string &id);
+	bool isShaderAssignedToFolder(const string &shaderPath, const string &targetFolderPath) const;
+	void toggleShaderFolderAssignment(const string &shaderPath, const string &targetFolderPath);
+	void openShaderContextMenu(const string &shaderPath, float x, float y, const string &customFolderId = "");
+	void closeShaderContextMenu();
+	ofRectangle getShaderContextMenuBounds() const;
+	void drawShaderContextMenu();
+	bool pressShaderContextMenu(int x, int y, int button);
 	void rebuildFavoritesFolder();
 	void rebuildShaderFolderOrder();
 	void toggleFavoritesDisplayMode();
+	ShaderFolder buildSavedPresetsFolder() const;
+	void refreshSavedPresetsFolder();
 
 	ShaderBrowserLayout getShaderBrowserLayout() const;
 	const vector<int> &getOrderedShaderIndices(int folderIndex) const;

@@ -143,6 +143,7 @@ string ofApp::folderTabLabel(int index) const {
         else if(category=="mixers" || category=="blending")label=language==0?"Mixers":"Mezclas";
         else if(category=="contrib")label="Contrib";
         else if(category=="combo")label="Combo";
+        else if(category=="presets")label="Presets";
         else if(category=="internal")label=language==0?"Helpers":"Auxiliares";
         else label=folder.name;
     }

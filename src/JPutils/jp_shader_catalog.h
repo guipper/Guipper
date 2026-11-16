@@ -61,6 +61,7 @@ inline std::string categoryName(const std::string& id,bool es) {
     if(id=="mixers")return es?"Mezcladores":"Mixers";
     if(id=="contrib")return es?"Contribuciones":"Contributions";
     if(id=="combo")return es?"Combinados":"Combined";
+    if(id=="presets")return "Presets";
     if(id=="internal")return es?"Auxiliares / internos":"Helpers / internal";
     return id;
 }

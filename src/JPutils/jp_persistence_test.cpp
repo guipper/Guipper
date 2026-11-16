@@ -1529,6 +1529,195 @@ namespace
         return passed;
     }
 
+    bool checkPresetsAndCustomFolders(ofApp& app) {
+        bool passed = true;
+        auto check = [&](bool ok, const string& label) {
+            if (!ok) ofLogError("presets-custom-folders") << label;
+            passed = ok && passed;
+        };
+
+        app.boxes.clear();
+        const auto previousPaths = jp::AppPaths::current();
+        const auto oldDataRoot = std::filesystem::path(ofToDataPath("", true));
+        const auto root = std::filesystem::temp_directory_path() /
+            ("guipper-presets-folders-" + ofToString(std::chrono::steady_clock::now().time_since_epoch().count()));
+        const auto bundleDir = root / "bundle";
+        const auto dataDir = root / "profile/data";
+        const auto configDir = root / "profile/config";
+        const auto stateDir = root / "profile/state";
+        const auto cacheDir = root / "profile/cache";
+
+        std::filesystem::create_directories(bundleDir / "shaders");
+        std::filesystem::create_directories(dataDir / "savefiles");
+        std::filesystem::create_directories(dataDir / "groups");
+        std::filesystem::create_directories(configDir);
+        std::filesystem::create_directories(stateDir);
+        std::filesystem::create_directories(cacheDir);
+        std::filesystem::copy(oldDataRoot / "shaders", dataDir / "shaders",
+            std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+        std::filesystem::copy(oldDataRoot / "shaders", bundleDir / "shaders",
+            std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+
+        auto& paths = jp::AppPaths::current();
+        paths.bundle = bundleDir;
+        paths.data = dataDir;
+        paths.config = configDir;
+        paths.state = stateDir;
+        paths.cache = cacheDir;
+        ofSetDataPathRoot(dataDir.string() + "/");
+
+        // 1. Cross-OS path normalization and portable path serialization
+        check(jp_normalizePath("data/groups/group_1.xml") == "groups/group_1.xml", "normalize data/groups/");
+        check(jp_normalizePath("bin/data/shaders/generative/solidcolor.frag") == "shaders/generative/solidcolor.frag", "normalize bin/data/");
+        check(jp_normalizePath("/home/nico/.local/share/guipper/shaders/generative/solidcolor.frag") == "shaders/generative/solidcolor.frag", "normalize linux xdg path");
+        check(jp_normalizePath("/home/nico/.local/share/guipper/data/groups/group_1.xml") == "groups/group_1.xml", "normalize linux xdg data path");
+        check(jp_normalizePath("C:\\Users\\test\\AppData\\Local\\Guipper\\data\\groups\\group_1.xml") == "groups/group_1.xml", "normalize windows localappdata path");
+        check(jp_normalizePath("/Users/test/Library/Application Support/Guipper/data/savefiles/demo.xml") == "savefiles/demo.xml", "normalize macos path");
+        check(jp_portablePath((dataDir / "groups/group_1.xml").string()) == "groups/group_1.xml", "portable path strips paths.data");
+        check(jp_portablePath((bundleDir / "shaders/generative/solidcolor.frag").string()) == "shaders/generative/solidcolor.frag", "portable path strips paths.bundle");
+
+        // 2. Grouping writes clean groups/ path on session save (not during gesture)
+        check(app.boxes.addBox("shaders/generative/solidcolor.frag", 100, 100) != nullptr, "add solidcolor box");
+        check(app.boxes.addBox("shaders/imageprocessing/transform.frag", 260, 100) != nullptr, "add transform box");
+        if (app.boxes.boxes.size() == 2) {
+            app.boxes.clearSelection();
+            app.boxes.toggleBoxSelection(0);
+            app.boxes.toggleBoxSelection(1);
+            app.boxes.groupSelectedBoxes();
+        }
+        auto* grouped = app.boxes.boxes.size() == 1 ? dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]) : nullptr;
+        check(grouped != nullptr && grouped->dir.rfind("groups/group_", 0) == 0, "group dir uses groups/ prefix without data/");
+        check(grouped != nullptr && !ofFile::doesFileExist(grouped->dir), "group gesture does not write before save");
+        const string groupRelPath = grouped ? grouped->dir : string();
+        check(app.saveSession("savefiles/grouped_preset.xml", false), "saveSession saves session and group xml");
+        check(ofFile::doesFileExist("savefiles/grouped_preset.xml"), "saved session xml exists");
+        check(!groupRelPath.empty() && ofFile::doesFileExist(groupRelPath), "saved group xml exists at groups/");
+
+        if (!groupRelPath.empty() && ofFile::doesFileExist(groupRelPath)) {
+            ofXml savedSessionXml;
+            check(savedSessionXml.load("savefiles/grouped_preset.xml"), "load saved session xml");
+            auto firstBox = savedSessionXml.getChild("box");
+            check(firstBox && firstBox.getChild("directory").getValue() == groupRelPath, "session stores portable relative group dir");
+        }
+        check(app.loadSession("savefiles/grouped_preset.xml"), "reload saved session with group");
+        check(app.boxes.boxes.size() == 1 && dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]) &&
+            dynamic_cast<JPbox_preset*>(app.boxes.boxes[0])->boxes.size() == 2, "reloaded session has 2-box preset group");
+
+        // 3. Preset indexing in IMPORT
+        unsetenv("GUIPPER_CURATED_LIST");
+        unsetenv("GUIPPER_USER_LIST");
+        app.scanShaders();
+        int presetsFolderIdx = -1;
+        int groupedEntryIdx = -1;
+        int solidFolderIdx = -1;
+        int solidEntryIdx = -1;
+        string extraCategoryTarget;
+        for (int f = 0; f < (int)app.shaderFolders.size(); ++f) {
+            const auto& folder = app.shaderFolders[f];
+            if (folder.path == "presets") {
+                presetsFolderIdx = f;
+                for (int i = 0; i < (int)folder.shaders.size(); ++i) {
+                    if (folder.shaders[i].path == "savefiles/grouped_preset.xml") groupedEntryIdx = i;
+                }
+            } else if (!folder.isFavorites && !folder.isCustomFolder) {
+                for (int i = 0; i < (int)folder.shaders.size(); ++i) {
+                    if (folder.shaders[i].path == "shaders/generative/solidcolor.frag" && solidFolderIdx < 0) {
+                        solidFolderIdx = f;
+                        solidEntryIdx = i;
+                    }
+                }
+                if (extraCategoryTarget.empty() && folder.path != "shaders/generative" && folder.path != "catalog:generative") {
+                    extraCategoryTarget = folder.path;
+                }
+            }
+        }
+        check(presetsFolderIdx >= 0 && groupedEntryIdx >= 0, "presets folder indexes savefiles/grouped_preset.xml");
+        if (presetsFolderIdx >= 0) {
+            const auto& entry = app.shaderFolders[presetsFolderIdx].shaders[groupedEntryIdx];
+            check(entry.metadata.category == "presets" && entry.metadata.groupPath == "savefiles/grouped_preset.xml", "preset metadata is populated");
+            check(app.folderTabLabel(presetsFolderIdx + 1).rfind("Presets (", 0) == 0, "presets folder tab label");
+            app.shaderSearchText = "grouped_preset";
+            const auto& filtered = app.getFilteredShaderIndices();
+            check(!filtered[presetsFolderIdx].empty(), "preset search finds grouped_preset");
+            app.shaderSearchText.clear();
+
+            app.boxes.clear();
+            app.selectShaderForPreview(presetsFolderIdx, groupedEntryIdx);
+            app.loadSelectedShaderBox();
+            check(app.boxes.boxes.size() == 1 && dynamic_cast<JPbox_preset*>(app.boxes.boxes[0]) != nullptr, "loading indexed preset adds JPbox_preset");
+        }
+
+        // 4. Custom folders & right-click context menu assignment & persistence
+        check(solidFolderIdx >= 0 && solidEntryIdx >= 0 && !extraCategoryTarget.empty(), "found solidcolor and extra category");
+        app.enterScreen(app.SHADER_INDEX);
+        app.openShaderContextMenu("shaders/generative/solidcolor.frag", 120.0f, 120.0f);
+        check(app.shaderContextMenuOpen, "context menu opened");
+        const auto menuBounds = app.getShaderContextMenuBounds();
+        check(menuBounds.width > 0 && menuBounds.height > 0, "context menu bounds computed");
+
+        // Toggle favorite via context menu click on favorite row (right under header)
+        app.pressShaderContextMenu((int)(menuBounds.x + 20.0f), (int)(menuBounds.y + 8.0f + 26.0f + 4.0f + 12.0f), OF_MOUSE_BUTTON_LEFT);
+        check(app.isFavorite("shaders/generative/solidcolor.frag"), "favorite toggled via context menu");
+        check(app.shaderContextMenuOpen, "context menu stays open after toggling favorite");
+
+        // Create custom folder through context menu input + '+' button click
+        app.shaderContextMenuInputText = "VJ Set";
+        app.pressShaderContextMenu((int)(menuBounds.getRight() - 16.0f), (int)(menuBounds.y + 8.0f + 26.0f + 4.0f + 26.0f + 4.0f + 14.0f), OF_MOUSE_BUTTON_LEFT);
+        check(!app.customShaderFolders.empty(), "custom folder created via context menu");
+        const string customId = app.customShaderFolders.empty() ? string() : app.customShaderFolders.back().id;
+        check(!customId.empty() && app.isShaderAssignedToFolder("shaders/generative/solidcolor.frag", "custom:" + customId),
+            "new custom folder automatically assigned to target shader");
+        check(app.renameCustomShaderFolder(customId, "Club Set"), "rename custom folder");
+
+        // Also assign preset & extra category tab
+        app.toggleShaderFolderAssignment("savefiles/grouped_preset.xml", "custom:" + customId);
+        app.toggleShaderFolderAssignment("shaders/generative/solidcolor.frag", extraCategoryTarget);
+
+        // Persist & reload favorites/folders/assignments
+        app.customShaderFolders.clear();
+        app.shaderFolderAssignments.clear();
+        app.favoritePaths.clear();
+        app.loadFavorites();
+        app.rebuildFavoritesFolder();
+        check(app.isFavorite("shaders/generative/solidcolor.frag"), "favorite reloaded from shader_favorites.xml");
+        check(!app.customShaderFolders.empty() && app.customShaderFolders[0].name == "Club Set", "custom folder name reloaded");
+        check(app.isShaderAssignedToFolder("shaders/generative/solidcolor.frag", "custom:" + customId), "shader custom folder assignment reloaded");
+        check(app.isShaderAssignedToFolder("savefiles/grouped_preset.xml", "custom:" + customId), "preset custom folder assignment reloaded");
+        check(app.isShaderAssignedToFolder("shaders/generative/solidcolor.frag", extraCategoryTarget), "category tab assignment reloaded");
+
+        bool foundInCustomFolder = false;
+        bool foundInExtraCat = false;
+        for (const auto& folder : app.shaderFolders) {
+            if (folder.isCustomFolder && folder.customFolderId == customId) {
+                for (const auto& e : folder.shaders) {
+                    if (e.path == "savefiles/grouped_preset.xml") foundInCustomFolder = true;
+                }
+            }
+            if (folder.path == extraCategoryTarget) {
+                for (const auto& e : folder.shaders) {
+                    if (e.path == "shaders/generative/solidcolor.frag" && e.assignedCopy) foundInExtraCat = true;
+                }
+            }
+        }
+        check(foundInCustomFolder, "custom folder contains assigned preset");
+        check(foundInExtraCat, "extra category folder contains assigned copy of shader");
+
+        check(app.deleteCustomShaderFolder(customId), "delete custom folder");
+        check(app.customShaderFolders.empty(), "custom folder removed");
+
+        app.closeShaderContextMenu();
+        app.shaderSearchText.clear();
+        app.shaderFolderTab.clear();
+        app.enterScreen(app.NODOS);
+        app.boxes.clear();
+        jp::AppPaths::current() = previousPaths;
+        ofSetDataPathRoot(oldDataRoot.string() + "/");
+        std::error_code rmErr;
+        std::filesystem::remove_all(root, rmErr);
+        ofLogNotice("presets-custom-folders") << "passed=" << passed;
+        return passed;
+    }
+
     bool checkStartupCaptureOrientation(ofApp &app) {
         bool passed=true;
         auto check=[&](bool ok,const string &why) {
@@ -3176,6 +3365,7 @@ while True:
 
     if (testMode && string(testMode) == "legacy_composition") return checkLegacyComposition(app);
     if (testMode && string(testMode) == "xml_drop") return checkXmlDrop(app);
+    if (testMode && string(testMode) == "presets_custom_folders") return checkPresetsAndCustomFolders(app);
     if (testMode && string(testMode) == "startup_orientation") return checkStartupCaptureOrientation(app);
     if (testMode && string(testMode) == "transition_orientation") return checkTransitionOrientation(app);
     if (testMode && string(testMode) == "transition_catalog") return checkTransitionCatalog(app);

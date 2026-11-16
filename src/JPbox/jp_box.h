@@ -1,6 +1,8 @@
 #pragma once
 #include "ofMain.h"
 #include <filesystem>
+#include <algorithm>
+#include <cctype>
 #include "../JPutils/jp_app_paths.h"
 
 #include "defines.h"
@@ -12,20 +14,134 @@
 #include "../JPutils/jp_pointer.h"
 #include "../JPgui/jp_toogle.h"
 
-// Normalize a stored file path so sessions saved on Windows (which use '\'
-// separators) load on Linux/macOS. Legacy paths include data/, but OF only
-// recognizes that prefix when its root is the old bin/data directory. With
-// a user profile root it would append data/ a second time.
-inline std::string jp_normalizePath(std::string p) {
-	for (char &c : p) { if (c == '\\') c = '/'; }
-    if (p.compare(0, 7, "./data/") == 0) p.erase(0, 7);
-    else if (p.compare(0, 5, "data/") == 0) p.erase(0, 5);
-    const auto& paths = jp::AppPaths::current();
-    if (!paths.bundle.empty() && std::filesystem::path(p).is_absolute()) {
-        const auto relative = std::filesystem::path(p).lexically_normal().lexically_relative(paths.bundle);
-        if (!relative.empty() && *relative.begin() != "..") return (paths.data / relative).string();
+namespace jp_path_detail {
+inline std::string toForwardSlashes(std::string p) {
+    for (char& c : p) {
+        if (c == '\\') c = '/';
     }
-	return p;
+    return p;
+}
+
+inline std::string toLowerAscii(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return s;
+}
+
+inline std::string stripDataPrefixes(std::string p) {
+    if (p.compare(0, 11, "./bin/data/") == 0) p.erase(0, 11);
+    else if (p.compare(0, 9, "bin/data/") == 0) p.erase(0, 9);
+    else if (p.compare(0, 7, "./data/") == 0) p.erase(0, 7);
+    else if (p.compare(0, 5, "data/") == 0) p.erase(0, 5);
+    return p;
+}
+
+inline bool isWindowsAbsPath(const std::string& p) {
+    return p.size() >= 3 &&
+        std::isalpha(static_cast<unsigned char>(p[0])) &&
+        p[1] == ':' && p[2] == '/';
+}
+
+inline bool isPosixAbsPath(const std::string& p) {
+    return !p.empty() && p[0] == '/';
+}
+
+inline std::string relativeIfInside(const std::string& forwardPath, const std::filesystem::path& base) {
+    if (base.empty()) return {};
+    std::string baseStr = toForwardSlashes(std::filesystem::path(base).lexically_normal().generic_string());
+    while (baseStr.size() > 1 && baseStr.back() == '/') baseStr.pop_back();
+    std::string pathNorm = toForwardSlashes(std::filesystem::path(forwardPath).lexically_normal().generic_string());
+#if defined(_WIN32) || defined(TARGET_WIN32)
+    const std::string lowerPath = toLowerAscii(pathNorm);
+    const std::string lowerBase = toLowerAscii(baseStr);
+    const bool match = lowerPath.compare(0, lowerBase.size(), lowerBase) == 0 &&
+        (lowerPath.size() == lowerBase.size() || lowerPath[lowerBase.size()] == '/');
+#else
+    const bool match = pathNorm.compare(0, baseStr.size(), baseStr) == 0 &&
+        (pathNorm.size() == baseStr.size() || pathNorm[baseStr.size()] == '/');
+#endif
+    if (!match) return {};
+    if (pathNorm.size() == baseStr.size()) return {};
+    std::string rel = pathNorm.substr(baseStr.size() + 1);
+    return stripDataPrefixes(rel);
+}
+} // namespace jp_path_detail
+
+// Normalize a stored file path so sessions saved on Windows (which use '\'
+// separators), macOS, or Linux load across all operating systems. Legacy paths
+// include data/, but OF only recognizes that prefix when its root is the old
+// bin/data directory. With a user profile root it would append data/ twice.
+inline std::string jp_normalizePath(std::string p) {
+    p = jp_path_detail::stripDataPrefixes(jp_path_detail::toForwardSlashes(std::move(p)));
+    const auto& paths = jp::AppPaths::current();
+    if (!paths.bundle.empty() && (std::filesystem::path(p).is_absolute() || jp_path_detail::isWindowsAbsPath(p))) {
+        const auto relBundle = jp_path_detail::relativeIfInside(p, paths.bundle);
+        if (!relBundle.empty()) return (paths.data / std::filesystem::path(relBundle)).generic_string();
+    }
+
+    const bool winAbs = jp_path_detail::isWindowsAbsPath(p);
+    const bool posixAbs = jp_path_detail::isPosixAbsPath(p);
+    if (winAbs || posixAbs) {
+        std::error_code ec;
+        const bool existsLocally = std::filesystem::exists(std::filesystem::path(p), ec);
+        if (!existsLocally) {
+            const std::string lower = jp_path_detail::toLowerAscii(p);
+            const char* markers[] = {
+                "/bin/data/",
+                "/appdata/local/guipper/data/",
+                "/.local/share/guipper/data/",
+                "/.local/share/guipper/",
+                "/application support/guipper/data/"
+            };
+            for (const char* marker : markers) {
+                const auto pos = lower.find(marker);
+                if (pos != std::string::npos) {
+                    const std::string suffix = p.substr(pos + std::char_traits<char>::length(marker));
+                    if (!suffix.empty()) return jp_path_detail::stripDataPrefixes(suffix);
+                }
+            }
+            const bool foreignRoot =
+#if defined(_WIN32) || defined(TARGET_WIN32)
+                posixAbs || winAbs;
+#else
+                winAbs || posixAbs;
+#endif
+            const bool knownPrefix = winAbs ||
+                lower.compare(0, 6, "/home/") == 0 ||
+                lower.compare(0, 7, "/users/") == 0 ||
+                lower.compare(0, 5, "/usr/") == 0 ||
+                lower.compare(0, 5, "/opt/") == 0 ||
+                lower.compare(0, 5, "/var/") == 0 ||
+                lower.compare(0, 5, "/mnt/") == 0 ||
+                lower.compare(0, 7, "/media/") == 0;
+            if (foreignRoot && knownPrefix) {
+                const char* resourceRoots[] = {
+                    "/shaders/", "/savefiles/", "/groups/", "/images/", "/videos/", "/fonts/"
+                };
+                for (const char* root : resourceRoots) {
+                    const auto pos = lower.rfind(root);
+                    if (pos != std::string::npos) {
+                        return p.substr(pos + 1);
+                    }
+                }
+            }
+        }
+    }
+    return p;
+}
+
+// Convert a box path into a portable relative path inside data/ or bundle/
+// when possible so saved XMLs transfer across Windows, Linux, and macOS.
+inline std::string jp_portablePath(std::string p) {
+    p = jp_path_detail::stripDataPrefixes(jp_path_detail::toForwardSlashes(std::move(p)));
+    const auto& paths = jp::AppPaths::current();
+    if (std::filesystem::path(p).is_absolute() || jp_path_detail::isWindowsAbsPath(p)) {
+        const auto relData = jp_path_detail::relativeIfInside(p, paths.data);
+        if (!relData.empty()) return relData;
+        const auto relBundle = jp_path_detail::relativeIfInside(p, paths.bundle);
+        if (!relBundle.empty()) return relBundle;
+    }
+    return p;
 }
 
 // Stable box identity, minted in JPbox's constructor so it is never empty.

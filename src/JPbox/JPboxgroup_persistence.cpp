@@ -100,7 +100,7 @@ ofXml JPboxgroup::snapshotXml()
 		data.appendChild("nombre").set(boxes[i]->name);
 		data.appendChild("x").set(boxes[i]->x);
 		data.appendChild("y").set(boxes[i]->y);
-		data.appendChild("directory").set(boxes[i]->dir);
+		data.appendChild("directory").set(jp_portablePath(boxes[i]->dir));
 		data.appendChild("uid").set(boxes[i]->uid);
 		data.appendChild("tooutput").set(boxes[i]->getOutputCandidate());
 		data.appendChild("onoff").set(boxes[i]->getonoff());
